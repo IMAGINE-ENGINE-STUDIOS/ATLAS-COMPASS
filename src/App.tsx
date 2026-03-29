@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "@/components/AppLayout";
+import LandingPage from "@/pages/LandingPage";
 import DashboardPage from "@/pages/DashboardPage";
 import MarketplacePage from "@/pages/MarketplacePage";
 import CRMPage from "@/pages/CRMPage";
@@ -23,16 +24,21 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/marketplace" element={<MarketplacePage />} />
-            <Route path="/crm" element={<CRMPage />} />
-            <Route path="/erp" element={<ERPPage />} />
-            <Route path="/logistics" element={<LogisticsPage />} />
-            <Route path="/payments" element={<PaymentsPage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+          {/* Public Website */}
+          <Route path="/" element={<LandingPage />} />
+
+          {/* Admin Dashboard */}
+          <Route path="/dashboard" element={<AppLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="marketplace" element={<MarketplacePage />} />
+            <Route path="crm" element={<CRMPage />} />
+            <Route path="erp" element={<ERPPage />} />
+            <Route path="logistics" element={<LogisticsPage />} />
+            <Route path="payments" element={<PaymentsPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

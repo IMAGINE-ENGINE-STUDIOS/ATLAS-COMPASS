@@ -1,20 +1,19 @@
-import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingCart, Users, Package, Truck,
   CreditCard, FolderKanban, ChevronLeft, ChevronRight,
-  Globe, Settings, Bell, Search, Menu
+  Globe, Settings, Bell, Search, ArrowLeft
 } from "lucide-react";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: ShoppingCart, label: "Marketplace", path: "/marketplace" },
-  { icon: Users, label: "CRM", path: "/crm" },
-  { icon: Package, label: "ERP", path: "/erp" },
-  { icon: Truck, label: "Logistics", path: "/logistics" },
-  { icon: CreditCard, label: "Payments", path: "/payments" },
-  { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+  { icon: ShoppingCart, label: "Marketplace", path: "/dashboard/marketplace" },
+  { icon: Users, label: "CRM", path: "/dashboard/crm" },
+  { icon: Package, label: "ERP", path: "/dashboard/erp" },
+  { icon: Truck, label: "Logistics", path: "/dashboard/logistics" },
+  { icon: CreditCard, label: "Payments", path: "/dashboard/payments" },
+  { icon: FolderKanban, label: "Projects", path: "/dashboard/projects" },
+  { icon: Settings, label: "Settings", path: "/dashboard/settings" },
 ];
 
 export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -24,12 +23,12 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
     <aside className={`fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-all duration-300 ${collapsed ? "w-16" : "w-60"}`}>
       <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
         {!collapsed && (
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <Globe className="w-7 h-7 text-primary" />
             <span className="text-lg font-bold text-gradient tracking-tight">NEXUS</span>
-          </div>
+          </Link>
         )}
-        {collapsed && <Globe className="w-7 h-7 text-primary mx-auto" />}
+        {collapsed && <Link to="/"><Globe className="w-7 h-7 text-primary mx-auto" /></Link>}
         <button onClick={onToggle} className="ml-auto text-sidebar-foreground hover:text-primary transition-colors">
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
@@ -37,7 +36,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
       <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
+          const isActive = location.pathname === item.path || (item.path !== "/dashboard" && location.pathname.startsWith(item.path));
           return (
             <Link
               key={item.path}
@@ -54,6 +53,14 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
           );
         })}
       </nav>
+
+      {/* Back to Website */}
+      <div className="px-2 pb-2">
+        <Link to="/" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all">
+          <ArrowLeft className="w-5 h-5 flex-shrink-0 text-muted-foreground" />
+          {!collapsed && <span>Back to Site</span>}
+        </Link>
+      </div>
 
       <div className="p-4 border-t border-sidebar-border">
         <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
