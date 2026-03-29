@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import heroBg from "@/assets/hero-cockpit.png";
 import {
   Globe, ArrowRight, ShoppingCart, Users, Truck, CreditCard,
   BarChart3, Shield, Zap, Package, ChevronRight, ArrowUpRight,
-  Layers, Building, Ship, Plane, TrendingUp, Star
+  Layers, Building, Ship, Plane, TrendingUp, Star, Menu, X
 } from "lucide-react";
 
 const fadeUp = {
@@ -17,13 +18,25 @@ const stagger = {
   show: { opacity: 1, transition: { staggerChildren: 0.12, delayChildren: 0.2 } },
 };
 
+const glowPulse = {
+  animate: {
+    boxShadow: [
+      "0 0 20px hsl(185 80% 50% / 0.1)",
+      "0 0 60px hsl(185 80% 50% / 0.2)",
+      "0 0 20px hsl(185 80% 50% / 0.1)",
+    ],
+    transition: { duration: 3, repeat: Infinity },
+  },
+};
+
 function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6 }}
-      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/70 border-b border-border/50"
+      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/40 border-b border-border/30"
     >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5">
@@ -50,8 +63,18 @@ function Navbar() {
               Get Started
             </motion.button>
           </Link>
+          <button className="md:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
+            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
       </div>
+      {mobileOpen && (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="md:hidden bg-background/95 backdrop-blur-xl border-t border-border/30 px-6 py-4 space-y-3">
+          {["Platform", "Marketplace", "Enterprise", "Logistics", "Payments"].map((item) => (
+            <a key={item} href={`#${item.toLowerCase()}`} onClick={() => setMobileOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-2">{item}</a>
+          ))}
+        </motion.div>
+      )}
     </motion.nav>
   );
 }
@@ -59,108 +82,127 @@ function Navbar() {
 function HeroSection() {
   const ref = useRef(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  const y = useTransform(scrollYProgress, [0, 1], [0, 150]);
-  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
+  const y = useTransform(scrollYProgress, [0, 1], [0, 100]);
+  const contentOpacity = useTransform(scrollYProgress, [0, 0.4], [1, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.5], [1, 1.1]);
 
   return (
-    <section ref={ref} className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
-      {/* Ambient Background */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full bg-primary/8 blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-accent/8 blur-[100px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-primary/3 blur-[200px]" />
-      </div>
+    <section ref={ref} className="relative h-screen overflow-hidden">
+      {/* Cockpit Background */}
+      <motion.div style={{ scale }} className="absolute inset-0">
+        <img
+          src={heroBg}
+          alt="NEXUS Command Center"
+          className="w-full h-full object-cover object-center"
+        />
+        {/* Dark overlay for readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-transparent to-background/90" />
+        <div className="absolute inset-0 bg-background/20" />
+      </motion.div>
 
-      {/* Grid Pattern */}
-      <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
-
-      <motion.div style={{ y, opacity }} className="relative z-10 max-w-6xl mx-auto px-6 text-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        >
+      {/* Content positioned in the "screen" area of the cockpit */}
+      <motion.div style={{ y, opacity: contentOpacity }} className="relative z-10 h-full flex flex-col items-center justify-center px-6">
+        {/* Main hero content — positioned to appear "on screen" */}
+        <div className="max-w-4xl mx-auto text-center -mt-[5vh]">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-mono uppercase tracking-[0.2em] mb-8"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            The Future of Global Commerce
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 backdrop-blur-md text-primary text-xs font-mono uppercase tracking-[0.2em] mb-6"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              StartupFactoryHub Global Command
+            </motion.div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-foreground tracking-tight leading-[0.95]">
-            <span className="block">Where Supply</span>
-            <span className="block text-gradient mt-2">Meets Demand</span>
-            <span className="block text-muted-foreground/60 text-4xl sm:text-5xl md:text-6xl lg:text-7xl mt-2">Into Infinity.</span>
-          </h1>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-foreground tracking-tight leading-[0.95] drop-shadow-2xl">
+              <motion.span
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6, duration: 0.8 }}
+                className="block"
+              >
+                Where Supply
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.75, duration: 0.8 }}
+                className="block text-gradient mt-1"
+              >
+                Meets Demand
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.9, duration: 0.8 }}
+                className="block text-foreground/50 text-3xl sm:text-4xl md:text-5xl mt-2 font-light"
+              >
+                Into Infinity.
+              </motion.span>
+            </h1>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="text-lg md:text-xl text-muted-foreground mt-8 max-w-2xl mx-auto leading-relaxed"
-          >
-            The world's most advanced B2B & B2C marketplace. Source from primary sectors 
-            to industry to services. One platform for the entire global economic arena.
-          </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.1 }}
+              className="text-base md:text-lg text-foreground/70 mt-6 max-w-xl mx-auto leading-relaxed drop-shadow-lg"
+            >
+              The world's most advanced B2B & B2C marketplace. One command center 
+              for the entire global economic arena.
+            </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10"
-          >
-            <Link to="/dashboard">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.3 }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8"
+            >
+              <Link to="/dashboard">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  animate={glowPulse.animate}
+                  className="px-8 py-3.5 gradient-primary text-primary-foreground rounded-full text-sm font-semibold flex items-center gap-2"
+                >
+                  Enter Command Center <ArrowRight className="w-4 h-4" />
+                </motion.button>
+              </Link>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="px-8 py-4 gradient-primary text-primary-foreground rounded-full text-base font-semibold shadow-xl shadow-primary/30 flex items-center gap-2"
+                className="px-8 py-3.5 bg-card/30 backdrop-blur-md border border-border/50 rounded-full text-sm font-medium text-foreground hover:border-primary/30 transition-colors"
               >
-                Enter Platform <ArrowRight className="w-5 h-5" />
+                Watch Demo
               </motion.button>
-            </Link>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 bg-card border border-border rounded-full text-base font-medium text-foreground hover:border-primary/30 transition-colors"
-            >
-              Watch Demo
-            </motion.button>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        </div>
 
-        {/* Live Stats Ticker */}
+        {/* Live Stats — bottom of viewport, like a HUD overlay */}
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1, duration: 0.7 }}
-          className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto"
+          transition={{ delay: 1.6, duration: 0.7 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-3xl px-6"
         >
-          {[
-            { label: "Trade Volume", value: "$847M+" },
-            { label: "Countries", value: "194" },
-            { label: "Active Merchants", value: "12,847" },
-            { label: "Products Listed", value: "2.4M+" },
-          ].map((stat) => (
-            <div key={stat.label} className="text-center">
-              <p className="text-2xl md:text-3xl font-mono font-bold text-foreground">{stat.value}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mt-1">{stat.label}</p>
-            </div>
-          ))}
-        </motion.div>
-      </motion.div>
-
-      {/* Scroll Indicator */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.5 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2"
-      >
-        <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.5, repeat: Infinity }} className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1.5">
-          <div className="w-1 h-2 rounded-full bg-primary" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-card/20 backdrop-blur-xl rounded-2xl border border-border/30 p-4">
+            {[
+              { label: "Trade Volume", value: "$847M+" },
+              { label: "Countries", value: "194" },
+              { label: "Active Merchants", value: "12,847" },
+              { label: "Products Listed", value: "2.4M+" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <p className="text-xl md:text-2xl font-mono font-bold text-foreground">{stat.value}</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-[0.2em] mt-0.5">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         </motion.div>
       </motion.div>
     </section>
@@ -192,7 +234,7 @@ function PlatformSection() {
         </motion.div>
 
         <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-50px" }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {features.map((f, i) => (
+          {features.map((f) => (
             <motion.div
               key={f.title}
               variants={fadeUp}
@@ -240,7 +282,7 @@ function SectorsSection() {
               <span className="text-gradient">To Final Product.</span>
             </motion.h2>
             <motion.p variants={fadeUp} className="text-lg text-muted-foreground mt-6 leading-relaxed">
-              NEXUS connects every node in the global supply chain — from primary extraction to industrial processing to consumer delivery. The complete economic cycle, digitized.
+              NEXUS connects every node in the global supply chain — from primary extraction to industrial processing to consumer delivery.
             </motion.p>
             <motion.div variants={fadeUp} className="mt-8">
               <Link to="/dashboard/marketplace">
@@ -252,7 +294,7 @@ function SectorsSection() {
           </div>
 
           <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }} className="space-y-4">
-            {sectors.map((s, i) => (
+            {sectors.map((s) => (
               <motion.div
                 key={s.name}
                 variants={fadeUp}
@@ -464,7 +506,7 @@ function Footer() {
             <Globe className="w-5 h-5 text-primary" />
             <span className="text-sm font-bold text-gradient">NEXUS</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-4 md:mt-0">© 2026 NEXUS Global Commerce Platform. All rights reserved.</p>
+          <p className="text-xs text-muted-foreground mt-4 md:mt-0">© 2026 NEXUS Global Commerce Platform. Powered by StartupFactoryHub.</p>
         </div>
       </div>
     </footer>
