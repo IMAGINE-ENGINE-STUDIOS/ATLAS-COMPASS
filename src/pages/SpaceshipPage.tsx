@@ -314,6 +314,15 @@ export default function SpaceshipPage() {
   }, []);
 
   /* ── Journey Navigation ── */
+  const stopJourney = useCallback(() => {
+    if (journeyTimerRef.current) {
+      clearInterval(journeyTimerRef.current);
+      journeyTimerRef.current = null;
+    }
+    setJourneyActive(false);
+    setJourneyProgress(0);
+  }, []);
+
   const startJourney = useCallback(() => {
     const coords = routeCoordsRef.current;
     if (coords.length < 2 || !viewerRef.current) return;
@@ -324,7 +333,6 @@ export default function SpaceshipPage() {
 
     const viewer = viewerRef.current;
     
-    // Position camera at start looking along route
     const moveCamera = (i: number) => {
       if (i >= coords.length - 1) {
         stopJourney();
@@ -334,7 +342,6 @@ export default function SpaceshipPage() {
       const nextIdx = Math.min(i + Math.max(1, Math.floor(coords.length / 200)), coords.length - 1);
       const [nLng, nLat] = coords[nextIdx];
       
-      // Calculate heading from current to next point
       const dLng = nLng - lng;
       const dLat = nLat - lat;
       const heading = Math.atan2(dLng, dLat) * (180 / Math.PI);
@@ -350,11 +357,9 @@ export default function SpaceshipPage() {
       setJourneyProgress(Math.round((i / (coords.length - 1)) * 100));
     };
 
-    // Start at beginning
     moveCamera(0);
 
-    // Advance along route
-    const speed = Math.max(1, Math.floor(coords.length / 300)); // points per tick
+    const speed = Math.max(1, Math.floor(coords.length / 300));
     journeyTimerRef.current = setInterval(() => {
       idx += speed;
       if (idx >= coords.length - 1) {
@@ -366,15 +371,6 @@ export default function SpaceshipPage() {
       }
     }, 100);
   }, [stopJourney]);
-
-  const stopJourney = useCallback(() => {
-    if (journeyTimerRef.current) {
-      clearInterval(journeyTimerRef.current);
-      journeyTimerRef.current = null;
-    }
-    setJourneyActive(false);
-    setJourneyProgress(0);
-  }, []);
 
   const clearRoute = useCallback(() => {
     stopJourney();
