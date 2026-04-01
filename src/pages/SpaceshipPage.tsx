@@ -552,7 +552,8 @@ export default function SpaceshipPage() {
   /* ── Tile Brush / 3D Model Placement ── */
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
     if (!viewerRef.current) return;
-    const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt);
+    // Place at ground level (alt=0) and clamp to terrain/3D tiles
+    const position = Cartesian3.fromDegrees(model.lng, model.lat, 0);
     const hpr = new HeadingPitchRoll(CesiumMath.toRadians(model.heading), 0, 0);
     const orientation = Transforms.headingPitchRollQuaternion(position, hpr);
 
@@ -566,6 +567,7 @@ export default function SpaceshipPage() {
         scale: model.scale,
         minimumPixelSize: 64,
         maximumScale: 20000,
+        heightReference: 1, // CLAMP_TO_GROUND
       } as any,
       label: {
         text: `🏗️ ${model.name}`, font: "12px Inter, sans-serif",
