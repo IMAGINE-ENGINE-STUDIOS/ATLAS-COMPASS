@@ -1536,38 +1536,61 @@ out center 15;`;
           <AnimatePresence>
             {showCargoRoutes && (
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="absolute bottom-24 left-4 z-30"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="absolute bottom-24 left-4 z-30 w-72"
               >
-                <GlassPanel className="p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Ship className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-bold text-white">Cargo Routes</span>
-                    <span className="text-[9px] text-white/30 ml-auto font-mono">{ALL_CARGO_ROUTES.length} routes</span>
+                <GlassPanel className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Ship className="w-5 h-5 text-amber-400" />
+                    <span className="text-sm font-bold text-white">Global Cargo Traffic</span>
+                    <button onClick={() => setShowCargoRoutes(false)} className="ml-auto">
+                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    </button>
                   </div>
-                  <div className="flex gap-1.5">
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2.5 text-center">
+                      <div className="text-lg font-bold font-mono text-blue-400">{MARITIME_VESSEL_COUNT}</div>
+                      <div className="text-[9px] text-blue-400/60 uppercase tracking-wider">🚢 Ships Active</div>
+                    </div>
+                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2.5 text-center">
+                      <div className="text-lg font-bold font-mono text-pink-400">{AIR_VESSEL_COUNT}</div>
+                      <div className="text-[9px] text-pink-400/60 uppercase tracking-wider">✈ Planes Active</div>
+                    </div>
+                  </div>
+
+                  {/* Filter */}
+                  <div className="flex gap-1.5 mb-3">
                     {(["all", "maritime", "air"] as const).map((f) => (
                       <button
                         key={f}
                         onClick={() => setCargoFilter(f)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase transition-colors ${
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-all ${
                           cargoFilter === f
-                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
-                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                            : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:text-white/70"
+                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_12px_rgba(59,130,246,0.15)]"
+                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
+                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                            : "bg-white/[0.04] text-white/30 border border-white/[0.06] hover:text-white/60"
                         }`}
                       >
-                        {f === "all" ? `All (${ALL_CARGO_ROUTES.length})` : f === "maritime" ? `Maritime (${ALL_CARGO_ROUTES.filter(r => r.type === "maritime").length})` : `Air (${ALL_CARGO_ROUTES.filter(r => r.type === "air").length})`}
+                        {f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Route count */}
+                  <div className="flex items-center justify-between text-[9px] text-white/30 font-mono">
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes shown</span>
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + (r.vessels || 0), 0)} active vessels</span>
                   </div>
                 </GlassPanel>
               </motion.div>
             )}
           </AnimatePresence>
+
 
           {/* ── DIRECTIONS PANEL ── */}
           <AnimatePresence>
