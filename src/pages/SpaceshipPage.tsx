@@ -6,8 +6,11 @@ import {
   Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
-  Move, Scale, Box
+  Move, Scale, Box, AlertCircle, Loader2
 } from "lucide-react";
+import {
+  ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
+} from "@/lib/model-converter";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -193,6 +196,9 @@ export default function SpaceshipPage() {
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [modelName, setModelName] = useState("");
+  const [convertingModel, setConvertingModel] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [convertProgress, setConvertProgress] = useState<string>("");
   const [modelScale, setModelScale] = useState(1);
   const [modelHeading, setModelHeading] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -561,33 +567,42 @@ export default function SpaceshipPage() {
     });
   }, []);
 
-  const confirmModelPlacement = useCallback(() => {
+  const confirmModelPlacement = useCallback(async () => {
     if (!pendingPlacement || !modelFile || !modelName.trim()) return;
 
-    const blobUrl = URL.createObjectURL(modelFile);
-    const newModel: PlacedModel = {
-      id: crypto.randomUUID(),
-      name: modelName.trim(),
-      fileName: modelFile.name,
-      lat: pendingPlacement.lat,
-      lng: pendingPlacement.lng,
-      alt: pendingPlacement.alt,
-      heading: modelHeading,
-      scale: modelScale,
-      createdAt: Date.now(),
-    };
+    setConvertingModel(true);
+    setConvertError(null);
+    try {
+      const blobUrl = await convertToGltfBlobUrl(modelFile, setConvertProgress);
+      const newModel: PlacedModel = {
+        id: crypto.randomUUID(),
+        name: modelName.trim(),
+        fileName: modelFile.name,
+        lat: pendingPlacement.lat,
+        lng: pendingPlacement.lng,
+        alt: pendingPlacement.alt,
+        heading: modelHeading,
+        scale: modelScale,
+        createdAt: Date.now(),
+      };
 
-    modelUrlsRef.current.set(newModel.id, blobUrl);
-    placeModelOnGlobe(newModel, blobUrl);
+      modelUrlsRef.current.set(newModel.id, blobUrl);
+      placeModelOnGlobe(newModel, blobUrl);
 
-    const updated = [...placedModels, newModel];
-    setPlacedModels(updated);
-    savePlacedModels(updated);
-    setPendingPlacement(null);
-    setModelFile(null);
-    setModelName("");
-    setModelScale(1);
-    setModelHeading(0);
+      const updated = [...placedModels, newModel];
+      setPlacedModels(updated);
+      savePlacedModels(updated);
+      setPendingPlacement(null);
+      setModelFile(null);
+      setModelName("");
+      setModelScale(1);
+      setModelHeading(0);
+      setConvertProgress("");
+    } catch (err: any) {
+      setConvertError(err.message || "Failed to convert model");
+    } finally {
+      setConvertingModel(false);
+    }
   }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe]);
 
   const deleteModel = useCallback((id: string) => {
@@ -615,7 +630,8 @@ export default function SpaceshipPage() {
     const file = e.target.files?.[0];
     if (file) {
       setModelFile(file);
-      if (!modelName) setModelName(file.name.replace(/\.(glb|gltf|obj|fbx|3ds)$/i, ""));
+      setConvertError(null);
+      if (!modelName) setModelName(file.name.replace(/\.[^.]+$/, ""));
     }
   }, [modelName]);
 
@@ -655,7 +671,7 @@ export default function SpaceshipPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".glb,.gltf,.obj,.fbx,.3ds"
+        accept={ACCEPT_STRING}
         className="hidden"
         onChange={handleFileUpload}
       />
@@ -941,16 +957,35 @@ export default function SpaceshipPage() {
                       <div className="flex items-center gap-3 justify-center">
                         <Box className="w-5 h-5 text-emerald-400" />
                         <div className="text-left">
-                          <p className="text-sm text-white font-medium">{modelFile.name}</p>
-                          <p className="text-[10px] text-white/30">{(modelFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <p className="text-sm text-white font-medium truncate max-w-[200px]">{modelFile.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] text-white/30">{(modelFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                              getFormatCategory(modelFile.name) === "native" ? "bg-emerald-500/20 text-emerald-400" :
+                              getFormatCategory(modelFile.name) === "convertible" ? "bg-amber-500/20 text-amber-400" :
+                              "bg-red-500/20 text-red-400"
+                            }`}>
+                              {getFormatLabel(modelFile.name)}
+                              {getFormatCategory(modelFile.name) === "convertible" && " → glTF"}
+                              {getFormatCategory(modelFile.name) === "unsupported" && " ⚠"}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ) : (
                       <>
                         <Upload className="w-8 h-8 text-white/20 mx-auto mb-2" />
                         <p className="text-sm text-white/40">Upload 3D Model</p>
-                        <p className="text-[10px] text-white/20 mt-1">GLB, glTF, OBJ, FBX</p>
+                        <p className="text-[10px] text-white/20 mt-1 leading-relaxed">
+                          glTF · OBJ · FBX · STL · PLY · DAE · AutoCAD · SketchUp · Blender · Unreal & more
+                        </p>
                       </>
+                    )}
+                    {convertError && (
+                      <div className="mt-2 flex items-start gap-2 text-left bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-red-300">{convertError}</p>
+                      </div>
                     )}
                   </div>
 
@@ -996,10 +1031,14 @@ export default function SpaceshipPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={confirmModelPlacement}
-                      disabled={!modelFile || !modelName.trim()}
+                      disabled={!modelFile || !modelName.trim() || convertingModel}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-sm font-medium text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      <Check className="w-4 h-4" /> Place Model
+                      {convertingModel ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> {convertProgress || "Converting..."}</>
+                      ) : (
+                        <><Check className="w-4 h-4" /> Place Model</>
+                      )}
                     </button>
                     <button
                       onClick={() => { setPendingPlacement(null); setModelFile(null); setModelName(""); }}
