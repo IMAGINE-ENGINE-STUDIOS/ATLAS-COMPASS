@@ -197,6 +197,9 @@ export default function SpaceshipPage() {
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [modelName, setModelName] = useState("");
+  const [convertingModel, setConvertingModel] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [convertProgress, setConvertProgress] = useState<string>("");
   const [modelScale, setModelScale] = useState(1);
   const [modelHeading, setModelHeading] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
