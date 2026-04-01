@@ -27,7 +27,7 @@ const App = () => (
         <Routes>
           {/* Public Website */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/explore" element={<SpaceExperience />} />
+          <Route path="/explore" element={<SpaceshipPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>

@@ -68,7 +68,7 @@ export default function SpaceshipPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState(true);
-  const [showTerrain, setShowTerrain] = useState(true);
+  const [_showTerrain, _setShowTerrain] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
   const [cameraAlt, setCameraAlt] = useState(0);
