@@ -266,6 +266,12 @@ export default function SpaceshipPage() {
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
 
+  // Real-time aircraft & ship tracking
+  const [showLiveTraffic, setShowLiveTraffic] = useState(false);
+  const [liveTrafficStats, setLiveTrafficStats] = useState({ planes: 0, ships: 0 });
+  const liveTrafficEntitiesRef = useRef<any[]>([]);
+  const liveTrafficTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
