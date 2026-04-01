@@ -250,6 +250,11 @@ export default function SpaceshipPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Cargo routes state
+  const [showCargoRoutes, setShowCargoRoutes] = useState(false);
+  const [cargoFilter, setCargoFilter] = useState<"all" | "maritime" | "air">("all");
+  const cargoEntitiesRef = useRef<any[]>([]);
+
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
