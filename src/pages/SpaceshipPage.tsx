@@ -529,6 +529,101 @@ export default function SpaceshipPage() {
             )}
           </AnimatePresence>
 
+          {/* POI Naming Dialog */}
+          <AnimatePresence>
+            {namingPOI && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-sm px-4"
+              >
+                <GlassPanel className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MapPin className="w-5 h-5 text-yellow-400" />
+                    <h3 className="text-sm font-bold text-white">Name This Point</h3>
+                  </div>
+                  <p className="text-[10px] text-white/40 font-mono mb-3">
+                    {namingPOI.lat.toFixed(6)}, {namingPOI.lng.toFixed(6)} · {formatAlt(namingPOI.alt)}
+                  </p>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={poiName}
+                    onChange={(e) => setPoiName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") confirmPOI(); if (e.key === "Escape") setNamingPOI(null); }}
+                    placeholder="e.g. My Office, Warehouse #3, Meeting Point..."
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/20 transition-colors"
+                  />
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={confirmPOI}
+                      disabled={!poiName.trim()}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded-xl text-sm font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <Check className="w-4 h-4" /> Save Point
+                    </button>
+                    <button
+                      onClick={() => setNamingPOI(null)}
+                      className="px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* POI List Panel */}
+          <AnimatePresence>
+            {poisPanelOpen && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="absolute top-20 right-4 z-30 w-80"
+              >
+                <GlassPanel className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-yellow-400" />
+                      <span className="text-sm font-bold text-white">Interest Points</span>
+                      <span className="text-[10px] text-white/30 font-mono">({pois.length})</span>
+                    </div>
+                    <button onClick={() => setPoisPanelOpen(false)}>
+                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    </button>
+                  </div>
+                  {pois.length === 0 ? (
+                    <p className="text-xs text-white/30 text-center py-6">Double-click anywhere on Earth to create a point of interest</p>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto space-y-1">
+                      {pois.map((poi) => (
+                        <div key={poi.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] group transition-colors">
+                          <button onClick={() => flyToPOI(poi)} className="flex-1 flex items-center gap-3 text-left min-w-0">
+                            <MapPin className="w-4 h-4 text-yellow-400 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{poi.name}</p>
+                              <p className="text-[10px] text-white/30 font-mono">{poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => deletePOI(poi.id)}
+                            className="p-1 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Delete point"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Bottom HUD — Coordinates & Camera Info */}
           <motion.div
             initial={{ y: 40, opacity: 0 }}
