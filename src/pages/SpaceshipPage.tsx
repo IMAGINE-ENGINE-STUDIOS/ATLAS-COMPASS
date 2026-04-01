@@ -456,6 +456,13 @@ export default function SpaceshipPage() {
                     <Globe className="w-4 h-4" />
                   </button>
                   <button
+                    onClick={() => setPoisPanelOpen(!poisPanelOpen)}
+                    className={`p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Interest Points"
+                  >
+                    <MapPin className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
                     title="Fullscreen"
