@@ -210,50 +210,135 @@ function HeroSection() {
 }
 
 function PlatformSection() {
-  const features = [
-    { icon: ShoppingCart, title: "Global Marketplace", desc: "Multi-sector B2B & B2C exchange across every industry — raw materials, energy, manufacturing, technology, agriculture, and services.", color: "from-primary/20 to-primary/5" },
-    { icon: Users, title: "Enterprise CRM", desc: "Relationship intelligence that outperforms Salesforce. Track $585M+ in pipeline across every continent and sector.", color: "from-accent/20 to-accent/5" },
-    { icon: Layers, title: "Full ERP Suite", desc: "Inventory, procurement, invoicing, and finance — managing $1.24B in tracked assets across every warehouse.", color: "from-success/20 to-success/5" },
-    { icon: Truck, title: "Logistics Command", desc: "Real-time cargo tracking across sea, air, and land. 8,421 active shipments, 98.7% on-time delivery.", color: "from-warning/20 to-warning/5" },
-    { icon: CreditCard, title: "Payments & Banking", desc: "Powered by Checkout.com — merchant services, card issuing, intelligent acceptance, and multi-currency settlement.", color: "from-primary/20 to-accent/5" },
-    { icon: BarChart3, title: "Intelligence Hub", desc: "Real-time analytics, market feeds, commodity tracking, and AI-driven insights across 194 global markets.", color: "from-accent/20 to-primary/5" },
+  const nodes = [
+    { id: "marketplace", icon: ShoppingCart, title: "Marketplace", desc: "B2B & B2C exchange", x: "50%", y: "8%" },
+    { id: "crm", icon: Users, title: "CRM", desc: "Pipeline intelligence", x: "18%", y: "35%" },
+    { id: "erp", icon: Layers, title: "ERP Suite", desc: "Assets & finance", x: "82%", y: "35%" },
+    { id: "logistics", icon: Truck, title: "Logistics", desc: "Global cargo tracking", x: "12%", y: "68%" },
+    { id: "payments", icon: CreditCard, title: "Payments", desc: "Checkout.com powered", x: "50%", y: "55%" },
+    { id: "intel", icon: BarChart3, title: "Intelligence", desc: "AI-driven insights", x: "88%", y: "68%" },
   ];
+
+  const connections = [
+    { from: "marketplace", to: "crm" }, { from: "marketplace", to: "erp" },
+    { from: "crm", to: "logistics" }, { from: "crm", to: "payments" },
+    { from: "erp", to: "payments" }, { from: "erp", to: "intel" },
+    { from: "logistics", to: "payments" }, { from: "payments", to: "intel" },
+  ];
+
+  const nodePositions: Record<string, { x: number; y: number }> = {
+    marketplace: { x: 50, y: 8 }, crm: { x: 18, y: 35 }, erp: { x: 82, y: 35 },
+    logistics: { x: 12, y: 68 }, payments: { x: 50, y: 55 }, intel: { x: 88, y: 68 },
+  };
 
   return (
     <section id="platform" className="py-32 px-6 relative">
       <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, hsl(var(--foreground)) 1px, transparent 0)", backgroundSize: "40px 40px" }} />
       <div className="max-w-7xl mx-auto relative z-10">
-        <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="text-center mb-20">
+        <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="text-center mb-16">
           <motion.span variants={fadeUp} className="text-xs font-mono uppercase tracking-[0.3em] text-primary">Platform</motion.span>
           <motion.h2 variants={fadeUp} className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mt-4 tracking-tight">
-            Everything. <span className="text-gradient">Everywhere.</span>
+            Everything. <span className="text-gradient">Connected.</span>
           </motion.h2>
           <motion.p variants={fadeUp} className="text-lg text-muted-foreground mt-6 max-w-2xl mx-auto">
-            A complete operating system for the world's economy. Every tool, every sector, one platform.
+            A living ecosystem where every module feeds into the next — an integrated nervous system for the world's economy.
           </motion.p>
         </motion.div>
 
-        <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-50px" }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {features.map((f) => (
+        {/* Flow Diagram */}
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={stagger}
+          className="relative w-full aspect-[16/10] max-h-[600px]"
+        >
+          {/* SVG Connection Lines */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
+                <stop offset="50%" stopColor="hsl(var(--primary))" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
+              </linearGradient>
+            </defs>
+            {connections.map((c, i) => {
+              const from = nodePositions[c.from];
+              const to = nodePositions[c.to];
+              return (
+                <motion.line
+                  key={i}
+                  x1={from.x} y1={from.y + 5}
+                  x2={to.x} y2={to.y}
+                  stroke="url(#lineGrad)"
+                  strokeWidth="0.15"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  whileInView={{ pathLength: 1, opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 1.2, delay: 0.3 + i * 0.1, ease: "easeInOut" }}
+                />
+              );
+            })}
+            {/* Animated pulse dots traveling along lines */}
+            {connections.map((c, i) => {
+              const from = nodePositions[c.from];
+              const to = nodePositions[c.to];
+              return (
+                <motion.circle
+                  key={`pulse-${i}`}
+                  r="0.4"
+                  fill="hsl(var(--primary))"
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: [0, 1, 1, 0] }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 2.5, delay: 1.5 + i * 0.2, repeat: Infinity, repeatDelay: 3 }}
+                >
+                  <animateMotion
+                    dur={`${2.5 + i * 0.3}s`}
+                    repeatCount="indefinite"
+                    begin={`${1.5 + i * 0.2}s`}
+                    path={`M ${from.x} ${from.y + 5} L ${to.x} ${to.y}`}
+                  />
+                </motion.circle>
+              );
+            })}
+          </svg>
+
+          {/* Nodes */}
+          {nodes.map((node, i) => (
             <motion.div
-              key={f.title}
-              variants={fadeUp}
-              whileHover={{ y: -8, transition: { duration: 0.25 } }}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 cursor-pointer hover:border-primary/20 transition-all duration-500"
+              key={node.id}
+              initial={{ opacity: 0, scale: 0.5 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.15 * i, type: "spring", stiffness: 200 }}
+              whileHover={{ scale: 1.12, zIndex: 20 }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer"
+              style={{ left: node.x, top: node.y }}
             >
-              <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 bg-gradient-to-br ${f.color}`} />
-              <div className="relative z-10">
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
-                  <f.icon className="w-7 h-7 text-primary" />
+              {/* Glow ring */}
+              <motion.div
+                className="absolute inset-0 rounded-2xl bg-primary/20 blur-xl"
+                animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+                transition={{ duration: 3, repeat: Infinity, delay: i * 0.4 }}
+              />
+              {/* Card */}
+              <div className="relative bg-card/60 backdrop-blur-xl border border-border/50 rounded-2xl p-4 md:p-5 min-w-[120px] md:min-w-[160px] text-center group-hover:border-primary/40 group-hover:shadow-[0_0_30px_hsl(var(--primary)/0.15)] transition-all duration-500">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2 group-hover:bg-primary/20 transition-colors">
+                  <node.icon className="w-5 h-5 md:w-6 md:h-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">{f.title}</h3>
-                <p className="text-sm text-muted-foreground mt-3 leading-relaxed">{f.desc}</p>
-                <div className="flex items-center gap-1 mt-6 text-xs font-semibold text-primary opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-                  Learn more <ArrowUpRight className="w-3 h-3" />
-                </div>
+                <h3 className="text-sm md:text-base font-bold text-foreground">{node.title}</h3>
+                <p className="text-[10px] md:text-xs text-muted-foreground mt-1">{node.desc}</p>
               </div>
             </motion.div>
           ))}
+
+          {/* Central pulsing core */}
+          <motion.div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary"
+            animate={{ scale: [1, 2, 1], opacity: [0.8, 0.2, 0.8] }}
+            transition={{ duration: 2.5, repeat: Infinity }}
+          />
         </motion.div>
       </div>
     </section>
