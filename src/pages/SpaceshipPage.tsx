@@ -1312,6 +1312,19 @@ export default function SpaceshipPage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* POI Naming Dialog */}
+          <AnimatePresence>
+            {namingPOI && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-sm px-4"
+              >
+                <GlassPanel className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MapPin className="w-5 h-5 text-yellow-400" />
                     <h3 className="text-sm font-bold text-white">Create Point of Interest</h3>
                   </div>
                   <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-4">
