@@ -306,12 +306,14 @@ export default function SpaceshipPage() {
       duration: 0,
     });
 
-    // Mouse move handler for coordinates
+    // Mouse move handler for coordinates + brush indicator
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((movement: any) => {
       const ray = viewer.camera.getPickRay(movement.endPosition);
       if (ray) {
-        const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+        // Try scene.pickPosition first (works with 3D tiles when globe hidden)
+        const cartesian = viewer.scene.pickPosition(movement.endPosition) 
+          || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
         if (defined(cartesian)) {
           const carto = Cartographic.fromCartesian(cartesian);
           setCursorInfo({
@@ -319,6 +321,10 @@ export default function SpaceshipPage() {
             lng: CesiumMath.toDegrees(carto.longitude),
             alt: carto.height,
           });
+          // Update brush indicator position
+          if (brushIndicatorRef.current) {
+            brushIndicatorRef.current.position = cartesian;
+          }
         }
       }
     }, ScreenSpaceEventType.MOUSE_MOVE);
@@ -327,7 +333,8 @@ export default function SpaceshipPage() {
     handler.setInputAction((click: any) => {
       const ray = viewer.camera.getPickRay(click.position);
       if (!ray) return;
-      const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+      const cartesian = viewer.scene.pickPosition(click.position)
+        || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
       if (!defined(cartesian)) return;
       const carto = Cartographic.fromCartesian(cartesian);
       const loc = {
