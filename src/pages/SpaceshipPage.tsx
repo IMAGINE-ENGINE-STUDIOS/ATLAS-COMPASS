@@ -21,6 +21,7 @@ import {
   defined,
   HeadingPitchRoll, Transforms,
   Cartesian2, Cesium3DTileset,
+  PolylineGlowMaterialProperty, CallbackProperty, JulianDate,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
