@@ -631,7 +631,8 @@ export default function SpaceshipPage() {
     const file = e.target.files?.[0];
     if (file) {
       setModelFile(file);
-      if (!modelName) setModelName(file.name.replace(/\.(glb|gltf|obj|fbx|3ds)$/i, ""));
+      setConvertError(null);
+      if (!modelName) setModelName(file.name.replace(/\.[^.]+$/, ""));
     }
   }, [modelName]);
 
