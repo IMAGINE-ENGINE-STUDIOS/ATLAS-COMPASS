@@ -2378,12 +2378,22 @@ out center 15;`;
                     <p className="text-sm font-mono text-white">{formatAlt(cameraAlt)}</p>
                   </div>
                   <div className="w-px h-8 bg-white/10" />
-                  <Satellite className="w-4 h-4 text-primary shrink-0" />
                   <div>
-                    <p className="text-[9px] text-white/30 uppercase tracking-wider">Mode</p>
-                    <p className="text-sm font-mono text-white">
-                      {brushMode ? "Tile Brush" : viewMode === "realistic" ? "Realistic" : "OSM"}
-                    </p>
+                    <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Mode</p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => switchViewMode("realistic")}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
+                      >
+                        <span className="flex items-center gap-1"><Satellite className="w-3 h-3" /> Realistic</span>
+                      </button>
+                      <button
+                        onClick={() => switchViewMode("osm")}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
+                      >
+                        <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> OSM</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </GlassPanel>
