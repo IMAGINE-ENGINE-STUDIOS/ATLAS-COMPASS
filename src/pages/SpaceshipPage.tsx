@@ -1602,6 +1602,13 @@ out center 15;`;
                   >
                     <Store className="w-4 h-4" />
                   </button>
+                  {/* Live Traffic Toggle */}
+                  <button
+                    onClick={() => setShowLiveTraffic(!showLiveTraffic)}
+                    className={`p-1.5 rounded-lg transition-colors ${showLiveTraffic ? "bg-yellow-500/20 text-yellow-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Live Aircraft & Ship Tracking"
+                  >
+                    <Plane className="w-4 h-4" />
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
