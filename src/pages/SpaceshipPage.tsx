@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Search, MapPin, Mountain, Building2, Navigation,
   Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
-  Eye, Satellite
+  Eye, Satellite, Trash2, Check
 } from "lucide-react";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
@@ -31,6 +31,28 @@ interface CursorInfo {
   lat: number;
   lng: number;
   alt: number;
+}
+
+interface POI {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  alt: number;
+  createdAt: number;
+}
+
+const POI_STORAGE_KEY = "nexus-spaceship-pois";
+
+function loadPOIs(): POI[] {
+  try {
+    const stored = localStorage.getItem(POI_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function savePOIs(pois: POI[]) {
+  localStorage.setItem(POI_STORAGE_KEY, JSON.stringify(pois));
 }
 
 /* ── Preset Locations ── */
@@ -73,6 +95,10 @@ export default function SpaceshipPage() {
   const [hudVisible, setHudVisible] = useState(true);
   const [cameraAlt, setCameraAlt] = useState(0);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [pois, setPois] = useState<POI[]>(loadPOIs);
+  const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
+  const [poiName, setPoiName] = useState("");
+  const [poisPanelOpen, setPoisPanelOpen] = useState(false);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
@@ -143,6 +169,20 @@ export default function SpaceshipPage() {
         });
       }
     }, ScreenSpaceEventType.MOUSE_MOVE);
+
+    // Double-click to create POI
+    handler.setInputAction((click: any) => {
+      const cartesian = viewer.scene.pickPosition(click.position);
+      if (defined(cartesian)) {
+        const carto = Cartographic.fromCartesian(cartesian);
+        setNamingPOI({
+          lat: CesiumMath.toDegrees(carto.latitude),
+          lng: CesiumMath.toDegrees(carto.longitude),
+          alt: carto.height,
+        });
+        setPoiName("");
+      }
+    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
     // Track camera altitude
     viewer.scene.postRender.addEventListener(() => {
@@ -232,6 +272,80 @@ export default function SpaceshipPage() {
       setShowBuildings(tileset.show);
     }
   }, []);
+
+  /* ── POI Functions ── */
+  const addPOIToGlobe = useCallback((poi: POI) => {
+    if (!viewerRef.current) return;
+    viewerRef.current.entities.add({
+      id: `poi-${poi.id}`,
+      position: Cartesian3.fromDegrees(poi.lng, poi.lat),
+      name: poi.name,
+      label: {
+        text: poi.name,
+        font: "13px Inter, sans-serif",
+        fillColor: Color.fromCssColorString("#ffd700"),
+        outlineColor: Color.BLACK,
+        outlineWidth: 2,
+        style: 2,
+        pixelOffset: { x: 0, y: -24 } as any,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      point: {
+        pixelSize: 12,
+        color: Color.fromCssColorString("#ffd700"),
+        outlineColor: Color.WHITE,
+        outlineWidth: 2,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+  }, []);
+
+  const confirmPOI = useCallback(() => {
+    if (!namingPOI || !poiName.trim()) return;
+    const newPoi: POI = {
+      id: crypto.randomUUID(),
+      name: poiName.trim(),
+      lat: namingPOI.lat,
+      lng: namingPOI.lng,
+      alt: namingPOI.alt,
+      createdAt: Date.now(),
+    };
+    const updated = [...pois, newPoi];
+    setPois(updated);
+    savePOIs(updated);
+    addPOIToGlobe(newPoi);
+    setNamingPOI(null);
+    setPoiName("");
+  }, [namingPOI, poiName, pois, addPOIToGlobe]);
+
+  const deletePOI = useCallback((id: string) => {
+    const updated = pois.filter((p) => p.id !== id);
+    setPois(updated);
+    savePOIs(updated);
+    if (viewerRef.current) {
+      const entity = viewerRef.current.entities.getById(`poi-${id}`);
+      if (entity) viewerRef.current.entities.remove(entity);
+    }
+  }, [pois]);
+
+  const flyToPOI = useCallback((poi: POI) => {
+    if (!viewerRef.current) return;
+    viewerRef.current.camera.flyTo({
+      destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 2000),
+      orientation: {
+        heading: CesiumMath.toRadians(0),
+        pitch: CesiumMath.toRadians(-35),
+        roll: 0,
+      },
+      duration: 2,
+    });
+  }, []);
+
+  // Load saved POIs onto globe when viewer is ready
+  useEffect(() => {
+    if (!isLoaded || !viewerRef.current) return;
+    pois.forEach(addPOIToGlobe);
+  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetView = useCallback(() => {
     if (!viewerRef.current) return;
@@ -342,6 +456,13 @@ export default function SpaceshipPage() {
                     <Globe className="w-4 h-4" />
                   </button>
                   <button
+                    onClick={() => setPoisPanelOpen(!poisPanelOpen)}
+                    className={`p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Interest Points"
+                  >
+                    <MapPin className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
                     title="Fullscreen"
@@ -403,6 +524,101 @@ export default function SpaceshipPage() {
                       <p className="text-sm text-white/30 text-center py-4">No results found. Try coordinates like "40.7128, -74.006"</p>
                     )}
                   </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* POI Naming Dialog */}
+          <AnimatePresence>
+            {namingPOI && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-sm px-4"
+              >
+                <GlassPanel className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MapPin className="w-5 h-5 text-yellow-400" />
+                    <h3 className="text-sm font-bold text-white">Name This Point</h3>
+                  </div>
+                  <p className="text-[10px] text-white/40 font-mono mb-3">
+                    {namingPOI.lat.toFixed(6)}, {namingPOI.lng.toFixed(6)} · {formatAlt(namingPOI.alt)}
+                  </p>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={poiName}
+                    onChange={(e) => setPoiName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") confirmPOI(); if (e.key === "Escape") setNamingPOI(null); }}
+                    placeholder="e.g. My Office, Warehouse #3, Meeting Point..."
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/20 transition-colors"
+                  />
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={confirmPOI}
+                      disabled={!poiName.trim()}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded-xl text-sm font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <Check className="w-4 h-4" /> Save Point
+                    </button>
+                    <button
+                      onClick={() => setNamingPOI(null)}
+                      className="px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* POI List Panel */}
+          <AnimatePresence>
+            {poisPanelOpen && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="absolute top-20 right-4 z-30 w-80"
+              >
+                <GlassPanel className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-yellow-400" />
+                      <span className="text-sm font-bold text-white">Interest Points</span>
+                      <span className="text-[10px] text-white/30 font-mono">({pois.length})</span>
+                    </div>
+                    <button onClick={() => setPoisPanelOpen(false)}>
+                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    </button>
+                  </div>
+                  {pois.length === 0 ? (
+                    <p className="text-xs text-white/30 text-center py-6">Double-click anywhere on Earth to create a point of interest</p>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto space-y-1">
+                      {pois.map((poi) => (
+                        <div key={poi.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] group transition-colors">
+                          <button onClick={() => flyToPOI(poi)} className="flex-1 flex items-center gap-3 text-left min-w-0">
+                            <MapPin className="w-4 h-4 text-yellow-400 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{poi.name}</p>
+                              <p className="text-[10px] text-white/30 font-mono">{poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => deletePOI(poi.id)}
+                            className="p-1 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Delete point"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </GlassPanel>
               </motion.div>
             )}
