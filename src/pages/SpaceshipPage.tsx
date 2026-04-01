@@ -14,7 +14,8 @@ import {
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined,
   HeadingPitchRoll, Transforms,
-  Cartesian2,
+  Cartesian2, Cesium3DTileset, IonResource,
+  EllipseGraphics, ColorMaterialProperty, CallbackProperty,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
