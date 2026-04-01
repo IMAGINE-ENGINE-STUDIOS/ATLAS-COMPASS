@@ -700,22 +700,33 @@ out center 15;`;
     };
   }, []);
 
-  // ── Cargo Routes Rendering ──
+  // ── Cargo Routes Rendering + Vessel Animation ──
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // Remove existing cargo entities
+    // Cleanup
     cargoEntitiesRef.current.forEach((e) => {
       if (viewer.entities.contains(e)) viewer.entities.remove(e);
     });
     cargoEntitiesRef.current = [];
+    if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
 
     if (!showCargoRoutes) return;
 
-    const filteredRoutes = cargoFilter === "all"
-      ? ALL_CARGO_ROUTES
-      : ALL_CARGO_ROUTES.filter((r) => r.type === cargoFilter);
+    // Filter routes
+    let filteredRoutes = ALL_CARGO_ROUTES;
+    if (cargoFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.type === cargoFilter);
+    if (cargoTypeFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.category === cargoTypeFilter);
+
+    // Initialize vessel progress
+    filteredRoutes.forEach(route => {
+      route.vessels.forEach(v => {
+        if (!vesselProgressRef.current.has(v.id)) {
+          vesselProgressRef.current.set(v.id, v.progress);
+        }
+      });
+    });
 
     filteredRoutes.forEach((route) => {
       const height = route.type === "air" ? 80000 : 0;
@@ -725,147 +736,143 @@ out center 15;`;
       // Glow polyline
       const polyEntity = viewer.entities.add({
         id: `cargo-${route.id}`,
-        polyline: {
-          positions,
-          width: route.type === "air" ? 3 : 4,
-          material: new PolylineGlowMaterialProperty({
-            glowPower: 0.25,
-            taperPower: 0.8,
-            color: lineColor.withAlpha(0.85),
-          }),
-          clampToGround: route.type === "maritime",
-        },
+        polyline: { positions, width: route.type === "air" ? 3 : 4, material: new PolylineGlowMaterialProperty({ glowPower: 0.25, taperPower: 0.8, color: lineColor.withAlpha(0.85) }), clampToGround: route.type === "maritime" },
       });
       cargoEntitiesRef.current.push(polyEntity);
 
-      // Thinner inner core line for gradient effect
-      const coreEntity = viewer.entities.add({
+      // Core line
+      cargoEntitiesRef.current.push(viewer.entities.add({
         id: `cargo-core-${route.id}`,
-        polyline: {
-          positions,
-          width: route.type === "air" ? 1.5 : 2,
-          material: lineColor.withAlpha(0.5),
-          clampToGround: route.type === "maritime",
-        },
-      });
-      cargoEntitiesRef.current.push(coreEntity);
+        polyline: { positions, width: route.type === "air" ? 1.5 : 2, material: lineColor.withAlpha(0.5), clampToGround: route.type === "maritime" },
+      }));
 
-      // Route name at midpoint
+      // Route label
       const midIdx = Math.floor(route.waypoints.length / 2);
       const [mLng, mLat] = route.waypoints[midIdx];
-      const labelEntity = viewer.entities.add({
+      cargoEntitiesRef.current.push(viewer.entities.add({
         id: `cargo-label-${route.id}`,
         position: Cartesian3.fromDegrees(mLng, mLat, height + (route.type === "air" ? 20000 : 8000)),
         label: {
-          text: route.name,
-          font: "11px Inter",
-          fillColor: Color.WHITE,
-          outlineColor: lineColor.withAlpha(0.9),
-          outlineWidth: 3,
-          style: 2,
-          pixelOffset: new Cartesian2(0, -10),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          text: `${route.name}\n${CARGO_CATEGORIES.find(c => c.id === route.category)?.icon || ""} ${route.distance} · ${route.transitTime}`,
+          font: "11px Inter", fillColor: Color.WHITE, outlineColor: lineColor.withAlpha(0.9), outlineWidth: 3, style: 2,
+          pixelOffset: new Cartesian2(0, -10), disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: { near: 5e4, nearValue: 1.0, far: 8e6, farValue: 0.25 } as any,
           translucencyByDistance: { near: 5e4, nearValue: 1.0, far: 1.5e7, farValue: 0.0 } as any,
-          backgroundColor: Color.BLACK.withAlpha(0.5),
-          showBackground: true,
-          backgroundPadding: new Cartesian2(6, 3),
+          backgroundColor: Color.BLACK.withAlpha(0.6), showBackground: true, backgroundPadding: new Cartesian2(6, 3),
         },
-      });
-      cargoEntitiesRef.current.push(labelEntity);
+      }));
 
-      // Direction arrows along route
-      const arrowCount = Math.max(3, Math.floor(route.waypoints.length / 3));
-      const arrowStep = Math.max(1, Math.floor(route.waypoints.length / arrowCount));
+      // Direction arrows
+      const arrowStep = Math.max(1, Math.floor(route.waypoints.length / Math.max(3, Math.floor(route.waypoints.length / 3))));
       for (let i = 1; i < route.waypoints.length - 1; i += arrowStep) {
         const [lng1, lat1] = route.waypoints[i];
         const ni = Math.min(i + 1, route.waypoints.length - 1);
         const [lng2, lat2] = route.waypoints[ni];
-        const dLng = lng2 - lng1;
-        const dLat = lat2 - lat1;
-        const heading = Math.atan2(dLng, dLat);
-        // Unicode arrows that point in the direction of travel
+        const heading = Math.atan2(lng2 - lng1, lat2 - lat1);
         const arrowChars = ["↑","↗","→","↘","↓","↙","←","↖"];
         const octant = Math.round(((heading * 180 / Math.PI) + 360) % 360 / 45) % 8;
-        const arrow = route.type === "air" ? "✈" : arrowChars[octant];
-        
-        const arrowEntity = viewer.entities.add({
+        cargoEntitiesRef.current.push(viewer.entities.add({
           id: `cargo-arrow-${route.id}-${i}`,
           position: Cartesian3.fromDegrees(lng1, lat1, height + (route.type === "air" ? 12000 : 3000)),
-          label: {
-            text: arrow,
-            font: route.type === "air" ? "16px sans-serif" : "14px sans-serif",
-            fillColor: lineColor,
-            outlineColor: Color.BLACK,
-            outlineWidth: 2,
-            style: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: { near: 2e4, nearValue: 1.2, far: 5e6, farValue: 0.15 } as any,
-            translucencyByDistance: { near: 2e4, nearValue: 1.0, far: 1e7, farValue: 0.0 } as any,
-          },
-        });
-        cargoEntitiesRef.current.push(arrowEntity);
+          label: { text: route.type === "air" ? "✈" : arrowChars[octant], font: route.type === "air" ? "16px sans-serif" : "14px sans-serif", fillColor: lineColor, outlineColor: Color.BLACK, outlineWidth: 2, style: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: { near: 2e4, nearValue: 1.2, far: 5e6, farValue: 0.15 } as any, translucencyByDistance: { near: 2e4, nearValue: 1.0, far: 1e7, farValue: 0.0 } as any },
+        }));
       }
 
-      // Simulated vessel/plane markers along route
-      const vesselCount = route.vessels || 3;
-      const spacing = route.waypoints.length / (vesselCount + 1);
-      for (let v = 0; v < vesselCount && v < 8; v++) {
-        const wi = Math.min(Math.floor((v + 1) * spacing), route.waypoints.length - 1);
-        // Offset slightly from exact waypoint for realism
-        const [vLng, vLat] = route.waypoints[wi];
-        const jitterLng = vLng + (Math.random() - 0.5) * 2;
-        const jitterLat = vLat + (Math.random() - 0.5) * 1;
-        const vHeight = route.type === "air" ? 35000 + Math.random() * 4000 : 0;
-        const vesselIcon = route.type === "air" ? "✈" : "🚢";
+      // Vessel entities — positioned by interpolation
+      route.vessels.forEach((vessel) => {
+        const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
+        const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
+        const vHeight = route.type === "air" ? 35000 + (prog * 5000) : 0;
+        const catInfo = CARGO_CATEGORIES.find(c => c.id === vessel.category);
         const vesselEntity = viewer.entities.add({
-          id: `cargo-vessel-${route.id}-${v}`,
-          position: Cartesian3.fromDegrees(jitterLng, jitterLat, vHeight),
+          id: `vessel-${vessel.id}`,
+          position: Cartesian3.fromDegrees(vLng, vLat, vHeight),
           label: {
-            text: vesselIcon,
-            font: route.type === "air" ? "18px sans-serif" : "16px sans-serif",
-            fillColor: Color.WHITE,
-            outlineColor: Color.BLACK,
-            outlineWidth: 1,
-            style: 2,
+            text: catInfo?.icon || (route.type === "air" ? "✈" : "🚢"),
+            font: route.type === "air" ? "20px sans-serif" : "18px sans-serif",
+            fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 1, style: 2,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
             scaleByDistance: { near: 1e4, nearValue: 1.5, far: 3e6, farValue: 0.1 } as any,
             translucencyByDistance: { near: 1e4, nearValue: 1.0, far: 5e6, farValue: 0.0 } as any,
           },
-          point: {
-            pixelSize: 4,
-            color: lineColor,
-            outlineColor: lineColor.withAlpha(0.4),
-            outlineWidth: 8,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: { near: 1e4, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any,
-          },
+          point: { pixelSize: 5, color: lineColor, outlineColor: lineColor.withAlpha(0.3), outlineWidth: 10, disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: { near: 1e4, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any },
+          description: JSON.stringify({ vesselId: vessel.id, routeId: route.id }),
         });
         cargoEntitiesRef.current.push(vesselEntity);
-      }
+      });
 
-      // Port/Airport markers at endpoints
-      const [startLng, startLat] = route.waypoints[0];
-      const [endLng, endLat] = route.waypoints[route.waypoints.length - 1];
-      [
-        { lng: startLng, lat: startLat, label: "●" },
-        { lng: endLng, lat: endLat, label: "●" },
-      ].forEach((pt, pi) => {
-        const portEntity = viewer.entities.add({
+      // Port markers at endpoints
+      [[route.waypoints[0],0],[route.waypoints[route.waypoints.length-1],1]].forEach(([pt, pi]) => {
+        const [pLng, pLat] = pt as [number, number];
+        cargoEntitiesRef.current.push(viewer.entities.add({
           id: `cargo-port-${route.id}-${pi}`,
-          position: Cartesian3.fromDegrees(pt.lng, pt.lat, height + 1000),
-          point: {
-            pixelSize: 6,
-            color: lineColor,
-            outlineColor: Color.WHITE,
-            outlineWidth: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          },
-        });
-        cargoEntitiesRef.current.push(portEntity);
+          position: Cartesian3.fromDegrees(pLng, pLat, height + 1000),
+          point: { pixelSize: 6, color: lineColor, outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        }));
       });
     });
-  }, [showCargoRoutes, cargoFilter]);
+
+    // Animate vessels — update positions every 2 seconds
+    const SPEED_FACTOR = 0.0005; // progress per tick for ships
+    const AIR_SPEED_FACTOR = 0.002; // faster for planes
+    vesselAnimRef.current = setInterval(() => {
+      if (!viewer || viewer.isDestroyed()) return;
+      filteredRoutes.forEach(route => {
+        const height = route.type === "air" ? 35000 : 0;
+        route.vessels.forEach(vessel => {
+          let prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
+          prog += route.type === "air" ? AIR_SPEED_FACTOR : SPEED_FACTOR;
+          if (prog >= 1) prog = 0; // loop back
+          vesselProgressRef.current.set(vessel.id, prog);
+          const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
+          const entity = viewer.entities.getById(`vessel-${vessel.id}`);
+          if (entity) {
+            entity.position = Cartesian3.fromDegrees(vLng, vLat, height + (route.type === "air" ? prog * 5000 : 0)) as any;
+          }
+        });
+      });
+    }, 2000);
+
+    // Click handler for vessel data cards
+    const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    clickHandler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (picked?.id?.id) {
+        const entityId = picked.id.id as string;
+        // Check if it's a vessel
+        if (entityId.startsWith("vessel-")) {
+          const desc = picked.id.description?.getValue?.() || picked.id.description;
+          if (desc) {
+            try {
+              const { vesselId, routeId } = JSON.parse(desc);
+              const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
+              const vessel = route?.vessels.find(v => v.id === vesselId);
+              if (route && vessel) {
+                const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
+                const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
+                setSelectedVessel({ ...vessel, routeName: route.name, routeColor: route.color, lat: vLat, lng: vLng });
+                setSelectedRoute(null);
+              }
+            } catch {}
+          }
+        }
+        // Check if it's a route line
+        if (entityId.startsWith("cargo-") && !entityId.startsWith("cargo-core-") && !entityId.startsWith("cargo-label-") && !entityId.startsWith("cargo-arrow-") && !entityId.startsWith("cargo-port-")) {
+          const routeId = entityId.replace("cargo-", "");
+          const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
+          if (route) {
+            setSelectedRoute(route);
+            setSelectedVessel(null);
+          }
+        }
+      }
+    }, ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => {
+      clickHandler.destroy();
+      if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
+    };
+  }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
 
   // Listen for double-click events from Cesium
   useEffect(() => {
