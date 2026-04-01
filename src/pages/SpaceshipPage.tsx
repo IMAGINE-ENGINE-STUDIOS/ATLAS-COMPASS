@@ -6,8 +6,12 @@ import {
   Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
-  Move, Scale, Box
+  Move, Scale, Box, AlertCircle, Loader2
 } from "lucide-react";
+import {
+  ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel,
+  isNativelySupportedByCesium
+} from "@/lib/model-converter";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
