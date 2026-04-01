@@ -9,8 +9,7 @@ import {
   Move, Scale, Box, AlertCircle, Loader2
 } from "lucide-react";
 import {
-  ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel,
-  isNativelySupportedByCesium
+  ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
