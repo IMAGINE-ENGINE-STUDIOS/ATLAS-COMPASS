@@ -378,10 +378,15 @@ export default function SpaceshipPage() {
 
   const toggleBuildings = useCallback(() => {
     if (!viewerRef.current) return;
-    const tileset = (viewerRef.current as any)._buildingsTileset;
-    if (tileset) {
-      tileset.show = !tileset.show;
-      setShowBuildings(tileset.show);
+    const osmTileset = (viewerRef.current as any)._buildingsTileset;
+    const photoTileset = (viewerRef.current as any)._photorealisticTileset;
+    // Toggle whichever tileset is active
+    if (photoTileset) {
+      photoTileset.show = !photoTileset.show;
+      setShowBuildings(photoTileset.show);
+    } else if (osmTileset) {
+      osmTileset.show = !osmTileset.show;
+      setShowBuildings(osmTileset.show);
     }
   }, []);
 
