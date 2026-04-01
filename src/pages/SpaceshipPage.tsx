@@ -232,16 +232,9 @@ export default function SpaceshipPage() {
       viewer.terrainProvider = terrain;
     });
 
-    // Add OSM 3D buildings — fix street-level disappearing
-    createOsmBuildingsAsync().then((tileset) => {
-      viewer.scene.primitives.add(tileset);
-      // Lower maximumScreenSpaceError so buildings render at close range
-      tileset.maximumScreenSpaceError = 4;
-      (viewer as any)._buildingsTileset = tileset;
-    });
-
-    // Try to add Google Photorealistic 3D Tiles (Ion asset 2275207) for realistic cities
+    // Try Google Photorealistic 3D Tiles first; fall back to OSM buildings if unavailable
     (async () => {
+      let useOSM = true;
       try {
         const resource = await IonResource.fromAssetId(2275207);
         const tileset = await Cesium3DTileset.fromUrl(resource, {
@@ -249,14 +242,20 @@ export default function SpaceshipPage() {
         });
         viewer.scene.primitives.add(tileset);
         (viewer as any)._photorealisticTileset = tileset;
-
-        // Hide OSM buildings when photorealistic tiles are available to prevent overlap
-        const osmTileset = (viewer as any)._buildingsTileset;
-        if (osmTileset) {
-          osmTileset.show = false;
-        }
+        useOSM = false; // photorealistic tiles include buildings — skip OSM
       } catch (e) {
-        console.warn("Google Photorealistic 3D Tiles not available on this token:", e);
+        console.warn("Google Photorealistic 3D Tiles not available, using OSM buildings:", e);
+      }
+
+      if (useOSM) {
+        try {
+          const osmTileset = await createOsmBuildingsAsync();
+          viewer.scene.primitives.add(osmTileset);
+          osmTileset.maximumScreenSpaceError = 4;
+          (viewer as any)._buildingsTileset = osmTileset;
+        } catch (e) {
+          console.warn("OSM buildings failed to load:", e);
+        }
       }
     })();
 
