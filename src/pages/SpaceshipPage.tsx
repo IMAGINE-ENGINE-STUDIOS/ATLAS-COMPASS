@@ -170,6 +170,20 @@ export default function SpaceshipPage() {
       }
     }, ScreenSpaceEventType.MOUSE_MOVE);
 
+    // Double-click to create POI
+    handler.setInputAction((click: any) => {
+      const cartesian = viewer.scene.pickPosition(click.position);
+      if (defined(cartesian)) {
+        const carto = Cartographic.fromCartesian(cartesian);
+        setNamingPOI({
+          lat: CesiumMath.toDegrees(carto.latitude),
+          lng: CesiumMath.toDegrees(carto.longitude),
+          alt: carto.height,
+        });
+        setPoiName("");
+      }
+    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
     // Track camera altitude
     viewer.scene.postRender.addEventListener(() => {
       const carto = Cartographic.fromCartesian(viewer.camera.position);
