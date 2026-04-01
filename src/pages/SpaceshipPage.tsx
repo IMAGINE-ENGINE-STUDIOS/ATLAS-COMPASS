@@ -314,10 +314,19 @@ export default function SpaceshipPage() {
 
     // Mouse move handler for coordinates + brush indicator
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    let lastMouseX = -1;
+    let lastMouseY = -1;
+    
     handler.setInputAction((movement: any) => {
+      const mx = movement.endPosition.x;
+      const my = movement.endPosition.y;
+      // Only update if mouse actually moved (pixel threshold)
+      if (Math.abs(mx - lastMouseX) < 2 && Math.abs(my - lastMouseY) < 2) return;
+      lastMouseX = mx;
+      lastMouseY = my;
+
       const ray = viewer.camera.getPickRay(movement.endPosition);
       if (ray) {
-        // Try scene.pickPosition first (works with 3D tiles when globe hidden)
         const cartesian = viewer.scene.pickPosition(movement.endPosition) 
           || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
         if (defined(cartesian)) {
@@ -327,9 +336,10 @@ export default function SpaceshipPage() {
             lng: CesiumMath.toDegrees(carto.longitude),
             alt: carto.height,
           });
-          // Update brush indicator position
+          // Update brush indicator only when mouse truly moved
           if (brushIndicatorRef.current) {
-            brushIndicatorRef.current.position = cartesian;
+            brushIndicatorRef.current.position = cartesian as any;
+            brushIndicatorRef.current.position = cartesian as any;
           }
         }
       }
