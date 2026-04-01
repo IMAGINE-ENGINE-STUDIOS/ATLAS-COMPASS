@@ -13,7 +13,7 @@ import {
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
-import { ALL_CARGO_ROUTES } from "@/lib/cargo-routes";
+import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT } from "@/lib/cargo-routes";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -21,6 +21,7 @@ import {
   defined,
   HeadingPitchRoll, Transforms,
   Cartesian2, Cesium3DTileset,
+  PolylineGlowMaterialProperty,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -716,61 +717,148 @@ out center 15;`;
       const positions = route.waypoints.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat, height));
       const lineColor = Color.fromCssColorString(route.color);
 
-      // Main polyline
+      // Glow polyline
       const polyEntity = viewer.entities.add({
         id: `cargo-${route.id}`,
         polyline: {
           positions,
-          width: route.type === "air" ? 2 : 3,
-          material: lineColor.withAlpha(route.type === "air" ? 0.7 : 0.85),
+          width: route.type === "air" ? 3 : 4,
+          material: new PolylineGlowMaterialProperty({
+            glowPower: 0.25,
+            taperPower: 0.8,
+            color: lineColor.withAlpha(0.85),
+          }),
           clampToGround: route.type === "maritime",
         },
       });
       cargoEntitiesRef.current.push(polyEntity);
 
-      // Name label at midpoint
+      // Thinner inner core line for gradient effect
+      const coreEntity = viewer.entities.add({
+        id: `cargo-core-${route.id}`,
+        polyline: {
+          positions,
+          width: route.type === "air" ? 1.5 : 2,
+          material: lineColor.withAlpha(0.5),
+          clampToGround: route.type === "maritime",
+        },
+      });
+      cargoEntitiesRef.current.push(coreEntity);
+
+      // Route name at midpoint
       const midIdx = Math.floor(route.waypoints.length / 2);
       const [mLng, mLat] = route.waypoints[midIdx];
       const labelEntity = viewer.entities.add({
         id: `cargo-label-${route.id}`,
-        position: Cartesian3.fromDegrees(mLng, mLat, height + (route.type === "air" ? 15000 : 5000)),
+        position: Cartesian3.fromDegrees(mLng, mLat, height + (route.type === "air" ? 20000 : 8000)),
         label: {
-          text: route.name.replace(/^(Trans-Pacific|Trans-Atlantic|Asia.Europe|Intra-Asia|Cape Route|Panama Canal|Mediterranean|Persian Gulf|Indian Ocean|South Atlantic|Northern Sea Route|West Africa|East Africa|Australia|Malacca Strait|Air): /, ""),
-          font: "10px Inter",
-          fillColor: lineColor,
-          outlineColor: Color.BLACK,
+          text: route.name,
+          font: "11px Inter",
+          fillColor: Color.WHITE,
+          outlineColor: lineColor.withAlpha(0.9),
           outlineWidth: 3,
           style: 2,
-          pixelOffset: new Cartesian2(0, -8),
+          pixelOffset: new Cartesian2(0, -10),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          scaleByDistance: { near: 1e5, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any,
-          translucencyByDistance: { near: 1e5, nearValue: 1.0, far: 2e7, farValue: 0.0 } as any,
+          scaleByDistance: { near: 5e4, nearValue: 1.0, far: 8e6, farValue: 0.25 } as any,
+          translucencyByDistance: { near: 5e4, nearValue: 1.0, far: 1.5e7, farValue: 0.0 } as any,
+          backgroundColor: Color.BLACK.withAlpha(0.5),
+          showBackground: true,
+          backgroundPadding: new Cartesian2(6, 3),
         },
       });
       cargoEntitiesRef.current.push(labelEntity);
 
       // Direction arrows along route
-      const arrowStep = Math.max(1, Math.floor(route.waypoints.length / 4));
-      for (let i = 0; i < route.waypoints.length - 1; i += arrowStep) {
+      const arrowCount = Math.max(3, Math.floor(route.waypoints.length / 3));
+      const arrowStep = Math.max(1, Math.floor(route.waypoints.length / arrowCount));
+      for (let i = 1; i < route.waypoints.length - 1; i += arrowStep) {
         const [lng1, lat1] = route.waypoints[i];
-        const arrowChar = route.type === "air" ? "✈" : "▶";
+        const ni = Math.min(i + 1, route.waypoints.length - 1);
+        const [lng2, lat2] = route.waypoints[ni];
+        const dLng = lng2 - lng1;
+        const dLat = lat2 - lat1;
+        const heading = Math.atan2(dLng, dLat);
+        // Unicode arrows that point in the direction of travel
+        const arrowChars = ["↑","↗","→","↘","↓","↙","←","↖"];
+        const octant = Math.round(((heading * 180 / Math.PI) + 360) % 360 / 45) % 8;
+        const arrow = route.type === "air" ? "✈" : arrowChars[octant];
+        
         const arrowEntity = viewer.entities.add({
           id: `cargo-arrow-${route.id}-${i}`,
-          position: Cartesian3.fromDegrees(lng1, lat1, height + (route.type === "air" ? 10000 : 2000)),
+          position: Cartesian3.fromDegrees(lng1, lat1, height + (route.type === "air" ? 12000 : 3000)),
           label: {
-            text: arrowChar,
-            font: route.type === "air" ? "14px sans-serif" : "10px sans-serif",
+            text: arrow,
+            font: route.type === "air" ? "16px sans-serif" : "14px sans-serif",
             fillColor: lineColor,
             outlineColor: Color.BLACK,
             outlineWidth: 2,
             style: 2,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: { near: 5e4, nearValue: 1.0, far: 1e7, farValue: 0.2 } as any,
-            translucencyByDistance: { near: 5e4, nearValue: 1.0, far: 1.5e7, farValue: 0.0 } as any,
+            scaleByDistance: { near: 2e4, nearValue: 1.2, far: 5e6, farValue: 0.15 } as any,
+            translucencyByDistance: { near: 2e4, nearValue: 1.0, far: 1e7, farValue: 0.0 } as any,
           },
         });
         cargoEntitiesRef.current.push(arrowEntity);
       }
+
+      // Simulated vessel/plane markers along route
+      const vesselCount = route.vessels || 3;
+      const spacing = route.waypoints.length / (vesselCount + 1);
+      for (let v = 0; v < vesselCount && v < 8; v++) {
+        const wi = Math.min(Math.floor((v + 1) * spacing), route.waypoints.length - 1);
+        // Offset slightly from exact waypoint for realism
+        const [vLng, vLat] = route.waypoints[wi];
+        const jitterLng = vLng + (Math.random() - 0.5) * 2;
+        const jitterLat = vLat + (Math.random() - 0.5) * 1;
+        const vHeight = route.type === "air" ? 35000 + Math.random() * 4000 : 0;
+        const vesselIcon = route.type === "air" ? "✈" : "🚢";
+        const vesselEntity = viewer.entities.add({
+          id: `cargo-vessel-${route.id}-${v}`,
+          position: Cartesian3.fromDegrees(jitterLng, jitterLat, vHeight),
+          label: {
+            text: vesselIcon,
+            font: route.type === "air" ? "18px sans-serif" : "16px sans-serif",
+            fillColor: Color.WHITE,
+            outlineColor: Color.BLACK,
+            outlineWidth: 1,
+            style: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            scaleByDistance: { near: 1e4, nearValue: 1.5, far: 3e6, farValue: 0.1 } as any,
+            translucencyByDistance: { near: 1e4, nearValue: 1.0, far: 5e6, farValue: 0.0 } as any,
+          },
+          point: {
+            pixelSize: 4,
+            color: lineColor,
+            outlineColor: lineColor.withAlpha(0.4),
+            outlineWidth: 8,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            scaleByDistance: { near: 1e4, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any,
+          },
+        });
+        cargoEntitiesRef.current.push(vesselEntity);
+      }
+
+      // Port/Airport markers at endpoints
+      const [startLng, startLat] = route.waypoints[0];
+      const [endLng, endLat] = route.waypoints[route.waypoints.length - 1];
+      [
+        { lng: startLng, lat: startLat, label: "●" },
+        { lng: endLng, lat: endLat, label: "●" },
+      ].forEach((pt, pi) => {
+        const portEntity = viewer.entities.add({
+          id: `cargo-port-${route.id}-${pi}`,
+          position: Cartesian3.fromDegrees(pt.lng, pt.lat, height + 1000),
+          point: {
+            pixelSize: 6,
+            color: lineColor,
+            outlineColor: Color.WHITE,
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        });
+        cargoEntitiesRef.current.push(portEntity);
+      });
     });
   }, [showCargoRoutes, cargoFilter]);
 
@@ -1448,38 +1536,61 @@ out center 15;`;
           <AnimatePresence>
             {showCargoRoutes && (
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="absolute bottom-24 left-4 z-30"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="absolute bottom-24 left-4 z-30 w-72"
               >
-                <GlassPanel className="p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Ship className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-bold text-white">Cargo Routes</span>
-                    <span className="text-[9px] text-white/30 ml-auto font-mono">{ALL_CARGO_ROUTES.length} routes</span>
+                <GlassPanel className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Ship className="w-5 h-5 text-amber-400" />
+                    <span className="text-sm font-bold text-white">Global Cargo Traffic</span>
+                    <button onClick={() => setShowCargoRoutes(false)} className="ml-auto">
+                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    </button>
                   </div>
-                  <div className="flex gap-1.5">
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2.5 text-center">
+                      <div className="text-lg font-bold font-mono text-blue-400">{MARITIME_VESSEL_COUNT}</div>
+                      <div className="text-[9px] text-blue-400/60 uppercase tracking-wider">🚢 Ships Active</div>
+                    </div>
+                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2.5 text-center">
+                      <div className="text-lg font-bold font-mono text-pink-400">{AIR_VESSEL_COUNT}</div>
+                      <div className="text-[9px] text-pink-400/60 uppercase tracking-wider">✈ Planes Active</div>
+                    </div>
+                  </div>
+
+                  {/* Filter */}
+                  <div className="flex gap-1.5 mb-3">
                     {(["all", "maritime", "air"] as const).map((f) => (
                       <button
                         key={f}
                         onClick={() => setCargoFilter(f)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase transition-colors ${
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-all ${
                           cargoFilter === f
-                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
-                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                            : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:text-white/70"
+                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_12px_rgba(59,130,246,0.15)]"
+                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
+                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                            : "bg-white/[0.04] text-white/30 border border-white/[0.06] hover:text-white/60"
                         }`}
                       >
-                        {f === "all" ? `All (${ALL_CARGO_ROUTES.length})` : f === "maritime" ? `Maritime (${ALL_CARGO_ROUTES.filter(r => r.type === "maritime").length})` : `Air (${ALL_CARGO_ROUTES.filter(r => r.type === "air").length})`}
+                        {f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Route count */}
+                  <div className="flex items-center justify-between text-[9px] text-white/30 font-mono">
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes shown</span>
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + (r.vessels || 0), 0)} active vessels</span>
                   </div>
                 </GlassPanel>
               </motion.div>
             )}
           </AnimatePresence>
+
 
           {/* ── DIRECTIONS PANEL ── */}
           <AnimatePresence>
