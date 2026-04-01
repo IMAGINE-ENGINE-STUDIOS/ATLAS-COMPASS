@@ -1032,10 +1032,14 @@ export default function SpaceshipPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={confirmModelPlacement}
-                      disabled={!modelFile || !modelName.trim()}
+                      disabled={!modelFile || !modelName.trim() || convertingModel}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-sm font-medium text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      <Check className="w-4 h-4" /> Place Model
+                      {convertingModel ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> {convertProgress || "Converting..."}</>
+                      ) : (
+                        <><Check className="w-4 h-4" /> Place Model</>
+                      )}
                     </button>
                     <button
                       onClick={() => { setPendingPlacement(null); setModelFile(null); setModelName(""); }}
