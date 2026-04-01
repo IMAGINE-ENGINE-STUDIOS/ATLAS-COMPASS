@@ -431,14 +431,37 @@ export default function SpaceshipPage() {
     setSearchQuery("");
   }, []);
 
+  const switchViewMode = useCallback((mode: "realistic" | "osm") => {
+    if (!viewerRef.current) return;
+    const viewer = viewerRef.current;
+    const realistic = (viewer as any)._realisticTileset;
+    const osm = (viewer as any)._osmTileset;
+
+    if (mode === "realistic") {
+      if (realistic) { realistic.show = true; }
+      if (osm) { osm.show = false; }
+      viewer.scene.globe.show = !realistic; // hide globe only if realistic tiles loaded
+    } else {
+      if (realistic) { realistic.show = false; }
+      if (osm) { osm.show = true; }
+      viewer.scene.globe.show = true;
+    }
+    setViewMode(mode);
+    setShowBuildings(true);
+  }, []);
+
   const toggleBuildings = useCallback(() => {
     if (!viewerRef.current) return;
-    const tileset = (viewerRef.current as any)._buildingsTileset;
-    if (tileset) {
-      tileset.show = !tileset.show;
-      setShowBuildings(tileset.show);
+    const realistic = (viewerRef.current as any)._realisticTileset;
+    const osm = (viewerRef.current as any)._osmTileset;
+    const newShow = !showBuildings;
+    if (viewMode === "realistic" && realistic) {
+      realistic.show = newShow;
+    } else if (osm) {
+      osm.show = newShow;
     }
-  }, []);
+    setShowBuildings(newShow);
+  }, [showBuildings, viewMode]);
 
   /* ── POI Functions ── */
   const addPOIToGlobe = useCallback((poi: POI) => {
