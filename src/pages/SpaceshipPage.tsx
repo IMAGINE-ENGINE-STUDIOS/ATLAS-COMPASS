@@ -172,6 +172,7 @@ export default function SpaceshipPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState(true);
+  const [viewMode, setViewMode] = useState<"realistic" | "osm">("realistic");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
   const [cameraAlt, setCameraAlt] = useState(0);
@@ -196,6 +197,7 @@ export default function SpaceshipPage() {
   const [modelHeading, setModelHeading] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
+  const brushIndicatorRef = useRef<any>(null);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
@@ -242,14 +244,56 @@ export default function SpaceshipPage() {
       }
     });
 
-    // Load 3D buildings — always use OSM + globe (reliable, no overlap issues)
+    // Load Google Photorealistic 3D Tiles as default (asset 2275207)
+    Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
+      if (!viewer.isDestroyed()) {
+        viewer.scene.primitives.add(tileset);
+        tileset.maximumScreenSpaceError = 8;
+        (viewer as any)._realisticTileset = tileset;
+        // Hide globe when realistic tiles are active to prevent z-fighting
+        viewer.scene.globe.show = false;
+      }
+    }).catch(() => {
+      // Fallback: if realistic tiles fail, use OSM buildings
+      if (!viewer.isDestroyed()) {
+        console.warn("Realistic tiles unavailable, falling back to OSM");
+        createOsmBuildingsAsync().then((tileset) => {
+          if (!viewer.isDestroyed()) {
+            viewer.scene.primitives.add(tileset);
+            tileset.maximumScreenSpaceError = 4;
+            (viewer as any)._osmTileset = tileset;
+          }
+        });
+      }
+    });
+
+    // Also pre-load OSM buildings (hidden by default)
     createOsmBuildingsAsync().then((tileset) => {
       if (!viewer.isDestroyed()) {
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 4;
-        (viewer as any)._buildingsTileset = tileset;
+        tileset.show = false;
+        (viewer as any)._osmTileset = tileset;
       }
     });
+
+    // Create brush indicator entity (hidden by default)
+    const brushEntity = viewer.entities.add({
+      id: "brush-indicator",
+      position: Cartesian3.fromDegrees(0, 0, 0),
+      show: false,
+      ellipse: {
+        semiMajorAxis: 50,
+        semiMinorAxis: 50,
+        material: Color.fromCssColorString("#00ff88").withAlpha(0.3),
+        outline: true,
+        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.8),
+        outlineWidth: 3,
+        height: 0,
+        heightReference: 1, // CLAMP_TO_GROUND
+      } as any,
+    });
+    brushIndicatorRef.current = brushEntity;
 
     // Fly to initial view
     viewer.camera.flyTo({
