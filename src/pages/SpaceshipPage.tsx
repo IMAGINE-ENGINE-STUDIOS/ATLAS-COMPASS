@@ -288,10 +288,10 @@ export default function SpaceshipPage() {
     if (t === "hospital" || t === "clinic" || t === "doctors" || t === "pharmacy" || t === "dentist") return "Health";
     if (c === "shop" || t === "mall" || t === "department_store" || t === "clothes" || t === "electronics") return "Shop";
     if (c === "amenity" || c === "office" || c === "tourism" || c === "leisure") return "Business";
-    if (name.includes("walmart") || name.includes("target") || name.includes("costco") || name.includes("ikea")) return "Store";
-    if (name.includes("mcdonald") || name.includes("burger") || name.includes("pizza") || name.includes("kfc")) return "Restaurant";
-    if (name.includes("starbucks") || name.includes("dunkin")) return "Cafe";
-    if (name.includes("hilton") || name.includes("marriott") || name.includes("hyatt")) return "Hotel";
+    if (name.includes("walmart") || name.includes("target") || name.includes("costco") || name.includes("ikea") || name.includes("publix") || name.includes("kroger") || name.includes("walgreens") || name.includes("cvs") || name.includes("home depot") || name.includes("lowe")) return "Supermarket";
+    if (name.includes("mcdonald") || name.includes("burger") || name.includes("pizza") || name.includes("kfc") || name.includes("wendy") || name.includes("taco bell") || name.includes("chick-fil") || name.includes("subway") || name.includes("chipotle")) return "Restaurant";
+    if (name.includes("starbucks") || name.includes("dunkin") || name.includes("tim horton") || name.includes("peet")) return "Cafe";
+    if (name.includes("hilton") || name.includes("marriott") || name.includes("hyatt") || name.includes("holiday inn") || name.includes("best western")) return "Hotel";
     if (name.includes("hospital") || name.includes("clinic")) return "Health";
     if (name.includes("university") || name.includes("school") || name.includes("college")) return "Education";
     return "Place";
