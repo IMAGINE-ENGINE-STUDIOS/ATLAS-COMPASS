@@ -204,6 +204,12 @@ export default function SpaceshipPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
   const brushIndicatorRef = useRef<any>(null);
+  const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
+  const [draggingModelId, setDraggingModelId] = useState<string | null>(null);
+  const draggingRef = useRef<string | null>(null);
+
+  // Keep ref in sync with state for use inside Cesium handlers
+  useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
