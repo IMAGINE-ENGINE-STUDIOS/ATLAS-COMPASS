@@ -209,8 +209,28 @@ export default function SpaceshipPage() {
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
 
-  // Keep ref in sync with state for use inside Cesium handlers
-  useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
+  // Directions / Routing state
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [originQuery, setOriginQuery] = useState("");
+  const [destQuery, setDestQuery] = useState("");
+  const [originResults, setOriginResults] = useState<SearchResult[]>([]);
+  const [destResults, setDestResults] = useState<SearchResult[]>([]);
+  const [originPoint, setOriginPoint] = useState<SearchResult | null>(null);
+  const [destPoint, setDestPoint] = useState<SearchResult | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [showOriginResults, setShowOriginResults] = useState(false);
+  const [showDestResults, setShowDestResults] = useState(false);
+  const routeEntityRef = useRef<any>(null);
+  const originMarkerRef = useRef<any>(null);
+  const destMarkerRef = useRef<any>(null);
+
+  // Global search with Nominatim
+  const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
