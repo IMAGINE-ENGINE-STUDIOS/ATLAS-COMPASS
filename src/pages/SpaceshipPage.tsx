@@ -3,16 +3,16 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Search, MapPin, Mountain, Building2, Navigation,
-  Maximize2, Minimize2, Layers, Globe, Crosshair, X, ChevronRight,
-  Compass, Eye, Satellite
+  Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
+  Eye, Satellite
 } from "lucide-react";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
-  IonWorldImageryStyle, ImageryLayer, IonImageryProvider,
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
-  defined, Entity, HeadingPitchRoll, Transforms,
+  defined,
 } from "cesium";
+import "cesium/Build/Cesium/Widgets/widgets.css";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
 /* ── Cesium Token (publishable key) ── */
