@@ -1444,22 +1444,6 @@ out center 15;`;
                 </GlassPanel>
 
                 <GlassPanel className="flex items-center gap-1 p-1.5">
-                  {/* View Mode Toggle */}
-                  <button
-                    onClick={() => switchViewMode("realistic")}
-                    className={`p-1.5 rounded-lg transition-colors text-[10px] font-mono ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400" : "text-white/40 hover:text-white/70"}`}
-                    title="Realistic 3D Tiles"
-                  >
-                    <Satellite className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => switchViewMode("osm")}
-                    className={`p-1.5 rounded-lg transition-colors text-[10px] font-mono ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400" : "text-white/40 hover:text-white/70"}`}
-                    title="OSM Buildings"
-                  >
-                    <Building2 className="w-4 h-4" />
-                  </button>
-                  <div className="w-px h-5 bg-white/10 mx-0.5" />
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
