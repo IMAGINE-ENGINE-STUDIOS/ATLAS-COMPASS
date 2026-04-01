@@ -6,7 +6,8 @@ import {
   Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
-  Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler
+  Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
+  Play, Square as StopIcon
 } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
@@ -225,6 +226,12 @@ export default function SpaceshipPage() {
   const originMarkerRef = useRef<any>(null);
   const destMarkerRef = useRef<any>(null);
 
+  // Journey / navigation state
+  const [journeyActive, setJourneyActive] = useState(false);
+  const [journeyProgress, setJourneyProgress] = useState(0);
+  const routeCoordsRef = useRef<[number, number][]>([]);
+  const journeyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Global search with Nominatim
   const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -261,7 +268,7 @@ export default function SpaceshipPage() {
     setRouteError(null);
     try {
       const resp = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=false`
       );
       const data = await resp.json();
       if (data.code !== "Ok" || !data.routes?.length) {
@@ -272,8 +279,12 @@ export default function SpaceshipPage() {
       const route = data.routes[0];
       setRouteInfo({ distance: route.distance, duration: route.duration });
 
-      const coords = route.geometry.coordinates;
-      const positions = coords.map((c: [number, number]) => Cartesian3.fromDegrees(c[0], c[1], 50));
+      const coords: [number, number][] = route.geometry.coordinates;
+      routeCoordsRef.current = coords;
+      // Simplify: sample every N points for very long routes to keep rendering fast
+      const step = coords.length > 2000 ? Math.floor(coords.length / 1000) : 1;
+      const sampled = step > 1 ? coords.filter((_, i) => i % step === 0 || i === coords.length - 1) : coords;
+      const positions = sampled.map((c) => Cartesian3.fromDegrees(c[0], c[1], 50));
       const viewer = viewerRef.current;
       if (!viewer) return;
 
@@ -294,7 +305,7 @@ export default function SpaceshipPage() {
         point: { pixelSize: 14, color: Color.fromCssColorString("#ef4444"), outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
         label: { text: `🔴 ${dest.name.split(",")[0]}`, font: "12px Inter", fillColor: Color.fromCssColorString("#ef4444"), outlineColor: Color.BLACK, outlineWidth: 2, style: 2, pixelOffset: new Cartesian2(0, -24), disableDepthTestDistance: Number.POSITIVE_INFINITY },
       });
-      viewer.flyTo(routeEntityRef.current, { duration: 2 });
+      viewer.flyTo(routeEntityRef.current, { duration: 1.5 });
     } catch {
       setRouteError("Failed to fetch route. Try again.");
     } finally {
@@ -302,7 +313,67 @@ export default function SpaceshipPage() {
     }
   }, []);
 
+  /* ── Journey Navigation ── */
+  const stopJourney = useCallback(() => {
+    if (journeyTimerRef.current) {
+      clearInterval(journeyTimerRef.current);
+      journeyTimerRef.current = null;
+    }
+    setJourneyActive(false);
+    setJourneyProgress(0);
+  }, []);
+
+  const startJourney = useCallback(() => {
+    const coords = routeCoordsRef.current;
+    if (coords.length < 2 || !viewerRef.current) return;
+
+    setJourneyActive(true);
+    setJourneyProgress(0);
+    let idx = 0;
+
+    const viewer = viewerRef.current;
+    
+    const moveCamera = (i: number) => {
+      if (i >= coords.length - 1) {
+        stopJourney();
+        return;
+      }
+      const [lng, lat] = coords[i];
+      const nextIdx = Math.min(i + Math.max(1, Math.floor(coords.length / 200)), coords.length - 1);
+      const [nLng, nLat] = coords[nextIdx];
+      
+      const dLng = nLng - lng;
+      const dLat = nLat - lat;
+      const heading = Math.atan2(dLng, dLat) * (180 / Math.PI);
+
+      viewer.camera.setView({
+        destination: Cartesian3.fromDegrees(lng, lat, 150),
+        orientation: {
+          heading: CesiumMath.toRadians(heading),
+          pitch: CesiumMath.toRadians(-15),
+          roll: 0,
+        },
+      });
+      setJourneyProgress(Math.round((i / (coords.length - 1)) * 100));
+    };
+
+    moveCamera(0);
+
+    const speed = Math.max(1, Math.floor(coords.length / 300));
+    journeyTimerRef.current = setInterval(() => {
+      idx += speed;
+      if (idx >= coords.length - 1) {
+        idx = coords.length - 1;
+        moveCamera(idx);
+        stopJourney();
+      } else {
+        moveCamera(idx);
+      }
+    }, 100);
+  }, [stopJourney]);
+
   const clearRoute = useCallback(() => {
+    stopJourney();
     const viewer = viewerRef.current;
     if (!viewer) return;
     if (routeEntityRef.current) { viewer.entities.remove(routeEntityRef.current); routeEntityRef.current = null; }
@@ -310,7 +381,8 @@ export default function SpaceshipPage() {
     if (destMarkerRef.current) { viewer.entities.remove(destMarkerRef.current); destMarkerRef.current = null; }
     setOriginPoint(null); setDestPoint(null); setOriginQuery(""); setDestQuery("");
     setRouteInfo(null); setRouteError(null); setOriginResults([]); setDestResults([]);
-  }, []);
+    routeCoordsRef.current = [];
+  }, [stopJourney]);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
@@ -1295,6 +1367,38 @@ export default function SpaceshipPage() {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Start Journey Button */}
+                  {routeInfo && !journeyActive && (
+                    <button
+                      onClick={startJourney}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500/20 border border-green-500/30 rounded-xl text-sm font-medium text-green-400 hover:bg-green-500/30 transition-colors mb-3"
+                    >
+                      <Play className="w-4 h-4" /> Start Journey
+                    </button>
+                  )}
+
+                  {/* Journey Progress */}
+                  {journeyActive && (
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] text-white/40 uppercase tracking-wider">Navigating...</span>
+                        <span className="text-xs font-mono text-blue-400">{journeyProgress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden mb-3">
+                        <div
+                          className="h-full bg-gradient-to-r from-green-500 to-blue-500 rounded-full transition-all duration-100"
+                          style={{ width: `${journeyProgress}%` }}
+                        />
+                      </div>
+                      <button
+                        onClick={stopJourney}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
+                      >
+                        <StopIcon className="w-4 h-4" /> Stop Journey
+                      </button>
                     </div>
                   )}
 
