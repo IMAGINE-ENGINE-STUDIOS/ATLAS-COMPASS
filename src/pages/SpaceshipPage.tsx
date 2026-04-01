@@ -1564,24 +1564,33 @@ out center 15;`;
                       </button>
                     ))}
                   </div>
-                  <div className="max-h-64 overflow-y-auto space-y-1 scrollbar-thin">
-                    {/* Local preset results */}
-                    {(searchResults.length > 0 ? searchResults : PRESETS).map((r, i) => (
-                      <button
-                        key={`preset-${i}`}
-                        onClick={() => flyTo(r)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
-                          {getTypeIcon(r.type)}
+                  <div className="max-h-72 overflow-y-auto space-y-1 scrollbar-thin">
+                    {/* Overpass business results — SHOWN FIRST */}
+                    {overpassResults.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Businesses &amp; Stores</span>
+                          <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                          <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
-                      </button>
-                    ))}
+                        {overpassResults.map((r, i) => (
+                          <button
+                            key={`ov-${i}`}
+                            onClick={() => flyTo(r)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-emerald-500/[0.08] transition-colors text-left group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500/[0.08] flex items-center justify-center shrink-0">
+                              {getTypeIcon(r.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                            </div>
+                            <Navigation className="w-4 h-4 text-emerald-400/40 group-hover:text-emerald-400 transition-colors" />
+                          </button>
+                        ))}
+                      </>
+                    )}
 
                     {/* Nominatim global results */}
                     {nominatimResults.length > 0 && (
@@ -1610,31 +1619,40 @@ out center 15;`;
                       </>
                     )}
 
-                    {/* Overpass business results */}
-                    {overpassResults.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-2 px-3 py-2">
-                          <div className="flex-1 h-px bg-white/[0.06]" />
-                          <span className="text-[9px] text-white/30 font-mono uppercase">Businesses &amp; POIs</span>
-                          <div className="flex-1 h-px bg-white/[0.06]" />
-                        </div>
-                        {overpassResults.map((r, i) => (
-                          <button
-                            key={`ov-${i}`}
-                            onClick={() => flyTo(r)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
-                          >
-                            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
-                              {getTypeIcon(r.type)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
-                          </button>
-                        ))}
-                      </>
+                    {/* Local preset results — shown last when searching */}
+                    {searchQuery ? (
+                      searchResults.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-2 px-3 py-2">
+                            <div className="flex-1 h-px bg-white/[0.06]" />
+                            <span className="text-[9px] text-white/30 font-mono uppercase">Presets</span>
+                            <div className="flex-1 h-px bg-white/[0.06]" />
+                          </div>
+                          {searchResults.map((r, i) => (
+                            <button key={`preset-${i}`} onClick={() => flyTo(r)}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group">
+                              <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">{getTypeIcon(r.type)}</div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                                <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                            </button>
+                          ))}
+                        </>
+                      )
+                    ) : (
+                      PRESETS.map((r, i) => (
+                        <button key={`preset-${i}`} onClick={() => flyTo(r)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group">
+                          <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">{getTypeIcon(r.type)}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                            <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                        </button>
+                      ))
                     )}
 
                     {searchLoading && (
