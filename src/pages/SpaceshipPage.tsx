@@ -316,7 +316,7 @@ export default function SpaceshipPage() {
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     let lastMouseX = -1;
     let lastMouseY = -1;
-    let lastBrushCartesian: any = null;
+    
     handler.setInputAction((movement: any) => {
       const mx = movement.endPosition.x;
       const my = movement.endPosition.y;
