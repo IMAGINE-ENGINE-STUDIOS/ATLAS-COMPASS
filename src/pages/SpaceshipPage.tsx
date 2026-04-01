@@ -971,6 +971,105 @@ out center 15;`;
     };
   }, [showBusinessIcons]);
 
+  // ── Real-time Aircraft & Ship Tracking ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Clear existing
+    liveTrafficEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    liveTrafficEntitiesRef.current = [];
+    if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
+
+    if (!showLiveTraffic) { setLiveTrafficStats({ planes: 0, ships: 0 }); return; }
+
+    const fetchAircraft = async () => {
+      try {
+        const resp = await fetch("https://opensky-network.org/api/states/all");
+        const data = await resp.json();
+        if (!data.states) return [];
+        return data.states
+          .filter((s: any) => s[5] != null && s[6] != null && !s[8])
+          .map((s: any) => ({
+            id: s[0],
+            callsign: (s[1] || "").trim(),
+            country: s[2] || "",
+            lng: s[5],
+            lat: s[6],
+            alt: s[7] || 10000,
+            speed: s[9] || 0,
+            heading: s[10] || 0,
+          }));
+      } catch { return []; }
+    };
+
+    const updateEntities = async () => {
+      if (!viewer || viewer.isDestroyed()) return;
+      const aircraft = await fetchAircraft();
+
+      // Update existing or add new entities
+      const existingIds = new Set(liveTrafficEntitiesRef.current.map(e => e.id));
+      const newIds = new Set(aircraft.map((ac: any) => `live-ac-${ac.id}`));
+
+      // Remove entities no longer present
+      liveTrafficEntitiesRef.current = liveTrafficEntitiesRef.current.filter(e => {
+        if (!newIds.has(e.id)) {
+          if (viewer.entities.contains(e)) viewer.entities.remove(e);
+          return false;
+        }
+        return true;
+      });
+
+      const maxPlanes = 8000;
+      const planes = aircraft.slice(0, maxPlanes);
+      planes.forEach((ac: any) => {
+        const eid = `live-ac-${ac.id}`;
+        const existing = viewer.entities.getById(eid);
+        const pos = Cartesian3.fromDegrees(ac.lng, ac.lat, Math.max(ac.alt, 500) * 3);
+        if (existing) {
+          // Update position in place — real-time movement
+          existing.position = pos as any;
+        } else if (!existingIds.has(eid)) {
+          const entity = viewer.entities.add({
+            id: eid,
+            position: pos,
+            point: {
+              pixelSize: 3,
+              color: Color.fromCssColorString("#facc15"),
+              outlineColor: Color.fromCssColorString("#facc15").withAlpha(0.3),
+              outlineWidth: 4,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 1e4, nearValue: 2.0, far: 1e7, farValue: 0.3 } as any,
+            },
+            label: {
+              text: "✈",
+              font: "12px sans-serif",
+              fillColor: Color.fromCssColorString("#facc15"),
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 5e3, nearValue: 1.0, far: 5e5, farValue: 0.0 } as any,
+              translucencyByDistance: { near: 5e3, nearValue: 1.0, far: 8e5, farValue: 0.0 } as any,
+              pixelOffset: new Cartesian2(0, -8),
+            },
+            description: JSON.stringify(ac),
+          });
+          liveTrafficEntitiesRef.current.push(entity);
+        }
+      });
+
+      setLiveTrafficStats({ planes: planes.length, ships: 0 });
+    };
+
+    updateEntities();
+    // Refresh every 10 seconds (OpenSky rate limit)
+    liveTrafficTimerRef.current = setInterval(updateEntities, 10000);
+
+    return () => {
+      if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
+    };
+  }, [showLiveTraffic]);
+
   // Listen for double-click events from Cesium
   useEffect(() => {
     const handleDblClick = (e: Event) => {
