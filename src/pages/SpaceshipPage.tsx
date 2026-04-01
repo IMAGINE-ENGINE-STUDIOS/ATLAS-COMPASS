@@ -1609,6 +1609,7 @@ out center 15;`;
                     title="Live Aircraft & Ship Tracking"
                   >
                     <Plane className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
