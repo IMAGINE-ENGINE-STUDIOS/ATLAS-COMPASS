@@ -164,6 +164,16 @@ function getTypeIcon(type: string) {
     case "Highway": return <Navigation className="w-4 h-4 text-orange-400" />;
     case "Landmark": return <Eye className="w-4 h-4 text-pink-400" />;
     case "Coordinate": return <Crosshair className="w-4 h-4 text-yellow-400" />;
+    case "Restaurant": return <UtensilsCrossed className="w-4 h-4 text-orange-400" />;
+    case "Hotel": return <Hotel className="w-4 h-4 text-indigo-400" />;
+    case "Shop": case "Store": return <Store className="w-4 h-4 text-emerald-400" />;
+    case "Fuel": return <Fuel className="w-4 h-4 text-red-400" />;
+    case "Education": return <GraduationCap className="w-4 h-4 text-blue-400" />;
+    case "Health": return <Stethoscope className="w-4 h-4 text-red-400" />;
+    case "Supermarket": return <ShoppingCart className="w-4 h-4 text-green-400" />;
+    case "Cafe": return <Coffee className="w-4 h-4 text-amber-400" />;
+    case "Business": return <Building2 className="w-4 h-4 text-sky-400" />;
+    case "City": return <Building2 className="w-4 h-4 text-primary" />;
     default: return <MapPin className="w-4 h-4 text-primary" />;
   }
 }
