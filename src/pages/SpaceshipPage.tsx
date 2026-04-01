@@ -13,7 +13,7 @@ import {
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
-import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT } from "@/lib/cargo-routes";
+import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, interpolatePosition, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -254,7 +254,12 @@ export default function SpaceshipPage() {
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
   const [cargoFilter, setCargoFilter] = useState<"all" | "maritime" | "air">("all");
+  const [cargoTypeFilter, setCargoTypeFilter] = useState<CargoCategory | "all">("all");
+  const [selectedRoute, setSelectedRoute] = useState<CargoRoute | null>(null);
+  const [selectedVessel, setSelectedVessel] = useState<(Vessel & { routeName: string; routeColor: string; lat: number; lng: number }) | null>(null);
   const cargoEntitiesRef = useRef<any[]>([]);
+  const vesselAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const vesselProgressRef = useRef<Map<string, number>>(new Map());
 
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
@@ -695,22 +700,33 @@ out center 15;`;
     };
   }, []);
 
-  // ── Cargo Routes Rendering ──
+  // ── Cargo Routes Rendering + Vessel Animation ──
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // Remove existing cargo entities
+    // Cleanup
     cargoEntitiesRef.current.forEach((e) => {
       if (viewer.entities.contains(e)) viewer.entities.remove(e);
     });
     cargoEntitiesRef.current = [];
+    if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
 
     if (!showCargoRoutes) return;
 
-    const filteredRoutes = cargoFilter === "all"
-      ? ALL_CARGO_ROUTES
-      : ALL_CARGO_ROUTES.filter((r) => r.type === cargoFilter);
+    // Filter routes
+    let filteredRoutes = ALL_CARGO_ROUTES;
+    if (cargoFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.type === cargoFilter);
+    if (cargoTypeFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.category === cargoTypeFilter);
+
+    // Initialize vessel progress
+    filteredRoutes.forEach(route => {
+      route.vessels.forEach(v => {
+        if (!vesselProgressRef.current.has(v.id)) {
+          vesselProgressRef.current.set(v.id, v.progress);
+        }
+      });
+    });
 
     filteredRoutes.forEach((route) => {
       const height = route.type === "air" ? 80000 : 0;
@@ -720,147 +736,143 @@ out center 15;`;
       // Glow polyline
       const polyEntity = viewer.entities.add({
         id: `cargo-${route.id}`,
-        polyline: {
-          positions,
-          width: route.type === "air" ? 3 : 4,
-          material: new PolylineGlowMaterialProperty({
-            glowPower: 0.25,
-            taperPower: 0.8,
-            color: lineColor.withAlpha(0.85),
-          }),
-          clampToGround: route.type === "maritime",
-        },
+        polyline: { positions, width: route.type === "air" ? 3 : 4, material: new PolylineGlowMaterialProperty({ glowPower: 0.25, taperPower: 0.8, color: lineColor.withAlpha(0.85) }), clampToGround: route.type === "maritime" },
       });
       cargoEntitiesRef.current.push(polyEntity);
 
-      // Thinner inner core line for gradient effect
-      const coreEntity = viewer.entities.add({
+      // Core line
+      cargoEntitiesRef.current.push(viewer.entities.add({
         id: `cargo-core-${route.id}`,
-        polyline: {
-          positions,
-          width: route.type === "air" ? 1.5 : 2,
-          material: lineColor.withAlpha(0.5),
-          clampToGround: route.type === "maritime",
-        },
-      });
-      cargoEntitiesRef.current.push(coreEntity);
+        polyline: { positions, width: route.type === "air" ? 1.5 : 2, material: lineColor.withAlpha(0.5), clampToGround: route.type === "maritime" },
+      }));
 
-      // Route name at midpoint
+      // Route label
       const midIdx = Math.floor(route.waypoints.length / 2);
       const [mLng, mLat] = route.waypoints[midIdx];
-      const labelEntity = viewer.entities.add({
+      cargoEntitiesRef.current.push(viewer.entities.add({
         id: `cargo-label-${route.id}`,
         position: Cartesian3.fromDegrees(mLng, mLat, height + (route.type === "air" ? 20000 : 8000)),
         label: {
-          text: route.name,
-          font: "11px Inter",
-          fillColor: Color.WHITE,
-          outlineColor: lineColor.withAlpha(0.9),
-          outlineWidth: 3,
-          style: 2,
-          pixelOffset: new Cartesian2(0, -10),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          text: `${route.name}\n${CARGO_CATEGORIES.find(c => c.id === route.category)?.icon || ""} ${route.distance} · ${route.transitTime}`,
+          font: "11px Inter", fillColor: Color.WHITE, outlineColor: lineColor.withAlpha(0.9), outlineWidth: 3, style: 2,
+          pixelOffset: new Cartesian2(0, -10), disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: { near: 5e4, nearValue: 1.0, far: 8e6, farValue: 0.25 } as any,
           translucencyByDistance: { near: 5e4, nearValue: 1.0, far: 1.5e7, farValue: 0.0 } as any,
-          backgroundColor: Color.BLACK.withAlpha(0.5),
-          showBackground: true,
-          backgroundPadding: new Cartesian2(6, 3),
+          backgroundColor: Color.BLACK.withAlpha(0.6), showBackground: true, backgroundPadding: new Cartesian2(6, 3),
         },
-      });
-      cargoEntitiesRef.current.push(labelEntity);
+      }));
 
-      // Direction arrows along route
-      const arrowCount = Math.max(3, Math.floor(route.waypoints.length / 3));
-      const arrowStep = Math.max(1, Math.floor(route.waypoints.length / arrowCount));
+      // Direction arrows
+      const arrowStep = Math.max(1, Math.floor(route.waypoints.length / Math.max(3, Math.floor(route.waypoints.length / 3))));
       for (let i = 1; i < route.waypoints.length - 1; i += arrowStep) {
         const [lng1, lat1] = route.waypoints[i];
         const ni = Math.min(i + 1, route.waypoints.length - 1);
         const [lng2, lat2] = route.waypoints[ni];
-        const dLng = lng2 - lng1;
-        const dLat = lat2 - lat1;
-        const heading = Math.atan2(dLng, dLat);
-        // Unicode arrows that point in the direction of travel
+        const heading = Math.atan2(lng2 - lng1, lat2 - lat1);
         const arrowChars = ["↑","↗","→","↘","↓","↙","←","↖"];
         const octant = Math.round(((heading * 180 / Math.PI) + 360) % 360 / 45) % 8;
-        const arrow = route.type === "air" ? "✈" : arrowChars[octant];
-        
-        const arrowEntity = viewer.entities.add({
+        cargoEntitiesRef.current.push(viewer.entities.add({
           id: `cargo-arrow-${route.id}-${i}`,
           position: Cartesian3.fromDegrees(lng1, lat1, height + (route.type === "air" ? 12000 : 3000)),
-          label: {
-            text: arrow,
-            font: route.type === "air" ? "16px sans-serif" : "14px sans-serif",
-            fillColor: lineColor,
-            outlineColor: Color.BLACK,
-            outlineWidth: 2,
-            style: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: { near: 2e4, nearValue: 1.2, far: 5e6, farValue: 0.15 } as any,
-            translucencyByDistance: { near: 2e4, nearValue: 1.0, far: 1e7, farValue: 0.0 } as any,
-          },
-        });
-        cargoEntitiesRef.current.push(arrowEntity);
+          label: { text: route.type === "air" ? "✈" : arrowChars[octant], font: route.type === "air" ? "16px sans-serif" : "14px sans-serif", fillColor: lineColor, outlineColor: Color.BLACK, outlineWidth: 2, style: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: { near: 2e4, nearValue: 1.2, far: 5e6, farValue: 0.15 } as any, translucencyByDistance: { near: 2e4, nearValue: 1.0, far: 1e7, farValue: 0.0 } as any },
+        }));
       }
 
-      // Simulated vessel/plane markers along route
-      const vesselCount = route.vessels || 3;
-      const spacing = route.waypoints.length / (vesselCount + 1);
-      for (let v = 0; v < vesselCount && v < 8; v++) {
-        const wi = Math.min(Math.floor((v + 1) * spacing), route.waypoints.length - 1);
-        // Offset slightly from exact waypoint for realism
-        const [vLng, vLat] = route.waypoints[wi];
-        const jitterLng = vLng + (Math.random() - 0.5) * 2;
-        const jitterLat = vLat + (Math.random() - 0.5) * 1;
-        const vHeight = route.type === "air" ? 35000 + Math.random() * 4000 : 0;
-        const vesselIcon = route.type === "air" ? "✈" : "🚢";
+      // Vessel entities — positioned by interpolation
+      route.vessels.forEach((vessel) => {
+        const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
+        const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
+        const vHeight = route.type === "air" ? 35000 + (prog * 5000) : 0;
+        const catInfo = CARGO_CATEGORIES.find(c => c.id === vessel.category);
         const vesselEntity = viewer.entities.add({
-          id: `cargo-vessel-${route.id}-${v}`,
-          position: Cartesian3.fromDegrees(jitterLng, jitterLat, vHeight),
+          id: `vessel-${vessel.id}`,
+          position: Cartesian3.fromDegrees(vLng, vLat, vHeight),
           label: {
-            text: vesselIcon,
-            font: route.type === "air" ? "18px sans-serif" : "16px sans-serif",
-            fillColor: Color.WHITE,
-            outlineColor: Color.BLACK,
-            outlineWidth: 1,
-            style: 2,
+            text: catInfo?.icon || (route.type === "air" ? "✈" : "🚢"),
+            font: route.type === "air" ? "20px sans-serif" : "18px sans-serif",
+            fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 1, style: 2,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
             scaleByDistance: { near: 1e4, nearValue: 1.5, far: 3e6, farValue: 0.1 } as any,
             translucencyByDistance: { near: 1e4, nearValue: 1.0, far: 5e6, farValue: 0.0 } as any,
           },
-          point: {
-            pixelSize: 4,
-            color: lineColor,
-            outlineColor: lineColor.withAlpha(0.4),
-            outlineWidth: 8,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: { near: 1e4, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any,
-          },
+          point: { pixelSize: 5, color: lineColor, outlineColor: lineColor.withAlpha(0.3), outlineWidth: 10, disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: { near: 1e4, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any },
+          description: JSON.stringify({ vesselId: vessel.id, routeId: route.id }),
         });
         cargoEntitiesRef.current.push(vesselEntity);
-      }
+      });
 
-      // Port/Airport markers at endpoints
-      const [startLng, startLat] = route.waypoints[0];
-      const [endLng, endLat] = route.waypoints[route.waypoints.length - 1];
-      [
-        { lng: startLng, lat: startLat, label: "●" },
-        { lng: endLng, lat: endLat, label: "●" },
-      ].forEach((pt, pi) => {
-        const portEntity = viewer.entities.add({
+      // Port markers at endpoints
+      [[route.waypoints[0],0],[route.waypoints[route.waypoints.length-1],1]].forEach(([pt, pi]) => {
+        const [pLng, pLat] = pt as [number, number];
+        cargoEntitiesRef.current.push(viewer.entities.add({
           id: `cargo-port-${route.id}-${pi}`,
-          position: Cartesian3.fromDegrees(pt.lng, pt.lat, height + 1000),
-          point: {
-            pixelSize: 6,
-            color: lineColor,
-            outlineColor: Color.WHITE,
-            outlineWidth: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          },
-        });
-        cargoEntitiesRef.current.push(portEntity);
+          position: Cartesian3.fromDegrees(pLng, pLat, height + 1000),
+          point: { pixelSize: 6, color: lineColor, outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        }));
       });
     });
-  }, [showCargoRoutes, cargoFilter]);
+
+    // Animate vessels — update positions every 2 seconds
+    const SPEED_FACTOR = 0.0005; // progress per tick for ships
+    const AIR_SPEED_FACTOR = 0.002; // faster for planes
+    vesselAnimRef.current = setInterval(() => {
+      if (!viewer || viewer.isDestroyed()) return;
+      filteredRoutes.forEach(route => {
+        const height = route.type === "air" ? 35000 : 0;
+        route.vessels.forEach(vessel => {
+          let prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
+          prog += route.type === "air" ? AIR_SPEED_FACTOR : SPEED_FACTOR;
+          if (prog >= 1) prog = 0; // loop back
+          vesselProgressRef.current.set(vessel.id, prog);
+          const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
+          const entity = viewer.entities.getById(`vessel-${vessel.id}`);
+          if (entity) {
+            entity.position = Cartesian3.fromDegrees(vLng, vLat, height + (route.type === "air" ? prog * 5000 : 0)) as any;
+          }
+        });
+      });
+    }, 2000);
+
+    // Click handler for vessel data cards
+    const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    clickHandler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (picked?.id?.id) {
+        const entityId = picked.id.id as string;
+        // Check if it's a vessel
+        if (entityId.startsWith("vessel-")) {
+          const desc = picked.id.description?.getValue?.() || picked.id.description;
+          if (desc) {
+            try {
+              const { vesselId, routeId } = JSON.parse(desc);
+              const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
+              const vessel = route?.vessels.find(v => v.id === vesselId);
+              if (route && vessel) {
+                const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
+                const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
+                setSelectedVessel({ ...vessel, routeName: route.name, routeColor: route.color, lat: vLat, lng: vLng });
+                setSelectedRoute(null);
+              }
+            } catch {}
+          }
+        }
+        // Check if it's a route line
+        if (entityId.startsWith("cargo-") && !entityId.startsWith("cargo-core-") && !entityId.startsWith("cargo-label-") && !entityId.startsWith("cargo-arrow-") && !entityId.startsWith("cargo-port-")) {
+          const routeId = entityId.replace("cargo-", "");
+          const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
+          if (route) {
+            setSelectedRoute(route);
+            setSelectedVessel(null);
+          }
+        }
+      }
+    }, ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => {
+      clickHandler.destroy();
+      if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
+    };
+  }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
 
   // Listen for double-click events from Cesium
   useEffect(() => {
@@ -1545,47 +1557,95 @@ out center 15;`;
                   <div className="flex items-center gap-2 mb-3">
                     <Ship className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-bold text-white">Global Cargo Traffic</span>
-                    <button onClick={() => setShowCargoRoutes(false)} className="ml-auto">
+                    <button onClick={() => { setShowCargoRoutes(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
                       <X className="w-4 h-4 text-white/40 hover:text-white" />
                     </button>
                   </div>
 
-                  {/* Stats Grid */}
+                  {/* Stats */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2.5 text-center">
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2 text-center">
                       <div className="text-lg font-bold font-mono text-blue-400">{MARITIME_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-blue-400/60 uppercase tracking-wider">🚢 Ships Active</div>
+                      <div className="text-[9px] text-blue-400/60 uppercase">🚢 Ships</div>
                     </div>
-                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2.5 text-center">
+                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2 text-center">
                       <div className="text-lg font-bold font-mono text-pink-400">{AIR_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-pink-400/60 uppercase tracking-wider">✈ Planes Active</div>
+                      <div className="text-[9px] text-pink-400/60 uppercase">✈ Planes</div>
                     </div>
                   </div>
 
-                  {/* Filter */}
-                  <div className="flex gap-1.5 mb-3">
-                    {(["all", "maritime", "air"] as const).map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => setCargoFilter(f)}
+                  {/* Type / Category Filter */}
+                  <div className="flex gap-1.5 mb-2">
+                    {(["all","maritime","air"] as const).map(f => (
+                      <button key={f} onClick={() => setCargoFilter(f)}
                         className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-all ${
                           cargoFilter === f
-                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_12px_rgba(59,130,246,0.15)]"
-                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
-                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
+                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                             : "bg-white/[0.04] text-white/30 border border-white/[0.06] hover:text-white/60"
-                        }`}
-                      >
-                        {f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}
+                        }`}>{f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}</button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {[{id:"all" as const,label:"All",icon:"🌐"}, ...CARGO_CATEGORIES.filter(c => cargoFilter === "all" || (cargoFilter === "maritime" ? !c.id.startsWith("air-") : c.id.startsWith("air-")))].map(c => (
+                      <button key={c.id} onClick={() => setCargoTypeFilter(c.id as any)}
+                        className={`px-2 py-1 rounded-lg text-[9px] font-mono transition-all ${cargoTypeFilter === c.id ? "bg-white/10 text-white border border-white/20" : "bg-white/[0.03] text-white/25 border border-white/[0.05] hover:text-white/50"}`}>
+                        {c.icon} {c.label}
                       </button>
                     ))}
                   </div>
 
                   {/* Route count */}
-                  <div className="flex items-center justify-between text-[9px] text-white/30 font-mono">
-                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes shown</span>
-                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + (r.vessels || 0), 0)} active vessels</span>
+                  <div className="flex items-center justify-between text-[9px] text-white/30 font-mono mb-3">
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes</span>
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + r.vessels.length, 0)} vessels</span>
                   </div>
+
+                  {/* Selected Route Card */}
+                  {selectedRoute && (
+                    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 mb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white">{selectedRoute.name}</span>
+                        <button onClick={() => setSelectedRoute(null)}><X className="w-3 h-3 text-white/30" /></button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div><span className="text-white/30">Type</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.label}</span></div>
+                        <div><span className="text-white/30">Distance</span><br/><span className="text-white font-mono">{selectedRoute.distance}</span></div>
+                        <div><span className="text-white/30">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
+                        <div><span className="text-white/30">Vessels</span><br/><span className="text-white font-mono">{selectedRoute.vessels.length} active</span></div>
+                      </div>
+                      <div className="mt-2 max-h-24 overflow-y-auto space-y-1">
+                        {selectedRoute.vessels.map(v => (
+                          <div key={v.id} className="flex items-center gap-2 text-[9px] text-white/50 bg-white/[0.02] rounded-lg px-2 py-1">
+                            <span>{v.flag}</span>
+                            <span className="text-white/70 truncate flex-1">{v.name}</span>
+                            <span className="text-white/30 font-mono">{v.speed}{selectedRoute.type === "air" ? "km/h" : "kn"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selected Vessel Card */}
+                  {selectedVessel && (
+                    <div className="bg-white/[0.04] border rounded-xl p-3" style={{ borderColor: selectedVessel.routeColor + "40" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white">{selectedVessel.flag} {selectedVessel.name}</span>
+                        <button onClick={() => setSelectedVessel(null)}><X className="w-3 h-3 text-white/30" /></button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div><span className="text-white/30">Route</span><br/><span className="text-white font-mono">{selectedVessel.routeName}</span></div>
+                        <div><span className="text-white/30">Category</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedVessel.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedVessel.category)?.label}</span></div>
+                        <div><span className="text-white/30">Speed</span><br/><span className="text-white font-mono">{selectedVessel.speed} {selectedVessel.category.startsWith("air") ? "km/h" : "knots"}</span></div>
+                        <div><span className="text-white/30">Tonnage</span><br/><span className="text-white font-mono">{selectedVessel.tonnage}</span></div>
+                        <div><span className="text-white/30">Operator</span><br/><span className="text-white font-mono">{selectedVessel.operator}</span></div>
+                        <div><span className="text-white/30">Built</span><br/><span className="text-white font-mono">{selectedVessel.built}</span></div>
+                        <div><span className="text-white/30">Position</span><br/><span className="text-white font-mono">{selectedVessel.lat.toFixed(3)}°, {selectedVessel.lng.toFixed(3)}°</span></div>
+                        {selectedVessel.imo && <div><span className="text-white/30">IMO</span><br/><span className="text-white font-mono">{selectedVessel.imo}</span></div>}
+                      </div>
+                    </div>
+                  )}
                 </GlassPanel>
               </motion.div>
             )}
