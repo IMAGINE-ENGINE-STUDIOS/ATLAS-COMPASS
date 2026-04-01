@@ -940,7 +940,7 @@ out center 15;`;
     }
     setSearchResults(filtered);
 
-    // Debounced parallel search: Nominatim + Overpass
+    // Debounced parallel search: Nominatim + Overpass — prioritize businesses
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (query.trim().length >= 3) {
       setSearchLoading(true);
@@ -949,12 +949,19 @@ out center 15;`;
           searchNominatim(query),
           searchOverpassBusinesses(query),
         ]);
-        setNominatimResults(nomResults);
         // Deduplicate overpass results that are already in nominatim (by proximity)
         const deduped = ovResults.filter(ov =>
           !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
         );
-        setOverpassResults(deduped);
+        // Prioritize: exact name matches first, then businesses, then other results
+        const businessTypes = new Set(["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"]);
+        const allResults = [...deduped, ...nomResults];
+        const exactMatches = allResults.filter(r => r.name.toLowerCase().includes(q));
+        const businessMatches = allResults.filter(r => businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
+        const otherMatches = allResults.filter(r => !businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
+        // Put business/exact matches into overpassResults (shown first), rest in nominatim
+        setOverpassResults([...exactMatches.filter(r => businessTypes.has(r.type)), ...businessMatches]);
+        setNominatimResults([...exactMatches.filter(r => !businessTypes.has(r.type)), ...otherMatches]);
         setSearchLoading(false);
       }, 400);
     } else {
