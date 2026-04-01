@@ -879,6 +879,91 @@ out center 15;`;
     };
   }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
 
+  // ── Business/Store Icons on Globe ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Clear existing business entities
+    businessEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    businessEntitiesRef.current = [];
+
+    if (!showBusinessIcons) return;
+
+    // Load businesses in current view area
+    const loadBusinesses = async () => {
+      const cam = viewer.camera.positionCartographic;
+      const lat = CesiumMath.toDegrees(cam.latitude);
+      const lng = CesiumMath.toDegrees(cam.longitude);
+      const alt = cam.height;
+      // Only load when reasonably zoomed in
+      if (alt > 50000) return;
+
+      const radius = Math.min(alt / 111000 * 2, 0.15); // degrees, proportional to altitude
+      const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
+      if (businessLoadedAreaRef.current === areaKey) return;
+      businessLoadedAreaRef.current = areaKey;
+
+      const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
+      const query = `[out:json][timeout:10];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|hospital|bank|bar|pub"](${bbox});node["tourism"~"hotel|motel|hostel|guest_house"](${bbox}););out 80;`;
+      try {
+        const resp = await fetch("https://overpass-api.de/api/interpreter", {
+          method: "POST",
+          body: `data=${encodeURIComponent(query)}`,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await resp.json();
+        if (!data.elements) return;
+
+        // Clear old before adding new
+        businessEntitiesRef.current.forEach(e => {
+          if (viewer.entities.contains(e)) viewer.entities.remove(e);
+        });
+        businessEntitiesRef.current = [];
+
+        const iconMap: Record<string, string> = {
+          restaurant: "🍽️", fast_food: "🍔", cafe: "☕", bar: "🍺", pub: "🍺",
+          fuel: "⛽", pharmacy: "💊", hospital: "🏥", bank: "🏦",
+          hotel: "🏨", motel: "🏨", hostel: "🏨", guest_house: "🏨",
+          supermarket: "🛒", convenience: "🏪", clothes: "👕", electronics: "📱",
+          bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
+        };
+
+        data.elements.forEach((el: any) => {
+          const tags = el.tags || {};
+          if (!tags.name) return;
+          const amenity = tags.amenity || tags.shop || tags.tourism || "";
+          const icon = iconMap[amenity] || "📍";
+          const entity = viewer.entities.add({
+            id: `biz-${el.id}`,
+            position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
+            label: {
+              text: icon,
+              font: "16px sans-serif",
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 100, nearValue: 1.2, far: 8000, farValue: 0.3 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 15000, farValue: 0.0 } as any,
+            },
+            description: tags.name + (tags["addr:street"] ? ` — ${tags["addr:street"]}` : ""),
+          });
+          businessEntitiesRef.current.push(entity);
+        });
+      } catch { /* ignore network errors */ }
+    };
+
+    loadBusinesses();
+
+    // Reload on camera move end
+    const removeListener = viewer.camera.moveEnd.addEventListener(() => {
+      loadBusinesses();
+    });
+
+    return () => {
+      removeListener();
+    };
+
   // Listen for double-click events from Cesium
   useEffect(() => {
     const handleDblClick = (e: Event) => {
