@@ -1557,47 +1557,95 @@ out center 15;`;
                   <div className="flex items-center gap-2 mb-3">
                     <Ship className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-bold text-white">Global Cargo Traffic</span>
-                    <button onClick={() => setShowCargoRoutes(false)} className="ml-auto">
+                    <button onClick={() => { setShowCargoRoutes(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
                       <X className="w-4 h-4 text-white/40 hover:text-white" />
                     </button>
                   </div>
 
-                  {/* Stats Grid */}
+                  {/* Stats */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2.5 text-center">
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2 text-center">
                       <div className="text-lg font-bold font-mono text-blue-400">{MARITIME_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-blue-400/60 uppercase tracking-wider">🚢 Ships Active</div>
+                      <div className="text-[9px] text-blue-400/60 uppercase">🚢 Ships</div>
                     </div>
-                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2.5 text-center">
+                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2 text-center">
                       <div className="text-lg font-bold font-mono text-pink-400">{AIR_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-pink-400/60 uppercase tracking-wider">✈ Planes Active</div>
+                      <div className="text-[9px] text-pink-400/60 uppercase">✈ Planes</div>
                     </div>
                   </div>
 
-                  {/* Filter */}
-                  <div className="flex gap-1.5 mb-3">
-                    {(["all", "maritime", "air"] as const).map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => setCargoFilter(f)}
+                  {/* Type / Category Filter */}
+                  <div className="flex gap-1.5 mb-2">
+                    {(["all","maritime","air"] as const).map(f => (
+                      <button key={f} onClick={() => setCargoFilter(f)}
                         className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-all ${
                           cargoFilter === f
-                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_12px_rgba(59,130,246,0.15)]"
-                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
-                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
+                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                             : "bg-white/[0.04] text-white/30 border border-white/[0.06] hover:text-white/60"
-                        }`}
-                      >
-                        {f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}
+                        }`}>{f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}</button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {[{id:"all" as const,label:"All",icon:"🌐"}, ...CARGO_CATEGORIES.filter(c => cargoFilter === "all" || (cargoFilter === "maritime" ? !c.id.startsWith("air-") : c.id.startsWith("air-")))].map(c => (
+                      <button key={c.id} onClick={() => setCargoTypeFilter(c.id as any)}
+                        className={`px-2 py-1 rounded-lg text-[9px] font-mono transition-all ${cargoTypeFilter === c.id ? "bg-white/10 text-white border border-white/20" : "bg-white/[0.03] text-white/25 border border-white/[0.05] hover:text-white/50"}`}>
+                        {c.icon} {c.label}
                       </button>
                     ))}
                   </div>
 
                   {/* Route count */}
-                  <div className="flex items-center justify-between text-[9px] text-white/30 font-mono">
-                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes shown</span>
-                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + (r.vessels || 0), 0)} active vessels</span>
+                  <div className="flex items-center justify-between text-[9px] text-white/30 font-mono mb-3">
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes</span>
+                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + r.vessels.length, 0)} vessels</span>
                   </div>
+
+                  {/* Selected Route Card */}
+                  {selectedRoute && (
+                    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 mb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white">{selectedRoute.name}</span>
+                        <button onClick={() => setSelectedRoute(null)}><X className="w-3 h-3 text-white/30" /></button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div><span className="text-white/30">Type</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.label}</span></div>
+                        <div><span className="text-white/30">Distance</span><br/><span className="text-white font-mono">{selectedRoute.distance}</span></div>
+                        <div><span className="text-white/30">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
+                        <div><span className="text-white/30">Vessels</span><br/><span className="text-white font-mono">{selectedRoute.vessels.length} active</span></div>
+                      </div>
+                      <div className="mt-2 max-h-24 overflow-y-auto space-y-1">
+                        {selectedRoute.vessels.map(v => (
+                          <div key={v.id} className="flex items-center gap-2 text-[9px] text-white/50 bg-white/[0.02] rounded-lg px-2 py-1">
+                            <span>{v.flag}</span>
+                            <span className="text-white/70 truncate flex-1">{v.name}</span>
+                            <span className="text-white/30 font-mono">{v.speed}{selectedRoute.type === "air" ? "km/h" : "kn"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selected Vessel Card */}
+                  {selectedVessel && (
+                    <div className="bg-white/[0.04] border rounded-xl p-3" style={{ borderColor: selectedVessel.routeColor + "40" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white">{selectedVessel.flag} {selectedVessel.name}</span>
+                        <button onClick={() => setSelectedVessel(null)}><X className="w-3 h-3 text-white/30" /></button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div><span className="text-white/30">Route</span><br/><span className="text-white font-mono">{selectedVessel.routeName}</span></div>
+                        <div><span className="text-white/30">Category</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedVessel.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedVessel.category)?.label}</span></div>
+                        <div><span className="text-white/30">Speed</span><br/><span className="text-white font-mono">{selectedVessel.speed} {selectedVessel.category.startsWith("air") ? "km/h" : "knots"}</span></div>
+                        <div><span className="text-white/30">Tonnage</span><br/><span className="text-white font-mono">{selectedVessel.tonnage}</span></div>
+                        <div><span className="text-white/30">Operator</span><br/><span className="text-white font-mono">{selectedVessel.operator}</span></div>
+                        <div><span className="text-white/30">Built</span><br/><span className="text-white font-mono">{selectedVessel.built}</span></div>
+                        <div><span className="text-white/30">Position</span><br/><span className="text-white font-mono">{selectedVessel.lat.toFixed(3)}°, {selectedVessel.lng.toFixed(3)}°</span></div>
+                        {selectedVessel.imo && <div><span className="text-white/30">IMO</span><br/><span className="text-white font-mono">{selectedVessel.imo}</span></div>}
+                      </div>
+                    </div>
+                  )}
                 </GlassPanel>
               </motion.div>
             )}
