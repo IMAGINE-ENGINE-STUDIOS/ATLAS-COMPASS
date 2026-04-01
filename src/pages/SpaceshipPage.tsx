@@ -326,10 +326,25 @@ export default function SpaceshipPage() {
     handler.setInputAction((movement: any) => {
       const mx = movement.endPosition.x;
       const my = movement.endPosition.y;
-      // Only update if mouse actually moved (pixel threshold)
       if (Math.abs(mx - lastMouseX) < 2 && Math.abs(my - lastMouseY) < 2) return;
       lastMouseX = mx;
       lastMouseY = my;
+
+      // If dragging a model, reposition it
+      if (draggingRef.current) {
+        const ray = viewer.camera.getPickRay(movement.endPosition);
+        if (ray) {
+          const cartesian = viewer.scene.pickPosition(movement.endPosition)
+            || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
+          if (defined(cartesian)) {
+            const entity = viewer.entities.getById(`model-${draggingRef.current}`);
+            if (entity) {
+              entity.position = cartesian as any;
+            }
+          }
+        }
+        return;
+      }
 
       const ray = viewer.camera.getPickRay(movement.endPosition);
       if (ray) {
@@ -342,14 +357,49 @@ export default function SpaceshipPage() {
             lng: CesiumMath.toDegrees(carto.longitude),
             alt: carto.height,
           });
-          // Update brush indicator only when mouse truly moved
-          if (brushIndicatorRef.current) {
-            brushIndicatorRef.current.position = cartesian as any;
+          // Only update brush indicator when no placement dialog is open
+          if (brushIndicatorRef.current && !pendingPlacementRef.current) {
             brushIndicatorRef.current.position = cartesian as any;
           }
         }
       }
     }, ScreenSpaceEventType.MOUSE_MOVE);
+
+    // Left click down — start dragging a model entity
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (defined(picked) && picked.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
+        const modelId = picked.id.id.replace("model-", "");
+        draggingRef.current = modelId;
+        setDraggingModelId(modelId);
+        viewer.scene.screenSpaceCameraController.enableRotate = false;
+        viewer.scene.screenSpaceCameraController.enableTranslate = false;
+      }
+    }, ScreenSpaceEventType.LEFT_DOWN);
+
+    // Left click up — finish dragging
+    handler.setInputAction((click: any) => {
+      if (draggingRef.current) {
+        const modelId = draggingRef.current;
+        const entity = viewer.entities.getById(`model-${modelId}`);
+        if (entity && entity.position) {
+          const pos = entity.position.getValue(viewer.clock.currentTime);
+          if (pos) {
+            const carto = Cartographic.fromCartesian(pos);
+            const newLat = CesiumMath.toDegrees(carto.latitude);
+            const newLng = CesiumMath.toDegrees(carto.longitude);
+            // Dispatch event to update React state
+            window.dispatchEvent(new CustomEvent("cesium-model-moved", {
+              detail: { id: modelId, lat: newLat, lng: newLng, alt: carto.height }
+            }));
+          }
+        }
+        draggingRef.current = null;
+        setDraggingModelId(null);
+        viewer.scene.screenSpaceCameraController.enableRotate = true;
+        viewer.scene.screenSpaceCameraController.enableTranslate = true;
+      }
+    }, ScreenSpaceEventType.LEFT_UP);
 
     // Double-click handler — creates POI or places model depending on mode
     handler.setInputAction((click: any) => {
