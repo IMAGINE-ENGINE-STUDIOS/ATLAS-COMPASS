@@ -15,7 +15,6 @@ import {
   defined,
   HeadingPitchRoll, Transforms,
   Cartesian2, Cesium3DTileset, IonResource,
-  EllipseGraphics, ColorMaterialProperty, CallbackProperty,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
