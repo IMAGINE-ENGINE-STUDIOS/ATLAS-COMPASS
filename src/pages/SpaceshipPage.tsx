@@ -365,7 +365,7 @@ export default function SpaceshipPage() {
         moveCamera(idx);
       }
     }, 100);
-  }, []);
+  }, [stopJourney]);
 
   const stopJourney = useCallback(() => {
     if (journeyTimerRef.current) {
