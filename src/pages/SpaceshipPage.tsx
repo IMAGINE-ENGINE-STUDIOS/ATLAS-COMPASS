@@ -95,6 +95,10 @@ export default function SpaceshipPage() {
   const [hudVisible, setHudVisible] = useState(true);
   const [cameraAlt, setCameraAlt] = useState(0);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [pois, setPois] = useState<POI[]>(loadPOIs);
+  const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
+  const [poiName, setPoiName] = useState("");
+  const [poisPanelOpen, setPoisPanelOpen] = useState(false);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
