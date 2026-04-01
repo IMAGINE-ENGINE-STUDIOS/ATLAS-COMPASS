@@ -224,9 +224,9 @@ export default function SpaceshipPage() {
     // Enable depth test against terrain so pickPosition works well
     viewer.scene.globe.depthTestAgainstTerrain = true;
 
-    // Add world terrain
+    // Add world terrain (no water mask — it causes visual artifacts at medium zoom)
     createWorldTerrainAsync({
-      requestWaterMask: true,
+      requestWaterMask: false,
       requestVertexNormals: true,
     }).then((terrain) => {
       viewer.terrainProvider = terrain;
