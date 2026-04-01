@@ -254,7 +254,12 @@ export default function SpaceshipPage() {
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
   const [cargoFilter, setCargoFilter] = useState<"all" | "maritime" | "air">("all");
+  const [cargoTypeFilter, setCargoTypeFilter] = useState<CargoCategory | "all">("all");
+  const [selectedRoute, setSelectedRoute] = useState<CargoRoute | null>(null);
+  const [selectedVessel, setSelectedVessel] = useState<(Vessel & { routeName: string; routeColor: string; lat: number; lng: number }) | null>(null);
   const cargoEntitiesRef = useRef<any[]>([]);
+  const vesselAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const vesselProgressRef = useRef<Map<string, number>>(new Map());
 
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
