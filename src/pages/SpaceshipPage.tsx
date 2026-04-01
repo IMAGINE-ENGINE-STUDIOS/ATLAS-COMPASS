@@ -17,7 +17,7 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 
 /* ── Cesium Token (publishable key) ── */
 // Paste your Cesium Ion access token here — it's a public/publishable key
-const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkZWZhdWx0IiwiaWQiOiJkZWZhdWx0Iiwic2NvcGVzIjpbImFzciIsImdjIl0sImlhdCI6MTczMjk1NzA0MX0.placeholder";
+const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
 
 /* ── Types ── */
 interface SearchResult {
