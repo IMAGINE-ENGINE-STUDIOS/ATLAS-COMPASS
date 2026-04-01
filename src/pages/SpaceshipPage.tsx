@@ -273,6 +273,80 @@ export default function SpaceshipPage() {
     }
   }, []);
 
+  /* ── POI Functions ── */
+  const addPOIToGlobe = useCallback((poi: POI) => {
+    if (!viewerRef.current) return;
+    viewerRef.current.entities.add({
+      id: `poi-${poi.id}`,
+      position: Cartesian3.fromDegrees(poi.lng, poi.lat),
+      name: poi.name,
+      label: {
+        text: poi.name,
+        font: "13px Inter, sans-serif",
+        fillColor: Color.fromCssColorString("#ffd700"),
+        outlineColor: Color.BLACK,
+        outlineWidth: 2,
+        style: 2,
+        pixelOffset: { x: 0, y: -24 } as any,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      point: {
+        pixelSize: 12,
+        color: Color.fromCssColorString("#ffd700"),
+        outlineColor: Color.WHITE,
+        outlineWidth: 2,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+  }, []);
+
+  const confirmPOI = useCallback(() => {
+    if (!namingPOI || !poiName.trim()) return;
+    const newPoi: POI = {
+      id: crypto.randomUUID(),
+      name: poiName.trim(),
+      lat: namingPOI.lat,
+      lng: namingPOI.lng,
+      alt: namingPOI.alt,
+      createdAt: Date.now(),
+    };
+    const updated = [...pois, newPoi];
+    setPois(updated);
+    savePOIs(updated);
+    addPOIToGlobe(newPoi);
+    setNamingPOI(null);
+    setPoiName("");
+  }, [namingPOI, poiName, pois, addPOIToGlobe]);
+
+  const deletePOI = useCallback((id: string) => {
+    const updated = pois.filter((p) => p.id !== id);
+    setPois(updated);
+    savePOIs(updated);
+    if (viewerRef.current) {
+      const entity = viewerRef.current.entities.getById(`poi-${id}`);
+      if (entity) viewerRef.current.entities.remove(entity);
+    }
+  }, [pois]);
+
+  const flyToPOI = useCallback((poi: POI) => {
+    if (!viewerRef.current) return;
+    viewerRef.current.camera.flyTo({
+      destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 2000),
+      orientation: {
+        heading: CesiumMath.toRadians(0),
+        pitch: CesiumMath.toRadians(-35),
+        roll: 0,
+      },
+      duration: 2,
+    });
+  }, []);
+
+  // Load saved POIs onto globe when viewer is ready
+  useEffect(() => {
+    if (!isLoaded || !viewerRef.current) return;
+    pois.forEach(addPOIToGlobe);
+  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const resetView = useCallback(() => {
     if (!viewerRef.current) return;
     viewerRef.current.camera.flyTo({
