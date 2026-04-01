@@ -226,6 +226,12 @@ export default function SpaceshipPage() {
   const originMarkerRef = useRef<any>(null);
   const destMarkerRef = useRef<any>(null);
 
+  // Journey / navigation state
+  const [journeyActive, setJourneyActive] = useState(false);
+  const [journeyProgress, setJourneyProgress] = useState(0);
+  const routeCoordsRef = useRef<[number, number][]>([]);
+  const journeyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Global search with Nominatim
   const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
