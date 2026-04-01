@@ -204,6 +204,12 @@ export default function SpaceshipPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
   const brushIndicatorRef = useRef<any>(null);
+  const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
+  const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
+  const draggingRef = useRef<string | null>(null);
+
+  // Keep ref in sync with state for use inside Cesium handlers
+  useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
@@ -320,10 +326,25 @@ export default function SpaceshipPage() {
     handler.setInputAction((movement: any) => {
       const mx = movement.endPosition.x;
       const my = movement.endPosition.y;
-      // Only update if mouse actually moved (pixel threshold)
       if (Math.abs(mx - lastMouseX) < 2 && Math.abs(my - lastMouseY) < 2) return;
       lastMouseX = mx;
       lastMouseY = my;
+
+      // If dragging a model, reposition it
+      if (draggingRef.current) {
+        const ray = viewer.camera.getPickRay(movement.endPosition);
+        if (ray) {
+          const cartesian = viewer.scene.pickPosition(movement.endPosition)
+            || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
+          if (defined(cartesian)) {
+            const entity = viewer.entities.getById(`model-${draggingRef.current}`);
+            if (entity) {
+              entity.position = cartesian as any;
+            }
+          }
+        }
+        return;
+      }
 
       const ray = viewer.camera.getPickRay(movement.endPosition);
       if (ray) {
@@ -336,14 +357,49 @@ export default function SpaceshipPage() {
             lng: CesiumMath.toDegrees(carto.longitude),
             alt: carto.height,
           });
-          // Update brush indicator only when mouse truly moved
-          if (brushIndicatorRef.current) {
-            brushIndicatorRef.current.position = cartesian as any;
+          // Only update brush indicator when no placement dialog is open
+          if (brushIndicatorRef.current && !pendingPlacementRef.current) {
             brushIndicatorRef.current.position = cartesian as any;
           }
         }
       }
     }, ScreenSpaceEventType.MOUSE_MOVE);
+
+    // Left click down — start dragging a model entity
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (defined(picked) && picked.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
+        const modelId = picked.id.id.replace("model-", "");
+        draggingRef.current = modelId;
+        setDraggingModelId(modelId);
+        viewer.scene.screenSpaceCameraController.enableRotate = false;
+        viewer.scene.screenSpaceCameraController.enableTranslate = false;
+      }
+    }, ScreenSpaceEventType.LEFT_DOWN);
+
+    // Left click up — finish dragging
+    handler.setInputAction((_click: any) => {
+      if (draggingRef.current) {
+        const modelId = draggingRef.current;
+        const entity = viewer.entities.getById(`model-${modelId}`);
+        if (entity && entity.position) {
+          const pos = entity.position.getValue(viewer.clock.currentTime);
+          if (pos) {
+            const carto = Cartographic.fromCartesian(pos);
+            const newLat = CesiumMath.toDegrees(carto.latitude);
+            const newLng = CesiumMath.toDegrees(carto.longitude);
+            // Dispatch event to update React state
+            window.dispatchEvent(new CustomEvent("cesium-model-moved", {
+              detail: { id: modelId, lat: newLat, lng: newLng, alt: carto.height }
+            }));
+          }
+        }
+        draggingRef.current = null;
+        setDraggingModelId(null);
+        viewer.scene.screenSpaceCameraController.enableRotate = true;
+        viewer.scene.screenSpaceCameraController.enableTranslate = true;
+      }
+    }, ScreenSpaceEventType.LEFT_UP);
 
     // Double-click handler — creates POI or places model depending on mode
     handler.setInputAction((click: any) => {
@@ -383,6 +439,11 @@ export default function SpaceshipPage() {
       const loc = (e as CustomEvent).detail;
       if (brushMode) {
         setPendingPlacement(loc);
+        // Lock the brush indicator at this position
+        if (brushIndicatorRef.current && viewerRef.current) {
+          const pos = Cartesian3.fromDegrees(loc.lng, loc.lat, loc.alt);
+          brushIndicatorRef.current.position = pos as any;
+        }
       } else {
         setNamingPOI(loc);
         setPoiName("");
@@ -392,6 +453,20 @@ export default function SpaceshipPage() {
     window.addEventListener("cesium-dblclick", handleDblClick);
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode]);
+
+  // Listen for model drag events
+  useEffect(() => {
+    const handleModelMoved = (e: Event) => {
+      const { id, lat, lng, alt } = (e as CustomEvent).detail;
+      setPlacedModels(prev => {
+        const updated = prev.map(m => m.id === id ? { ...m, lat, lng, alt } : m);
+        savePlacedModels(updated);
+        return updated;
+      });
+    };
+    window.addEventListener("cesium-model-moved", handleModelMoved);
+    return () => window.removeEventListener("cesium-model-moved", handleModelMoved);
+  }, []);
 
   // Brush mode indicator visibility
   useEffect(() => {
@@ -712,7 +787,7 @@ export default function SpaceshipPage() {
 
       {/* Brush Mode Indicator */}
       <AnimatePresence>
-        {brushMode && (
+        {brushMode && !draggingModelId && (
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -723,6 +798,24 @@ export default function SpaceshipPage() {
               <Paintbrush className="w-4 h-4 text-emerald-400 animate-pulse" />
               <span className="text-sm font-medium text-emerald-300">TILE BRUSH ACTIVE</span>
               <span className="text-xs text-emerald-400/60">— Double-click to place model</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Dragging Model Indicator */}
+      <AnimatePresence>
+        {draggingModelId && (
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            className="absolute top-20 left-1/2 -translate-x-1/2 z-30"
+          >
+            <div className="bg-cyan-500/20 backdrop-blur-xl border border-cyan-500/40 rounded-full px-5 py-2 flex items-center gap-2">
+              <Move className="w-4 h-4 text-cyan-400 animate-pulse" />
+              <span className="text-sm font-medium text-cyan-300">DRAGGING MODEL</span>
+              <span className="text-xs text-cyan-400/60">— Release to place</span>
             </div>
           </motion.div>
         )}
