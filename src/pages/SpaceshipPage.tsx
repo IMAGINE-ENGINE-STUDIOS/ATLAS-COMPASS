@@ -268,7 +268,7 @@ export default function SpaceshipPage() {
     setRouteError(null);
     try {
       const resp = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=false`
       );
       const data = await resp.json();
       if (data.code !== "Ok" || !data.routes?.length) {
@@ -279,8 +279,12 @@ export default function SpaceshipPage() {
       const route = data.routes[0];
       setRouteInfo({ distance: route.distance, duration: route.duration });
 
-      const coords = route.geometry.coordinates;
-      const positions = coords.map((c: [number, number]) => Cartesian3.fromDegrees(c[0], c[1], 50));
+      const coords: [number, number][] = route.geometry.coordinates;
+      routeCoordsRef.current = coords;
+      // Simplify: sample every N points for very long routes to keep rendering fast
+      const step = coords.length > 2000 ? Math.floor(coords.length / 1000) : 1;
+      const sampled = step > 1 ? coords.filter((_, i) => i % step === 0 || i === coords.length - 1) : coords;
+      const positions = sampled.map((c) => Cartesian3.fromDegrees(c[0], c[1], 50));
       const viewer = viewerRef.current;
       if (!viewer) return;
 
@@ -301,7 +305,7 @@ export default function SpaceshipPage() {
         point: { pixelSize: 14, color: Color.fromCssColorString("#ef4444"), outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
         label: { text: `🔴 ${dest.name.split(",")[0]}`, font: "12px Inter", fillColor: Color.fromCssColorString("#ef4444"), outlineColor: Color.BLACK, outlineWidth: 2, style: 2, pixelOffset: new Cartesian2(0, -24), disableDepthTestDistance: Number.POSITIVE_INFINITY },
       });
-      viewer.flyTo(routeEntityRef.current, { duration: 2 });
+      viewer.flyTo(routeEntityRef.current, { duration: 1.5 });
     } catch {
       setRouteError("Failed to fetch route. Try again.");
     } finally {
@@ -309,7 +313,71 @@ export default function SpaceshipPage() {
     }
   }, []);
 
+  /* ── Journey Navigation ── */
+  const startJourney = useCallback(() => {
+    const coords = routeCoordsRef.current;
+    if (coords.length < 2 || !viewerRef.current) return;
+
+    setJourneyActive(true);
+    setJourneyProgress(0);
+    let idx = 0;
+
+    const viewer = viewerRef.current;
+    
+    // Position camera at start looking along route
+    const moveCamera = (i: number) => {
+      if (i >= coords.length - 1) {
+        stopJourney();
+        return;
+      }
+      const [lng, lat] = coords[i];
+      const nextIdx = Math.min(i + Math.max(1, Math.floor(coords.length / 200)), coords.length - 1);
+      const [nLng, nLat] = coords[nextIdx];
+      
+      // Calculate heading from current to next point
+      const dLng = nLng - lng;
+      const dLat = nLat - lat;
+      const heading = Math.atan2(dLng, dLat) * (180 / Math.PI);
+
+      viewer.camera.setView({
+        destination: Cartesian3.fromDegrees(lng, lat, 150),
+        orientation: {
+          heading: CesiumMath.toRadians(heading),
+          pitch: CesiumMath.toRadians(-15),
+          roll: 0,
+        },
+      });
+      setJourneyProgress(Math.round((i / (coords.length - 1)) * 100));
+    };
+
+    // Start at beginning
+    moveCamera(0);
+
+    // Advance along route
+    const speed = Math.max(1, Math.floor(coords.length / 300)); // points per tick
+    journeyTimerRef.current = setInterval(() => {
+      idx += speed;
+      if (idx >= coords.length - 1) {
+        idx = coords.length - 1;
+        moveCamera(idx);
+        stopJourney();
+      } else {
+        moveCamera(idx);
+      }
+    }, 100);
+  }, []);
+
+  const stopJourney = useCallback(() => {
+    if (journeyTimerRef.current) {
+      clearInterval(journeyTimerRef.current);
+      journeyTimerRef.current = null;
+    }
+    setJourneyActive(false);
+    setJourneyProgress(0);
+  }, []);
+
   const clearRoute = useCallback(() => {
+    stopJourney();
     const viewer = viewerRef.current;
     if (!viewer) return;
     if (routeEntityRef.current) { viewer.entities.remove(routeEntityRef.current); routeEntityRef.current = null; }
@@ -317,7 +385,8 @@ export default function SpaceshipPage() {
     if (destMarkerRef.current) { viewer.entities.remove(destMarkerRef.current); destMarkerRef.current = null; }
     setOriginPoint(null); setDestPoint(null); setOriginQuery(""); setDestQuery("");
     setRouteInfo(null); setRouteError(null); setOriginResults([]); setDestResults([]);
-  }, []);
+    routeCoordsRef.current = [];
+  }, [stopJourney]);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
