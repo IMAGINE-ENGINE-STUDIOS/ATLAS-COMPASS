@@ -672,7 +672,7 @@ export default function SpaceshipPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".glb,.gltf,.obj,.fbx,.3ds"
+        accept={ACCEPT_STRING}
         className="hidden"
         onChange={handleFileUpload}
       />
