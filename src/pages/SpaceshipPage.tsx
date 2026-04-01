@@ -248,12 +248,16 @@ export default function SpaceshipPage() {
         });
         viewer.scene.primitives.add(tileset);
         (viewer as any)._photorealisticTileset = tileset;
-        useOSM = false; // photorealistic tiles include buildings — skip OSM
+        useOSM = false; // photorealistic tiles include surface + buildings
+
+        // Prevent overlap/z-fighting between Google tiles and Cesium globe water/imagery
+        viewer.scene.globe.show = false;
       } catch (e) {
         console.warn("Google Photorealistic 3D Tiles not available, using OSM buildings:", e);
       }
 
       if (useOSM) {
+        viewer.scene.globe.show = true;
         try {
           const osmTileset = await createOsmBuildingsAsync();
           viewer.scene.primitives.add(osmTileset);
