@@ -958,16 +958,35 @@ export default function SpaceshipPage() {
                       <div className="flex items-center gap-3 justify-center">
                         <Box className="w-5 h-5 text-emerald-400" />
                         <div className="text-left">
-                          <p className="text-sm text-white font-medium">{modelFile.name}</p>
-                          <p className="text-[10px] text-white/30">{(modelFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <p className="text-sm text-white font-medium truncate max-w-[200px]">{modelFile.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] text-white/30">{(modelFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                              getFormatCategory(modelFile.name) === "native" ? "bg-emerald-500/20 text-emerald-400" :
+                              getFormatCategory(modelFile.name) === "convertible" ? "bg-amber-500/20 text-amber-400" :
+                              "bg-red-500/20 text-red-400"
+                            }`}>
+                              {getFormatLabel(modelFile.name)}
+                              {getFormatCategory(modelFile.name) === "convertible" && " → glTF"}
+                              {getFormatCategory(modelFile.name) === "unsupported" && " ⚠"}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ) : (
                       <>
                         <Upload className="w-8 h-8 text-white/20 mx-auto mb-2" />
                         <p className="text-sm text-white/40">Upload 3D Model</p>
-                        <p className="text-[10px] text-white/20 mt-1">GLB, glTF, OBJ, FBX</p>
+                        <p className="text-[10px] text-white/20 mt-1 leading-relaxed">
+                          glTF · OBJ · FBX · STL · PLY · DAE · AutoCAD · SketchUp · Blender · Unreal & more
+                        </p>
                       </>
+                    )}
+                    {convertError && (
+                      <div className="mt-2 flex items-start gap-2 text-left bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-red-300">{convertError}</p>
+                      </div>
                     )}
                   </div>
 
