@@ -378,7 +378,7 @@ export default function SpaceshipPage() {
     }, ScreenSpaceEventType.LEFT_DOWN);
 
     // Left click up — finish dragging
-    handler.setInputAction((click: any) => {
+    handler.setInputAction((_click: any) => {
       if (draggingRef.current) {
         const modelId = draggingRef.current;
         const entity = viewer.entities.getById(`model-${modelId}`);
