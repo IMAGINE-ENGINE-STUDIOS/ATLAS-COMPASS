@@ -13,7 +13,7 @@ import LogisticsPage from "@/pages/LogisticsPage";
 import PaymentsPage from "@/pages/PaymentsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import SettingsPage from "@/pages/SettingsPage";
-import SpaceExperience from "@/pages/SpaceExperience";
+import SpaceshipPage from "@/pages/SpaceshipPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
