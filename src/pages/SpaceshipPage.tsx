@@ -249,6 +249,12 @@ export default function SpaceshipPage() {
         });
         viewer.scene.primitives.add(tileset);
         (viewer as any)._photorealisticTileset = tileset;
+
+        // Hide OSM buildings when photorealistic tiles are available to prevent overlap
+        const osmTileset = (viewer as any)._buildingsTileset;
+        if (osmTileset) {
+          osmTileset.show = false;
+        }
       } catch (e) {
         console.warn("Google Photorealistic 3D Tiles not available on this token:", e);
       }
