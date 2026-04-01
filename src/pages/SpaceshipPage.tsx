@@ -261,6 +261,11 @@ export default function SpaceshipPage() {
   const vesselAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const vesselProgressRef = useRef<Map<string, number>>(new Map());
 
+  // Business/Store icons toggle
+  const [showBusinessIcons, setShowBusinessIcons] = useState(false);
+  const businessEntitiesRef = useRef<any[]>([]);
+  const businessLoadedAreaRef = useRef<string>("");
+
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
@@ -283,10 +288,10 @@ export default function SpaceshipPage() {
     if (t === "hospital" || t === "clinic" || t === "doctors" || t === "pharmacy" || t === "dentist") return "Health";
     if (c === "shop" || t === "mall" || t === "department_store" || t === "clothes" || t === "electronics") return "Shop";
     if (c === "amenity" || c === "office" || c === "tourism" || c === "leisure") return "Business";
-    if (name.includes("walmart") || name.includes("target") || name.includes("costco") || name.includes("ikea")) return "Store";
-    if (name.includes("mcdonald") || name.includes("burger") || name.includes("pizza") || name.includes("kfc")) return "Restaurant";
-    if (name.includes("starbucks") || name.includes("dunkin")) return "Cafe";
-    if (name.includes("hilton") || name.includes("marriott") || name.includes("hyatt")) return "Hotel";
+    if (name.includes("walmart") || name.includes("target") || name.includes("costco") || name.includes("ikea") || name.includes("publix") || name.includes("kroger") || name.includes("walgreens") || name.includes("cvs") || name.includes("home depot") || name.includes("lowe")) return "Supermarket";
+    if (name.includes("mcdonald") || name.includes("burger") || name.includes("pizza") || name.includes("kfc") || name.includes("wendy") || name.includes("taco bell") || name.includes("chick-fil") || name.includes("subway") || name.includes("chipotle")) return "Restaurant";
+    if (name.includes("starbucks") || name.includes("dunkin") || name.includes("tim horton") || name.includes("peet")) return "Cafe";
+    if (name.includes("hilton") || name.includes("marriott") || name.includes("hyatt") || name.includes("holiday inn") || name.includes("best western")) return "Hotel";
     if (name.includes("hospital") || name.includes("clinic")) return "Health";
     if (name.includes("university") || name.includes("school") || name.includes("college")) return "Education";
     return "Place";
@@ -874,6 +879,92 @@ out center 15;`;
     };
   }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
 
+  // ── Business/Store Icons on Globe ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Clear existing business entities
+    businessEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    businessEntitiesRef.current = [];
+
+    if (!showBusinessIcons) return;
+
+    // Load businesses in current view area
+    const loadBusinesses = async () => {
+      const cam = viewer.camera.positionCartographic;
+      const lat = CesiumMath.toDegrees(cam.latitude);
+      const lng = CesiumMath.toDegrees(cam.longitude);
+      const alt = cam.height;
+      // Only load when reasonably zoomed in
+      if (alt > 50000) return;
+
+      const radius = Math.min(alt / 111000 * 2, 0.15); // degrees, proportional to altitude
+      const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
+      if (businessLoadedAreaRef.current === areaKey) return;
+      businessLoadedAreaRef.current = areaKey;
+
+      const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
+      const query = `[out:json][timeout:10];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|hospital|bank|bar|pub"](${bbox});node["tourism"~"hotel|motel|hostel|guest_house"](${bbox}););out 80;`;
+      try {
+        const resp = await fetch("https://overpass-api.de/api/interpreter", {
+          method: "POST",
+          body: `data=${encodeURIComponent(query)}`,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        const data = await resp.json();
+        if (!data.elements) return;
+
+        // Clear old before adding new
+        businessEntitiesRef.current.forEach(e => {
+          if (viewer.entities.contains(e)) viewer.entities.remove(e);
+        });
+        businessEntitiesRef.current = [];
+
+        const iconMap: Record<string, string> = {
+          restaurant: "🍽️", fast_food: "🍔", cafe: "☕", bar: "🍺", pub: "🍺",
+          fuel: "⛽", pharmacy: "💊", hospital: "🏥", bank: "🏦",
+          hotel: "🏨", motel: "🏨", hostel: "🏨", guest_house: "🏨",
+          supermarket: "🛒", convenience: "🏪", clothes: "👕", electronics: "📱",
+          bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
+        };
+
+        data.elements.forEach((el: any) => {
+          const tags = el.tags || {};
+          if (!tags.name) return;
+          const amenity = tags.amenity || tags.shop || tags.tourism || "";
+          const icon = iconMap[amenity] || "📍";
+          const entity = viewer.entities.add({
+            id: `biz-${el.id}`,
+            position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
+            label: {
+              text: icon,
+              font: "16px sans-serif",
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 100, nearValue: 1.2, far: 8000, farValue: 0.3 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 15000, farValue: 0.0 } as any,
+            },
+            description: tags.name + (tags["addr:street"] ? ` — ${tags["addr:street"]}` : ""),
+          });
+          businessEntitiesRef.current.push(entity);
+        });
+      } catch { /* ignore network errors */ }
+    };
+
+    loadBusinesses();
+
+    // Reload on camera move end
+    const removeListener = viewer.camera.moveEnd.addEventListener(() => {
+      loadBusinesses();
+    });
+
+    return () => {
+      removeListener();
+    };
+  }, [showBusinessIcons]);
+
   // Listen for double-click events from Cesium
   useEffect(() => {
     const handleDblClick = (e: Event) => {
@@ -935,7 +1026,7 @@ out center 15;`;
     }
     setSearchResults(filtered);
 
-    // Debounced parallel search: Nominatim + Overpass
+    // Debounced parallel search: Nominatim + Overpass — prioritize businesses
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (query.trim().length >= 3) {
       setSearchLoading(true);
@@ -944,12 +1035,19 @@ out center 15;`;
           searchNominatim(query),
           searchOverpassBusinesses(query),
         ]);
-        setNominatimResults(nomResults);
         // Deduplicate overpass results that are already in nominatim (by proximity)
         const deduped = ovResults.filter(ov =>
           !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
         );
-        setOverpassResults(deduped);
+        // Prioritize: exact name matches first, then businesses, then other results
+        const businessTypes = new Set(["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"]);
+        const allResults = [...deduped, ...nomResults];
+        const exactMatches = allResults.filter(r => r.name.toLowerCase().includes(q));
+        const businessMatches = allResults.filter(r => businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
+        const otherMatches = allResults.filter(r => !businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
+        // Put business/exact matches into overpassResults (shown first), rest in nominatim
+        setOverpassResults([...exactMatches.filter(r => businessTypes.has(r.type)), ...businessMatches]);
+        setNominatimResults([...exactMatches.filter(r => !businessTypes.has(r.type)), ...otherMatches]);
         setSearchLoading(false);
       }, 400);
     } else {
@@ -987,11 +1085,14 @@ out center 15;`;
 
   const flyTo = useCallback((result: SearchResult) => {
     if (!viewerRef.current) return;
-    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : 5000;
+    // Closer zoom for businesses/shops/restaurants
+    const businessTypes = ["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"];
+    const isBusiness = businessTypes.includes(result.type);
+    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 500 : 5000;
     viewerRef.current.camera.flyTo({
       destination: Cartesian3.fromDegrees(result.lng, result.lat, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-35), roll: 0 },
-      duration: 2.5,
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -45 : -35), roll: 0 },
+      duration: 1.8,
     });
     viewerRef.current.entities.add({
       position: Cartesian3.fromDegrees(result.lng, result.lat),
@@ -1404,6 +1505,14 @@ out center 15;`;
                   >
                     <Ship className="w-4 h-4" />
                   </button>
+                  {/* Business/Store Icons Toggle */}
+                  <button
+                    onClick={() => setShowBusinessIcons(!showBusinessIcons)}
+                    className={`p-1.5 rounded-lg transition-colors ${showBusinessIcons ? "bg-emerald-500/20 text-emerald-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Show Nearby Businesses & Stores"
+                  >
+                    <Store className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
@@ -1455,24 +1564,33 @@ out center 15;`;
                       </button>
                     ))}
                   </div>
-                  <div className="max-h-64 overflow-y-auto space-y-1 scrollbar-thin">
-                    {/* Local preset results */}
-                    {(searchResults.length > 0 ? searchResults : PRESETS).map((r, i) => (
-                      <button
-                        key={`preset-${i}`}
-                        onClick={() => flyTo(r)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
-                          {getTypeIcon(r.type)}
+                  <div className="max-h-72 overflow-y-auto space-y-1 scrollbar-thin">
+                    {/* Overpass business results — SHOWN FIRST */}
+                    {overpassResults.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Businesses &amp; Stores</span>
+                          <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                          <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
-                      </button>
-                    ))}
+                        {overpassResults.map((r, i) => (
+                          <button
+                            key={`ov-${i}`}
+                            onClick={() => flyTo(r)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-emerald-500/[0.08] transition-colors text-left group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500/[0.08] flex items-center justify-center shrink-0">
+                              {getTypeIcon(r.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                            </div>
+                            <Navigation className="w-4 h-4 text-emerald-400/40 group-hover:text-emerald-400 transition-colors" />
+                          </button>
+                        ))}
+                      </>
+                    )}
 
                     {/* Nominatim global results */}
                     {nominatimResults.length > 0 && (
@@ -1501,31 +1619,40 @@ out center 15;`;
                       </>
                     )}
 
-                    {/* Overpass business results */}
-                    {overpassResults.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-2 px-3 py-2">
-                          <div className="flex-1 h-px bg-white/[0.06]" />
-                          <span className="text-[9px] text-white/30 font-mono uppercase">Businesses &amp; POIs</span>
-                          <div className="flex-1 h-px bg-white/[0.06]" />
-                        </div>
-                        {overpassResults.map((r, i) => (
-                          <button
-                            key={`ov-${i}`}
-                            onClick={() => flyTo(r)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
-                          >
-                            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
-                              {getTypeIcon(r.type)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
-                          </button>
-                        ))}
-                      </>
+                    {/* Local preset results — shown last when searching */}
+                    {searchQuery ? (
+                      searchResults.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-2 px-3 py-2">
+                            <div className="flex-1 h-px bg-white/[0.06]" />
+                            <span className="text-[9px] text-white/30 font-mono uppercase">Presets</span>
+                            <div className="flex-1 h-px bg-white/[0.06]" />
+                          </div>
+                          {searchResults.map((r, i) => (
+                            <button key={`preset-${i}`} onClick={() => flyTo(r)}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group">
+                              <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">{getTypeIcon(r.type)}</div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                                <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                            </button>
+                          ))}
+                        </>
+                      )
+                    ) : (
+                      PRESETS.map((r, i) => (
+                        <button key={`preset-${i}`} onClick={() => flyTo(r)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group">
+                          <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">{getTypeIcon(r.type)}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                            <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                        </button>
+                      ))
                     )}
 
                     {searchLoading && (
