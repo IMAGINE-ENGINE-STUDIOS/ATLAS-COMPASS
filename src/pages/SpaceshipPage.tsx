@@ -243,8 +243,9 @@ export default function SpaceshipPage() {
   const routeCoordsRef = useRef<[number, number][]>([]);
   const journeyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Global search with Nominatim
+  // Global search with Nominatim + Overpass
   const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
+  const [overpassResults, setOverpassResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
