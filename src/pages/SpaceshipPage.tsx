@@ -1077,7 +1077,7 @@ export default function SpaceshipPage() {
                       autoFocus
                       value={searchQuery}
                       onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search cities, airports, ports, plazas, or enter coordinates..."
+                      placeholder="Search any address, city, business, or coordinates..."
                       className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30"
                     />
                     <button onClick={() => setSearchOpen(false)}>
