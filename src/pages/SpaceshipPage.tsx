@@ -577,10 +577,10 @@ export default function SpaceshipPage() {
     }
   }, [brushMode]);
 
-  /* ── Search ── */
+  /* ── Search (local presets + Nominatim global) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    if (!query.trim()) { setSearchResults(PRESETS); return; }
+    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); return; }
     const q = query.toLowerCase();
     const filtered = PRESETS.filter(
       (p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
@@ -595,6 +595,46 @@ export default function SpaceshipPage() {
       });
     }
     setSearchResults(filtered);
+
+    // Debounced Nominatim search
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (query.trim().length >= 3) {
+      setSearchLoading(true);
+      searchTimerRef.current = setTimeout(async () => {
+        const results = await searchNominatim(query);
+        setNominatimResults(results);
+        setSearchLoading(false);
+      }, 400);
+    } else {
+      setNominatimResults([]);
+    }
+  }, [searchNominatim]);
+
+  /* ── Directions search helpers ── */
+  const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
+    if (target === "origin") setOriginQuery(query); else setDestQuery(query);
+    if (!query.trim() || query.length < 3) {
+      if (target === "origin") { setOriginResults([]); setShowOriginResults(false); }
+      else { setDestResults([]); setShowDestResults(false); }
+      return;
+    }
+    const results = await searchNominatim(query);
+    const presetResults = PRESETS.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+    const combined = [...presetResults.slice(0, 3), ...results].slice(0, 6);
+    if (target === "origin") { setOriginResults(combined); setShowOriginResults(true); }
+    else { setDestResults(combined); setShowDestResults(true); }
+  }, [searchNominatim]);
+
+  const selectRoutePoint = useCallback((point: SearchResult, target: "origin" | "dest") => {
+    if (target === "origin") {
+      setOriginPoint(point);
+      setOriginQuery(point.name);
+      setShowOriginResults(false);
+    } else {
+      setDestPoint(point);
+      setDestQuery(point.name);
+      setShowDestResults(false);
+    }
   }, []);
 
   const flyTo = useCallback((result: SearchResult) => {
