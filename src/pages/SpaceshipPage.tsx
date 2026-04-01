@@ -220,11 +220,17 @@ export default function SpaceshipPage() {
     viewer.scene.backgroundColor = Color.fromCssColorString("#0a0a1a");
     viewer.scene.globe.enableLighting = true;
     viewer.scene.globe.atmosphereLightIntensity = 10;
+    viewer.scene.globe.showGroundAtmosphere = true;
+
+    // Prevent translucent tile loading artifacts on water
+    viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
+    viewer.scene.globe.showWaterEffect = true;
+    viewer.scene.globe.maximumScreenSpaceError = 1.5;
 
     // Enable depth test against terrain so pickPosition works well
     viewer.scene.globe.depthTestAgainstTerrain = true;
 
-    // Add world terrain (no water mask — it causes visual artifacts at medium zoom)
+    // Add world terrain
     createWorldTerrainAsync({
       requestWaterMask: false,
       requestVertexNormals: true,
