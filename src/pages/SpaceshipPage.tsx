@@ -992,11 +992,14 @@ out center 15;`;
 
   const flyTo = useCallback((result: SearchResult) => {
     if (!viewerRef.current) return;
-    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : 5000;
+    // Closer zoom for businesses/shops/restaurants
+    const businessTypes = ["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"];
+    const isBusiness = businessTypes.includes(result.type);
+    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 500 : 5000;
     viewerRef.current.camera.flyTo({
       destination: Cartesian3.fromDegrees(result.lng, result.lat, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-35), roll: 0 },
-      duration: 2.5,
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -45 : -35), roll: 0 },
+      duration: 1.8,
     });
     viewerRef.current.entities.add({
       position: Cartesian3.fromDegrees(result.lng, result.lat),
