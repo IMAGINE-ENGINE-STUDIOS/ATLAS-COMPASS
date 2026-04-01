@@ -694,6 +694,86 @@ out center 15;`;
     };
   }, []);
 
+  // ── Cargo Routes Rendering ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Remove existing cargo entities
+    cargoEntitiesRef.current.forEach((e) => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    cargoEntitiesRef.current = [];
+
+    if (!showCargoRoutes) return;
+
+    const filteredRoutes = cargoFilter === "all"
+      ? ALL_CARGO_ROUTES
+      : ALL_CARGO_ROUTES.filter((r) => r.type === cargoFilter);
+
+    filteredRoutes.forEach((route) => {
+      const height = route.type === "air" ? 80000 : 0;
+      const positions = route.waypoints.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat, height));
+      const lineColor = Color.fromCssColorString(route.color);
+
+      // Main polyline
+      const polyEntity = viewer.entities.add({
+        id: `cargo-${route.id}`,
+        polyline: {
+          positions,
+          width: route.type === "air" ? 2 : 3,
+          material: lineColor.withAlpha(route.type === "air" ? 0.7 : 0.85),
+          clampToGround: route.type === "maritime",
+        },
+      });
+      cargoEntitiesRef.current.push(polyEntity);
+
+      // Name label at midpoint
+      const midIdx = Math.floor(route.waypoints.length / 2);
+      const [mLng, mLat] = route.waypoints[midIdx];
+      const labelEntity = viewer.entities.add({
+        id: `cargo-label-${route.id}`,
+        position: Cartesian3.fromDegrees(mLng, mLat, height + (route.type === "air" ? 15000 : 5000)),
+        label: {
+          text: route.name.replace(/^(Trans-Pacific|Trans-Atlantic|Asia.Europe|Intra-Asia|Cape Route|Panama Canal|Mediterranean|Persian Gulf|Indian Ocean|South Atlantic|Northern Sea Route|West Africa|East Africa|Australia|Malacca Strait|Air): /, ""),
+          font: "10px Inter",
+          fillColor: lineColor,
+          outlineColor: Color.BLACK,
+          outlineWidth: 3,
+          style: 2,
+          pixelOffset: new Cartesian2(0, -8),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: { near: 1e5, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any,
+          translucencyByDistance: { near: 1e5, nearValue: 1.0, far: 2e7, farValue: 0.0 } as any,
+        },
+      });
+      cargoEntitiesRef.current.push(labelEntity);
+
+      // Direction arrows along route
+      const arrowStep = Math.max(1, Math.floor(route.waypoints.length / 4));
+      for (let i = 0; i < route.waypoints.length - 1; i += arrowStep) {
+        const [lng1, lat1] = route.waypoints[i];
+        const arrowChar = route.type === "air" ? "✈" : "▶";
+        const arrowEntity = viewer.entities.add({
+          id: `cargo-arrow-${route.id}-${i}`,
+          position: Cartesian3.fromDegrees(lng1, lat1, height + (route.type === "air" ? 10000 : 2000)),
+          label: {
+            text: arrowChar,
+            font: route.type === "air" ? "14px sans-serif" : "10px sans-serif",
+            fillColor: lineColor,
+            outlineColor: Color.BLACK,
+            outlineWidth: 2,
+            style: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            scaleByDistance: { near: 5e4, nearValue: 1.0, far: 1e7, farValue: 0.2 } as any,
+            translucencyByDistance: { near: 5e4, nearValue: 1.0, far: 1.5e7, farValue: 0.0 } as any,
+          },
+        });
+        cargoEntitiesRef.current.push(arrowEntity);
+      }
+    });
+  }, [showCargoRoutes, cargoFilter]);
+
   // Listen for double-click events from Cesium
   useEffect(() => {
     const handleDblClick = (e: Event) => {
