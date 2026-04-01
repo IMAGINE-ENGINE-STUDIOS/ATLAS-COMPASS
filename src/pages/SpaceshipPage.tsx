@@ -1374,6 +1374,38 @@ export default function SpaceshipPage() {
                     </div>
                   )}
 
+                  {/* Start Journey Button */}
+                  {routeInfo && !journeyActive && (
+                    <button
+                      onClick={startJourney}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500/20 border border-green-500/30 rounded-xl text-sm font-medium text-green-400 hover:bg-green-500/30 transition-colors mb-3"
+                    >
+                      <Play className="w-4 h-4" /> Start Journey
+                    </button>
+                  )}
+
+                  {/* Journey Progress */}
+                  {journeyActive && (
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] text-white/40 uppercase tracking-wider">Navigating...</span>
+                        <span className="text-xs font-mono text-blue-400">{journeyProgress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden mb-3">
+                        <div
+                          className="h-full bg-gradient-to-r from-green-500 to-blue-500 rounded-full transition-all duration-100"
+                          style={{ width: `${journeyProgress}%` }}
+                        />
+                      </div>
+                      <button
+                        onClick={stopJourney}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
+                      >
+                        <StopIcon className="w-4 h-4" /> Stop Journey
+                      </button>
+                    </div>
+                  )}
+
                   {/* Clear Route */}
                   {(routeInfo || originPoint || destPoint) && (
                     <button
