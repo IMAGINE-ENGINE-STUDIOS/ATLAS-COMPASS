@@ -1307,14 +1307,41 @@ out center 15;`;
                       </>
                     )}
 
+                    {/* Overpass business results */}
+                    {overpassResults.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex-1 h-px bg-white/[0.06]" />
+                          <span className="text-[9px] text-white/30 font-mono uppercase">Businesses &amp; POIs</span>
+                          <div className="flex-1 h-px bg-white/[0.06]" />
+                        </div>
+                        {overpassResults.map((r, i) => (
+                          <button
+                            key={`ov-${i}`}
+                            onClick={() => flyTo(r)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
+                              {getTypeIcon(r.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                          </button>
+                        ))}
+                      </>
+                    )}
+
                     {searchLoading && (
                       <div className="flex items-center justify-center gap-2 py-3">
                         <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                        <span className="text-xs text-white/30">Searching worldwide...</span>
+                        <span className="text-xs text-white/30">Searching worldwide for businesses...</span>
                       </div>
                     )}
 
-                    {searchResults.length === 0 && nominatimResults.length === 0 && !searchLoading && searchQuery && (
+                    {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && !searchLoading && searchQuery && (
                       <p className="text-sm text-white/30 text-center py-4">No results found.</p>
                     )}
                   </div>
