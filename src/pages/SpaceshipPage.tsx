@@ -389,12 +389,17 @@ export default function SpaceshipPage() {
     if (!viewerRef.current) return;
     const osmTileset = (viewerRef.current as any)._buildingsTileset;
     const photoTileset = (viewerRef.current as any)._photorealisticTileset;
+
     // Toggle whichever tileset is active
     if (photoTileset) {
-      photoTileset.show = !photoTileset.show;
-      setShowBuildings(photoTileset.show);
+      const next = !photoTileset.show;
+      photoTileset.show = next;
+      // If photo tiles are hidden, restore globe to avoid blank scene
+      viewerRef.current.scene.globe.show = !next;
+      setShowBuildings(next);
     } else if (osmTileset) {
       osmTileset.show = !osmTileset.show;
+      viewerRef.current.scene.globe.show = true;
       setShowBuildings(osmTileset.show);
     }
   }, []);
