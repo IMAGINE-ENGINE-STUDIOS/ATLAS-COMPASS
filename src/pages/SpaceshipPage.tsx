@@ -1265,7 +1265,9 @@ export default function SpaceshipPage() {
                   <Satellite className="w-4 h-4 text-primary shrink-0" />
                   <div>
                     <p className="text-[9px] text-white/30 uppercase tracking-wider">Mode</p>
-                    <p className="text-sm font-mono text-white">{brushMode ? "Tile Brush" : "3D Globe"}</p>
+                    <p className="text-sm font-mono text-white">
+                      {brushMode ? "Tile Brush" : viewMode === "realistic" ? "Realistic" : "OSM"}
+                    </p>
                   </div>
                 </div>
               </GlassPanel>
