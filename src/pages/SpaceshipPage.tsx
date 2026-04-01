@@ -439,6 +439,11 @@ export default function SpaceshipPage() {
       const loc = (e as CustomEvent).detail;
       if (brushMode) {
         setPendingPlacement(loc);
+        // Lock the brush indicator at this position
+        if (brushIndicatorRef.current && viewerRef.current) {
+          const pos = Cartesian3.fromDegrees(loc.lng, loc.lat, loc.alt);
+          brushIndicatorRef.current.position = pos as any;
+        }
       } else {
         setNamingPOI(loc);
         setPoiName("");
@@ -448,6 +453,20 @@ export default function SpaceshipPage() {
     window.addEventListener("cesium-dblclick", handleDblClick);
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode]);
+
+  // Listen for model drag events
+  useEffect(() => {
+    const handleModelMoved = (e: Event) => {
+      const { id, lat, lng, alt } = (e as CustomEvent).detail;
+      setPlacedModels(prev => {
+        const updated = prev.map(m => m.id === id ? { ...m, lat, lng, alt } : m);
+        savePlacedModels(updated);
+        return updated;
+      });
+    };
+    window.addEventListener("cesium-model-moved", handleModelMoved);
+    return () => window.removeEventListener("cesium-model-moved", handleModelMoved);
+  }, []);
 
   // Brush mode indicator visibility
   useEffect(() => {
