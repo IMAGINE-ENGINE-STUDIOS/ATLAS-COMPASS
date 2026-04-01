@@ -377,6 +377,13 @@ export default function SpaceshipPage() {
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode]);
 
+  // Brush mode indicator visibility
+  useEffect(() => {
+    if (brushIndicatorRef.current) {
+      brushIndicatorRef.current.show = brushMode;
+    }
+  }, [brushMode]);
+
   /* ── Search ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
