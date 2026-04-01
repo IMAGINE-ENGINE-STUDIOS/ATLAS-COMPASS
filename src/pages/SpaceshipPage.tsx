@@ -568,33 +568,42 @@ export default function SpaceshipPage() {
     });
   }, []);
 
-  const confirmModelPlacement = useCallback(() => {
+  const confirmModelPlacement = useCallback(async () => {
     if (!pendingPlacement || !modelFile || !modelName.trim()) return;
 
-    const blobUrl = URL.createObjectURL(modelFile);
-    const newModel: PlacedModel = {
-      id: crypto.randomUUID(),
-      name: modelName.trim(),
-      fileName: modelFile.name,
-      lat: pendingPlacement.lat,
-      lng: pendingPlacement.lng,
-      alt: pendingPlacement.alt,
-      heading: modelHeading,
-      scale: modelScale,
-      createdAt: Date.now(),
-    };
+    setConvertingModel(true);
+    setConvertError(null);
+    try {
+      const blobUrl = await convertToGltfBlobUrl(modelFile, setConvertProgress);
+      const newModel: PlacedModel = {
+        id: crypto.randomUUID(),
+        name: modelName.trim(),
+        fileName: modelFile.name,
+        lat: pendingPlacement.lat,
+        lng: pendingPlacement.lng,
+        alt: pendingPlacement.alt,
+        heading: modelHeading,
+        scale: modelScale,
+        createdAt: Date.now(),
+      };
 
-    modelUrlsRef.current.set(newModel.id, blobUrl);
-    placeModelOnGlobe(newModel, blobUrl);
+      modelUrlsRef.current.set(newModel.id, blobUrl);
+      placeModelOnGlobe(newModel, blobUrl);
 
-    const updated = [...placedModels, newModel];
-    setPlacedModels(updated);
-    savePlacedModels(updated);
-    setPendingPlacement(null);
-    setModelFile(null);
-    setModelName("");
-    setModelScale(1);
-    setModelHeading(0);
+      const updated = [...placedModels, newModel];
+      setPlacedModels(updated);
+      savePlacedModels(updated);
+      setPendingPlacement(null);
+      setModelFile(null);
+      setModelName("");
+      setModelScale(1);
+      setModelHeading(0);
+      setConvertProgress("");
+    } catch (err: any) {
+      setConvertError(err.message || "Failed to convert model");
+    } finally {
+      setConvertingModel(false);
+    }
   }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe]);
 
   const deleteModel = useCallback((id: string) => {
