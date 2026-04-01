@@ -205,7 +205,7 @@ export default function SpaceshipPage() {
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
   const brushIndicatorRef = useRef<any>(null);
   const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
-  const [draggingModelId, setDraggingModelId] = useState<string | null>(null);
+  const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
 
   // Keep ref in sync with state for use inside Cesium handlers
