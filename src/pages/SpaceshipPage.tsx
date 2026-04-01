@@ -14,7 +14,7 @@ import {
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined,
   HeadingPitchRoll, Transforms,
-  Cartesian2,
+  Cartesian2, Cesium3DTileset,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -172,6 +172,7 @@ export default function SpaceshipPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState(true);
+  const [viewMode, setViewMode] = useState<"realistic" | "osm">("realistic");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
   const [cameraAlt, setCameraAlt] = useState(0);
@@ -196,6 +197,7 @@ export default function SpaceshipPage() {
   const [modelHeading, setModelHeading] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
+  const brushIndicatorRef = useRef<any>(null);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
@@ -242,14 +244,56 @@ export default function SpaceshipPage() {
       }
     });
 
-    // Load 3D buildings — always use OSM + globe (reliable, no overlap issues)
+    // Load Google Photorealistic 3D Tiles as default (asset 2275207)
+    Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
+      if (!viewer.isDestroyed()) {
+        viewer.scene.primitives.add(tileset);
+        tileset.maximumScreenSpaceError = 8;
+        (viewer as any)._realisticTileset = tileset;
+        // Hide globe when realistic tiles are active to prevent z-fighting
+        viewer.scene.globe.show = false;
+      }
+    }).catch(() => {
+      // Fallback: if realistic tiles fail, use OSM buildings
+      if (!viewer.isDestroyed()) {
+        console.warn("Realistic tiles unavailable, falling back to OSM");
+        createOsmBuildingsAsync().then((tileset) => {
+          if (!viewer.isDestroyed()) {
+            viewer.scene.primitives.add(tileset);
+            tileset.maximumScreenSpaceError = 4;
+            (viewer as any)._osmTileset = tileset;
+          }
+        });
+      }
+    });
+
+    // Also pre-load OSM buildings (hidden by default)
     createOsmBuildingsAsync().then((tileset) => {
       if (!viewer.isDestroyed()) {
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 4;
-        (viewer as any)._buildingsTileset = tileset;
+        tileset.show = false;
+        (viewer as any)._osmTileset = tileset;
       }
     });
+
+    // Create brush indicator entity (hidden by default)
+    const brushEntity = viewer.entities.add({
+      id: "brush-indicator",
+      position: Cartesian3.fromDegrees(0, 0, 0),
+      show: false,
+      ellipse: {
+        semiMajorAxis: 50,
+        semiMinorAxis: 50,
+        material: Color.fromCssColorString("#00ff88").withAlpha(0.3),
+        outline: true,
+        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.8),
+        outlineWidth: 3,
+        height: 0,
+        heightReference: 1, // CLAMP_TO_GROUND
+      } as any,
+    });
+    brushIndicatorRef.current = brushEntity;
 
     // Fly to initial view
     viewer.camera.flyTo({
@@ -262,12 +306,14 @@ export default function SpaceshipPage() {
       duration: 0,
     });
 
-    // Mouse move handler for coordinates
+    // Mouse move handler for coordinates + brush indicator
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((movement: any) => {
       const ray = viewer.camera.getPickRay(movement.endPosition);
       if (ray) {
-        const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+        // Try scene.pickPosition first (works with 3D tiles when globe hidden)
+        const cartesian = viewer.scene.pickPosition(movement.endPosition) 
+          || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
         if (defined(cartesian)) {
           const carto = Cartographic.fromCartesian(cartesian);
           setCursorInfo({
@@ -275,6 +321,10 @@ export default function SpaceshipPage() {
             lng: CesiumMath.toDegrees(carto.longitude),
             alt: carto.height,
           });
+          // Update brush indicator position
+          if (brushIndicatorRef.current) {
+            brushIndicatorRef.current.position = cartesian;
+          }
         }
       }
     }, ScreenSpaceEventType.MOUSE_MOVE);
@@ -283,7 +333,8 @@ export default function SpaceshipPage() {
     handler.setInputAction((click: any) => {
       const ray = viewer.camera.getPickRay(click.position);
       if (!ray) return;
-      const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+      const cartesian = viewer.scene.pickPosition(click.position)
+        || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
       if (!defined(cartesian)) return;
       const carto = Cartographic.fromCartesian(cartesian);
       const loc = {
@@ -324,6 +375,13 @@ export default function SpaceshipPage() {
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
+  }, [brushMode]);
+
+  // Brush mode indicator visibility
+  useEffect(() => {
+    if (brushIndicatorRef.current) {
+      brushIndicatorRef.current.show = brushMode;
+    }
   }, [brushMode]);
 
   /* ── Search ── */
@@ -373,14 +431,37 @@ export default function SpaceshipPage() {
     setSearchQuery("");
   }, []);
 
+  const switchViewMode = useCallback((mode: "realistic" | "osm") => {
+    if (!viewerRef.current) return;
+    const viewer = viewerRef.current;
+    const realistic = (viewer as any)._realisticTileset;
+    const osm = (viewer as any)._osmTileset;
+
+    if (mode === "realistic") {
+      if (realistic) { realistic.show = true; }
+      if (osm) { osm.show = false; }
+      viewer.scene.globe.show = !realistic; // hide globe only if realistic tiles loaded
+    } else {
+      if (realistic) { realistic.show = false; }
+      if (osm) { osm.show = true; }
+      viewer.scene.globe.show = true;
+    }
+    setViewMode(mode);
+    setShowBuildings(true);
+  }, []);
+
   const toggleBuildings = useCallback(() => {
     if (!viewerRef.current) return;
-    const tileset = (viewerRef.current as any)._buildingsTileset;
-    if (tileset) {
-      tileset.show = !tileset.show;
-      setShowBuildings(tileset.show);
+    const realistic = (viewerRef.current as any)._realisticTileset;
+    const osm = (viewerRef.current as any)._osmTileset;
+    const newShow = !showBuildings;
+    if (viewMode === "realistic" && realistic) {
+      realistic.show = newShow;
+    } else if (osm) {
+      osm.show = newShow;
     }
-  }, []);
+    setShowBuildings(newShow);
+  }, [showBuildings, viewMode]);
 
   /* ── POI Functions ── */
   const addPOIToGlobe = useCallback((poi: POI) => {
@@ -651,12 +732,28 @@ export default function SpaceshipPage() {
                 </GlassPanel>
 
                 <GlassPanel className="flex items-center gap-1 p-1.5">
+                  {/* View Mode Toggle */}
+                  <button
+                    onClick={() => switchViewMode("realistic")}
+                    className={`p-1.5 rounded-lg transition-colors text-[10px] font-mono ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Realistic 3D Tiles"
+                  >
+                    <Satellite className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => switchViewMode("osm")}
+                    className={`p-1.5 rounded-lg transition-colors text-[10px] font-mono ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400" : "text-white/40 hover:text-white/70"}`}
+                    title="OSM Buildings"
+                  >
+                    <Building2 className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-5 bg-white/10 mx-0.5" />
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
-                    title="3D Buildings"
+                    title="Toggle Buildings On/Off"
                   >
-                    <Building2 className="w-4 h-4" />
+                    <Eye className="w-4 h-4" />
                   </button>
                   <button
                     onClick={resetView}
@@ -1168,7 +1265,9 @@ export default function SpaceshipPage() {
                   <Satellite className="w-4 h-4 text-primary shrink-0" />
                   <div>
                     <p className="text-[9px] text-white/30 uppercase tracking-wider">Mode</p>
-                    <p className="text-sm font-mono text-white">{brushMode ? "Tile Brush" : "3D Globe"}</p>
+                    <p className="text-sm font-mono text-white">
+                      {brushMode ? "Tile Brush" : viewMode === "realistic" ? "Realistic" : "OSM"}
+                    </p>
                   </div>
                 </div>
               </GlassPanel>
