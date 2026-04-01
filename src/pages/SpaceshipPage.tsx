@@ -7,7 +7,8 @@ import {
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
-  Play, Square as StopIcon
+  Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
+  GraduationCap, Stethoscope, ShoppingCart, Coffee
 } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
@@ -163,6 +164,16 @@ function getTypeIcon(type: string) {
     case "Highway": return <Navigation className="w-4 h-4 text-orange-400" />;
     case "Landmark": return <Eye className="w-4 h-4 text-pink-400" />;
     case "Coordinate": return <Crosshair className="w-4 h-4 text-yellow-400" />;
+    case "Restaurant": return <UtensilsCrossed className="w-4 h-4 text-orange-400" />;
+    case "Hotel": return <Hotel className="w-4 h-4 text-indigo-400" />;
+    case "Shop": case "Store": return <Store className="w-4 h-4 text-emerald-400" />;
+    case "Fuel": return <Fuel className="w-4 h-4 text-red-400" />;
+    case "Education": return <GraduationCap className="w-4 h-4 text-blue-400" />;
+    case "Health": return <Stethoscope className="w-4 h-4 text-red-400" />;
+    case "Supermarket": return <ShoppingCart className="w-4 h-4 text-green-400" />;
+    case "Cafe": return <Coffee className="w-4 h-4 text-amber-400" />;
+    case "Business": return <Building2 className="w-4 h-4 text-sky-400" />;
+    case "City": return <Building2 className="w-4 h-4 text-primary" />;
     default: return <MapPin className="w-4 h-4 text-primary" />;
   }
 }
@@ -232,20 +243,49 @@ export default function SpaceshipPage() {
   const routeCoordsRef = useRef<[number, number][]>([]);
   const journeyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Global search with Nominatim
+  // Global search with Nominatim + Overpass
   const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
+  const [overpassResults, setOverpassResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
+  /* ── Classify OSM result into business type ── */
+  const classifyOsmResult = useCallback((r: any): string => {
+    const t = r.type || "";
+    const c = r.class || "";
+    const name = (r.display_name || r.name || "").toLowerCase();
+    if (t === "aerodrome" || t === "airport") return "Airport";
+    if (c === "natural" && (t === "peak" || t === "volcano")) return "Mountain";
+    if (t === "port" || t === "harbour" || t === "marina") return "Port";
+    if (t === "city" || t === "town" || t === "village" || t === "hamlet") return "City";
+    if (c === "highway") return "Highway";
+    if (t === "restaurant" || t === "fast_food" || t === "food_court") return "Restaurant";
+    if (t === "cafe" || t === "coffee") return "Cafe";
+    if (t === "hotel" || t === "motel" || t === "hostel" || t === "guest_house") return "Hotel";
+    if (t === "supermarket" || t === "convenience" || t === "grocery") return "Supermarket";
+    if (t === "fuel" || t === "charging_station") return "Fuel";
+    if (t === "school" || t === "university" || t === "college" || t === "kindergarten") return "Education";
+    if (t === "hospital" || t === "clinic" || t === "doctors" || t === "pharmacy" || t === "dentist") return "Health";
+    if (c === "shop" || t === "mall" || t === "department_store" || t === "clothes" || t === "electronics") return "Shop";
+    if (c === "amenity" || c === "office" || c === "tourism" || c === "leisure") return "Business";
+    if (name.includes("walmart") || name.includes("target") || name.includes("costco") || name.includes("ikea")) return "Store";
+    if (name.includes("mcdonald") || name.includes("burger") || name.includes("pizza") || name.includes("kfc")) return "Restaurant";
+    if (name.includes("starbucks") || name.includes("dunkin")) return "Cafe";
+    if (name.includes("hilton") || name.includes("marriott") || name.includes("hyatt")) return "Hotel";
+    if (name.includes("hospital") || name.includes("clinic")) return "Health";
+    if (name.includes("university") || name.includes("school") || name.includes("college")) return "Education";
+    return "Place";
+  }, []);
+
   /* ── Nominatim Geocoding Search ── */
   const searchNominatim = useCallback(async (query: string): Promise<SearchResult[]> => {
     if (!query.trim() || query.trim().length < 2) return [];
     try {
       const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1&extratags=1`,
         { headers: { "Accept-Language": "en" } }
       );
       const data = await resp.json();
@@ -253,12 +293,54 @@ export default function SpaceshipPage() {
         name: r.display_name.split(",").slice(0, 3).join(","),
         lat: parseFloat(r.lat),
         lng: parseFloat(r.lon),
-        type: r.type === "city" || r.type === "town" || r.type === "village" ? "City"
-            : r.type === "aerodrome" ? "Airport"
-            : r.class === "shop" || r.class === "amenity" || r.class === "tourism" ? "Business"
-            : r.class === "highway" ? "Road"
-            : "Place",
+        type: classifyOsmResult(r),
       }));
+    } catch { return []; }
+  }, [classifyOsmResult]);
+
+  /* ── Overpass API for nearby businesses/POIs ── */
+  const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
+    try {
+      // Use Overpass to search for named businesses globally
+      const overpassQuery = `
+[out:json][timeout:8];
+(
+  node["name"~"${query.replace(/"/g, '')}"i]["shop"];
+  node["name"~"${query.replace(/"/g, '')}"i]["amenity"];
+  node["name"~"${query.replace(/"/g, '')}"i]["tourism"];
+  node["name"~"${query.replace(/"/g, '')}"i]["office"];
+  node["name"~"${query.replace(/"/g, '')}"i]["leisure"];
+  node["name"~"${query.replace(/"/g, '')}"i]["brand"];
+);
+out center 15;`;
+      const resp = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: `data=${encodeURIComponent(overpassQuery)}`,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      const data = await resp.json();
+      if (!data.elements) return [];
+      return data.elements.slice(0, 10).map((el: any) => {
+        const tags = el.tags || {};
+        const elLat = el.lat || el.center?.lat;
+        const elLng = el.lon || el.center?.lon;
+        let type = "Business";
+        if (tags.amenity === "restaurant" || tags.amenity === "fast_food") type = "Restaurant";
+        else if (tags.amenity === "cafe") type = "Cafe";
+        else if (tags.tourism === "hotel" || tags.tourism === "motel") type = "Hotel";
+        else if (tags.shop === "supermarket" || tags.shop === "convenience") type = "Supermarket";
+        else if (tags.shop) type = "Shop";
+        else if (tags.amenity === "fuel") type = "Fuel";
+        else if (tags.amenity === "hospital" || tags.amenity === "pharmacy") type = "Health";
+        else if (tags.amenity === "school" || tags.amenity === "university") type = "Education";
+        const addr = [tags["addr:street"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
+        return {
+          name: tags.name + (addr ? ` — ${addr}` : ""),
+          lat: elLat,
+          lng: elLng,
+          type,
+        };
+      }).filter((r: SearchResult) => r.lat && r.lng);
     } catch { return []; }
   }, []);
 
@@ -648,10 +730,10 @@ export default function SpaceshipPage() {
     }
   }, [brushMode]);
 
-  /* ── Search (local presets + Nominatim global) ── */
+  /* ── Search (local presets + Nominatim + Overpass businesses) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); return; }
+    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); setOverpassResults([]); return; }
     const q = query.toLowerCase();
     const filtered = PRESETS.filter(
       (p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
@@ -667,19 +749,28 @@ export default function SpaceshipPage() {
     }
     setSearchResults(filtered);
 
-    // Debounced Nominatim search
+    // Debounced parallel search: Nominatim + Overpass
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (query.trim().length >= 3) {
       setSearchLoading(true);
       searchTimerRef.current = setTimeout(async () => {
-        const results = await searchNominatim(query);
-        setNominatimResults(results);
+        const [nomResults, ovResults] = await Promise.all([
+          searchNominatim(query),
+          searchOverpassBusinesses(query),
+        ]);
+        setNominatimResults(nomResults);
+        // Deduplicate overpass results that are already in nominatim (by proximity)
+        const deduped = ovResults.filter(ov =>
+          !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
+        );
+        setOverpassResults(deduped);
         setSearchLoading(false);
       }, 400);
     } else {
       setNominatimResults([]);
+      setOverpassResults([]);
     }
-  }, [searchNominatim]);
+  }, [searchNominatim, searchOverpassBusinesses]);
 
   /* ── Directions search helpers ── */
   const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
@@ -1156,7 +1247,7 @@ export default function SpaceshipPage() {
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {["All", "City", "Airport", "Port", "Plaza", "Highway", "Mountain"].map((t) => (
+                    {["All", "City", "Business", "Restaurant", "Hotel", "Shop", "Airport", "Port", "Mountain"].map((t) => (
                       <button
                         key={t}
                         onClick={() => handleSearch(t === "All" ? "" : t)}
@@ -1216,14 +1307,41 @@ export default function SpaceshipPage() {
                       </>
                     )}
 
+                    {/* Overpass business results */}
+                    {overpassResults.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex-1 h-px bg-white/[0.06]" />
+                          <span className="text-[9px] text-white/30 font-mono uppercase">Businesses &amp; POIs</span>
+                          <div className="flex-1 h-px bg-white/[0.06]" />
+                        </div>
+                        {overpassResults.map((r, i) => (
+                          <button
+                            key={`ov-${i}`}
+                            onClick={() => flyTo(r)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
+                              {getTypeIcon(r.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                          </button>
+                        ))}
+                      </>
+                    )}
+
                     {searchLoading && (
                       <div className="flex items-center justify-center gap-2 py-3">
                         <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                        <span className="text-xs text-white/30">Searching worldwide...</span>
+                        <span className="text-xs text-white/30">Searching worldwide for businesses...</span>
                       </div>
                     )}
 
-                    {searchResults.length === 0 && nominatimResults.length === 0 && !searchLoading && searchQuery && (
+                    {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && !searchLoading && searchQuery && (
                       <p className="text-sm text-white/30 text-center py-4">No results found.</p>
                     )}
                   </div>
