@@ -299,7 +299,7 @@ export default function SpaceshipPage() {
   }, [classifyOsmResult]);
 
   /* ── Overpass API for nearby businesses/POIs ── */
-  const searchOverpassBusinesses = useCallback(async (query: string, lat?: number, lng?: number): Promise<SearchResult[]> => {
+  const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
     try {
       // Use Overpass to search for named businesses globally
       const overpassQuery = `
