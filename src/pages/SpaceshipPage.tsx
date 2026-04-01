@@ -1444,6 +1444,43 @@ out center 15;`;
             )}
           </AnimatePresence>
 
+          {/* ── CARGO ROUTES PANEL ── */}
+          <AnimatePresence>
+            {showCargoRoutes && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="absolute bottom-24 left-4 z-30"
+              >
+                <GlassPanel className="p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Ship className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold text-white">Cargo Routes</span>
+                    <span className="text-[9px] text-white/30 ml-auto font-mono">{ALL_CARGO_ROUTES.length} routes</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(["all", "maritime", "air"] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setCargoFilter(f)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase transition-colors ${
+                          cargoFilter === f
+                            ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                            : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
+                            : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                            : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:text-white/70"
+                        }`}
+                      >
+                        {f === "all" ? `All (${ALL_CARGO_ROUTES.length})` : f === "maritime" ? `Maritime (${ALL_CARGO_ROUTES.filter(r => r.type === "maritime").length})` : `Air (${ALL_CARGO_ROUTES.filter(r => r.type === "air").length})`}
+                      </button>
+                    ))}
+                  </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* ── DIRECTIONS PANEL ── */}
           <AnimatePresence>
             {directionsOpen && (
