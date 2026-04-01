@@ -12,8 +12,8 @@ import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
-  defined, IonResource, Cesium3DTileset,
-  HeadingPitchRoll, Transforms, Matrix4,
+  defined,
+  HeadingPitchRoll, Transforms,
   Cartesian2,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
