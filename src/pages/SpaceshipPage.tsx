@@ -1247,7 +1247,7 @@ out center 15;`;
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {["All", "City", "Airport", "Port", "Plaza", "Highway", "Mountain"].map((t) => (
+                    {["All", "City", "Business", "Restaurant", "Hotel", "Shop", "Airport", "Port", "Mountain"].map((t) => (
                       <button
                         key={t}
                         onClick={() => handleSearch(t === "All" ? "" : t)}
