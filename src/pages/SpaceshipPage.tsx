@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Search, MapPin, Mountain, Building2, Navigation,
   Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
-  Eye, Satellite, Trash2, List, Plus, Check
+  Eye, Satellite, Trash2, Check
 } from "lucide-react";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
