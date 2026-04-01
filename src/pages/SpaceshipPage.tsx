@@ -33,6 +33,28 @@ interface CursorInfo {
   alt: number;
 }
 
+interface POI {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  alt: number;
+  createdAt: number;
+}
+
+const POI_STORAGE_KEY = "nexus-spaceship-pois";
+
+function loadPOIs(): POI[] {
+  try {
+    const stored = localStorage.getItem(POI_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function savePOIs(pois: POI[]) {
+  localStorage.setItem(POI_STORAGE_KEY, JSON.stringify(pois));
+}
+
 /* ── Preset Locations ── */
 const PRESETS: SearchResult[] = [
   { name: "New York City", lat: 40.7128, lng: -74.006, type: "City" },
