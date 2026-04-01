@@ -261,6 +261,11 @@ export default function SpaceshipPage() {
   const vesselAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const vesselProgressRef = useRef<Map<string, number>>(new Map());
 
+  // Business/Store icons toggle
+  const [showBusinessIcons, setShowBusinessIcons] = useState(false);
+  const businessEntitiesRef = useRef<any[]>([]);
+  const businessLoadedAreaRef = useRef<string>("");
+
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
