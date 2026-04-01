@@ -338,7 +338,7 @@ export default function SpaceshipPage() {
           });
           // Update brush indicator only when mouse truly moved
           if (brushIndicatorRef.current) {
-            lastBrushCartesian = cartesian;
+            brushIndicatorRef.current.position = cartesian as any;
             brushIndicatorRef.current.position = cartesian as any;
           }
         }
