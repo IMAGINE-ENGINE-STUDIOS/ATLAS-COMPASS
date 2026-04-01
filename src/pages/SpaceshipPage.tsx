@@ -251,12 +251,40 @@ export default function SpaceshipPage() {
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
+  /* ── Classify OSM result into business type ── */
+  const classifyOsmResult = useCallback((r: any): string => {
+    const t = r.type || "";
+    const c = r.class || "";
+    const name = (r.display_name || r.name || "").toLowerCase();
+    if (t === "aerodrome" || t === "airport") return "Airport";
+    if (c === "natural" && (t === "peak" || t === "volcano")) return "Mountain";
+    if (t === "port" || t === "harbour" || t === "marina") return "Port";
+    if (t === "city" || t === "town" || t === "village" || t === "hamlet") return "City";
+    if (c === "highway") return "Highway";
+    if (t === "restaurant" || t === "fast_food" || t === "food_court") return "Restaurant";
+    if (t === "cafe" || t === "coffee") return "Cafe";
+    if (t === "hotel" || t === "motel" || t === "hostel" || t === "guest_house") return "Hotel";
+    if (t === "supermarket" || t === "convenience" || t === "grocery") return "Supermarket";
+    if (t === "fuel" || t === "charging_station") return "Fuel";
+    if (t === "school" || t === "university" || t === "college" || t === "kindergarten") return "Education";
+    if (t === "hospital" || t === "clinic" || t === "doctors" || t === "pharmacy" || t === "dentist") return "Health";
+    if (c === "shop" || t === "mall" || t === "department_store" || t === "clothes" || t === "electronics") return "Shop";
+    if (c === "amenity" || c === "office" || c === "tourism" || c === "leisure") return "Business";
+    if (name.includes("walmart") || name.includes("target") || name.includes("costco") || name.includes("ikea")) return "Store";
+    if (name.includes("mcdonald") || name.includes("burger") || name.includes("pizza") || name.includes("kfc")) return "Restaurant";
+    if (name.includes("starbucks") || name.includes("dunkin")) return "Cafe";
+    if (name.includes("hilton") || name.includes("marriott") || name.includes("hyatt")) return "Hotel";
+    if (name.includes("hospital") || name.includes("clinic")) return "Health";
+    if (name.includes("university") || name.includes("school") || name.includes("college")) return "Education";
+    return "Place";
+  }, []);
+
   /* ── Nominatim Geocoding Search ── */
   const searchNominatim = useCallback(async (query: string): Promise<SearchResult[]> => {
     if (!query.trim() || query.trim().length < 2) return [];
     try {
       const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1&extratags=1`,
         { headers: { "Accept-Language": "en" } }
       );
       const data = await resp.json();
@@ -264,12 +292,54 @@ export default function SpaceshipPage() {
         name: r.display_name.split(",").slice(0, 3).join(","),
         lat: parseFloat(r.lat),
         lng: parseFloat(r.lon),
-        type: r.type === "city" || r.type === "town" || r.type === "village" ? "City"
-            : r.type === "aerodrome" ? "Airport"
-            : r.class === "shop" || r.class === "amenity" || r.class === "tourism" ? "Business"
-            : r.class === "highway" ? "Road"
-            : "Place",
+        type: classifyOsmResult(r),
       }));
+    } catch { return []; }
+  }, [classifyOsmResult]);
+
+  /* ── Overpass API for nearby businesses/POIs ── */
+  const searchOverpassBusinesses = useCallback(async (query: string, lat?: number, lng?: number): Promise<SearchResult[]> => {
+    try {
+      // Use Overpass to search for named businesses globally
+      const overpassQuery = `
+[out:json][timeout:8];
+(
+  node["name"~"${query.replace(/"/g, '')}"i]["shop"];
+  node["name"~"${query.replace(/"/g, '')}"i]["amenity"];
+  node["name"~"${query.replace(/"/g, '')}"i]["tourism"];
+  node["name"~"${query.replace(/"/g, '')}"i]["office"];
+  node["name"~"${query.replace(/"/g, '')}"i]["leisure"];
+  node["name"~"${query.replace(/"/g, '')}"i]["brand"];
+);
+out center 15;`;
+      const resp = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: `data=${encodeURIComponent(overpassQuery)}`,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      const data = await resp.json();
+      if (!data.elements) return [];
+      return data.elements.slice(0, 10).map((el: any) => {
+        const tags = el.tags || {};
+        const elLat = el.lat || el.center?.lat;
+        const elLng = el.lon || el.center?.lon;
+        let type = "Business";
+        if (tags.amenity === "restaurant" || tags.amenity === "fast_food") type = "Restaurant";
+        else if (tags.amenity === "cafe") type = "Cafe";
+        else if (tags.tourism === "hotel" || tags.tourism === "motel") type = "Hotel";
+        else if (tags.shop === "supermarket" || tags.shop === "convenience") type = "Supermarket";
+        else if (tags.shop) type = "Shop";
+        else if (tags.amenity === "fuel") type = "Fuel";
+        else if (tags.amenity === "hospital" || tags.amenity === "pharmacy") type = "Health";
+        else if (tags.amenity === "school" || tags.amenity === "university") type = "Education";
+        const addr = [tags["addr:street"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
+        return {
+          name: tags.name + (addr ? ` — ${addr}` : ""),
+          lat: elLat,
+          lng: elLng,
+          type,
+        };
+      }).filter((r: SearchResult) => r.lat && r.lng);
     } catch { return []; }
   }, []);
 
