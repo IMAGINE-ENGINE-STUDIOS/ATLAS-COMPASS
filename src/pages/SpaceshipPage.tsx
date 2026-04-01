@@ -13,6 +13,7 @@ import {
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
+import { ALL_CARGO_ROUTES, type CargoRoute } from "@/lib/cargo-routes";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
