@@ -730,10 +730,10 @@ out center 15;`;
     }
   }, [brushMode]);
 
-  /* ── Search (local presets + Nominatim global) ── */
+  /* ── Search (local presets + Nominatim + Overpass businesses) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); return; }
+    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); setOverpassResults([]); return; }
     const q = query.toLowerCase();
     const filtered = PRESETS.filter(
       (p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
@@ -749,19 +749,28 @@ out center 15;`;
     }
     setSearchResults(filtered);
 
-    // Debounced Nominatim search
+    // Debounced parallel search: Nominatim + Overpass
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (query.trim().length >= 3) {
       setSearchLoading(true);
       searchTimerRef.current = setTimeout(async () => {
-        const results = await searchNominatim(query);
-        setNominatimResults(results);
+        const [nomResults, ovResults] = await Promise.all([
+          searchNominatim(query),
+          searchOverpassBusinesses(query),
+        ]);
+        setNominatimResults(nomResults);
+        // Deduplicate overpass results that are already in nominatim (by proximity)
+        const deduped = ovResults.filter(ov =>
+          !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
+        );
+        setOverpassResults(deduped);
         setSearchLoading(false);
       }, 400);
     } else {
       setNominatimResults([]);
+      setOverpassResults([]);
     }
-  }, [searchNominatim]);
+  }, [searchNominatim, searchOverpassBusinesses]);
 
   /* ── Directions search helpers ── */
   const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
