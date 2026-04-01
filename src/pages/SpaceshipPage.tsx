@@ -6,7 +6,7 @@ import {
   Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
-  Move, Scale, Box, AlertCircle, Loader2
+  Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler
 } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
@@ -208,8 +208,109 @@ export default function SpaceshipPage() {
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
 
+  // Directions / Routing state
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [originQuery, setOriginQuery] = useState("");
+  const [destQuery, setDestQuery] = useState("");
+  const [originResults, setOriginResults] = useState<SearchResult[]>([]);
+  const [destResults, setDestResults] = useState<SearchResult[]>([]);
+  const [originPoint, setOriginPoint] = useState<SearchResult | null>(null);
+  const [destPoint, setDestPoint] = useState<SearchResult | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [showOriginResults, setShowOriginResults] = useState(false);
+  const [showDestResults, setShowDestResults] = useState(false);
+  const routeEntityRef = useRef<any>(null);
+  const originMarkerRef = useRef<any>(null);
+  const destMarkerRef = useRef<any>(null);
+
+  // Global search with Nominatim
+  const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
+
+  /* ── Nominatim Geocoding Search ── */
+  const searchNominatim = useCallback(async (query: string): Promise<SearchResult[]> => {
+    if (!query.trim() || query.trim().length < 2) return [];
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&addressdetails=1`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const data = await resp.json();
+      return data.map((r: any) => ({
+        name: r.display_name.split(",").slice(0, 3).join(","),
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+        type: r.type === "city" || r.type === "town" || r.type === "village" ? "City"
+            : r.type === "aerodrome" ? "Airport"
+            : r.class === "shop" || r.class === "amenity" || r.class === "tourism" ? "Business"
+            : r.class === "highway" ? "Road"
+            : "Place",
+      }));
+    } catch { return []; }
+  }, []);
+
+  /* ── OSRM Routing ── */
+  const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
+    setRouteLoading(true);
+    setRouteError(null);
+    try {
+      const resp = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`
+      );
+      const data = await resp.json();
+      if (data.code !== "Ok" || !data.routes?.length) {
+        setRouteError("No route found between these locations");
+        setRouteLoading(false);
+        return;
+      }
+      const route = data.routes[0];
+      setRouteInfo({ distance: route.distance, duration: route.duration });
+
+      const coords = route.geometry.coordinates;
+      const positions = coords.map((c: [number, number]) => Cartesian3.fromDegrees(c[0], c[1], 50));
+      const viewer = viewerRef.current;
+      if (!viewer) return;
+
+      if (routeEntityRef.current) viewer.entities.remove(routeEntityRef.current);
+      if (originMarkerRef.current) viewer.entities.remove(originMarkerRef.current);
+      if (destMarkerRef.current) viewer.entities.remove(destMarkerRef.current);
+
+      routeEntityRef.current = viewer.entities.add({
+        polyline: { positions, width: 5, material: Color.fromCssColorString("#00d4ff").withAlpha(0.9), clampToGround: true },
+      });
+      originMarkerRef.current = viewer.entities.add({
+        position: Cartesian3.fromDegrees(origin.lng, origin.lat),
+        point: { pixelSize: 14, color: Color.fromCssColorString("#22c55e"), outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: `🟢 ${origin.name.split(",")[0]}`, font: "12px Inter", fillColor: Color.fromCssColorString("#22c55e"), outlineColor: Color.BLACK, outlineWidth: 2, style: 2, pixelOffset: new Cartesian2(0, -24), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      });
+      destMarkerRef.current = viewer.entities.add({
+        position: Cartesian3.fromDegrees(dest.lng, dest.lat),
+        point: { pixelSize: 14, color: Color.fromCssColorString("#ef4444"), outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: `🔴 ${dest.name.split(",")[0]}`, font: "12px Inter", fillColor: Color.fromCssColorString("#ef4444"), outlineColor: Color.BLACK, outlineWidth: 2, style: 2, pixelOffset: new Cartesian2(0, -24), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      });
+      viewer.flyTo(routeEntityRef.current, { duration: 2 });
+    } catch {
+      setRouteError("Failed to fetch route. Try again.");
+    } finally {
+      setRouteLoading(false);
+    }
+  }, []);
+
+  const clearRoute = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    if (routeEntityRef.current) { viewer.entities.remove(routeEntityRef.current); routeEntityRef.current = null; }
+    if (originMarkerRef.current) { viewer.entities.remove(originMarkerRef.current); originMarkerRef.current = null; }
+    if (destMarkerRef.current) { viewer.entities.remove(destMarkerRef.current); destMarkerRef.current = null; }
+    setOriginPoint(null); setDestPoint(null); setOriginQuery(""); setDestQuery("");
+    setRouteInfo(null); setRouteError(null); setOriginResults([]); setDestResults([]);
+  }, []);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
@@ -475,10 +576,10 @@ export default function SpaceshipPage() {
     }
   }, [brushMode]);
 
-  /* ── Search ── */
+  /* ── Search (local presets + Nominatim global) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    if (!query.trim()) { setSearchResults(PRESETS); return; }
+    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); return; }
     const q = query.toLowerCase();
     const filtered = PRESETS.filter(
       (p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
@@ -493,6 +594,46 @@ export default function SpaceshipPage() {
       });
     }
     setSearchResults(filtered);
+
+    // Debounced Nominatim search
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (query.trim().length >= 3) {
+      setSearchLoading(true);
+      searchTimerRef.current = setTimeout(async () => {
+        const results = await searchNominatim(query);
+        setNominatimResults(results);
+        setSearchLoading(false);
+      }, 400);
+    } else {
+      setNominatimResults([]);
+    }
+  }, [searchNominatim]);
+
+  /* ── Directions search helpers ── */
+  const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
+    if (target === "origin") setOriginQuery(query); else setDestQuery(query);
+    if (!query.trim() || query.length < 3) {
+      if (target === "origin") { setOriginResults([]); setShowOriginResults(false); }
+      else { setDestResults([]); setShowDestResults(false); }
+      return;
+    }
+    const results = await searchNominatim(query);
+    const presetResults = PRESETS.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+    const combined = [...presetResults.slice(0, 3), ...results].slice(0, 6);
+    if (target === "origin") { setOriginResults(combined); setShowOriginResults(true); }
+    else { setDestResults(combined); setShowDestResults(true); }
+  }, [searchNominatim]);
+
+  const selectRoutePoint = useCallback((point: SearchResult, target: "origin" | "dest") => {
+    if (target === "origin") {
+      setOriginPoint(point);
+      setOriginQuery(point.name);
+      setShowOriginResults(false);
+    } else {
+      setDestPoint(point);
+      setDestQuery(point.name);
+      setShowDestResults(false);
+    }
   }, []);
 
   const flyTo = useCallback((result: SearchResult) => {
@@ -898,6 +1039,14 @@ export default function SpaceshipPage() {
                   >
                     <Paintbrush className="w-4 h-4" />
                   </button>
+                  {/* Directions Toggle */}
+                  <button
+                    onClick={() => setDirectionsOpen(!directionsOpen)}
+                    className={`p-1.5 rounded-lg transition-colors ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Directions & Routes"
+                  >
+                    <Route className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
@@ -927,7 +1076,7 @@ export default function SpaceshipPage() {
                       autoFocus
                       value={searchQuery}
                       onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search cities, airports, ports, plazas, or enter coordinates..."
+                      placeholder="Search any address, city, business, or coordinates..."
                       className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30"
                     />
                     <button onClick={() => setSearchOpen(false)}>
@@ -950,9 +1099,10 @@ export default function SpaceshipPage() {
                     ))}
                   </div>
                   <div className="max-h-64 overflow-y-auto space-y-1 scrollbar-thin">
+                    {/* Local preset results */}
                     {(searchResults.length > 0 ? searchResults : PRESETS).map((r, i) => (
                       <button
-                        key={i}
+                        key={`preset-${i}`}
                         onClick={() => flyTo(r)}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
                       >
@@ -966,10 +1116,197 @@ export default function SpaceshipPage() {
                         <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
                       </button>
                     ))}
-                    {searchResults.length === 0 && searchQuery && (
-                      <p className="text-sm text-white/30 text-center py-4">No results.</p>
+
+                    {/* Nominatim global results */}
+                    {nominatimResults.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex-1 h-px bg-white/[0.06]" />
+                          <span className="text-[9px] text-white/30 font-mono uppercase">Global Results</span>
+                          <div className="flex-1 h-px bg-white/[0.06]" />
+                        </div>
+                        {nominatimResults.map((r, i) => (
+                          <button
+                            key={`nom-${i}`}
+                            onClick={() => flyTo(r)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
+                              {getTypeIcon(r.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {searchLoading && (
+                      <div className="flex items-center justify-center gap-2 py-3">
+                        <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                        <span className="text-xs text-white/30">Searching worldwide...</span>
+                      </div>
+                    )}
+
+                    {searchResults.length === 0 && nominatimResults.length === 0 && !searchLoading && searchQuery && (
+                      <p className="text-sm text-white/30 text-center py-4">No results found.</p>
                     )}
                   </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── DIRECTIONS PANEL ── */}
+          <AnimatePresence>
+            {directionsOpen && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="absolute top-20 left-4 z-30 w-96"
+              >
+                <GlassPanel className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Route className="w-5 h-5 text-blue-400" />
+                      <span className="text-sm font-bold text-white">Directions</span>
+                    </div>
+                    <button onClick={() => setDirectionsOpen(false)}>
+                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    </button>
+                  </div>
+
+                  {/* Origin Input */}
+                  <div className="relative mb-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider">From</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={originQuery}
+                      onChange={(e) => {
+                        setOriginQuery(e.target.value);
+                        if (e.target.value.length >= 3) {
+                          searchForDirections(e.target.value, "origin");
+                        } else {
+                          setOriginResults([]); setShowOriginResults(false);
+                        }
+                      }}
+                      placeholder="Search origin address..."
+                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/20 transition-colors"
+                    />
+                    {showOriginResults && originResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-xl">
+                        {originResults.map((r, i) => (
+                          <button key={i} onClick={() => selectRoutePoint(r, "origin")}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.06] text-sm text-white/80 truncate">
+                            {getTypeIcon(r.type)}
+                            <span className="truncate">{r.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Destination Input */}
+                  <div className="relative mb-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider">To</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={destQuery}
+                      onChange={(e) => {
+                        setDestQuery(e.target.value);
+                        if (e.target.value.length >= 3) {
+                          searchForDirections(e.target.value, "dest");
+                        } else {
+                          setDestResults([]); setShowDestResults(false);
+                        }
+                      }}
+                      placeholder="Search destination address..."
+                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/20 transition-colors"
+                    />
+                    {showDestResults && destResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-xl">
+                        {destResults.map((r, i) => (
+                          <button key={i} onClick={() => selectRoutePoint(r, "dest")}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.06] text-sm text-white/80 truncate">
+                            {getTypeIcon(r.type)}
+                            <span className="truncate">{r.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Get Directions Button */}
+                  <button
+                    onClick={() => { if (originPoint && destPoint) fetchRoute(originPoint, destPoint); }}
+                    disabled={!originPoint || !destPoint || routeLoading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500/20 border border-blue-500/30 rounded-xl text-sm font-medium text-blue-400 hover:bg-blue-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed mb-3"
+                  >
+                    {routeLoading ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Calculating...</>
+                    ) : (
+                      <><Navigation className="w-4 h-4" /> Get Directions</>
+                    )}
+                  </button>
+
+                  {/* Route Error */}
+                  {routeError && (
+                    <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
+                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-red-300">{routeError}</p>
+                    </div>
+                  )}
+
+                  {/* Route Info */}
+                  {routeInfo && (
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
+                      <p className="text-[9px] text-white/40 uppercase tracking-wider mb-2">Route Summary</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex items-center gap-2">
+                          <Ruler className="w-4 h-4 text-blue-400" />
+                          <div>
+                            <p className="text-[9px] text-white/30">Distance</p>
+                            <p className="text-sm font-mono text-white">
+                              {routeInfo.distance > 1000
+                                ? `${(routeInfo.distance / 1000).toFixed(1)} km`
+                                : `${routeInfo.distance.toFixed(0)} m`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-blue-400" />
+                          <div>
+                            <p className="text-[9px] text-white/30">Duration</p>
+                            <p className="text-sm font-mono text-white">
+                              {routeInfo.duration > 3600
+                                ? `${Math.floor(routeInfo.duration / 3600)}h ${Math.floor((routeInfo.duration % 3600) / 60)}m`
+                                : `${Math.floor(routeInfo.duration / 60)} min`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Clear Route */}
+                  {(routeInfo || originPoint || destPoint) && (
+                    <button
+                      onClick={clearRoute}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Clear Route
+                    </button>
+                  )}
                 </GlassPanel>
               </motion.div>
             )}
