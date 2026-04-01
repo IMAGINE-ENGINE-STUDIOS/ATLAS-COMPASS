@@ -963,6 +963,7 @@ out center 15;`;
     return () => {
       removeListener();
     };
+  }, [showBusinessIcons]);
 
   // Listen for double-click events from Cesium
   useEffect(() => {
