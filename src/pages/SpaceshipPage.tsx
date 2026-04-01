@@ -231,6 +231,87 @@ export default function SpaceshipPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Keep ref in sync with state for use inside Cesium handlers
+  useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
+
+  /* ── Nominatim Geocoding Search ── */
+  const searchNominatim = useCallback(async (query: string): Promise<SearchResult[]> => {
+    if (!query.trim() || query.trim().length < 2) return [];
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&addressdetails=1`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const data = await resp.json();
+      return data.map((r: any) => ({
+        name: r.display_name.split(",").slice(0, 3).join(","),
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+        type: r.type === "city" || r.type === "town" || r.type === "village" ? "City"
+            : r.type === "aerodrome" ? "Airport"
+            : r.class === "shop" || r.class === "amenity" || r.class === "tourism" ? "Business"
+            : r.class === "highway" ? "Road"
+            : "Place",
+      }));
+    } catch { return []; }
+  }, []);
+
+  /* ── OSRM Routing ── */
+  const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
+    setRouteLoading(true);
+    setRouteError(null);
+    try {
+      const resp = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`
+      );
+      const data = await resp.json();
+      if (data.code !== "Ok" || !data.routes?.length) {
+        setRouteError("No route found between these locations");
+        setRouteLoading(false);
+        return;
+      }
+      const route = data.routes[0];
+      setRouteInfo({ distance: route.distance, duration: route.duration });
+
+      const coords = route.geometry.coordinates;
+      const positions = coords.map((c: [number, number]) => Cartesian3.fromDegrees(c[0], c[1], 50));
+      const viewer = viewerRef.current;
+      if (!viewer) return;
+
+      if (routeEntityRef.current) viewer.entities.remove(routeEntityRef.current);
+      if (originMarkerRef.current) viewer.entities.remove(originMarkerRef.current);
+      if (destMarkerRef.current) viewer.entities.remove(destMarkerRef.current);
+
+      routeEntityRef.current = viewer.entities.add({
+        polyline: { positions, width: 5, material: Color.fromCssColorString("#00d4ff").withAlpha(0.9), clampToGround: true },
+      });
+      originMarkerRef.current = viewer.entities.add({
+        position: Cartesian3.fromDegrees(origin.lng, origin.lat),
+        point: { pixelSize: 14, color: Color.fromCssColorString("#22c55e"), outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: `🟢 ${origin.name.split(",")[0]}`, font: "12px Inter", fillColor: Color.fromCssColorString("#22c55e"), outlineColor: Color.BLACK, outlineWidth: 2, style: 2, pixelOffset: new Cartesian2(0, -24), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      });
+      destMarkerRef.current = viewer.entities.add({
+        position: Cartesian3.fromDegrees(dest.lng, dest.lat),
+        point: { pixelSize: 14, color: Color.fromCssColorString("#ef4444"), outlineColor: Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: `🔴 ${dest.name.split(",")[0]}`, font: "12px Inter", fillColor: Color.fromCssColorString("#ef4444"), outlineColor: Color.BLACK, outlineWidth: 2, style: 2, pixelOffset: new Cartesian2(0, -24), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      });
+      viewer.flyTo(routeEntityRef.current, { duration: 2 });
+    } catch {
+      setRouteError("Failed to fetch route. Try again.");
+    } finally {
+      setRouteLoading(false);
+    }
+  }, []);
+
+  const clearRoute = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    if (routeEntityRef.current) { viewer.entities.remove(routeEntityRef.current); routeEntityRef.current = null; }
+    if (originMarkerRef.current) { viewer.entities.remove(originMarkerRef.current); originMarkerRef.current = null; }
+    if (destMarkerRef.current) { viewer.entities.remove(destMarkerRef.current); destMarkerRef.current = null; }
+    setOriginPoint(null); setDestPoint(null); setOriginQuery(""); setDestQuery("");
+    setRouteInfo(null); setRouteError(null); setOriginResults([]); setDestResults([]);
+  }, []);
 
   /* ── Initialize Cesium ── */
   useEffect(() => {
