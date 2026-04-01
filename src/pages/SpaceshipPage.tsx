@@ -1296,6 +1296,14 @@ out center 15;`;
                   >
                     <Route className="w-4 h-4" />
                   </button>
+                  {/* Cargo Routes Toggle */}
+                  <button
+                    onClick={() => setShowCargoRoutes(!showCargoRoutes)}
+                    className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Global Cargo Routes"
+                  >
+                    <Ship className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
