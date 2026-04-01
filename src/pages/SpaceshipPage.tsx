@@ -6,8 +6,7 @@ import {
   Maximize2, Minimize2, Globe, Crosshair, X, ChevronRight,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
-  Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
-  CornerDownRight
+  Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler
 } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
