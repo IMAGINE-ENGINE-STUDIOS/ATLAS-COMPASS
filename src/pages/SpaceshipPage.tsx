@@ -1876,6 +1876,38 @@ out center 15;`;
           </AnimatePresence>
 
 
+          {/* ── LIVE TRAFFIC PANEL ── */}
+          <AnimatePresence>
+            {showLiveTraffic && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="absolute bottom-24 right-4 z-30 w-64"
+              >
+                <GlassPanel className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Plane className="w-5 h-5 text-yellow-400" />
+                    <span className="text-sm font-bold text-white">Live Air Traffic</span>
+                    <button onClick={() => setShowLiveTraffic(false)} className="ml-auto">
+                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    </button>
+                  </div>
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center mb-2">
+                    <div className="text-2xl font-bold font-mono text-yellow-400">{liveTrafficStats.planes.toLocaleString()}</div>
+                    <div className="text-[9px] text-yellow-400/60 uppercase tracking-wider">✈ Aircraft Tracked Live</div>
+                  </div>
+                  <div className="text-[9px] text-white/30 font-mono text-center">
+                    OpenSky Network · Updates every 10s
+                  </div>
+                  <div className="mt-2 text-[9px] text-white/20 text-center">
+                    Each yellow dot = a real aircraft in flight
+                  </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* ── DIRECTIONS PANEL ── */}
           <AnimatePresence>
             {directionsOpen && (
