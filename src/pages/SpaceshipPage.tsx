@@ -266,6 +266,12 @@ export default function SpaceshipPage() {
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
 
+  // Real-time aircraft & ship tracking
+  const [showLiveTraffic, setShowLiveTraffic] = useState(false);
+  const [liveTrafficStats, setLiveTrafficStats] = useState({ planes: 0, ships: 0 });
+  const liveTrafficEntitiesRef = useRef<any[]>([]);
+  const liveTrafficTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
 
@@ -965,6 +971,105 @@ out center 15;`;
     };
   }, [showBusinessIcons]);
 
+  // ── Real-time Aircraft & Ship Tracking ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Clear existing
+    liveTrafficEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    liveTrafficEntitiesRef.current = [];
+    if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
+
+    if (!showLiveTraffic) { setLiveTrafficStats({ planes: 0, ships: 0 }); return; }
+
+    const fetchAircraft = async () => {
+      try {
+        const resp = await fetch("https://opensky-network.org/api/states/all");
+        const data = await resp.json();
+        if (!data.states) return [];
+        return data.states
+          .filter((s: any) => s[5] != null && s[6] != null && !s[8])
+          .map((s: any) => ({
+            id: s[0],
+            callsign: (s[1] || "").trim(),
+            country: s[2] || "",
+            lng: s[5],
+            lat: s[6],
+            alt: s[7] || 10000,
+            speed: s[9] || 0,
+            heading: s[10] || 0,
+          }));
+      } catch { return []; }
+    };
+
+    const updateEntities = async () => {
+      if (!viewer || viewer.isDestroyed()) return;
+      const aircraft = await fetchAircraft();
+
+      // Update existing or add new entities
+      const existingIds = new Set(liveTrafficEntitiesRef.current.map(e => e.id));
+      const newIds = new Set(aircraft.map((ac: any) => `live-ac-${ac.id}`));
+
+      // Remove entities no longer present
+      liveTrafficEntitiesRef.current = liveTrafficEntitiesRef.current.filter(e => {
+        if (!newIds.has(e.id)) {
+          if (viewer.entities.contains(e)) viewer.entities.remove(e);
+          return false;
+        }
+        return true;
+      });
+
+      const maxPlanes = 8000;
+      const planes = aircraft.slice(0, maxPlanes);
+      planes.forEach((ac: any) => {
+        const eid = `live-ac-${ac.id}`;
+        const existing = viewer.entities.getById(eid);
+        const pos = Cartesian3.fromDegrees(ac.lng, ac.lat, Math.max(ac.alt, 500) * 3);
+        if (existing) {
+          // Update position in place — real-time movement
+          existing.position = pos as any;
+        } else if (!existingIds.has(eid)) {
+          const entity = viewer.entities.add({
+            id: eid,
+            position: pos,
+            point: {
+              pixelSize: 3,
+              color: Color.fromCssColorString("#facc15"),
+              outlineColor: Color.fromCssColorString("#facc15").withAlpha(0.3),
+              outlineWidth: 4,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 1e4, nearValue: 2.0, far: 1e7, farValue: 0.3 } as any,
+            },
+            label: {
+              text: "✈",
+              font: "12px sans-serif",
+              fillColor: Color.fromCssColorString("#facc15"),
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 5e3, nearValue: 1.0, far: 5e5, farValue: 0.0 } as any,
+              translucencyByDistance: { near: 5e3, nearValue: 1.0, far: 8e5, farValue: 0.0 } as any,
+              pixelOffset: new Cartesian2(0, -8),
+            },
+            description: JSON.stringify(ac),
+          });
+          liveTrafficEntitiesRef.current.push(entity);
+        }
+      });
+
+      setLiveTrafficStats({ planes: planes.length, ships: 0 });
+    };
+
+    updateEntities();
+    // Refresh every 10 seconds (OpenSky rate limit)
+    liveTrafficTimerRef.current = setInterval(updateEntities, 10000);
+
+    return () => {
+      if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
+    };
+  }, [showLiveTraffic]);
+
   // Listen for double-click events from Cesium
   useEffect(() => {
     const handleDblClick = (e: Event) => {
@@ -1444,22 +1549,6 @@ out center 15;`;
                 </GlassPanel>
 
                 <GlassPanel className="flex items-center gap-1 p-1.5">
-                  {/* View Mode Toggle */}
-                  <button
-                    onClick={() => switchViewMode("realistic")}
-                    className={`p-1.5 rounded-lg transition-colors text-[10px] font-mono ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400" : "text-white/40 hover:text-white/70"}`}
-                    title="Realistic 3D Tiles"
-                  >
-                    <Satellite className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => switchViewMode("osm")}
-                    className={`p-1.5 rounded-lg transition-colors text-[10px] font-mono ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400" : "text-white/40 hover:text-white/70"}`}
-                    title="OSM Buildings"
-                  >
-                    <Building2 className="w-4 h-4" />
-                  </button>
-                  <div className="w-px h-5 bg-white/10 mx-0.5" />
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
@@ -1512,6 +1601,14 @@ out center 15;`;
                     title="Show Nearby Businesses & Stores"
                   >
                     <Store className="w-4 h-4" />
+                  </button>
+                  {/* Live Traffic Toggle */}
+                  <button
+                    onClick={() => setShowLiveTraffic(!showLiveTraffic)}
+                    className={`p-1.5 rounded-lg transition-colors ${showLiveTraffic ? "bg-yellow-500/20 text-yellow-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Live Aircraft & Ship Tracking"
+                  >
+                    <Plane className="w-4 h-4" />
                   </button>
                   <button
                     onClick={toggleFullscreen}
@@ -1778,6 +1875,38 @@ out center 15;`;
             )}
           </AnimatePresence>
 
+
+          {/* ── LIVE TRAFFIC PANEL ── */}
+          <AnimatePresence>
+            {showLiveTraffic && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="absolute bottom-24 right-4 z-30 w-64"
+              >
+                <GlassPanel className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Plane className="w-5 h-5 text-yellow-400" />
+                    <span className="text-sm font-bold text-white">Live Air Traffic</span>
+                    <button onClick={() => setShowLiveTraffic(false)} className="ml-auto">
+                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    </button>
+                  </div>
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center mb-2">
+                    <div className="text-2xl font-bold font-mono text-yellow-400">{liveTrafficStats.planes.toLocaleString()}</div>
+                    <div className="text-[9px] text-yellow-400/60 uppercase tracking-wider">✈ Aircraft Tracked Live</div>
+                  </div>
+                  <div className="text-[9px] text-white/30 font-mono text-center">
+                    OpenSky Network · Updates every 10s
+                  </div>
+                  <div className="mt-2 text-[9px] text-white/20 text-center">
+                    Each yellow dot = a real aircraft in flight
+                  </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── DIRECTIONS PANEL ── */}
           <AnimatePresence>
@@ -2394,12 +2523,22 @@ out center 15;`;
                     <p className="text-sm font-mono text-white">{formatAlt(cameraAlt)}</p>
                   </div>
                   <div className="w-px h-8 bg-white/10" />
-                  <Satellite className="w-4 h-4 text-primary shrink-0" />
                   <div>
-                    <p className="text-[9px] text-white/30 uppercase tracking-wider">Mode</p>
-                    <p className="text-sm font-mono text-white">
-                      {brushMode ? "Tile Brush" : viewMode === "realistic" ? "Realistic" : "OSM"}
-                    </p>
+                    <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Mode</p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => switchViewMode("realistic")}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
+                      >
+                        <span className="flex items-center gap-1"><Satellite className="w-3 h-3" /> Realistic</span>
+                      </button>
+                      <button
+                        onClick={() => switchViewMode("osm")}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
+                      >
+                        <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> OSM</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </GlassPanel>
