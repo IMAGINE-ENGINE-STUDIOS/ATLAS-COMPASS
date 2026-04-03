@@ -269,6 +269,8 @@ export default function SpaceshipPage() {
   const [showBusinessIcons, setShowBusinessIcons] = useState(false);
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
+  const businessDataRef = useRef<Map<string, POIData>>(new Map());
+  const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
 
   // Real-time aircraft & ship tracking
   const [showLiveTraffic, setShowLiveTraffic] = useState(false);
