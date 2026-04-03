@@ -10,6 +10,7 @@ import {
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship
 } from "lucide-react";
+import { Radius, ChevronDown, Layers, Filter } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
@@ -275,6 +276,142 @@ export default function SpaceshipPage() {
   const liveTrafficTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aisWebSocketRef = useRef<WebSocket | null>(null);
   const liveShipsRef = useRef<Map<string, { lat: number; lng: number; speed: number; heading: number; name: string; type: number; country: string; mmsi: string; lastUpdate: number }>>(new Map());
+
+  // ── Geofencing Panel State ──
+  const [geofencingOpen, setGeofencingOpen] = useState(false);
+  const [geoCenter, setGeoCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoLocationName, setGeoLocationName] = useState("Use camera position");
+  const [geoRadiusKm, setGeoRadiusKm] = useState(5);
+  const [geoCategory, setGeoCategory] = useState<string>("all");
+  const [geoSearchQuery, setGeoSearchQuery] = useState("");
+  const [geoBusinesses, setGeoBusinesses] = useState<any[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoShowRadius, setGeoShowRadius] = useState(false);
+  const geoAbortRef = useRef<AbortController | null>(null);
+
+  const GEO_CATEGORIES = [
+    { key: "all", label: "All", icon: <Layers className="w-3.5 h-3.5" /> },
+    { key: "restaurant", label: "Food", icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
+    { key: "cafe", label: "Café", icon: <Coffee className="w-3.5 h-3.5" /> },
+    { key: "supermarket", label: "Grocery", icon: <ShoppingCart className="w-3.5 h-3.5" /> },
+    { key: "shop", label: "Shops", icon: <Store className="w-3.5 h-3.5" /> },
+    { key: "hotel", label: "Hotels", icon: <Hotel className="w-3.5 h-3.5" /> },
+    { key: "fuel", label: "Fuel", icon: <Fuel className="w-3.5 h-3.5" /> },
+    { key: "health", label: "Health", icon: <Stethoscope className="w-3.5 h-3.5" /> },
+  ];
+  const GEO_RADIUS_OPTIONS = [1, 3, 5, 10, 25, 50];
+
+  const geoHaversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  const geoClassify = (tags: Record<string, string>) => {
+    const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "";
+    if (a === "restaurant" || a === "fast_food") return "🍽️ Restaurant";
+    if (a === "cafe") return "☕ Café";
+    if (a === "fuel") return "⛽ Fuel";
+    if (a === "hospital" || a === "pharmacy" || a === "clinic") return "🏥 Health";
+    if (a === "school" || a === "university") return "🎓 Education";
+    if (a === "bank") return "🏦 Bank";
+    if (s === "supermarket" || s === "convenience" || s === "grocery") return "🛒 Grocery";
+    if (t === "hotel" || t === "motel" || t === "hostel") return "🏨 Hotel";
+    if (s) return "🏪 Shop";
+    return "📍 Business";
+  };
+
+  const fetchGeofencedBusinesses = useCallback(async (center: { lat: number; lng: number }) => {
+    if (geoAbortRef.current) geoAbortRef.current.abort();
+    const controller = new AbortController();
+    geoAbortRef.current = controller;
+    setGeoLoading(true);
+
+    const degR = geoRadiusKm / 111;
+    const bbox = `${(center.lat - degR).toFixed(5)},${(center.lng - degR).toFixed(5)},${(center.lat + degR).toFixed(5)},${(center.lng + degR).toFixed(5)}`;
+    let filter = "";
+    switch (geoCategory) {
+      case "restaurant": filter = `node["amenity"~"restaurant|fast_food"](${bbox});`; break;
+      case "cafe": filter = `node["amenity"="cafe"](${bbox});`; break;
+      case "hotel": filter = `node["tourism"~"hotel|motel|hostel"](${bbox});`; break;
+      case "fuel": filter = `node["amenity"="fuel"](${bbox});`; break;
+      case "health": filter = `node["amenity"~"hospital|pharmacy|clinic"](${bbox});`; break;
+      case "supermarket": filter = `node["shop"~"supermarket|convenience|grocery"](${bbox});`; break;
+      case "shop": filter = `node["shop"](${bbox});`; break;
+      default: filter = `node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital"](${bbox});node["tourism"~"hotel|motel"](${bbox});`;
+    }
+    const limit = geoRadiusKm <= 5 ? 100 : 50;
+    const q = `[out:json][timeout:12];(${filter});out ${limit};`;
+    try {
+      const resp = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST", body: `data=${encodeURIComponent(q)}`,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal: controller.signal,
+      });
+      if (!resp.ok) throw new Error("API error");
+      const data = await resp.json();
+      const results = (data.elements || [])
+        .filter((el: any) => el.tags?.name)
+        .map((el: any) => ({
+          id: el.id, name: el.tags.name, lat: el.lat, lng: el.lon,
+          type: geoClassify(el.tags || {}),
+          address: [el.tags["addr:street"], el.tags["addr:housenumber"]].filter(Boolean).join(" ") || "",
+          distance: geoHaversine(center.lat, center.lng, el.lat, el.lon),
+        }))
+        .filter((b: any) => b.distance <= geoRadiusKm)
+        .sort((a: any, b: any) => a.distance - b.distance);
+      setGeoBusinesses(results);
+    } catch (e: any) {
+      if (e.name !== "AbortError") setGeoBusinesses([]);
+    }
+    setGeoLoading(false);
+  }, [geoRadiusKm, geoCategory]);
+
+  const geoLocateUser = useCallback(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setGeoCenter(loc);
+        // Fly to user
+        const viewer = viewerRef.current;
+        if (viewer && !viewer.isDestroyed()) {
+          viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(loc.lng, loc.lat, 2000), duration: 2 });
+        }
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`, { headers: { "Accept-Language": "en" } });
+          const data = await resp.json();
+          setGeoLocationName(data.display_name?.split(",").slice(0, 2).join(",") || "Your Location");
+        } catch { setGeoLocationName("Your Location"); }
+        fetchGeofencedBusinesses(loc);
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [fetchGeofencedBusinesses]);
+
+  const geofenceFromCamera = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const cam = viewer.camera.positionCartographic;
+    const loc = { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+    setGeoCenter(loc);
+    setGeoLocationName(`${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+    fetchGeofencedBusinesses(loc);
+  }, [fetchGeofencedBusinesses]);
+
+  // Re-fetch when category or radius changes and panel is open
+  useEffect(() => {
+    if (geofencingOpen && geoCenter) fetchGeofencedBusinesses(geoCenter);
+  }, [geoRadiusKm, geoCategory, geofencingOpen]);
+
+  const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(b.lng, b.lat, 500), duration: 1.5 });
+  }, []);
 
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
@@ -1638,12 +1775,12 @@ out center 20;`;
                   <span className="text-sm font-bold text-white">NEXUS</span>
                   <span className="text-xs text-white/30 font-mono">ATLAS</span>
                 </GlassPanel>
-                <Link to="/atlas/geofencing">
-                  <GlassPanel className="px-3 py-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs text-white/50 hidden sm:inline">Geofencing</span>
+                <button onClick={() => { setGeofencingOpen(!geofencingOpen); if (!geofencingOpen && !geoCenter) geofenceFromCamera(); }}>
+                  <GlassPanel className={`px-3 py-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors flex items-center gap-1.5 ${geofencingOpen ? "ring-1 ring-emerald-500/40" : ""}`}>
+                    <Filter className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs text-white/50 hidden sm:inline">Nearby</span>
                   </GlassPanel>
-                </Link>
+                </button>
               </div>
 
               <div className="flex items-center gap-2">
@@ -2599,6 +2736,132 @@ out center 20;`;
                       ))}
                     </div>
                   )}
+                </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── GEOFENCING OVERLAY PANEL ── */}
+          <AnimatePresence>
+            {geofencingOpen && (
+              <motion.div
+                initial={{ opacity: 0, x: isMobile ? 0 : -20, y: isMobile ? 20 : 0 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                exit={{ opacity: 0, x: isMobile ? 0 : -20, y: isMobile ? 20 : 0 }}
+                className={isMobile
+                  ? "absolute inset-x-3 bottom-28 z-30 max-h-[55dvh]"
+                  : "absolute top-20 left-4 z-30 w-[calc(100vw-2rem)] max-w-96 max-h-[calc(100vh-10rem)]"
+                }
+              >
+                <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
+                  {/* Header */}
+                  <div className="flex items-center justify-between gap-2 p-3 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-bold text-white">Nearby Places</h3>
+                        <p className="text-[10px] text-white/30 truncate">{geoLocationName}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={geoLocateUser} title="Use my location"
+                        className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+                        <Crosshair className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={geofenceFromCamera} title="Use camera position"
+                        className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors">
+                        <Globe className="w-3.5 h-3.5" />
+                      </button>
+                      {/* Radius */}
+                      <div className="relative">
+                        <button onClick={() => setGeoShowRadius(!geoShowRadius)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
+                          <Radius className="w-3 h-3" /> {geoRadiusKm}km <ChevronDown className="w-2.5 h-2.5" />
+                        </button>
+                        {geoShowRadius && (
+                          <div className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-xl p-1 z-50 min-w-[80px]">
+                            {GEO_RADIUS_OPTIONS.map(r => (
+                              <button key={r} onClick={() => { setGeoRadiusKm(r); setGeoShowRadius(false); }}
+                                className={`w-full text-left px-3 py-1 rounded-lg text-xs transition-colors ${r === geoRadiusKm ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-white/5 text-white/60"}`}>
+                                {r} km
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => setGeofencingOpen(false)} className="p-1 rounded-lg text-white/30 hover:text-white/60 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Category pills */}
+                  <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
+                    {GEO_CATEGORIES.map(cat => (
+                      <button key={cat.key} onClick={() => setGeoCategory(cat.key)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
+                          geoCategory === cat.key
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            : "bg-white/[0.03] text-white/40 border border-white/[0.06] hover:bg-white/[0.06]"
+                        }`}>
+                        {cat.icon} {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search filter */}
+                  <div className="px-3 py-2 border-b border-white/[0.04]">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+                      <input type="text" value={geoSearchQuery} onChange={e => setGeoSearchQuery(e.target.value)}
+                        placeholder="Filter by name…"
+                        className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-emerald-500/30 transition-colors" />
+                    </div>
+                  </div>
+
+                  {/* Results */}
+                  <div className="flex-1 overflow-y-auto min-h-0 p-2">
+                    {geoLoading ? (
+                      <div className="flex flex-col items-center justify-center py-8 gap-2">
+                        <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
+                        <span className="text-[10px] text-white/30">Scanning {geoRadiusKm}km…</span>
+                      </div>
+                    ) : (() => {
+                      const filtered = geoSearchQuery
+                        ? geoBusinesses.filter(b => b.name.toLowerCase().includes(geoSearchQuery.toLowerCase()) || b.type.toLowerCase().includes(geoSearchQuery.toLowerCase()))
+                        : geoBusinesses;
+                      if (filtered.length === 0) return (
+                        <div className="flex flex-col items-center justify-center py-8 gap-2 text-white/20">
+                          <MapPin className="w-6 h-6" />
+                          <span className="text-[10px]">No places found. Try a larger radius.</span>
+                        </div>
+                      );
+                      return (
+                        <>
+                          <p className="text-[9px] text-white/20 font-mono px-1 mb-1.5">{filtered.length} places within {geoRadiusKm}km</p>
+                          <div className="space-y-1">
+                            {filtered.map((b: any) => (
+                              <button key={b.id}
+                                onClick={() => flyToBusiness(b)}
+                                className="w-full flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.06] hover:border-emerald-500/20 text-left transition-all group">
+                                <div className="w-7 h-7 rounded-lg bg-white/[0.05] flex items-center justify-center text-xs shrink-0 mt-0.5">
+                                  {b.type.split(" ")[0]}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <p className="text-xs font-medium text-white truncate">{b.name}</p>
+                                    <span className="text-[9px] font-mono text-white/20 shrink-0">{b.distance?.toFixed(1)}km</span>
+                                  </div>
+                                  <p className="text-[10px] text-white/30 truncate">{b.type.slice(b.type.indexOf(" ") + 1)}{b.address ? ` · ${b.address}` : ""}</p>
+                                </div>
+                                <Navigation className="w-3.5 h-3.5 text-white/10 group-hover:text-emerald-400 shrink-0 mt-1 transition-colors" />
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </GlassPanel>
               </motion.div>
             )}
