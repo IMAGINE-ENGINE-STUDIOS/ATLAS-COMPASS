@@ -2811,6 +2811,46 @@ out center 20;`;
             )}
           </AnimatePresence>
 
+          {/* Business POI Card Popup */}
+          <AnimatePresence>
+            {selectedBusiness && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                className={isMobile
+                  ? "absolute inset-x-3 bottom-28 z-40"
+                  : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
+                }
+              >
+                <div className="relative">
+                  <button onClick={() => setSelectedBusiness(null)}
+                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <POICard
+                    poi={selectedBusiness}
+                    variant="glass"
+                    onNavigate={(poi) => {
+                      const viewer = viewerRef.current;
+                      if (viewer && !viewer.isDestroyed()) {
+                        viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), duration: 1 });
+                      }
+                    }}
+                    onSelect={(poi) => {
+                      // Open in search for delivery address use
+                      setSearchOpen(true);
+                      setSearchQuery(poi.name);
+                      handleSearch(poi.name);
+                      setSelectedBusiness(null);
+                    }}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* POI List Panel */}
           <AnimatePresence>
             {poisPanelOpen && !selectedPOI && !brushPanelOpen && (
