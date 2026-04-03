@@ -1046,8 +1046,8 @@ out center 20;`;
       const alt = cam.height;
       if (alt > 500000) return;
 
-      const radius = alt < 5000 ? 0.05 : alt < 20000 ? 0.1 : alt < 80000 ? 0.25 : 0.4;
-      const limit = alt < 10000 ? 60 : 30;
+      const radius = alt < 5000 ? 0.08 : alt < 20000 ? 0.15 : alt < 80000 ? 0.3 : 0.5;
+      const limit = alt < 10000 ? 120 : 60;
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)},${geoCategory}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
@@ -1097,10 +1097,13 @@ out center 20;`;
           bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
         };
 
+        // Refined category colors matching the UI design system
         const colorMap: Record<string, string> = {
-          restaurant: "#f97316", fast_food: "#f97316", cafe: "#d97706",
-          fuel: "#ef4444", pharmacy: "#a855f7", hospital: "#ef4444", bank: "#3b82f6",
-          hotel: "#6366f1", supermarket: "#22c55e", convenience: "#22c55e",
+          restaurant: "rgba(249,115,22,0.75)", fast_food: "rgba(249,115,22,0.7)",
+          cafe: "rgba(217,119,6,0.75)", fuel: "rgba(239,68,68,0.7)",
+          pharmacy: "rgba(168,85,247,0.7)", hospital: "rgba(239,68,68,0.7)",
+          bank: "rgba(59,130,246,0.7)", hotel: "rgba(99,102,241,0.7)",
+          supermarket: "rgba(34,197,94,0.7)", convenience: "rgba(34,197,94,0.65)",
         };
 
         data.elements.forEach((el: any) => {
@@ -1110,7 +1113,7 @@ out center 20;`;
           const icon = iconMap[amenity] || "📍";
           const entityId = `biz-${el.id}`;
           const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ");
-          const pinColor = colorMap[amenity] || "#00d4ff";
+          
 
           businessDataRef.current.set(entityId, {
             id: el.id,
@@ -1128,25 +1131,35 @@ out center 20;`;
             description: tags.description || undefined,
           });
 
-          // Glassmorphic tag pin at real coordinates
+          // High-quality glassmorphic pin at real coordinates
           const tagText = `${icon} ${tags.name}`;
+          const bgColor = colorMap[amenity] || "rgba(0,212,255,0.65)";
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(el.lon, el.lat, 8),
+            position: Cartesian3.fromDegrees(el.lon, el.lat, 5),
+            point: {
+              pixelSize: 10,
+              color: Color.fromCssColorString(bgColor),
+              outlineColor: Color.WHITE.withAlpha(0.9),
+              outlineWidth: 2.5,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 100, nearValue: 1.4, far: 20000, farValue: 0.4 } as any,
+              heightReference: 1,
+            },
             label: {
               text: tagText,
-              font: "bold 14px 'Inter', 'SF Pro', system-ui, sans-serif",
+              font: "bold 13px 'Inter', system-ui, sans-serif",
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
               style: 2,
-              outlineWidth: 2,
-              outlineColor: Color.BLACK.withAlpha(0.6),
+              outlineWidth: 3,
+              outlineColor: Color.BLACK.withAlpha(0.8),
               fillColor: Color.WHITE,
-              backgroundColor: Color.fromCssColorString(pinColor).withAlpha(0.55),
+              backgroundColor: Color.fromCssColorString(bgColor),
               showBackground: true,
-              backgroundPadding: new Cartesian2(10, 6),
-              scaleByDistance: { near: 100, nearValue: 1.2, far: 15000, farValue: 0.35 } as any,
-              translucencyByDistance: { near: 100, nearValue: 1.0, far: 25000, farValue: 0.0 } as any,
-              pixelOffset: new Cartesian2(0, -8),
+              backgroundPadding: new Cartesian2(8, 5),
+              scaleByDistance: { near: 100, nearValue: 1.1, far: 12000, farValue: 0.3 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 20000, farValue: 0.0 } as any,
+              pixelOffset: new Cartesian2(0, -22),
               heightReference: 1,
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
@@ -1872,7 +1885,7 @@ out center 20;`;
 
               <div className="flex items-center gap-2">
                 <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
-                  <button onClick={() => { setSearchOpen(!searchOpen); if (!searchOpen) { setSearchResults(PRESETS); geoLocateUser(); } }}>
+                  <button onClick={() => { const opening = !searchOpen; setSearchOpen(opening); if (opening) { setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geoLocateUser(); } }}>
                     <Search className="w-5 h-5 text-white/70" />
                   </button>
                 </GlassPanel>
@@ -1923,25 +1936,7 @@ out center 20;`;
                   >
                     <Ship className="w-4 h-4" />
                   </button>
-                  {/* Business/Store Icons Toggle */}
-                  <button
-                    onClick={() => {
-                      const next = !showBusinessIcons;
-                      setShowBusinessIcons(next);
-                      if (next) {
-                        // Reset cache so pins reload immediately
-                        businessLoadedAreaRef.current = "";
-                        setSearchOpen(true);
-                        setGeoCategory("all");
-                        // Auto-locate user for nearby results
-                        geoLocateUser();
-                      }
-                    }}
-                    className={`p-1.5 rounded-lg transition-colors ${showBusinessIcons ? "bg-emerald-500/20 text-emerald-400" : "text-white/40 hover:text-white/70"}`}
-                    title="Show Nearby Businesses & Stores"
-                  >
-                    <Store className="w-4 h-4" />
-                  </button>
+                  {/* Business/Store Icons Toggle — removed, auto-enabled from search */}
                   {/* Live Traffic Toggle */}
                   <button
                     onClick={() => setShowLiveTraffic(!showLiveTraffic)}
@@ -2024,7 +2019,15 @@ out center 20;`;
                       return (
                         <button
                           key={t}
-                          onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; handleSearch(catKey === "all" ? "" : t); }}
+                          onClick={() => {
+                            setGeoCategory(catKey);
+                            businessLoadedAreaRef.current = "";
+                            // Auto-enable business pins on globe when any category is selected
+                            if (!showBusinessIcons) setShowBusinessIcons(true);
+                            // Auto-locate user if no center yet
+                            if (!geoCenter) geoLocateUser();
+                            else fetchGeofencedBusinesses(geoCenter);
+                          }}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
                             geoCategory === catKey
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
