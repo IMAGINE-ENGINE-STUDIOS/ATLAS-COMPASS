@@ -1597,9 +1597,9 @@ out center 15;`;
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="absolute top-0 left-0 right-0 z-20 p-4"
+            className="absolute top-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-3">
                 <Link to="/">
                   <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
