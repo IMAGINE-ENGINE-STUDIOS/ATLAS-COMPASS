@@ -13,6 +13,7 @@ import LogisticsPage from "@/pages/LogisticsPage";
 import PaymentsPage from "@/pages/PaymentsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import SettingsPage from "@/pages/SettingsPage";
+import DeliveryPage from "@/pages/DeliveryPage";
 import SpaceshipPage from "@/pages/SpaceshipPage";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="deliveries" element={<DeliveryPage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

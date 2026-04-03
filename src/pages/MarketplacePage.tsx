@@ -1,19 +1,22 @@
-import { useState, useRef } from "react";
-import { Search, Plus, Star, Package, Sparkles, Filter, ArrowUpRight, Eye, Heart, ShoppingCart, TrendingUp, Zap, Globe, ChevronRight, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Search, Plus, Star, Package, Sparkles, Filter, ArrowUpRight, Eye, Heart, ShoppingCart, TrendingUp, Zap, Globe, ChevronRight, X, Truck, MapPin } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 
 /* ── DATA ── */
-const categories = ["All", "Raw Materials", "Energy", "Manufacturing", "Technology", "Agriculture", "Consumer Goods", "Services"];
+const categories = ["All", "Nearby", "Raw Materials", "Energy", "Manufacturing", "Technology", "Agriculture", "Consumer Goods", "Services"];
+import { getUserLocation, haversineDistance, getDeliveryZone, zoneInfo, type UserLocation } from "@/lib/delivery-service";
+import DeliveryBanner from "@/components/delivery/DeliveryBanner";
+import DeliveryQuoteCard from "@/components/delivery/DeliveryQuoteCard";
 
 const products = [
-  { id: "PRD-001", name: "Grade A Crude Oil", seller: "Aramco Industries", sector: "Energy", price: "$78.42", unit: "/bbl", stock: "500K barrels", rating: 4.9, status: "Active", featured: true, views: "24.8K", image: "🛢️" },
-  { id: "PRD-002", name: "EV Battery Cells (21700)", seller: "CATL Manufacturing", sector: "Technology", price: "$1.24", unit: "/unit", stock: "2.4M units", rating: 4.8, status: "Active", featured: true, views: "18.2K", image: "🔋" },
-  { id: "PRD-003", name: "Organic Wheat (Grade 1)", seller: "AgriGlobal Co.", sector: "Agriculture", price: "$612", unit: "/ton", stock: "45K tons", rating: 4.7, status: "Active", featured: false, views: "9.1K", image: "🌾" },
-  { id: "PRD-004", name: "Steel Coils (HRC)", seller: "ArcelorMittal", sector: "Manufacturing", price: "$412", unit: "/ton", stock: "120K tons", rating: 4.6, status: "Low Stock", featured: false, views: "12.4K", image: "🏗️" },
-  { id: "PRD-005", name: "Cloud Computing (Enterprise)", seller: "Azure Partners", sector: "Services", price: "$0.12", unit: "/hr", stock: "Unlimited", rating: 4.9, status: "Active", featured: true, views: "31.5K", image: "☁️" },
-  { id: "PRD-006", name: "Lithium Carbonate (99.5%)", seller: "Albemarle Corp", sector: "Raw Materials", price: "$24.8K", unit: "/ton", stock: "8K tons", rating: 4.5, status: "Active", featured: false, views: "7.3K", image: "⚗️" },
-  { id: "PRD-007", name: "Solar Panel Array (500W)", seller: "LONGi Green", sector: "Energy", price: "$142", unit: "/panel", stock: "890K units", rating: 4.8, status: "Active", featured: true, views: "22.1K", image: "☀️" },
-  { id: "PRD-008", name: "Semiconductor Wafers (8\")", seller: "TSMC Global", sector: "Technology", price: "$3.2K", unit: "/lot", stock: "15K lots", rating: 4.9, status: "Active", featured: false, views: "14.7K", image: "💎" },
+  { id: "PRD-001", name: "Grade A Crude Oil", seller: "Aramco Industries", sector: "Energy", price: "$78.42", unit: "/bbl", stock: "500K barrels", rating: 4.9, status: "Active", featured: true, views: "24.8K", image: "🛢️", storeLat: 25.2854, storeLng: 51.5310 },
+  { id: "PRD-002", name: "EV Battery Cells (21700)", seller: "CATL Manufacturing", sector: "Technology", price: "$1.24", unit: "/unit", stock: "2.4M units", rating: 4.8, status: "Active", featured: true, views: "18.2K", image: "🔋", storeLat: 26.0789, storeLng: 119.2965 },
+  { id: "PRD-003", name: "Organic Wheat (Grade 1)", seller: "AgriGlobal Co.", sector: "Agriculture", price: "$612", unit: "/ton", stock: "45K tons", rating: 4.7, status: "Active", featured: false, views: "9.1K", image: "🌾", storeLat: 41.8781, storeLng: -87.6298 },
+  { id: "PRD-004", name: "Steel Coils (HRC)", seller: "ArcelorMittal", sector: "Manufacturing", price: "$412", unit: "/ton", stock: "120K tons", rating: 4.6, status: "Low Stock", featured: false, views: "12.4K", image: "🏗️", storeLat: 49.4987, storeLng: 5.9490 },
+  { id: "PRD-005", name: "Cloud Computing (Enterprise)", seller: "Azure Partners", sector: "Services", price: "$0.12", unit: "/hr", stock: "Unlimited", rating: 4.9, status: "Active", featured: true, views: "31.5K", image: "☁️", storeLat: 47.6062, storeLng: -122.3321 },
+  { id: "PRD-006", name: "Lithium Carbonate (99.5%)", seller: "Albemarle Corp", sector: "Raw Materials", price: "$24.8K", unit: "/ton", stock: "8K tons", rating: 4.5, status: "Active", featured: false, views: "7.3K", image: "⚗️", storeLat: 35.2271, storeLng: -80.8431 },
+  { id: "PRD-007", name: "Solar Panel Array (500W)", seller: "LONGi Green", sector: "Energy", price: "$142", unit: "/panel", stock: "890K units", rating: 4.8, status: "Active", featured: true, views: "22.1K", image: "☀️", storeLat: 34.3416, storeLng: 108.9398 },
+  { id: "PRD-008", name: "Semiconductor Wafers (8\")", seller: "TSMC Global", sector: "Technology", price: "$3.2K", unit: "/lot", stock: "15K lots", rating: 4.9, status: "Active", featured: false, views: "14.7K", image: "💎", storeLat: 24.7736, storeLng: 121.0177 },
 ];
 
 const liveStats = [
@@ -81,10 +84,31 @@ export default function MarketplacePage() {
   const [hoveredProduct, setHoveredProduct] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
 
-  const filtered = products.filter(p =>
-    (activeCategory === "All" || p.sector === activeCategory) &&
-    (searchQuery === "" || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.seller.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [deliveryProduct, setDeliveryProduct] = useState<typeof products[0] | null>(null);
+
+  useEffect(() => {
+    getUserLocation().then(setUserLocation).catch(() => {});
+  }, []);
+
+  const getProductDistance = (p: typeof products[0]) => {
+    if (!userLocation) return null;
+    return haversineDistance(userLocation.lat, userLocation.lng, p.storeLat, p.storeLng);
+  };
+
+  const filtered = products.filter(p => {
+    if (activeCategory === "Nearby") {
+      const dist = getProductDistance(p);
+      return dist !== null && dist < 30;
+    }
+    return (activeCategory === "All" || p.sector === activeCategory) &&
+      (searchQuery === "" || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.seller.toLowerCase().includes(searchQuery.toLowerCase()));
+  }).sort((a, b) => {
+    if (activeCategory === "Nearby" && userLocation) {
+      return (getProductDistance(a) || 999) - (getProductDistance(b) || 999);
+    }
+    return 0;
+  });
 
   const featured = filtered.filter(p => p.featured);
   const regular = filtered.filter(p => !p.featured);
@@ -383,12 +407,23 @@ export default function MarketplacePage() {
                         <Globe className="w-3 h-3" /> {product.seller}
                       </p>
 
-                      <div className="flex items-center gap-2 mt-3">
-                        <span className="text-[10px] bg-secondary/40 backdrop-blur-sm px-2 py-0.5 rounded-full text-secondary-foreground border border-border/20">{product.sector}</span>
-                        <span className="text-[10px] text-warning flex items-center gap-0.5">
-                          <Star className="w-3 h-3 fill-warning" /> {product.rating}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                          <span className="text-[10px] bg-secondary/40 backdrop-blur-sm px-2 py-0.5 rounded-full text-secondary-foreground border border-border/20">{product.sector}</span>
+                          <span className="text-[10px] text-warning flex items-center gap-0.5">
+                            <Star className="w-3 h-3 fill-warning" /> {product.rating}
+                          </span>
+                          {(() => {
+                            const dist = getProductDistance(product);
+                            if (dist === null) return null;
+                            const zone = getDeliveryZone(dist);
+                            if (zone === "out_of_range") return null;
+                            return (
+                              <span className="text-[9px] flex items-center gap-0.5 px-2 py-0.5 rounded-full border" style={{ borderColor: `${zoneInfo[zone].color}40`, background: `${zoneInfo[zone].color}15`, color: zoneInfo[zone].color }}>
+                                <Truck className="w-2.5 h-2.5" /> {zoneInfo[zone].eta}
+                              </span>
+                            );
+                          })()}
+                        </div>
 
                       <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/20">
                         <div className="flex items-baseline gap-0.5">
@@ -475,6 +510,25 @@ export default function MarketplacePage() {
                     <p className="text-2xl font-mono font-bold text-foreground mt-1">{selectedProduct.stock}</p>
                   </div>
                 </div>
+
+
+                {/* Delivery option */}
+                {(() => {
+                  const dist = getProductDistance(selectedProduct);
+                  if (dist === null) return null;
+                  const zone = getDeliveryZone(dist);
+                  if (zone === "out_of_range") return (
+                    <div className="mt-4 p-3 rounded-xl bg-secondary/20 border border-border/20 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Delivery not available · {dist.toFixed(0)}km away — Pickup or Shipping only</span>
+                    </div>
+                  );
+                  return (
+                    <div className="mt-4">
+                      <DeliveryBanner zone={zone} distanceKm={dist} storeName={selectedProduct.seller} />
+                    </div>
+                  );
+                })()}
 
                 <div className="flex gap-3 mt-6">
                   <motion.button

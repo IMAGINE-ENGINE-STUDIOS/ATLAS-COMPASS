@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingCart, Users, Package, Truck,
   CreditCard, FolderKanban, ChevronLeft, ChevronRight,
-  Globe, Settings, Bell, Search, ArrowLeft
+  Globe, Settings, Bell, Search, ArrowLeft, PackageCheck
 } from "lucide-react";
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { icon: Truck, label: "Logistics", path: "/dashboard/logistics" },
   { icon: CreditCard, label: "Payments", path: "/dashboard/payments" },
   { icon: FolderKanban, label: "Projects", path: "/dashboard/projects" },
+  { icon: PackageCheck, label: "Deliveries", path: "/dashboard/deliveries" },
   { icon: Settings, label: "Settings", path: "/dashboard/settings" },
 ];
 
