@@ -13,6 +13,7 @@ const navItems = [
   { icon: Truck, label: "Logistics", path: "/dashboard/logistics" },
   { icon: CreditCard, label: "Payments", path: "/dashboard/payments" },
   { icon: FolderKanban, label: "Projects", path: "/dashboard/projects" },
+  { icon: PackageCheck, label: "Deliveries", path: "/dashboard/deliveries" },
   { icon: Settings, label: "Settings", path: "/dashboard/settings" },
 ];
 
