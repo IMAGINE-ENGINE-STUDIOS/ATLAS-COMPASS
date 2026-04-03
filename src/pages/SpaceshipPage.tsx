@@ -802,50 +802,12 @@ out center 15;`;
       });
     });
 
-    // Animate vessels — update positions every 2 seconds
-    const SPEED_FACTOR = 0.0005; // progress per tick for ships
-    const AIR_SPEED_FACTOR = 0.002; // faster for planes
-    vesselAnimRef.current = setInterval(() => {
-      if (!viewer || viewer.isDestroyed()) return;
-      filteredRoutes.forEach(route => {
-        const height = route.type === "air" ? 35000 : 0;
-        route.vessels.forEach(vessel => {
-          let prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
-          prog += route.type === "air" ? AIR_SPEED_FACTOR : SPEED_FACTOR;
-          if (prog >= 1) prog = 0; // loop back
-          vesselProgressRef.current.set(vessel.id, prog);
-          const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
-          const entity = viewer.entities.getById(`vessel-${vessel.id}`);
-          if (entity) {
-            entity.position = Cartesian3.fromDegrees(vLng, vLat, height + (route.type === "air" ? prog * 5000 : 0)) as any;
-          }
-        });
-      });
-    }, 2000);
-
-    // Click handler for vessel data cards
+    // Click handler for route data cards (no fake vessels — real-time data comes from live traffic)
     const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     clickHandler.setInputAction((click: any) => {
       const picked = viewer.scene.pick(click.position);
       if (picked?.id?.id) {
         const entityId = picked.id.id as string;
-        // Check if it's a vessel
-        if (entityId.startsWith("vessel-")) {
-          const desc = picked.id.description?.getValue?.() || picked.id.description;
-          if (desc) {
-            try {
-              const { vesselId, routeId } = JSON.parse(desc);
-              const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
-              const vessel = route?.vessels.find(v => v.id === vesselId);
-              if (route && vessel) {
-                const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
-                const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
-                setSelectedVessel({ ...vessel, routeName: route.name, routeColor: route.color, lat: vLat, lng: vLng });
-                setSelectedRoute(null);
-              }
-            } catch {}
-          }
-        }
         // Check if it's a route line
         if (entityId.startsWith("cargo-") && !entityId.startsWith("cargo-core-") && !entityId.startsWith("cargo-label-") && !entityId.startsWith("cargo-arrow-") && !entityId.startsWith("cargo-port-")) {
           const routeId = entityId.replace("cargo-", "");
@@ -860,7 +822,6 @@ out center 15;`;
 
     return () => {
       clickHandler.destroy();
-      if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
     };
   }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
 
