@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, Zap, AlertCircle, ArrowRight
 } from "lucide-react";
 import { getDeliveryQuote, createDelivery } from "@/lib/delivery-service";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 type Step = "addresses" | "options" | "quote" | "confirm" | "success";
 
@@ -120,17 +121,11 @@ export default function NewDeliveryForm() {
             <h3 className="text-lg font-bold text-foreground flex items-center gap-2"><MapPin className="w-5 h-5 text-primary" /> Addresses</h3>
             <div>
               <label className={labelCls}>Pickup Address</label>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-success" />
-                <input value={pickupAddress} onChange={e => setPickupAddress(e.target.value)} placeholder="123 Pickup Street, City, State" className={`${inputCls} pl-8`} />
-              </div>
+              <AddressAutocomplete value={pickupAddress} onChange={(addr) => setPickupAddress(addr)} placeholder="Pickup address or business name" icon="pickup" />
             </div>
             <div>
               <label className={labelCls}>Dropoff Address</label>
-              <div className="relative">
-                <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary" />
-                <input value={dropoffAddress} onChange={e => setDropoffAddress(e.target.value)} placeholder="456 Delivery Ave, City, State" className={`${inputCls} pl-8`} />
-              </div>
+              <AddressAutocomplete value={dropoffAddress} onChange={(addr) => setDropoffAddress(addr)} placeholder="Dropoff address or business name" icon="dropoff" />
             </div>
             <button onClick={() => setStep("options")} disabled={!pickupAddress || !dropoffAddress}
               className="w-full py-3 rounded-xl text-xs font-bold text-primary-foreground flex items-center justify-center gap-2 disabled:opacity-40"

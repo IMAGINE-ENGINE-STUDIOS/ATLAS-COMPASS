@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, MapPin, Loader2, DollarSign, Clock, Navigation } from "lucide-react";
+import { Zap, MapPin, Loader2, DollarSign, Clock } from "lucide-react";
 import { getDeliveryEstimate } from "@/lib/delivery-service";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 export default function QuickEstimate() {
   const [pickup, setPickup] = useState("");
@@ -19,8 +20,6 @@ export default function QuickEstimate() {
     setLoading(false);
   };
 
-  const inputCls = "w-full bg-secondary/30 border border-border/30 rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary";
-
   return (
     <div className="space-y-5">
       <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -29,14 +28,8 @@ export default function QuickEstimate() {
       <p className="text-xs text-muted-foreground">Instantly estimate delivery cost without creating a binding quote.</p>
 
       <div className="space-y-3">
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-success" />
-          <input value={pickup} onChange={e => setPickup(e.target.value)} placeholder="Pickup address" className={`${inputCls} pl-8`} />
-        </div>
-        <div className="relative">
-          <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary" />
-          <input value={dropoff} onChange={e => setDropoff(e.target.value)} placeholder="Dropoff address" className={`${inputCls} pl-8`} />
-        </div>
+        <AddressAutocomplete value={pickup} onChange={(addr) => setPickup(addr)} placeholder="Pickup address or business" icon="pickup" />
+        <AddressAutocomplete value={dropoff} onChange={(addr) => setDropoff(addr)} placeholder="Dropoff address or business" icon="dropoff" />
       </div>
 
       <button onClick={handleEstimate} disabled={loading || !pickup || !dropoff}
