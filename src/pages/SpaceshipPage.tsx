@@ -1786,7 +1786,7 @@ out center 20;`;
 
               <div className="flex items-center gap-2">
                 <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
-                  <button onClick={() => { setSearchOpen(!searchOpen); setSearchResults(PRESETS); }}>
+                  <button onClick={() => { setSearchOpen(!searchOpen); if (!searchOpen) { setSearchResults(PRESETS); if (!geoCenter) geofenceFromCamera(); } }}>
                     <Search className="w-5 h-5 text-white/70" />
                   </button>
                 </GlassPanel>
