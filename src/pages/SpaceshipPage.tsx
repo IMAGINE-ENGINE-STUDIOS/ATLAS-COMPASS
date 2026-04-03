@@ -1001,8 +1001,12 @@ out center 20;`;
           const bizData = businessDataRef.current.get(entityId);
           if (bizData) {
             setSelectedBusiness(bizData);
-            // Fly closer
-            viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 300), duration: 1 });
+            // Fly to pin and center camera directly on it
+            viewer.camera.flyTo({
+              destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 200),
+              orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+              duration: 1.2,
+            });
           }
         }
       }
