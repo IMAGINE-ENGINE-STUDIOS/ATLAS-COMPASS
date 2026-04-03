@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingCart, Users, Package, Truck,
   CreditCard, FolderKanban, ChevronLeft, ChevronRight,
-  Globe, Settings, Bell, Search, ArrowLeft
+  Globe, Settings, Bell, Search, ArrowLeft, PackageCheck
 } from "lucide-react";
 
 const navItems = [
