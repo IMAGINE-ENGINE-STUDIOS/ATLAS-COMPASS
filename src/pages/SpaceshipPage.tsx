@@ -1868,11 +1868,15 @@ out center 20;`;
                   {/* Business/Store Icons Toggle */}
                   <button
                     onClick={() => {
-                      setShowBusinessIcons(!showBusinessIcons);
-                      if (!showBusinessIcons) {
+                      const next = !showBusinessIcons;
+                      setShowBusinessIcons(next);
+                      if (next) {
+                        // Reset cache so pins reload immediately
+                        businessLoadedAreaRef.current = "";
                         setSearchOpen(true);
                         setGeoCategory("all");
-                        if (!geoCenter) geofenceFromCamera();
+                        // Auto-locate user for nearby results
+                        geoLocateUser();
                       }
                     }}
                     className={`p-1.5 rounded-lg transition-colors ${showBusinessIcons ? "bg-emerald-500/20 text-emerald-400" : "text-white/40 hover:text-white/70"}`}
