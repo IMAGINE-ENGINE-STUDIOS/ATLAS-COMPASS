@@ -10,7 +10,7 @@ import {
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship
 } from "lucide-react";
-import { Radius, ChevronDown, Layers, Filter } from "lucide-react";
+import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
