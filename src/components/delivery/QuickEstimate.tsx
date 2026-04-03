@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, MapPin, Loader2, DollarSign, Clock, Navigation } from "lucide-react";
+import { Zap, MapPin, Loader2, DollarSign, Clock } from "lucide-react";
 import { getDeliveryEstimate } from "@/lib/delivery-service";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 export default function QuickEstimate() {
   const [pickup, setPickup] = useState("");
