@@ -30,14 +30,8 @@ export default function QuickEstimate() {
       <p className="text-xs text-muted-foreground">Instantly estimate delivery cost without creating a binding quote.</p>
 
       <div className="space-y-3">
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-success" />
-          <input value={pickup} onChange={e => setPickup(e.target.value)} placeholder="Pickup address" className={`${inputCls} pl-8`} />
-        </div>
-        <div className="relative">
-          <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary" />
-          <input value={dropoff} onChange={e => setDropoff(e.target.value)} placeholder="Dropoff address" className={`${inputCls} pl-8`} />
-        </div>
+        <AddressAutocomplete value={pickup} onChange={(addr) => setPickup(addr)} placeholder="Pickup address or business" icon="pickup" />
+        <AddressAutocomplete value={dropoff} onChange={(addr) => setDropoff(addr)} placeholder="Dropoff address or business" icon="dropoff" />
       </div>
 
       <button onClick={handleEstimate} disabled={loading || !pickup || !dropoff}

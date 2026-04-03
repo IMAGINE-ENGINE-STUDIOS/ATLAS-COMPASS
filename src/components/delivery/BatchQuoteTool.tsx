@@ -48,15 +48,13 @@ export default function BatchQuoteTool() {
           <motion.div key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-2 p-3 rounded-xl bg-card/40 border border-border/20">
             <span className="text-[9px] font-mono text-muted-foreground w-6 text-center">{i + 1}</span>
-            <div className="flex-1 flex items-center gap-2">
-              <div className="relative flex-1">
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-success" />
-                <input value={r.pickup_address} onChange={e => updateRow(i, "pickup_address", e.target.value)} placeholder="Pickup" className={`${inputCls} pl-6`} />
+            <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="flex-1">
+                <AddressAutocomplete value={r.pickup_address} onChange={(addr) => updateRow(i, "pickup_address", addr)} placeholder="Pickup" icon="pickup" compact />
               </div>
-              <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-              <div className="relative flex-1">
-                <MapPin className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-primary" />
-                <input value={r.dropoff_address} onChange={e => updateRow(i, "dropoff_address", e.target.value)} placeholder="Dropoff" className={`${inputCls} pl-6`} />
+              <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0 hidden sm:block" />
+              <div className="flex-1">
+                <AddressAutocomplete value={r.dropoff_address} onChange={(addr) => updateRow(i, "dropoff_address", addr)} placeholder="Dropoff" icon="dropoff" compact />
               </div>
             </div>
             <button onClick={() => removeRow(i)} disabled={requests.length === 1} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive disabled:opacity-30">
