@@ -15,6 +15,7 @@ import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
 import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
+import POICard from "@/components/POICard";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -2845,23 +2846,25 @@ out center 20;`;
                       return (
                         <>
                           <p className="text-[9px] text-white/20 font-mono px-1 mb-1.5">{filtered.length} places within {geoRadiusKm}km</p>
-                          <div className="space-y-1">
-                            {filtered.map((b: any) => (
-                              <button key={b.id}
-                                onClick={() => flyToBusiness(b)}
-                                className="w-full flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.06] hover:border-emerald-500/20 text-left transition-all group">
-                                <div className="w-7 h-7 rounded-lg bg-white/[0.05] flex items-center justify-center text-xs shrink-0 mt-0.5">
-                                  {b.type.split(" ")[0]}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-1">
-                                    <p className="text-xs font-medium text-white truncate">{b.name}</p>
-                                    <span className="text-[9px] font-mono text-white/20 shrink-0">{b.distance?.toFixed(1)}km</span>
-                                  </div>
-                                  <p className="text-[10px] text-white/30 truncate">{b.type.slice(b.type.indexOf(" ") + 1)}{b.address ? ` · ${b.address}` : ""}</p>
-                                </div>
-                                <Navigation className="w-3.5 h-3.5 text-white/10 group-hover:text-emerald-400 shrink-0 mt-1 transition-colors" />
-                              </button>
+                          <div className="space-y-1.5">
+                            {filtered.map((b: any, idx: number) => (
+                              <POICard
+                                key={b.id}
+                                compact
+                                variant="glass"
+                                index={idx}
+                                poi={{
+                                  id: b.id,
+                                  name: b.name,
+                                  emoji: b.type.split(" ")[0],
+                                  category: b.type.slice(b.type.indexOf(" ") + 1),
+                                  address: b.address,
+                                  lat: b.lat,
+                                  lng: b.lng,
+                                  distance: b.distance,
+                                }}
+                                onNavigate={() => flyToBusiness(b)}
+                              />
                             ))}
                           </div>
                         </>

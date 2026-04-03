@@ -1,0 +1,177 @@
+import { motion } from "framer-motion";
+import { Navigation, MapPin, Clock, Phone, Globe, ExternalLink } from "lucide-react";
+
+export interface POIData {
+  id?: string | number;
+  name: string;
+  emoji?: string;
+  category?: string;
+  address?: string;
+  distance?: number;
+  lat: number;
+  lng: number;
+  phone?: string;
+  website?: string;
+  openNow?: boolean;
+  rating?: number;
+}
+
+interface POICardProps {
+  poi: POIData;
+  onNavigate?: (poi: POIData) => void;
+  onSelect?: (poi: POIData) => void;
+  compact?: boolean;
+  variant?: "glass" | "solid";
+  index?: number;
+}
+
+function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)}m`;
+  return `${km.toFixed(1)}km`;
+}
+
+export default function POICard({ poi, onNavigate, onSelect, compact = false, variant = "glass", index = 0 }: POICardProps) {
+  const isGlass = variant === "glass";
+
+  if (compact) {
+    return (
+      <motion.button
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.03 }}
+        onClick={() => (onSelect || onNavigate)?.(poi)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all group min-h-[44px] ${
+          isGlass
+            ? "bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] hover:border-emerald-500/20"
+            : "bg-secondary/20 border border-border/20 hover:bg-primary/10 hover:border-primary/20"
+        }`}
+      >
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 ${
+          isGlass ? "bg-white/[0.06]" : "bg-primary/10"
+        }`}>
+          {poi.emoji || "📍"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-xs font-semibold truncate ${isGlass ? "text-white" : "text-foreground"}`}>{poi.name}</p>
+          <p className={`text-[10px] truncate ${isGlass ? "text-white/30" : "text-muted-foreground"}`}>
+            {poi.category}{poi.address ? ` · ${poi.address}` : ""}
+          </p>
+        </div>
+        {poi.distance != null && (
+          <span className={`text-[9px] font-mono shrink-0 ${isGlass ? "text-white/20" : "text-muted-foreground"}`}>
+            {formatDistance(poi.distance)}
+          </span>
+        )}
+        <Navigation className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+          isGlass ? "text-white/10 group-hover:text-emerald-400" : "text-muted-foreground/30 group-hover:text-primary"
+        }`} />
+      </motion.button>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: index * 0.04, type: "spring", stiffness: 300, damping: 25 }}
+      className={`rounded-2xl overflow-hidden transition-all group ${
+        isGlass
+          ? "bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] hover:border-emerald-500/30 hover:bg-white/[0.07]"
+          : "bg-card/60 backdrop-blur-xl border border-border/30 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+      }`}
+    >
+      {/* Header strip */}
+      <div className={`h-1 w-full ${isGlass ? "bg-gradient-to-r from-emerald-500/40 via-cyan-500/30 to-transparent" : "bg-gradient-to-r from-primary/40 via-accent/30 to-transparent"}`} />
+
+      <div className="p-3.5">
+        <div className="flex items-start gap-3">
+          {/* Icon */}
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0 shadow-inner ${
+            isGlass
+              ? "bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/[0.08]"
+              : "bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/10"
+          }`}>
+            {poi.emoji || "📍"}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h4 className={`text-sm font-bold truncate ${isGlass ? "text-white" : "text-foreground"}`}>
+                  {poi.name}
+                </h4>
+                {poi.category && (
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md mt-0.5 inline-block ${
+                    isGlass ? "bg-white/[0.06] text-white/40" : "bg-secondary/40 text-muted-foreground"
+                  }`}>
+                    {poi.category}
+                  </span>
+                )}
+              </div>
+              {poi.distance != null && (
+                <div className={`text-right shrink-0 ${isGlass ? "text-emerald-400/70" : "text-primary/70"}`}>
+                  <p className="text-sm font-mono font-bold">{formatDistance(poi.distance)}</p>
+                  <p className={`text-[8px] uppercase tracking-wider ${isGlass ? "text-white/20" : "text-muted-foreground/60"}`}>away</p>
+                </div>
+              )}
+            </div>
+
+            {poi.address && (
+              <p className={`text-[11px] mt-1.5 flex items-start gap-1 ${isGlass ? "text-white/30" : "text-muted-foreground"}`}>
+                <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
+                <span className="truncate">{poi.address}</span>
+              </p>
+            )}
+
+            {/* Meta row */}
+            <div className="flex items-center gap-3 mt-2">
+              {poi.openNow !== undefined && (
+                <span className={`flex items-center gap-1 text-[10px] font-medium ${poi.openNow ? "text-emerald-400" : "text-red-400/70"}`}>
+                  <Clock className="w-3 h-3" />
+                  {poi.openNow ? "Open" : "Closed"}
+                </span>
+              )}
+              {poi.rating != null && (
+                <span className={`text-[10px] font-mono ${isGlass ? "text-amber-400/70" : "text-amber-500"}`}>
+                  {"★".repeat(Math.round(poi.rating))}{" "}{poi.rating.toFixed(1)}
+                </span>
+              )}
+              <span className={`text-[9px] font-mono ${isGlass ? "text-white/15" : "text-muted-foreground/40"}`}>
+                {poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 mt-3">
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate(poi)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
+                isGlass
+                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25"
+                  : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+              }`}
+            >
+              <Navigation className="w-3.5 h-3.5" /> Navigate
+            </button>
+          )}
+          {onSelect && (
+            <button
+              onClick={() => onSelect(poi)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
+                isGlass
+                  ? "bg-white/[0.06] text-white/60 border border-white/[0.08] hover:bg-white/[0.1]"
+                  : "bg-secondary/30 text-foreground border border-border/20 hover:bg-secondary/50"
+              }`}
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Select
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
