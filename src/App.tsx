@@ -15,6 +15,7 @@ import ProjectsPage from "@/pages/ProjectsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import DeliveryPage from "@/pages/DeliveryPage";
 import SpaceshipPage from "@/pages/SpaceshipPage";
+import AtlasPage from "@/pages/AtlasPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,8 @@ const App = () => (
         <Routes>
           {/* Public Website */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/atlas" element={<SpaceshipPage />} />
+          <Route path="/atlas/geofencing" element={<AtlasPage />} />
           <Route path="/explore" element={<SpaceshipPage />} />
 
           {/* Admin Dashboard */}

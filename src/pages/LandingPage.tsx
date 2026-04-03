@@ -120,7 +120,7 @@ function HeroSection() {
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.3 }} className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
-              <Link to="/explore">
+              <Link to="/atlas">
                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                   className="px-8 py-3.5 bg-white/10 backdrop-blur-2xl border border-white/20 text-white rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-white/15 transition-colors shadow-[0_0_30px_rgba(0,200,255,0.1)]"
                 >

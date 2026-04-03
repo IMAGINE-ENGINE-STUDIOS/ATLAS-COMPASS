@@ -323,29 +323,43 @@ export default function SpaceshipPage() {
     } catch { return []; }
   }, [classifyOsmResult]);
 
-  /* ── Overpass API for nearby businesses/POIs ── */
+  /* ── Overpass API for nearby businesses/POIs (geofenced to camera) ── */
   const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
     try {
-      // Use Overpass to search for named businesses globally
+      const sanitized = query.replace(/["\\\n\r]/g, '');
+      // Geofence: use camera position as center, search within ~50km radius
+      let lat = 40.7128, lng = -74.006; // fallback NYC
+      const viewer = viewerRef.current;
+      if (viewer && !viewer.isDestroyed()) {
+        const cam = viewer.camera.positionCartographic;
+        lat = CesiumMath.toDegrees(cam.latitude);
+        lng = CesiumMath.toDegrees(cam.longitude);
+      }
+      const radius = 0.45; // ~50km
+      const bbox = `${(lat - radius).toFixed(4)},${(lng - radius).toFixed(4)},${(lat + radius).toFixed(4)},${(lng + radius).toFixed(4)}`;
       const overpassQuery = `
-[out:json][timeout:8];
+[out:json][timeout:10];
 (
-  node["name"~"${query.replace(/"/g, '')}"i]["shop"];
-  node["name"~"${query.replace(/"/g, '')}"i]["amenity"];
-  node["name"~"${query.replace(/"/g, '')}"i]["tourism"];
-  node["name"~"${query.replace(/"/g, '')}"i]["office"];
-  node["name"~"${query.replace(/"/g, '')}"i]["leisure"];
-  node["name"~"${query.replace(/"/g, '')}"i]["brand"];
+  node["name"~"${sanitized}"i]["shop"](${bbox});
+  node["name"~"${sanitized}"i]["amenity"](${bbox});
+  node["name"~"${sanitized}"i]["tourism"](${bbox});
+  node["name"~"${sanitized}"i]["office"](${bbox});
+  node["name"~"${sanitized}"i]["leisure"](${bbox});
+  node["name"~"${sanitized}"i]["brand"](${bbox});
 );
-out center 15;`;
+out center 20;`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       const resp = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
         body: `data=${encodeURIComponent(overpassQuery)}`,
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const data = await resp.json();
       if (!data.elements) return [];
-      return data.elements.slice(0, 10).map((el: any) => {
+      return data.elements.slice(0, 20).map((el: any) => {
         const tags = el.tags || {};
         const elLat = el.lat || el.center?.lat;
         const elLng = el.lon || el.center?.lon;
@@ -844,16 +858,17 @@ out center 15;`;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Load when zoomed in under 50km for reliable results
-      if (alt > 50000) return;
+      // Scale radius and results by altitude — allow up to 200km
+      if (alt > 200000) return;
 
-      const radius = Math.min(alt / 111000 * 1.5, 0.08); // smaller bbox to avoid timeouts
-      const areaKey = `${lat.toFixed(3)},${lng.toFixed(3)},${radius.toFixed(4)}`;
+      const radius = alt < 5000 ? 0.03 : alt < 20000 ? 0.08 : alt < 80000 ? 0.2 : 0.4;
+      const limit = alt < 20000 ? 80 : 40;
+      const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
-      const query = `[out:json][timeout:8];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank"](${bbox}););out 50;`;
+      const query = `[out:json][timeout:10];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|pharmacy"](${bbox});node["tourism"~"hotel|motel"](${bbox}););out ${limit};`;
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
@@ -1619,8 +1634,14 @@ out center 15;`;
                 <GlassPanel className="px-4 py-2.5 flex items-center gap-2">
                   <Globe className="w-4 h-4 text-primary" />
                   <span className="text-sm font-bold text-white">NEXUS</span>
-                  <span className="text-xs text-white/30 font-mono">SPACESHIP</span>
+                  <span className="text-xs text-white/30 font-mono">ATLAS</span>
                 </GlassPanel>
+                <Link to="/atlas/geofencing">
+                  <GlassPanel className="px-3 py-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs text-white/50 hidden sm:inline">Geofencing</span>
+                  </GlassPanel>
+                </Link>
               </div>
 
               <div className="flex items-center gap-2">
