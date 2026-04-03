@@ -271,6 +271,8 @@ export default function SpaceshipPage() {
   const [liveTrafficStats, setLiveTrafficStats] = useState({ planes: 0, ships: 0 });
   const liveTrafficEntitiesRef = useRef<any[]>([]);
   const liveTrafficTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const aisWebSocketRef = useRef<WebSocket | null>(null);
+  const liveShipsRef = useRef<Map<string, { lat: number; lng: number; speed: number; heading: number; name: string; type: number; country: string; mmsi: string; lastUpdate: number }>>(new Map());
 
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
