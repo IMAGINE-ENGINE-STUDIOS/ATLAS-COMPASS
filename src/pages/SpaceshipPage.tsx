@@ -1983,7 +1983,7 @@ out center 20;`;
                       return (
                         <button
                           key={t}
-                          onClick={() => { setGeoCategory(catKey); handleSearch(catKey === "all" ? "" : t); }}
+                          onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; handleSearch(catKey === "all" ? "" : t); }}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
                             geoCategory === catKey
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
