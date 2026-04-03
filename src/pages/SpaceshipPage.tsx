@@ -984,9 +984,12 @@ out center 15;`;
     });
     liveTrafficEntitiesRef.current = [];
     if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
+    if (aisWebSocketRef.current) { aisWebSocketRef.current.close(); aisWebSocketRef.current = null; }
+    liveShipsRef.current.clear();
 
     if (!showLiveTraffic) { setLiveTrafficStats({ planes: 0, ships: 0 }); return; }
 
+    /* ── Aircraft from OpenSky ── */
     const fetchAircraft = async () => {
       try {
         const resp = await fetch("https://opensky-network.org/api/states/all");
@@ -1007,33 +1010,115 @@ out center 15;`;
       } catch { return []; }
     };
 
+    /* ── Ships from AISStream.io WebSocket ── */
+    const aisApiKey = import.meta.env.VITE_AISSTREAM_API_KEY;
+    if (aisApiKey) {
+      try {
+        const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
+        aisWebSocketRef.current = ws;
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify({
+            Apikey: aisApiKey,
+            BoundingBoxes: [[[-90, -180], [90, 180]]],
+            FilterMessageTypes: ["PositionReport", "ShipStaticData"],
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            const meta = msg.MetaData;
+            if (!meta) return;
+            const mmsi = String(meta.MMSI || "");
+            if (!mmsi) return;
+
+            if (msg.MessageType === "PositionReport") {
+              const pos = msg.Message?.PositionReport;
+              if (!pos) return;
+              const lat = pos.Latitude;
+              const lng = pos.Longitude;
+              if (lat == null || lng == null || (lat === 0 && lng === 0)) return;
+
+              liveShipsRef.current.set(mmsi, {
+                lat, lng,
+                speed: pos.Sog || 0,
+                heading: pos.TrueHeading || pos.Cog || 0,
+                name: (meta.ShipName || "").trim() || `MMSI ${mmsi}`,
+                type: meta.ShipType || 0,
+                country: meta.country_iso || "",
+                mmsi,
+                lastUpdate: Date.now(),
+              });
+            }
+          } catch {}
+        };
+
+        ws.onerror = () => {};
+        ws.onclose = () => {};
+      } catch {}
+    }
+
+    /* ── Render loop: update entities for both planes & ships ── */
+    const getShipColor = (shipType: number): string => {
+      if (shipType >= 70 && shipType <= 79) return "#ef4444"; // Cargo - red
+      if (shipType >= 80 && shipType <= 89) return "#3b82f6"; // Tanker - blue
+      if (shipType >= 60 && shipType <= 69) return "#f97316"; // Passenger - orange
+      if (shipType >= 40 && shipType <= 49) return "#a855f7"; // High-speed craft - purple
+      if (shipType >= 50 && shipType <= 59) return "#14b8a6"; // Tug/Pilot - teal
+      if (shipType >= 30 && shipType <= 39) return "#22c55e"; // Fishing - green
+      return "#06b6d4"; // Other - cyan
+    };
+
+    const getShipTypeLabel = (shipType: number): string => {
+      if (shipType >= 70 && shipType <= 79) return "Cargo";
+      if (shipType >= 80 && shipType <= 89) return "Tanker";
+      if (shipType >= 60 && shipType <= 69) return "Passenger";
+      if (shipType >= 40 && shipType <= 49) return "High-Speed";
+      if (shipType >= 50 && shipType <= 59) return "Tug/Pilot";
+      if (shipType >= 30 && shipType <= 39) return "Fishing";
+      return "Vessel";
+    };
+
     const updateEntities = async () => {
       if (!viewer || viewer.isDestroyed()) return;
       const aircraft = await fetchAircraft();
 
-      // Update existing or add new entities
-      const existingIds = new Set(liveTrafficEntitiesRef.current.map(e => e.id));
-      const newIds = new Set(aircraft.map((ac: any) => `live-ac-${ac.id}`));
+      // Build set of all expected IDs
+      const expectedIds = new Set<string>();
 
-      // Remove entities no longer present
+      // Aircraft
+      const maxPlanes = 8000;
+      const planes = aircraft.slice(0, maxPlanes);
+      planes.forEach((ac: any) => expectedIds.add(`live-ac-${ac.id}`));
+
+      // Ships from WebSocket
+      const ships = Array.from(liveShipsRef.current.values());
+      // Prune ships not updated in 5 minutes
+      const now = Date.now();
+      ships.forEach(s => {
+        if (now - s.lastUpdate > 300000) liveShipsRef.current.delete(s.mmsi);
+      });
+      const activeShips = ships.filter(s => now - s.lastUpdate <= 300000);
+      activeShips.forEach(s => expectedIds.add(`live-ship-${s.mmsi}`));
+
+      // Remove stale entities
       liveTrafficEntitiesRef.current = liveTrafficEntitiesRef.current.filter(e => {
-        if (!newIds.has(e.id)) {
+        if (!expectedIds.has(e.id)) {
           if (viewer.entities.contains(e)) viewer.entities.remove(e);
           return false;
         }
         return true;
       });
 
-      const maxPlanes = 8000;
-      const planes = aircraft.slice(0, maxPlanes);
+      // Update/add aircraft
       planes.forEach((ac: any) => {
         const eid = `live-ac-${ac.id}`;
         const existing = viewer.entities.getById(eid);
         const pos = Cartesian3.fromDegrees(ac.lng, ac.lat, Math.max(ac.alt, 500) * 3);
         if (existing) {
-          // Update position in place — real-time movement
           existing.position = pos as any;
-        } else if (!existingIds.has(eid)) {
+        } else {
           const entity = viewer.entities.add({
             id: eid,
             position: pos,
@@ -1060,15 +1145,62 @@ out center 15;`;
         }
       });
 
-      setLiveTrafficStats({ planes: planes.length, ships: 0 });
+      // Update/add ships
+      activeShips.forEach(ship => {
+        const eid = `live-ship-${ship.mmsi}`;
+        const existing = viewer.entities.getById(eid);
+        const pos = Cartesian3.fromDegrees(ship.lng, ship.lat, 0);
+        const shipColor = getShipColor(ship.type);
+
+        if (existing) {
+          existing.position = pos as any;
+        } else {
+          const entity = viewer.entities.add({
+            id: eid,
+            position: pos,
+            point: {
+              pixelSize: 5,
+              color: Color.fromCssColorString(shipColor),
+              outlineColor: Color.fromCssColorString(shipColor).withAlpha(0.4),
+              outlineWidth: 6,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 1e3, nearValue: 3.0, far: 5e6, farValue: 0.4 } as any,
+            },
+            label: {
+              text: `🚢 ${ship.name}`,
+              font: "10px sans-serif",
+              fillColor: Color.fromCssColorString(shipColor),
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 1e3, nearValue: 1.0, far: 2e5, farValue: 0.0 } as any,
+              translucencyByDistance: { near: 1e3, nearValue: 1.0, far: 3e5, farValue: 0.0 } as any,
+              pixelOffset: new Cartesian2(0, -12),
+            },
+            description: JSON.stringify({
+              name: ship.name,
+              mmsi: ship.mmsi,
+              type: getShipTypeLabel(ship.type),
+              typeCode: ship.type,
+              speed: ship.speed,
+              heading: ship.heading,
+              country: ship.country,
+              lat: ship.lat,
+              lng: ship.lng,
+            }),
+          });
+          liveTrafficEntitiesRef.current.push(entity);
+        }
+      });
+
+      setLiveTrafficStats({ planes: planes.length, ships: activeShips.length });
     };
 
     updateEntities();
-    // Refresh every 10 seconds (OpenSky rate limit)
+    // Refresh every 10 seconds for aircraft; ships update via WebSocket continuously
     liveTrafficTimerRef.current = setInterval(updateEntities, 10000);
 
     return () => {
       if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
+      if (aisWebSocketRef.current) { aisWebSocketRef.current.close(); aisWebSocketRef.current = null; }
     };
   }, [showLiveTraffic]);
 
