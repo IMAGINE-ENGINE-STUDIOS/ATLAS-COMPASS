@@ -13,7 +13,7 @@ import {
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
-import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, interpolatePosition, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
+import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -791,30 +791,7 @@ out center 15;`;
         }));
       }
 
-      // Vessel entities — positioned by interpolation
-      route.vessels.forEach((vessel) => {
-        const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
-        const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
-        const vHeight = route.type === "air" ? 35000 + (prog * 5000) : 0;
-        const catInfo = CARGO_CATEGORIES.find(c => c.id === vessel.category);
-        const vesselEntity = viewer.entities.add({
-          id: `vessel-${vessel.id}`,
-          position: Cartesian3.fromDegrees(vLng, vLat, vHeight),
-          label: {
-            text: catInfo?.icon || (route.type === "air" ? "✈" : "🚢"),
-            font: route.type === "air" ? "20px sans-serif" : "18px sans-serif",
-            fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 1, style: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: { near: 1e4, nearValue: 1.5, far: 3e6, farValue: 0.1 } as any,
-            translucencyByDistance: { near: 1e4, nearValue: 1.0, far: 5e6, farValue: 0.0 } as any,
-          },
-          point: { pixelSize: 5, color: lineColor, outlineColor: lineColor.withAlpha(0.3), outlineWidth: 10, disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: { near: 1e4, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any },
-          description: JSON.stringify({ vesselId: vessel.id, routeId: route.id }),
-        });
-        cargoEntitiesRef.current.push(vesselEntity);
-      });
-
-      // Port markers at endpoints
+      // Port markers at endpoints (no fake vessels — only real live tracking is used)
       [[route.waypoints[0],0],[route.waypoints[route.waypoints.length-1],1]].forEach(([pt, pi]) => {
         const [pLng, pLat] = pt as [number, number];
         cargoEntitiesRef.current.push(viewer.entities.add({
@@ -825,50 +802,12 @@ out center 15;`;
       });
     });
 
-    // Animate vessels — update positions every 2 seconds
-    const SPEED_FACTOR = 0.0005; // progress per tick for ships
-    const AIR_SPEED_FACTOR = 0.002; // faster for planes
-    vesselAnimRef.current = setInterval(() => {
-      if (!viewer || viewer.isDestroyed()) return;
-      filteredRoutes.forEach(route => {
-        const height = route.type === "air" ? 35000 : 0;
-        route.vessels.forEach(vessel => {
-          let prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
-          prog += route.type === "air" ? AIR_SPEED_FACTOR : SPEED_FACTOR;
-          if (prog >= 1) prog = 0; // loop back
-          vesselProgressRef.current.set(vessel.id, prog);
-          const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
-          const entity = viewer.entities.getById(`vessel-${vessel.id}`);
-          if (entity) {
-            entity.position = Cartesian3.fromDegrees(vLng, vLat, height + (route.type === "air" ? prog * 5000 : 0)) as any;
-          }
-        });
-      });
-    }, 2000);
-
-    // Click handler for vessel data cards
+    // Click handler for route data cards (no fake vessels — real-time data comes from live traffic)
     const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     clickHandler.setInputAction((click: any) => {
       const picked = viewer.scene.pick(click.position);
       if (picked?.id?.id) {
         const entityId = picked.id.id as string;
-        // Check if it's a vessel
-        if (entityId.startsWith("vessel-")) {
-          const desc = picked.id.description?.getValue?.() || picked.id.description;
-          if (desc) {
-            try {
-              const { vesselId, routeId } = JSON.parse(desc);
-              const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
-              const vessel = route?.vessels.find(v => v.id === vesselId);
-              if (route && vessel) {
-                const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
-                const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
-                setSelectedVessel({ ...vessel, routeName: route.name, routeColor: route.color, lat: vLat, lng: vLng });
-                setSelectedRoute(null);
-              }
-            } catch {}
-          }
-        }
         // Check if it's a route line
         if (entityId.startsWith("cargo-") && !entityId.startsWith("cargo-core-") && !entityId.startsWith("cargo-label-") && !entityId.startsWith("cargo-arrow-") && !entityId.startsWith("cargo-port-")) {
           const routeId = entityId.replace("cargo-", "");
@@ -883,7 +822,6 @@ out center 15;`;
 
     return () => {
       clickHandler.destroy();
-      if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
     };
   }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
 
@@ -906,16 +844,16 @@ out center 15;`;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Only load when reasonably zoomed in
-      if (alt > 50000) return;
+      // Load when zoomed in under 200km
+      if (alt > 200000) return;
 
-      const radius = Math.min(alt / 111000 * 2, 0.15); // degrees, proportional to altitude
+      const radius = Math.min(alt / 111000 * 3, 0.5); // degrees, proportional to altitude — larger radius
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
-      const query = `[out:json][timeout:10];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|hospital|bank|bar|pub"](${bbox});node["tourism"~"hotel|motel|hostel|guest_house"](${bbox}););out 80;`;
+      const query = `[out:json][timeout:15];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|hospital|bank|bar|pub"](${bbox});node["tourism"~"hotel|motel|hostel|guest_house"](${bbox}););out 200;`;
       try {
         const resp = await fetch("https://overpass-api.de/api/interpreter", {
           method: "POST",
@@ -1659,9 +1597,9 @@ out center 15;`;
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="absolute top-0 left-0 right-0 z-20 p-4"
+            className="absolute top-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-3">
                 <Link to="/">
                   <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
@@ -1682,7 +1620,7 @@ out center 15;`;
                   </button>
                 </GlassPanel>
 
-                <GlassPanel className="flex items-center gap-1 p-1.5">
+                <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
@@ -1909,7 +1847,7 @@ out center 15;`;
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-24 left-4 z-30 w-72"
+                className="absolute bottom-24 left-4 z-30 w-[calc(100vw-2rem)] max-w-72"
               >
                 <GlassPanel className="p-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -2017,7 +1955,7 @@ out center 15;`;
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-24 right-4 z-30 w-64"
+                className="absolute bottom-24 right-4 z-30 w-[calc(100vw-2rem)] max-w-64"
               >
               <GlassPanel className="p-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -2064,7 +2002,7 @@ out center 15;`;
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="absolute top-20 left-4 z-30 w-96"
+                className="absolute top-20 left-4 z-30 w-[calc(100vw-2rem)] max-w-96"
               >
                 <GlassPanel className="p-4">
                   <div className="flex items-center justify-between mb-4">
@@ -2430,7 +2368,7 @@ out center 15;`;
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute top-20 right-4 z-30 w-80"
+                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
                 <GlassPanel className="p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -2499,7 +2437,7 @@ out center 15;`;
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute top-20 right-4 z-30 w-96"
+                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96"
               >
                 <GlassPanel className="p-5">
                   <div className="flex items-start justify-between mb-4">
@@ -2579,7 +2517,7 @@ out center 15;`;
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute top-20 right-4 z-30 w-80"
+                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
                 <GlassPanel className="p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -2635,55 +2573,55 @@ out center 15;`;
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="absolute bottom-0 left-0 right-0 z-20 p-4"
+            className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
-            <div className="flex items-end justify-between gap-4">
-              <GlassPanel className="px-4 py-3">
-                <div className="flex items-center gap-4">
-                  <Crosshair className="w-4 h-4 text-primary shrink-0" />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
+              <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 flex-1 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <Crosshair className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
                   {cursorInfo ? (
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="text-[9px] text-white/30 uppercase tracking-wider">Latitude</p>
-                        <p className="text-sm font-mono text-white">{formatCoord(cursorInfo.lat, true)}</p>
+                    <div className="flex items-center gap-2 sm:gap-4 flex-wrap min-w-0">
+                      <div className="min-w-0">
+                        <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Lat</p>
+                        <p className="text-xs sm:text-sm font-mono text-white truncate">{formatCoord(cursorInfo.lat, true)}</p>
                       </div>
-                      <div className="w-px h-8 bg-white/10" />
-                      <div>
-                        <p className="text-[9px] text-white/30 uppercase tracking-wider">Longitude</p>
-                        <p className="text-sm font-mono text-white">{formatCoord(cursorInfo.lng, false)}</p>
+                      <div className="w-px h-6 sm:h-8 bg-white/10 hidden sm:block" />
+                      <div className="min-w-0">
+                        <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Lng</p>
+                        <p className="text-xs sm:text-sm font-mono text-white truncate">{formatCoord(cursorInfo.lng, false)}</p>
                       </div>
-                      <div className="w-px h-8 bg-white/10" />
-                      <div>
-                        <p className="text-[9px] text-white/30 uppercase tracking-wider">Elevation</p>
-                        <p className="text-sm font-mono text-white">{formatAlt(cursorInfo.alt)}</p>
+                      <div className="w-px h-6 sm:h-8 bg-white/10 hidden sm:block" />
+                      <div className="min-w-0">
+                        <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Alt</p>
+                        <p className="text-xs sm:text-sm font-mono text-white">{formatAlt(cursorInfo.alt)}</p>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-white/30">Hover over terrain for coordinates</p>
+                    <p className="text-[10px] sm:text-xs text-white/30">Hover for coordinates</p>
                   )}
                 </div>
               </GlassPanel>
 
-              <GlassPanel className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <Eye className="w-4 h-4 text-primary shrink-0" />
+              <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 shrink-0">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
                   <div>
-                    <p className="text-[9px] text-white/30 uppercase tracking-wider">Camera Alt</p>
-                    <p className="text-sm font-mono text-white">{formatAlt(cameraAlt)}</p>
+                    <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Alt</p>
+                    <p className="text-xs sm:text-sm font-mono text-white">{formatAlt(cameraAlt)}</p>
                   </div>
-                  <div className="w-px h-8 bg-white/10" />
+                  <div className="w-px h-6 sm:h-8 bg-white/10" />
                   <div>
-                    <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Mode</p>
+                    <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider mb-0.5">Mode</p>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => switchViewMode("realistic")}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
+                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
                       >
-                        <span className="flex items-center gap-1"><Satellite className="w-3 h-3" /> Realistic</span>
+                        <span className="flex items-center gap-1"><Satellite className="w-3 h-3" /> <span className="hidden sm:inline">Realistic</span><span className="sm:hidden">3D</span></span>
                       </button>
                       <button
                         onClick={() => switchViewMode("osm")}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
+                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
                       >
                         <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> OSM</span>
                       </button>
