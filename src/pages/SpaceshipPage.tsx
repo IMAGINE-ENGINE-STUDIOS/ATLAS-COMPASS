@@ -1015,11 +1015,11 @@ out center 20;`;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Scale radius and results by altitude — allow up to 200km
-      if (alt > 200000) return;
+      // Scale radius and results by altitude — allow up to 500km for wider view
+      if (alt > 500000) return;
 
-      const radius = alt < 5000 ? 0.03 : alt < 20000 ? 0.08 : alt < 80000 ? 0.2 : 0.4;
-      const limit = alt < 20000 ? 80 : 40;
+      const radius = alt < 5000 ? 0.05 : alt < 20000 ? 0.12 : alt < 80000 ? 0.3 : 0.5;
+      const limit = alt < 20000 ? 120 : 60;
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
