@@ -1113,7 +1113,7 @@ out center 20;`;
           const icon = iconMap[amenity] || "📍";
           const entityId = `biz-${el.id}`;
           const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ");
-          const pinColor = colorMap[amenity] || "#00d4ff";
+          
 
           businessDataRef.current.set(entityId, {
             id: el.id,
