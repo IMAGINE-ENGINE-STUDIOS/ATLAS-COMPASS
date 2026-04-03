@@ -2007,8 +2007,9 @@ out center 20;`;
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
                         {(() => {
-                          const filtered = geoSearchQuery
-                            ? geoBusinesses.filter(b => b.name.toLowerCase().includes(geoSearchQuery.toLowerCase()) || b.type.toLowerCase().includes(geoSearchQuery.toLowerCase()))
+                          const q = searchQuery.toLowerCase();
+                          const filtered = q
+                            ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q))
                             : geoBusinesses;
                           return filtered.map((b: any, idx: number) => (
                             <POICard
