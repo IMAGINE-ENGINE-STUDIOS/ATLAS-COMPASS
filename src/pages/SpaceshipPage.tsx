@@ -844,22 +844,27 @@ out center 15;`;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Load when zoomed in under 200km
-      if (alt > 200000) return;
+      // Load when zoomed in under 50km for reliable results
+      if (alt > 50000) return;
 
-      const radius = Math.min(alt / 111000 * 3, 0.5); // degrees, proportional to altitude — larger radius
-      const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
+      const radius = Math.min(alt / 111000 * 1.5, 0.08); // smaller bbox to avoid timeouts
+      const areaKey = `${lat.toFixed(3)},${lng.toFixed(3)},${radius.toFixed(4)}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
-      const query = `[out:json][timeout:15];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|hospital|bank|bar|pub"](${bbox});node["tourism"~"hotel|motel|hostel|guest_house"](${bbox}););out 200;`;
+      const query = `[out:json][timeout:8];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank"](${bbox}););out 50;`;
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
         const resp = await fetch("https://overpass-api.de/api/interpreter", {
           method: "POST",
           body: `data=${encodeURIComponent(query)}`,
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
+        if (!resp.ok) return;
         const data = await resp.json();
         if (!data.elements) return;
 
@@ -886,17 +891,22 @@ out center 15;`;
             id: `biz-${el.id}`,
             position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
             label: {
-              text: icon,
-              font: "16px sans-serif",
+              text: `${icon} ${tags.name}`,
+              font: "13px sans-serif",
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 100, nearValue: 1.2, far: 8000, farValue: 0.3 } as any,
-              translucencyByDistance: { near: 100, nearValue: 1.0, far: 15000, farValue: 0.0 } as any,
+              style: 2, // FILL_AND_OUTLINE
+              outlineWidth: 3,
+              outlineColor: { red: 0, green: 0, blue: 0, alpha: 0.7 } as any,
+              fillColor: { red: 1, green: 1, blue: 1, alpha: 1 } as any,
+              scaleByDistance: { near: 100, nearValue: 1.0, far: 5000, farValue: 0.2 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 8000, farValue: 0.0 } as any,
+              pixelOffset: { x: 0, y: -10 } as any,
             },
             description: tags.name + (tags["addr:street"] ? ` — ${tags["addr:street"]}` : ""),
           });
           businessEntitiesRef.current.push(entity);
         });
-      } catch { /* ignore network errors */ }
+      } catch { /* ignore network/abort errors */ }
     };
 
     loadBusinesses();
