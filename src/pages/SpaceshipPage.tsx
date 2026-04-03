@@ -405,8 +405,8 @@ export default function SpaceshipPage() {
 
   // Re-fetch when category or radius changes and panel is open
   useEffect(() => {
-    if (geofencingOpen && geoCenter) fetchGeofencedBusinesses(geoCenter);
-  }, [geoRadiusKm, geoCategory, geofencingOpen]);
+    if ((geofencingOpen || searchOpen) && geoCenter) fetchGeofencedBusinesses(geoCenter);
+  }, [geoRadiusKm, geoCategory, geofencingOpen, searchOpen]);
 
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
