@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Layers, Plus, Trash2, Loader2, DollarSign, MapPin, ArrowRight } from "lucide-react";
+import { Layers, Plus, Trash2, Loader2, DollarSign, ArrowRight } from "lucide-react";
 import { getBatchQuotes } from "@/lib/delivery-service";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 interface QuoteRequest {
   pickup_address: string;
