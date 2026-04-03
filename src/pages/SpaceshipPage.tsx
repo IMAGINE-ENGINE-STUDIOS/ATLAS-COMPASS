@@ -1050,8 +1050,25 @@ out center 20;`;
           if (!tags.name) return;
           const amenity = tags.amenity || tags.shop || tags.tourism || "";
           const icon = iconMap[amenity] || "📍";
+          const entityId = `biz-${el.id}`;
+          const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ");
+          
+          // Store full data for popup
+          businessDataRef.current.set(entityId, {
+            id: el.id,
+            name: tags.name,
+            emoji: icon,
+            category: amenity ? (amenity.charAt(0).toUpperCase() + amenity.slice(1)).replace(/_/g, " ") : "Business",
+            address: addr || undefined,
+            lat: el.lat,
+            lng: el.lon,
+            phone: tags.phone || tags["contact:phone"] || undefined,
+            website: tags.website || tags["contact:website"] || undefined,
+            openNow: tags.opening_hours === "24/7" ? true : undefined,
+          });
+
           const entity = viewer.entities.add({
-            id: `biz-${el.id}`,
+            id: entityId,
             position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
             label: {
               text: `${icon} ${tags.name}`,
