@@ -858,16 +858,17 @@ out center 20;`;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Load when zoomed in under 50km for reliable results
-      if (alt > 50000) return;
+      // Scale radius and results by altitude — allow up to 200km
+      if (alt > 200000) return;
 
-      const radius = Math.min(alt / 111000 * 1.5, 0.08); // smaller bbox to avoid timeouts
-      const areaKey = `${lat.toFixed(3)},${lng.toFixed(3)},${radius.toFixed(4)}`;
+      const radius = alt < 5000 ? 0.03 : alt < 20000 ? 0.08 : alt < 80000 ? 0.2 : 0.4;
+      const limit = alt < 20000 ? 80 : 40;
+      const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
-      const query = `[out:json][timeout:8];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank"](${bbox}););out 50;`;
+      const query = `[out:json][timeout:10];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|pharmacy"](${bbox});node["tourism"~"hotel|motel"](${bbox}););out ${limit};`;
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
