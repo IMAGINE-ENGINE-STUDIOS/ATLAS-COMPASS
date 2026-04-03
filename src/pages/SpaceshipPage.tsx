@@ -844,10 +844,10 @@ out center 15;`;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Only load when reasonably zoomed in
-      if (alt > 50000) return;
+      // Load when zoomed in under 200km
+      if (alt > 200000) return;
 
-      const radius = Math.min(alt / 111000 * 2, 0.15); // degrees, proportional to altitude
+      const radius = Math.min(alt / 111000 * 3, 0.5); // degrees, proportional to altitude — larger radius
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
