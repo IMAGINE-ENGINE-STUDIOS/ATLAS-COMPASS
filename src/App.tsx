@@ -29,6 +29,8 @@ const App = () => (
         <Routes>
           {/* Public Website */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/atlas" element={<SpaceshipPage />} />
+          <Route path="/atlas/geofencing" element={<AtlasPage />} />
           <Route path="/explore" element={<SpaceshipPage />} />
 
           {/* Admin Dashboard */}
