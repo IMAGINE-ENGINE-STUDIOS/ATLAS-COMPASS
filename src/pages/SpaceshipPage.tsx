@@ -514,6 +514,7 @@ out center 20;`;
       clearTimeout(timeout);
       const data = await resp.json();
       if (!data.elements) return [];
+      const searchLat = lat, searchLng = lng;
       return data.elements.slice(0, 20).map((el: any) => {
         const tags = el.tags || {};
         const elLat = el.lat || el.center?.lat;
@@ -533,10 +534,13 @@ out center 20;`;
           lat: elLat,
           lng: elLng,
           type,
+          distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
         };
-      }).filter((r: SearchResult) => r.lat && r.lng);
+      })
+      .filter((r: SearchResult & { distance?: number }) => r.lat && r.lng)
+      .sort((a: any, b: any) => (a.distance ?? 9999) - (b.distance ?? 9999));
     } catch { return []; }
-  }, []);
+  }, [geoCenter]);
 
   /* ── OSRM Routing ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
