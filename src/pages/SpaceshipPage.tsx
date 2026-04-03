@@ -1634,8 +1634,14 @@ out center 20;`;
                 <GlassPanel className="px-4 py-2.5 flex items-center gap-2">
                   <Globe className="w-4 h-4 text-primary" />
                   <span className="text-sm font-bold text-white">NEXUS</span>
-                  <span className="text-xs text-white/30 font-mono">SPACESHIP</span>
+                  <span className="text-xs text-white/30 font-mono">ATLAS</span>
                 </GlassPanel>
+                <Link to="/atlas/geofencing">
+                  <GlassPanel className="px-3 py-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs text-white/50 hidden sm:inline">Geofencing</span>
+                  </GlassPanel>
+                </Link>
               </div>
 
               <div className="flex items-center gap-2">
