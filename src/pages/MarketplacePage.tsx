@@ -511,6 +511,25 @@ export default function MarketplacePage() {
                   </div>
                 </div>
 
+
+                {/* Delivery option */}
+                {(() => {
+                  const dist = getProductDistance(selectedProduct);
+                  if (dist === null) return null;
+                  const zone = getDeliveryZone(dist);
+                  if (zone === "out_of_range") return (
+                    <div className="mt-4 p-3 rounded-xl bg-secondary/20 border border-border/20 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Delivery not available · {dist.toFixed(0)}km away — Pickup or Shipping only</span>
+                    </div>
+                  );
+                  return (
+                    <div className="mt-4">
+                      <DeliveryBanner zone={zone} distanceKm={dist} storeName={selectedProduct.seller} />
+                    </div>
+                  );
+                })()}
+
                 <div className="flex gap-3 mt-6">
                   <motion.button
                     whileHover={{ scale: 1.02, boxShadow: "0 0 30px hsl(var(--primary) / 0.3)" }}
