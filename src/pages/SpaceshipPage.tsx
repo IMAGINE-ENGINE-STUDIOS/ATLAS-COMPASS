@@ -357,12 +357,20 @@ export default function SpaceshipPage() {
       const data = await resp.json();
       const results = (data.elements || [])
         .filter((el: any) => el.tags?.name)
-        .map((el: any) => ({
-          id: el.id, name: el.tags.name, lat: el.lat, lng: el.lon,
-          type: geoClassify(el.tags || {}),
-          address: [el.tags["addr:street"], el.tags["addr:housenumber"]].filter(Boolean).join(" ") || "",
-          distance: geoHaversine(center.lat, center.lng, el.lat, el.lon),
-        }))
+        .map((el: any) => {
+          const tags = el.tags || {};
+          return {
+            id: el.id, name: tags.name, lat: el.lat, lng: el.lon,
+            type: geoClassify(tags),
+            address: [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"]].filter(Boolean).join(" ") || "",
+            distance: geoHaversine(center.lat, center.lng, el.lat, el.lon),
+            phone: tags.phone || tags["contact:phone"] || "",
+            website: tags.website || tags["contact:website"] || "",
+            brand: tags.brand || "",
+            cuisine: tags.cuisine || "",
+            openNow: tags.opening_hours === "24/7" ? true : undefined,
+          };
+        })
         .filter((b: any) => b.distance <= geoRadiusKm)
         .sort((a: any, b: any) => a.distance - b.distance);
       setGeoBusinesses(results);
@@ -469,13 +477,18 @@ export default function SpaceshipPage() {
   const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
     try {
       const sanitized = query.replace(/["\\\n\r]/g, '');
-      // Geofence: use camera position as center, search within ~50km radius
-      let lat = 40.7128, lng = -74.006; // fallback NYC
-      const viewer = viewerRef.current;
-      if (viewer && !viewer.isDestroyed()) {
-        const cam = viewer.camera.positionCartographic;
-        lat = CesiumMath.toDegrees(cam.latitude);
-        lng = CesiumMath.toDegrees(cam.longitude);
+      // Use user location (geoCenter) first, then camera, then fallback
+      let lat = 40.7128, lng = -74.006;
+      if (geoCenter) {
+        lat = geoCenter.lat;
+        lng = geoCenter.lng;
+      } else {
+        const viewer = viewerRef.current;
+        if (viewer && !viewer.isDestroyed()) {
+          const cam = viewer.camera.positionCartographic;
+          lat = CesiumMath.toDegrees(cam.latitude);
+          lng = CesiumMath.toDegrees(cam.longitude);
+        }
       }
       const radius = 0.45; // ~50km
       const bbox = `${(lat - radius).toFixed(4)},${(lng - radius).toFixed(4)},${(lat + radius).toFixed(4)},${(lng + radius).toFixed(4)}`;
@@ -501,6 +514,7 @@ out center 20;`;
       clearTimeout(timeout);
       const data = await resp.json();
       if (!data.elements) return [];
+      const searchLat = lat, searchLng = lng;
       return data.elements.slice(0, 20).map((el: any) => {
         const tags = el.tags || {};
         const elLat = el.lat || el.center?.lat;
@@ -520,10 +534,13 @@ out center 20;`;
           lat: elLat,
           lng: elLng,
           type,
+          distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
         };
-      }).filter((r: SearchResult) => r.lat && r.lng);
+      })
+      .filter((r: SearchResult & { distance?: number }) => r.lat && r.lng)
+      .sort((a: any, b: any) => (a.distance ?? 9999) - (b.distance ?? 9999));
     } catch { return []; }
-  }, []);
+  }, [geoCenter]);
 
   /* ── OSRM Routing ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
@@ -1074,6 +1091,9 @@ out center 20;`;
             phone: tags.phone || tags["contact:phone"] || undefined,
             website: tags.website || tags["contact:website"] || undefined,
             openNow: tags.opening_hours === "24/7" ? true : undefined,
+            brand: tags.brand || undefined,
+            cuisine: tags.cuisine || undefined,
+            description: tags.description || undefined,
           });
 
           const entity = viewer.entities.add({
@@ -1966,7 +1986,7 @@ out center 20;`;
                       return (
                         <button
                           key={t}
-                          onClick={() => { setGeoCategory(catKey); handleSearch(catKey === "all" ? "" : t); }}
+                          onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; handleSearch(catKey === "all" ? "" : t); }}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
                             geoCategory === catKey
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
@@ -2033,6 +2053,9 @@ out center 20;`;
                                   id: b.id, name: b.name, emoji: b.type.split(" ")[0],
                                   category: b.type.slice(b.type.indexOf(" ") + 1),
                                   address: b.address, lat: b.lat, lng: b.lng, distance: b.distance,
+                                  phone: b.phone || undefined, website: b.website || undefined,
+                                  brand: b.brand || undefined, cuisine: b.cuisine || undefined,
+                                  openNow: b.openNow,
                                 });
                                 setSearchOpen(false);
                               }}
