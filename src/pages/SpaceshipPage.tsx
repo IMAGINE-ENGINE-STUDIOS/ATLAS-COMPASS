@@ -1872,144 +1872,236 @@ out center 20;`;
             </div>
           </motion.div>
 
-          {/* Search Panel */}
+          {/* Unified Search & Nearby Panel */}
           <AnimatePresence>
             {searchOpen && (
               <motion.div
-                initial={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, y: isMobile ? 20 : -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
+                exit={{ opacity: 0, y: isMobile ? 20 : -20 }}
+                className={isMobile
+                  ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
+                  : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
+                }
               >
-                <GlassPanel className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
+                <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
+                  {/* Search bar + controls */}
+                  <div className="flex items-center gap-2 p-3 border-b border-white/[0.06]">
                     <Search className="w-4 h-4 text-primary shrink-0" />
                     <input
                       type="text"
                       autoFocus
                       value={searchQuery}
                       onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search any address, city, business, or coordinates..."
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30"
+                      placeholder="Search addresses, businesses, stores…"
+                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30 min-w-0"
                     />
-                    <button onClick={() => setSearchOpen(false)}>
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                    <button onClick={geoLocateUser} title="Use my location"
+                      className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0">
+                      <Crosshair className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => { geofenceFromCamera(); }} title="Scan camera area"
+                      className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0">
+                      <Globe className="w-3.5 h-3.5" />
+                    </button>
+                    {/* Radius */}
+                    <div className="relative shrink-0">
+                      <button onClick={() => setGeoShowRadius(!geoShowRadius)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
+                        <Radius className="w-3 h-3" /> {geoRadiusKm}km <ChevronDown className="w-2.5 h-2.5" />
+                      </button>
+                      {geoShowRadius && (
+                        <div className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-xl p-1 z-50 min-w-[80px]">
+                          {GEO_RADIUS_OPTIONS.map(r => (
+                            <button key={r} onClick={() => { setGeoRadiusKm(r); setGeoShowRadius(false); }}
+                              className={`w-full text-left px-3 py-1 rounded-lg text-xs transition-colors ${r === geoRadiusKm ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-white/5 text-white/60"}`}>
+                              {r} km
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => setSearchOpen(false)} className="p-1 rounded-lg text-white/30 hover:text-white/60 transition-colors shrink-0">
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {["All", "City", "Business", "Restaurant", "Hotel", "Shop", "Airport", "Port", "Mountain"].map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => handleSearch(t === "All" ? "" : t)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase transition-colors ${
-                          (t === "All" && !searchQuery) || searchQuery.toLowerCase() === t.toLowerCase()
-                            ? "bg-primary/20 text-primary border border-primary/30"
-                            : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:text-white/70"
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
+
+                  {/* Category + type filter pills */}
+                  <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
+                    {["All", ...GEO_CATEGORIES.filter(c => c.key !== "all").map(c => c.label)].map((t, idx) => {
+                      const catKey = idx === 0 ? "all" : GEO_CATEGORIES[idx].key;
+                      const catIcon = idx === 0 ? <Layers className="w-3 h-3" /> : GEO_CATEGORIES[idx].icon;
+                      return (
+                        <button
+                          key={t}
+                          onClick={() => { setGeoCategory(catKey); handleSearch(catKey === "all" ? "" : t); }}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
+                            geoCategory === catKey
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : "bg-white/[0.03] text-white/40 border border-white/[0.06] hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          {catIcon} {t}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="max-h-72 overflow-y-auto space-y-1 scrollbar-thin">
-                    {/* Overpass business results — SHOWN FIRST */}
-                    {overpassResults.length > 0 && (
+
+                  {/* Location info */}
+                  {geoCenter && (
+                    <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center gap-2">
+                      <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <span className="text-[10px] text-white/30 truncate">{geoLocationName}</span>
+                      {geoBusinesses.length > 0 && <span className="text-[9px] font-mono text-emerald-400/50 shrink-0">{geoBusinesses.length} nearby</span>}
+                    </div>
+                  )}
+
+                  {/* Results */}
+                  <div className="flex-1 overflow-y-auto min-h-0 max-h-72 p-2 space-y-0.5">
+                    {/* Loading */}
+                    {(searchLoading || geoLoading) && (
+                      <div className="flex items-center justify-center gap-2 py-3">
+                        <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                        <span className="text-xs text-white/30">Searching…</span>
+                      </div>
+                    )}
+
+                    {/* Geofenced nearby businesses (always shown when available) */}
+                    {geoBusinesses.length > 0 && !searchQuery && (
                       <>
-                        <div className="flex items-center gap-2 px-3 py-2">
+                        <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-emerald-500/20" />
-                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Businesses &amp; Stores</span>
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby · {geoRadiusKm}km</span>
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                        </div>
+                        {(() => {
+                          const filtered = geoSearchQuery
+                            ? geoBusinesses.filter(b => b.name.toLowerCase().includes(geoSearchQuery.toLowerCase()) || b.type.toLowerCase().includes(geoSearchQuery.toLowerCase()))
+                            : geoBusinesses;
+                          return filtered.map((b: any, idx: number) => (
+                            <POICard
+                              key={b.id}
+                              compact
+                              variant="glass"
+                              index={idx}
+                              poi={{
+                                id: b.id,
+                                name: b.name,
+                                emoji: b.type.split(" ")[0],
+                                category: b.type.slice(b.type.indexOf(" ") + 1),
+                                address: b.address,
+                                lat: b.lat,
+                                lng: b.lng,
+                                distance: b.distance,
+                              }}
+                              onNavigate={() => flyToBusiness(b)}
+                            />
+                          ));
+                        })()}
+                      </>
+                    )}
+
+                    {/* Overpass business results from text search */}
+                    {overpassResults.length > 0 && searchQuery && (
+                      <>
+                        <div className="flex items-center gap-2 px-2 py-1">
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Businesses</span>
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
                         {overpassResults.map((r, i) => (
-                          <button
+                          <POICard
                             key={`ov-${i}`}
-                            onClick={() => flyTo(r)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-emerald-500/[0.08] transition-colors text-left group"
-                          >
-                            <div className="w-8 h-8 rounded-lg bg-emerald-500/[0.08] flex items-center justify-center shrink-0">
-                              {getTypeIcon(r.type)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                            </div>
-                            <Navigation className="w-4 h-4 text-emerald-400/40 group-hover:text-emerald-400 transition-colors" />
-                          </button>
+                            compact
+                            variant="glass"
+                            index={i}
+                            poi={{
+                              name: r.name,
+                              emoji: (() => { const t = r.type; if (t.includes("Restaurant") || t.includes("Food")) return "🍽️"; if (t.includes("Cafe")) return "☕"; if (t.includes("Hotel")) return "🏨"; if (t.includes("Shop") || t.includes("Supermarket")) return "🛒"; if (t.includes("Fuel")) return "⛽"; if (t.includes("Health")) return "🏥"; return "📍"; })(),
+                              category: r.type,
+                              lat: r.lat,
+                              lng: r.lng,
+                            }}
+                            onNavigate={() => flyTo(r)}
+                          />
                         ))}
                       </>
                     )}
 
                     {/* Nominatim global results */}
-                    {nominatimResults.length > 0 && (
+                    {nominatimResults.length > 0 && searchQuery && (
                       <>
-                        <div className="flex items-center gap-2 px-3 py-2">
+                        <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-white/[0.06]" />
                           <span className="text-[9px] text-white/30 font-mono uppercase">Global Results</span>
                           <div className="flex-1 h-px bg-white/[0.06]" />
                         </div>
                         {nominatimResults.map((r, i) => (
-                          <button
+                          <POICard
                             key={`nom-${i}`}
-                            onClick={() => flyTo(r)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group"
-                          >
-                            <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
-                              {getTypeIcon(r.type)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                              <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
-                          </button>
+                            compact
+                            variant="glass"
+                            index={i}
+                            poi={{
+                              name: r.name,
+                              emoji: (() => { const t = r.type; if (t === "City") return "🏙️"; if (t === "Airport") return "✈️"; if (t === "Port") return "⚓"; if (t === "Mountain") return "🏔️"; return "📍"; })(),
+                              category: r.type,
+                              lat: r.lat,
+                              lng: r.lng,
+                            }}
+                            onNavigate={() => flyTo(r)}
+                          />
                         ))}
                       </>
                     )}
 
-                    {/* Local preset results — shown last when searching */}
+                    {/* Presets */}
                     {searchQuery ? (
                       searchResults.length > 0 && (
                         <>
-                          <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex items-center gap-2 px-2 py-1">
                             <div className="flex-1 h-px bg-white/[0.06]" />
                             <span className="text-[9px] text-white/30 font-mono uppercase">Presets</span>
                             <div className="flex-1 h-px bg-white/[0.06]" />
                           </div>
                           {searchResults.map((r, i) => (
-                            <button key={`preset-${i}`} onClick={() => flyTo(r)}
-                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group">
-                              <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">{getTypeIcon(r.type)}</div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                                <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
-                            </button>
+                            <POICard
+                              key={`preset-${i}`}
+                              compact
+                              variant="glass"
+                              index={i}
+                              poi={{
+                                name: r.name,
+                                emoji: (() => { const t = r.type; if (t === "City") return "🏙️"; if (t === "Airport") return "✈️"; if (t === "Port") return "⚓"; if (t === "Mountain") return "🏔️"; return "📍"; })(),
+                                category: r.type,
+                                lat: r.lat,
+                                lng: r.lng,
+                              }}
+                              onNavigate={() => flyTo(r)}
+                            />
                           ))}
                         </>
                       )
-                    ) : (
-                      PRESETS.map((r, i) => (
-                        <button key={`preset-${i}`} onClick={() => flyTo(r)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.06] transition-colors text-left group">
-                          <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">{getTypeIcon(r.type)}</div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                            <p className="text-[10px] text-white/30 font-mono">{r.lat.toFixed(4)}, {r.lng.toFixed(4)} · {r.type}</p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
-                        </button>
+                    ) : !geoBusinesses.length && (
+                      PRESETS.slice(0, 8).map((r, i) => (
+                        <POICard
+                          key={`preset-${i}`}
+                          compact
+                          variant="glass"
+                          index={i}
+                          poi={{
+                            name: r.name,
+                            emoji: (() => { const t = r.type; if (t === "City") return "🏙️"; if (t === "Airport") return "✈️"; if (t === "Port") return "⚓"; if (t === "Mountain") return "🏔️"; return "📍"; })(),
+                            category: r.type,
+                            lat: r.lat,
+                            lng: r.lng,
+                          }}
+                          onNavigate={() => flyTo(r)}
+                        />
                       ))
                     )}
 
-                    {searchLoading && (
-                      <div className="flex items-center justify-center gap-2 py-3">
-                        <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                        <span className="text-xs text-white/30">Searching worldwide for businesses...</span>
-                      </div>
-                    )}
-
-                    {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && !searchLoading && searchQuery && (
+                    {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && geoBusinesses.length === 0 && !searchLoading && !geoLoading && searchQuery && (
                       <p className="text-sm text-white/30 text-center py-4">No results found.</p>
                     )}
                   </div>
