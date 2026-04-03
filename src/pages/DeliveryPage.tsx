@@ -1,227 +1,227 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Truck, Package, Clock, CheckCircle2, XCircle, MapPin, RefreshCw, Filter, Search, Eye } from "lucide-react";
-import DeliveryTracker from "@/components/delivery/DeliveryTracker";
+import {
+  Truck, Plus, List, Zap, Layers, Settings2, Globe,
+  Package, BarChart3, FileSignature, Shield, MapPin
+} from "lucide-react";
+import NewDeliveryForm from "@/components/delivery/NewDeliveryForm";
+import DeliveryList from "@/components/delivery/DeliveryList";
+import BatchQuoteTool from "@/components/delivery/BatchQuoteTool";
+import QuickEstimate from "@/components/delivery/QuickEstimate";
 
-type DeliveryStatus = "all" | "pending" | "in_transit" | "delivered" | "cancelled";
+type Tab = "overview" | "new" | "deliveries" | "estimate" | "batch" | "tools";
 
-interface MockDelivery {
-  id: string;
-  product: string;
-  customer: string;
-  pickup: string;
-  dropoff: string;
-  status: "pending" | "in_transit" | "delivered" | "cancelled";
-  fee: string;
-  eta: string;
-  created: string;
-}
-
-const mockDeliveries: MockDelivery[] = [
-  { id: "DEL-001", product: "Grade A Crude Oil", customer: "John Smith", pickup: "Doha Industrial Area", dropoff: "Al Wakrah, Qatar", status: "in_transit", fee: "$12.50", eta: "25 min", created: "2 min ago" },
-  { id: "DEL-002", product: "EV Battery Cells", customer: "Sarah Chen", pickup: "Fuzhou Warehouse", dropoff: "Fuzhou CBD", status: "pending", fee: "$8.00", eta: "35 min", created: "5 min ago" },
-  { id: "DEL-003", product: "Solar Panel Array", customer: "Mike Johnson", pickup: "Xi'an Distribution Center", dropoff: "Xi'an Tech Park", status: "delivered", fee: "$15.00", eta: "Delivered", created: "1 hr ago" },
-  { id: "DEL-004", product: "Organic Wheat", customer: "Emma Davis", pickup: "Chicago Grain Exchange", dropoff: "Lincoln Park, Chicago", status: "cancelled", fee: "$10.00", eta: "Cancelled", created: "3 hrs ago" },
-  { id: "DEL-005", product: "Steel Coils", customer: "Alex Kim", pickup: "Luxembourg Industrial", dropoff: "Brussels, Belgium", status: "in_transit", fee: "$28.00", eta: "55 min", created: "15 min ago" },
+const tabs: { id: Tab; label: string; icon: typeof Truck }[] = [
+  { id: "overview", label: "Overview", icon: BarChart3 },
+  { id: "new", label: "New Delivery", icon: Plus },
+  { id: "deliveries", label: "All Deliveries", icon: List },
+  { id: "estimate", label: "Quick Estimate", icon: Zap },
+  { id: "batch", label: "Batch Quotes", icon: Layers },
+  { id: "tools", label: "API Tools", icon: Settings2 },
 ];
 
-const statusConfig: Record<string, { color: string; icon: typeof Package; label: string }> = {
-  pending: { color: "hsl(var(--warning))", icon: Clock, label: "Pending" },
-  in_transit: { color: "hsl(var(--primary))", icon: Truck, label: "In Transit" },
-  delivered: { color: "hsl(var(--success))", icon: CheckCircle2, label: "Delivered" },
-  cancelled: { color: "hsl(var(--destructive))", icon: XCircle, label: "Cancelled" },
-};
+const uberDirectFeatures = [
+  { icon: Truck, title: "On-Demand Delivery", desc: "Request courier delivery in real-time with live tracking" },
+  { icon: Zap, title: "Instant Quotes", desc: "Get fee and ETA estimates before committing to a delivery" },
+  { icon: Layers, title: "Batch Quotes", desc: "Quote multiple routes simultaneously for operations planning" },
+  { icon: MapPin, title: "Geofenced Zones", desc: "Automatic proximity detection: Express, Standard, Extended" },
+  { icon: FileSignature, title: "Proof of Delivery", desc: "Signatures, photos, and PIN verification on dropoff" },
+  { icon: Shield, title: "ID Verification", desc: "Age/identity verification required at delivery point" },
+  { icon: Globe, title: "Scheduling", desc: "Schedule pickups for future date/time windows" },
+  { icon: Package, title: "Manifest Items", desc: "Detailed item descriptions with size categories" },
+];
+
+const apiEndpoints = [
+  { method: "POST", path: "/quote", desc: "Get delivery quote with fee, ETA, and expiry" },
+  { method: "POST", path: "/create", desc: "Create delivery from quote with full options" },
+  { method: "GET", path: "/status?id=", desc: "Real-time delivery status + courier location" },
+  { method: "GET", path: "/list", desc: "List all deliveries with filter/pagination" },
+  { method: "POST", path: "/cancel", desc: "Cancel an in-progress delivery" },
+  { method: "POST", path: "/tip", desc: "Add/update courier tip amount" },
+  { method: "GET", path: "/pod?id=", desc: "Proof of delivery: signature, photo, PIN" },
+  { method: "POST", path: "/update", desc: "Update notes, manifest, or requirements mid-delivery" },
+  { method: "POST", path: "/batch-quote", desc: "Get multiple quotes in parallel" },
+  { method: "POST", path: "/estimate", desc: "Quick fee estimate without binding quote" },
+];
 
 export default function DeliveryPage() {
-  const [filter, setFilter] = useState<DeliveryStatus>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDelivery, setSelectedDelivery] = useState<string | null>(null);
-
-  const filtered = mockDeliveries.filter(d => {
-    const matchStatus = filter === "all" || d.status === filter;
-    const matchSearch = searchQuery === "" ||
-      d.product.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.id.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchStatus && matchSearch;
-  });
-
-  const stats = {
-    total: mockDeliveries.length,
-    pending: mockDeliveries.filter(d => d.status === "pending").length,
-    in_transit: mockDeliveries.filter(d => d.status === "in_transit").length,
-    delivered: mockDeliveries.filter(d => d.status === "delivered").length,
-  };
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   return (
     <div className="space-y-6 p-2 sm:p-4 md:p-6">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-1">
           <div className="p-2.5 rounded-2xl" style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))" }}>
             <Truck className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Delivery Management</h1>
-            <p className="text-sm text-muted-foreground">Powered by Uber Direct · Real-time tracking</p>
+            <h1 className="text-2xl font-bold text-foreground">Uber Direct</h1>
+            <p className="text-sm text-muted-foreground">Full delivery management suite · 10 API endpoints</p>
           </div>
         </div>
       </motion.div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Total", value: stats.total, color: "hsl(var(--foreground))" },
-          { label: "Pending", value: stats.pending, color: "hsl(var(--warning))" },
-          { label: "In Transit", value: stats.in_transit, color: "hsl(var(--primary))" },
-          { label: "Delivered", value: stats.delivered, color: "hsl(var(--success))" },
-        ].map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="p-4 rounded-2xl border border-border/40"
-            style={{ background: "hsl(var(--card) / 0.5)", backdropFilter: "blur(16px)" }}
-          >
-            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-            <p className="text-2xl font-bold font-mono mt-1" style={{ color: stat.color }}>{stat.value}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Search + filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search deliveries..."
-            className="w-full bg-card/60 border border-border/40 rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary backdrop-blur-xl"
-          />
-        </div>
-        <div className="flex gap-2 overflow-x-auto">
-          {(["all", "pending", "in_transit", "delivered", "cancelled"] as DeliveryStatus[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                filter === s
+      {/* Tab bar */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === tab.id
                   ? "bg-primary text-primary-foreground"
                   : "bg-card/40 border border-border/30 text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {s === "all" ? "All" : s === "in_transit" ? "In Transit" : s.charAt(0).toUpperCase() + s.slice(1)}
+              }`}>
+              <Icon className="w-3.5 h-3.5" />
+              {tab.label}
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      {/* Deliveries list */}
-      <div className="space-y-3">
-        <AnimatePresence mode="popLayout">
-          {filtered.map((delivery, i) => {
-            const config = statusConfig[delivery.status];
-            const Icon = config.icon;
-            return (
-              <motion.div
-                key={delivery.id}
-                layout
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: i * 0.05 }}
-                className="rounded-2xl border border-border/30 overflow-hidden cursor-pointer group hover:border-primary/30 transition-all"
-                style={{ background: "hsl(var(--card) / 0.5)", backdropFilter: "blur(16px)" }}
-                onClick={() => setSelectedDelivery(selectedDelivery === delivery.id ? null : delivery.id)}
-              >
-                <div className="p-4 flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl" style={{ background: `${config.color}15` }}>
-                    <Icon className="w-5 h-5" style={{ color: config.color }} />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-muted-foreground">{delivery.id}</span>
-                      <span
-                        className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                        style={{ background: `${config.color}15`, color: config.color }}
-                      >
-                        {config.label}
-                      </span>
+      {/* Content */}
+      <AnimatePresence mode="wait">
+        {activeTab === "overview" && (
+          <motion.div key="overview" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {uberDirectFeatures.map((f, i) => {
+                const Icon = f.icon;
+                return (
+                  <motion.div key={f.title} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                    className="p-4 rounded-2xl border border-border/30 group hover:border-primary/20 transition-all"
+                    style={{ background: "hsl(var(--card) / 0.5)", backdropFilter: "blur(16px)" }}>
+                    <div className="p-2 rounded-xl bg-primary/10 w-fit mb-3 group-hover:bg-primary/20 transition-colors">
+                      <Icon className="w-5 h-5 text-primary" />
                     </div>
-                    <h3 className="text-sm font-semibold text-foreground mt-0.5 truncate">{delivery.product}</h3>
-                    <p className="text-[11px] text-muted-foreground">{delivery.customer}</p>
+                    <h4 className="text-sm font-bold text-foreground">{f.title}</h4>
+                    <p className="text-[11px] text-muted-foreground mt-1">{f.desc}</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            <div className="p-5 rounded-2xl border border-border/30" style={{ background: "hsl(var(--card) / 0.5)" }}>
+              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-primary" /> API Endpoints
+              </h3>
+              <div className="space-y-1.5">
+                {apiEndpoints.map(ep => (
+                  <div key={ep.path} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/20 transition-colors">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono ${
+                      ep.method === "GET" ? "bg-success/10 text-success" : "bg-primary/10 text-primary"
+                    }`}>{ep.method}</span>
+                    <span className="text-xs font-mono text-foreground flex-shrink-0">/uber-direct{ep.path}</span>
+                    <span className="text-[10px] text-muted-foreground truncate">{ep.desc}</span>
                   </div>
+                ))}
+              </div>
+            </div>
 
-                  <div className="text-right hidden sm:block">
-                    <p className="text-sm font-mono font-bold text-foreground">{delivery.fee}</p>
-                    <p className="text-[10px] text-muted-foreground">{delivery.eta}</p>
-                  </div>
-
-                  <div className="text-[10px] text-muted-foreground hidden md:block">
-                    {delivery.created}
-                  </div>
-                </div>
-
-                {/* Expanded tracking */}
-                <AnimatePresence>
-                  {selectedDelivery === delivery.id && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="border-t border-border/20 overflow-hidden"
-                    >
-                      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <div className="flex items-start gap-2">
-                            <div className="w-2 h-2 rounded-full bg-success mt-1.5" />
-                            <div>
-                              <p className="text-[10px] font-mono text-muted-foreground">PICKUP</p>
-                              <p className="text-xs text-foreground">{delivery.pickup}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <MapPin className="w-2 h-2 text-primary mt-1.5" />
-                            <div>
-                              <p className="text-[10px] font-mono text-muted-foreground">DROPOFF</p>
-                              <p className="text-xs text-foreground">{delivery.dropoff}</p>
-                            </div>
-                          </div>
-                        </div>
-                        {delivery.status === "in_transit" && (
-                          <div className="flex items-center justify-center">
-                            <div className="text-center">
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                className="w-8 h-8 mx-auto mb-2"
-                              >
-                                <RefreshCw className="w-8 h-8 text-primary" />
-                              </motion.div>
-                              <p className="text-[10px] text-muted-foreground">Tracking live · Updates every 30s</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-
-        {filtered.length === 0 && (
-          <div className="text-center py-12">
-            <Package className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No deliveries found</p>
-          </div>
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={() => setActiveTab("new")} className="p-4 rounded-2xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-center">
+                <Plus className="w-6 h-6 text-primary mx-auto mb-2" />
+                <p className="text-xs font-bold text-foreground">Create Delivery</p>
+              </button>
+              <button onClick={() => setActiveTab("estimate")} className="p-4 rounded-2xl border border-border/30 hover:border-primary/20 transition-colors text-center" style={{ background: "hsl(var(--card) / 0.5)" }}>
+                <Zap className="w-6 h-6 text-primary mx-auto mb-2" />
+                <p className="text-xs font-bold text-foreground">Quick Estimate</p>
+              </button>
+              <button onClick={() => setActiveTab("batch")} className="p-4 rounded-2xl border border-border/30 hover:border-primary/20 transition-colors text-center" style={{ background: "hsl(var(--card) / 0.5)" }}>
+                <Layers className="w-6 h-6 text-primary mx-auto mb-2" />
+                <p className="text-xs font-bold text-foreground">Batch Quotes</p>
+              </button>
+            </div>
+          </motion.div>
         )}
-      </div>
+
+        {activeTab === "new" && (
+          <motion.div key="new" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <NewDeliveryForm />
+          </motion.div>
+        )}
+
+        {activeTab === "deliveries" && (
+          <motion.div key="list" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <DeliveryList />
+          </motion.div>
+        )}
+
+        {activeTab === "estimate" && (
+          <motion.div key="estimate" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <QuickEstimate />
+          </motion.div>
+        )}
+
+        {activeTab === "batch" && (
+          <motion.div key="batch" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <BatchQuoteTool />
+          </motion.div>
+        )}
+
+        {activeTab === "tools" && (
+          <motion.div key="tools" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+            <div className="p-5 rounded-2xl border border-border/30" style={{ background: "hsl(var(--card) / 0.5)" }}>
+              <h3 className="text-sm font-bold text-foreground mb-3">Delivery Options Reference</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {[
+                  { param: "quote_id", type: "string", desc: "Quote ID from /quote endpoint" },
+                  { param: "pickup / dropoff", type: "object", desc: "{ name, phone_number, address, notes }" },
+                  { param: "manifest", type: "object", desc: "{ description, quantity }" },
+                  { param: "manifest_items", type: "array", desc: "Detailed items with size: small|medium|large|xlarge" },
+                  { param: "tip", type: "integer", desc: "Tip amount in cents" },
+                  { param: "requires_dropoff_signature", type: "boolean", desc: "Collect signature on delivery" },
+                  { param: "requires_id_verification", type: "boolean", desc: "Verify recipient identity" },
+                  { param: "undeliverable_action", type: "string", desc: "return | leave_at_door" },
+                  { param: "external_id", type: "string", desc: "Your internal order reference" },
+                  { param: "pickup_ready_dt", type: "ISO datetime", desc: "Scheduled pickup window start" },
+                  { param: "pickup_deadline_dt", type: "ISO datetime", desc: "Scheduled pickup window end" },
+                  { param: "dropoff_ready_dt", type: "ISO datetime", desc: "Earliest acceptable dropoff time" },
+                  { param: "dropoff_deadline_dt", type: "ISO datetime", desc: "Latest acceptable dropoff time" },
+                  { param: "deliverable_action", type: "string", desc: "deliverable_action override" },
+                ].map(p => (
+                  <div key={p.param} className="p-2.5 rounded-lg bg-secondary/20 border border-border/20">
+                    <span className="font-mono text-primary">{p.param}</span>
+                    <span className="ml-2 text-muted-foreground">({p.type})</span>
+                    <p className="text-muted-foreground mt-0.5">{p.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-border/30" style={{ background: "hsl(var(--card) / 0.5)" }}>
+              <h3 className="text-sm font-bold text-foreground mb-3">Delivery Status Lifecycle</h3>
+              <div className="flex flex-wrap gap-2">
+                {["pending", "pickup", "pickup_complete", "dropoff", "delivered", "canceled", "returned"].map((s, i) => (
+                  <div key={s} className="flex items-center gap-1.5">
+                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-secondary/30 border border-border/20 text-foreground">{s}</span>
+                    {i < 6 && <span className="text-muted-foreground text-xs">→</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-border/30" style={{ background: "hsl(var(--card) / 0.5)" }}>
+              <h3 className="text-sm font-bold text-foreground mb-3">Geofencing Zones</h3>
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { zone: "Express", range: "0–5 km", eta: "15-25 min", cost: "$3-8", color: "hsl(142 76% 36%)" },
+                  { zone: "Standard", range: "5–15 km", eta: "25-45 min", cost: "$8-15", color: "hsl(var(--primary))" },
+                  { zone: "Extended", range: "15–30 km", eta: "45-90 min", cost: "$15-30", color: "hsl(var(--warning))" },
+                  { zone: "Out of Range", range: "30+ km", eta: "N/A", cost: "N/A", color: "hsl(var(--destructive))" },
+                ].map(z => (
+                  <div key={z.zone} className="p-3 rounded-xl border border-border/20 text-center" style={{ borderTopColor: z.color, borderTopWidth: 2 }}>
+                    <p className="text-xs font-bold text-foreground">{z.zone}</p>
+                    <p className="text-[10px] text-muted-foreground">{z.range}</p>
+                    <p className="text-[10px] text-muted-foreground">{z.eta}</p>
+                    <p className="text-xs font-mono font-bold mt-1" style={{ color: z.color }}>{z.cost}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

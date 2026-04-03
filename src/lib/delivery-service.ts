@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+// ── Delivery Service: Full Uber Direct API client ──
 
 // Haversine distance in km
 export function haversineDistance(
@@ -32,17 +32,11 @@ export const zoneInfo: Record<DeliveryZone, { label: string; eta: string; costTi
   out_of_range: { label: "Out of Range", eta: "N/A", costTier: "N/A", color: "hsl(var(--destructive))" },
 };
 
-export interface UserLocation {
-  lat: number;
-  lng: number;
-}
+export interface UserLocation { lat: number; lng: number; }
 
 export function getUserLocation(): Promise<UserLocation> {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation not supported"));
-      return;
-    }
+    if (!navigator.geolocation) return reject(new Error("Geolocation not supported"));
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (err) => reject(err),
@@ -52,14 +46,9 @@ export function getUserLocation(): Promise<UserLocation> {
 }
 
 export interface StoreLocation {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  address: string;
+  id: string; name: string; lat: number; lng: number; address: string;
 }
 
-// Mock store locations for demo
 export const mockStoreLocations: StoreLocation[] = [
   { id: "store-1", name: "Aramco Industries", lat: 25.2854, lng: 51.5310, address: "Doha Industrial Area, Qatar" },
   { id: "store-2", name: "CATL Manufacturing", lat: 26.0789, lng: 119.2965, address: "Fuzhou, Fujian, China" },
@@ -75,7 +64,7 @@ export function getStoreDistance(userLoc: UserLocation, store: StoreLocation): n
   return haversineDistance(userLoc.lat, userLoc.lng, store.lat, store.lng);
 }
 
-export function getNearbyStores(userLoc: UserLocation, maxDistKm: number = 30): (StoreLocation & { distance: number; zone: DeliveryZone })[] {
+export function getNearbyStores(userLoc: UserLocation, maxDistKm = 30) {
   return mockStoreLocations
     .map(store => ({
       ...store,
@@ -86,76 +75,92 @@ export function getNearbyStores(userLoc: UserLocation, maxDistKm: number = 30): 
     .sort((a, b) => a.distance - b.distance);
 }
 
-// Uber Direct API calls via edge function
-export async function getDeliveryQuote(pickupAddress: string, dropoffAddress: string) {
-  const { data, error } = await supabase.functions.invoke("uber-direct", {
-    body: { pickup_address: pickupAddress, dropoff_address: dropoffAddress },
-    method: "POST",
-  });
-  // The edge function routing needs path, so we use headers or body
-  // Actually we need to call with the path appended
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  
-  const res = await fetch(`${supabaseUrl}/functions/v1/uber-direct/quote`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": anonKey,
-      "Authorization": `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({ pickup_address: pickupAddress, dropoff_address: dropoffAddress }),
-  });
-  
+// ── API helpers ──
+function apiUrl(path: string) {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uber-direct${path}`;
+}
+
+function apiHeaders() {
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  return {
+    "Content-Type": "application/json",
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+  };
+}
+
+async function apiPost(path: string, body: unknown) {
+  const res = await fetch(apiUrl(path), { method: "POST", headers: apiHeaders(), body: JSON.stringify(body) });
   return res.json();
 }
 
-export async function createDelivery(quoteId: string, pickup: any, dropoff: any, manifest: any) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  
-  const res = await fetch(`${supabaseUrl}/functions/v1/uber-direct/create`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": anonKey,
-      "Authorization": `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({ quote_id: quoteId, pickup, dropoff, manifest }),
-  });
-  
+async function apiGet(path: string) {
+  const res = await fetch(apiUrl(path), { method: "GET", headers: apiHeaders() });
   return res.json();
 }
 
+// ── Uber Direct API Methods ──
+
+/** Get delivery quote */
+export async function getDeliveryQuote(pickupAddress: string, dropoffAddress: string, coords?: {
+  pickup_latitude?: number; pickup_longitude?: number;
+  dropoff_latitude?: number; dropoff_longitude?: number;
+}) {
+  return apiPost("/quote", { pickup_address: pickupAddress, dropoff_address: dropoffAddress, ...coords });
+}
+
+/** Create a delivery from a quote */
+export async function createDelivery(quoteId: string, pickup: any, dropoff: any, manifest: any, options?: {
+  tip?: number; requires_dropoff_signature?: boolean; requires_id_verification?: boolean;
+  pickup_notes?: string; dropoff_notes?: string; external_id?: string;
+  pickup_ready_dt?: string; pickup_deadline_dt?: string;
+  dropoff_ready_dt?: string; dropoff_deadline_dt?: string;
+  undeliverable_action?: string; manifest_items?: any[];
+}) {
+  return apiPost("/create", { quote_id: quoteId, pickup, dropoff, manifest, ...options });
+}
+
+/** Get delivery status */
 export async function getDeliveryStatus(deliveryId: string) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  
-  const res = await fetch(`${supabaseUrl}/functions/v1/uber-direct/status?id=${deliveryId}`, {
-    method: "GET",
-    headers: {
-      "apikey": anonKey,
-      "Authorization": `Bearer ${anonKey}`,
-    },
-  });
-  
-  return res.json();
+  return apiGet(`/status?id=${deliveryId}`);
 }
 
+/** List all deliveries */
+export async function listDeliveries(filter?: string, limit = 50, offset = 0) {
+  let path = `/list?limit=${limit}&offset=${offset}`;
+  if (filter) path += `&filter=${encodeURIComponent(filter)}`;
+  return apiGet(path);
+}
+
+/** Cancel a delivery */
 export async function cancelDelivery(deliveryId: string) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  
-  const res = await fetch(`${supabaseUrl}/functions/v1/uber-direct/cancel`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": anonKey,
-      "Authorization": `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({ delivery_id: deliveryId }),
-  });
-  
-  return res.json();
+  return apiPost("/cancel", { delivery_id: deliveryId });
+}
+
+/** Update tip for a delivery */
+export async function updateTip(deliveryId: string, tipAmount: number) {
+  return apiPost("/tip", { delivery_id: deliveryId, tip_amount: tipAmount });
+}
+
+/** Get proof of delivery */
+export async function getProofOfDelivery(deliveryId: string) {
+  return apiGet(`/pod?id=${deliveryId}`);
+}
+
+/** Update a delivery in progress */
+export async function updateDelivery(deliveryId: string, updates: {
+  dropoff_notes?: string; pickup_notes?: string; manifest_items?: any[];
+  requires_dropoff_signature?: boolean; tip_by_customer?: number;
+}) {
+  return apiPost("/update", { delivery_id: deliveryId, ...updates });
+}
+
+/** Get batch quotes */
+export async function getBatchQuotes(requests: { pickup_address: string; dropoff_address: string }[]) {
+  return apiPost("/batch-quote", { requests });
+}
+
+/** Quick fee estimate */
+export async function getDeliveryEstimate(pickupAddress: string, dropoffAddress: string) {
+  return apiPost("/estimate", { pickup_address: pickupAddress, dropoff_address: dropoffAddress });
 }
