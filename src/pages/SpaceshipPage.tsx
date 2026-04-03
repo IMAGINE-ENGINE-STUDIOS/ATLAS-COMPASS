@@ -2368,7 +2368,7 @@ out center 15;`;
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute top-20 right-4 z-30 w-80"
+                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
                 <GlassPanel className="p-4">
                   <div className="flex items-center justify-between mb-3">
