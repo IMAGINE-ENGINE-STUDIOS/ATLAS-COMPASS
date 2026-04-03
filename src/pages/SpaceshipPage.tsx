@@ -1131,25 +1131,35 @@ out center 20;`;
             description: tags.description || undefined,
           });
 
-          // Glassmorphic tag pin at real coordinates
+          // High-quality glassmorphic pin at real coordinates
           const tagText = `${icon} ${tags.name}`;
+          const bgColor = colorMap[amenity] || "rgba(0,212,255,0.65)";
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(el.lon, el.lat, 8),
+            position: Cartesian3.fromDegrees(el.lon, el.lat, 5),
+            point: {
+              pixelSize: 10,
+              color: Color.fromCssColorString(bgColor),
+              outlineColor: Color.WHITE.withAlpha(0.9),
+              outlineWidth: 2.5,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 100, nearValue: 1.4, far: 20000, farValue: 0.4 } as any,
+              heightReference: 1,
+            },
             label: {
               text: tagText,
-              font: "bold 14px 'Inter', 'SF Pro', system-ui, sans-serif",
+              font: "bold 13px 'Inter', system-ui, sans-serif",
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
               style: 2,
-              outlineWidth: 2,
-              outlineColor: Color.BLACK.withAlpha(0.6),
+              outlineWidth: 3,
+              outlineColor: Color.BLACK.withAlpha(0.8),
               fillColor: Color.WHITE,
-              backgroundColor: Color.fromCssColorString(pinColor).withAlpha(0.55),
+              backgroundColor: Color.fromCssColorString(bgColor),
               showBackground: true,
-              backgroundPadding: new Cartesian2(10, 6),
-              scaleByDistance: { near: 100, nearValue: 1.2, far: 15000, farValue: 0.35 } as any,
-              translucencyByDistance: { near: 100, nearValue: 1.0, far: 25000, farValue: 0.0 } as any,
-              pixelOffset: new Cartesian2(0, -8),
+              backgroundPadding: new Cartesian2(8, 5),
+              scaleByDistance: { near: 100, nearValue: 1.1, far: 12000, farValue: 0.3 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 20000, farValue: 0.0 } as any,
+              pixelOffset: new Cartesian2(0, -22),
               heightReference: 1,
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
