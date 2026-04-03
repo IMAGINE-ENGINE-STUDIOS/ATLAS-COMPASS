@@ -1097,10 +1097,13 @@ out center 20;`;
           bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
         };
 
+        // Refined category colors matching the UI design system
         const colorMap: Record<string, string> = {
-          restaurant: "#f97316", fast_food: "#f97316", cafe: "#d97706",
-          fuel: "#ef4444", pharmacy: "#a855f7", hospital: "#ef4444", bank: "#3b82f6",
-          hotel: "#6366f1", supermarket: "#22c55e", convenience: "#22c55e",
+          restaurant: "rgba(249,115,22,0.75)", fast_food: "rgba(249,115,22,0.7)",
+          cafe: "rgba(217,119,6,0.75)", fuel: "rgba(239,68,68,0.7)",
+          pharmacy: "rgba(168,85,247,0.7)", hospital: "rgba(239,68,68,0.7)",
+          bank: "rgba(59,130,246,0.7)", hotel: "rgba(99,102,241,0.7)",
+          supermarket: "rgba(34,197,94,0.7)", convenience: "rgba(34,197,94,0.65)",
         };
 
         data.elements.forEach((el: any) => {
