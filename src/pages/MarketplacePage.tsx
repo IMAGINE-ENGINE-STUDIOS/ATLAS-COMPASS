@@ -3,7 +3,10 @@ import { Search, Plus, Star, Package, Sparkles, Filter, ArrowUpRight, Eye, Heart
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 
 /* ── DATA ── */
-const categories = ["All", "Raw Materials", "Energy", "Manufacturing", "Technology", "Agriculture", "Consumer Goods", "Services"];
+const categories = ["All", "Nearby", "Raw Materials", "Energy", "Manufacturing", "Technology", "Agriculture", "Consumer Goods", "Services"];
+import { getUserLocation, haversineDistance, getDeliveryZone, zoneInfo, type UserLocation } from "@/lib/delivery-service";
+import DeliveryBanner from "@/components/delivery/DeliveryBanner";
+import DeliveryQuoteCard from "@/components/delivery/DeliveryQuoteCard";
 
 const products = [
   { id: "PRD-001", name: "Grade A Crude Oil", seller: "Aramco Industries", sector: "Energy", price: "$78.42", unit: "/bbl", stock: "500K barrels", rating: 4.9, status: "Active", featured: true, views: "24.8K", image: "🛢️", storeLat: 25.2854, storeLng: 51.5310 },
