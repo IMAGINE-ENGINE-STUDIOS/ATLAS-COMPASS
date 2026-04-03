@@ -15,7 +15,7 @@ import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
 import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
-import POICard from "@/components/POICard";
+import POICard, { type POIData } from "@/components/POICard";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -269,6 +269,8 @@ export default function SpaceshipPage() {
   const [showBusinessIcons, setShowBusinessIcons] = useState(false);
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
+  const businessDataRef = useRef<Map<string, POIData>>(new Map());
+  const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
 
   // Real-time aircraft & ship tracking
   const [showLiveTraffic, setShowLiveTraffic] = useState(false);
@@ -977,6 +979,15 @@ out center 20;`;
             setSelectedVessel(null);
           }
         }
+        // Check if it's a business entity
+        if (entityId.startsWith("biz-")) {
+          const bizData = businessDataRef.current.get(entityId);
+          if (bizData) {
+            setSelectedBusiness(bizData);
+            // Fly closer
+            viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 300), duration: 1 });
+          }
+        }
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
 
@@ -1048,8 +1059,25 @@ out center 20;`;
           if (!tags.name) return;
           const amenity = tags.amenity || tags.shop || tags.tourism || "";
           const icon = iconMap[amenity] || "📍";
+          const entityId = `biz-${el.id}`;
+          const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ");
+          
+          // Store full data for popup
+          businessDataRef.current.set(entityId, {
+            id: el.id,
+            name: tags.name,
+            emoji: icon,
+            category: amenity ? (amenity.charAt(0).toUpperCase() + amenity.slice(1)).replace(/_/g, " ") : "Business",
+            address: addr || undefined,
+            lat: el.lat,
+            lng: el.lon,
+            phone: tags.phone || tags["contact:phone"] || undefined,
+            website: tags.website || tags["contact:website"] || undefined,
+            openNow: tags.opening_hours === "24/7" ? true : undefined,
+          });
+
           const entity = viewer.entities.add({
-            id: `biz-${el.id}`,
+            id: entityId,
             position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
             label: {
               text: `${icon} ${tags.name}`,
@@ -1994,7 +2022,15 @@ out center 20;`;
                                 lng: b.lng,
                                 distance: b.distance,
                               }}
-                              onNavigate={() => flyToBusiness(b)}
+                              onNavigate={() => {
+                                flyToBusiness(b);
+                                setSelectedBusiness({
+                                  id: b.id, name: b.name, emoji: b.type.split(" ")[0],
+                                  category: b.type.slice(b.type.indexOf(" ") + 1),
+                                  address: b.address, lat: b.lat, lng: b.lng, distance: b.distance,
+                                });
+                                setSearchOpen(false);
+                              }}
                             />
                           ));
                         })()}
@@ -2022,7 +2058,12 @@ out center 20;`;
                               lat: r.lat,
                               lng: r.lng,
                             }}
-                            onNavigate={() => flyTo(r)}
+                            onNavigate={() => {
+                              flyTo(r);
+                              const emoji = (() => { const t = r.type; if (t.includes("Restaurant") || t.includes("Food")) return "🍽️"; if (t.includes("Cafe")) return "☕"; if (t.includes("Hotel")) return "🏨"; if (t.includes("Shop") || t.includes("Supermarket")) return "🛒"; if (t.includes("Fuel")) return "⛽"; if (t.includes("Health")) return "🏥"; return "📍"; })();
+                              setSelectedBusiness({ name: r.name, emoji, category: r.type, lat: r.lat, lng: r.lng });
+                              setSearchOpen(false);
+                            }}
                           />
                         ))}
                       </>
@@ -2779,6 +2820,46 @@ out center 20;`;
                     Created {new Date(selectedPOI.createdAt).toLocaleString()}
                   </p>
                 </GlassPanel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Business POI Card Popup */}
+          <AnimatePresence>
+            {selectedBusiness && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                className={isMobile
+                  ? "absolute inset-x-3 bottom-28 z-40"
+                  : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
+                }
+              >
+                <div className="relative">
+                  <button onClick={() => setSelectedBusiness(null)}
+                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <POICard
+                    poi={selectedBusiness}
+                    variant="glass"
+                    onNavigate={(poi) => {
+                      const viewer = viewerRef.current;
+                      if (viewer && !viewer.isDestroyed()) {
+                        viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), duration: 1 });
+                      }
+                    }}
+                    onSelect={(poi) => {
+                      // Open in search for delivery address use
+                      setSearchOpen(true);
+                      setSearchQuery(poi.name);
+                      handleSearch(poi.name);
+                      setSelectedBusiness(null);
+                    }}
+                  />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
