@@ -1998,8 +1998,8 @@ out center 20;`;
                       </div>
                     )}
 
-                    {/* Geofenced nearby businesses (always shown when available) */}
-                    {geoBusinesses.length > 0 && !searchQuery && (
+                    {/* Geofenced nearby businesses (always shown) */}
+                    {geoBusinesses.length > 0 && (
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-emerald-500/20" />
