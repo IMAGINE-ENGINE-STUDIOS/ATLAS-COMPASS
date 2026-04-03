@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MapPin, Globe, Loader2, Search, Store, Navigation } from "lucide-react";
-
+import { MapPin, Loader2, Search, Store, Navigation } from "lucide-react";
+import POICard, { type POIData } from "@/components/POICard";
 interface Suggestion {
   label: string;
   address: string;
