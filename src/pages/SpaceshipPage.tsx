@@ -2022,7 +2022,15 @@ out center 20;`;
                                 lng: b.lng,
                                 distance: b.distance,
                               }}
-                              onNavigate={() => flyToBusiness(b)}
+                              onNavigate={() => {
+                                flyToBusiness(b);
+                                setSelectedBusiness({
+                                  id: b.id, name: b.name, emoji: b.type.split(" ")[0],
+                                  category: b.type.slice(b.type.indexOf(" ") + 1),
+                                  address: b.address, lat: b.lat, lng: b.lng, distance: b.distance,
+                                });
+                                setSearchOpen(false);
+                              }}
                             />
                           ));
                         })()}
