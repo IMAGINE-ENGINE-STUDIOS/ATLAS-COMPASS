@@ -357,12 +357,20 @@ export default function SpaceshipPage() {
       const data = await resp.json();
       const results = (data.elements || [])
         .filter((el: any) => el.tags?.name)
-        .map((el: any) => ({
-          id: el.id, name: el.tags.name, lat: el.lat, lng: el.lon,
-          type: geoClassify(el.tags || {}),
-          address: [el.tags["addr:street"], el.tags["addr:housenumber"]].filter(Boolean).join(" ") || "",
-          distance: geoHaversine(center.lat, center.lng, el.lat, el.lon),
-        }))
+        .map((el: any) => {
+          const tags = el.tags || {};
+          return {
+            id: el.id, name: tags.name, lat: el.lat, lng: el.lon,
+            type: geoClassify(tags),
+            address: [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"]].filter(Boolean).join(" ") || "",
+            distance: geoHaversine(center.lat, center.lng, el.lat, el.lon),
+            phone: tags.phone || tags["contact:phone"] || "",
+            website: tags.website || tags["contact:website"] || "",
+            brand: tags.brand || "",
+            cuisine: tags.cuisine || "",
+            openNow: tags.opening_hours === "24/7" ? true : undefined,
+          };
+        })
         .filter((b: any) => b.distance <= geoRadiusKm)
         .sort((a: any, b: any) => a.distance - b.distance);
       setGeoBusinesses(results);
