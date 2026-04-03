@@ -15,7 +15,7 @@ import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
 import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
-import POICard from "@/components/POICard";
+import POICard, { type POIData } from "@/components/POICard";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
