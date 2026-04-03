@@ -166,49 +166,59 @@ export default function AddressAutocomplete({ value, onChange, placeholder = "En
       </div>
 
       {open && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto rounded-xl border border-border/40 bg-card shadow-xl backdrop-blur-xl">
+        <div className="absolute z-50 mt-1 w-full max-h-72 overflow-y-auto rounded-xl border border-border/40 bg-card shadow-xl backdrop-blur-xl p-1.5 space-y-0.5">
           {/* Businesses first */}
           {suggestions.some(s => s.type === "business") && (
-            <div className="px-3 pt-2 pb-1">
+            <div className="px-2 pt-1 pb-0.5">
               <p className="text-[9px] font-mono uppercase text-muted-foreground flex items-center gap-1">
                 <Store className="w-3 h-3" /> Businesses & Stores
               </p>
             </div>
           )}
           {suggestions.filter(s => s.type === "business").map((s, i) => (
-            <button key={`b-${i}`} onClick={() => selectSuggestion(s)}
-              className="w-full text-left px-3 py-2.5 hover:bg-primary/10 flex items-start gap-2 transition-colors min-h-[44px]">
-              <span className="text-base mt-0.5">{s.emoji}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{s.label}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{s.address}</p>
-              </div>
-              {s.distance != null && (
-                <span className="text-[9px] text-muted-foreground whitespace-nowrap mt-1">{s.distance < 1 ? `${(s.distance * 1000).toFixed(0)}m` : `${s.distance.toFixed(1)}km`}</span>
-              )}
-            </button>
+            <POICard
+              key={`b-${i}`}
+              compact
+              variant="solid"
+              index={i}
+              poi={{
+                name: s.label,
+                emoji: s.emoji,
+                category: "Business",
+                address: s.address,
+                lat: s.lat,
+                lng: s.lng,
+                distance: s.distance,
+              }}
+              onSelect={() => selectSuggestion(s)}
+            />
           ))}
 
           {/* Addresses */}
           {suggestions.some(s => s.type === "address") && (
-            <div className="px-3 pt-2 pb-1 border-t border-border/20">
+            <div className="px-2 pt-1.5 pb-0.5 border-t border-border/20">
               <p className="text-[9px] font-mono uppercase text-muted-foreground flex items-center gap-1">
                 <MapPin className="w-3 h-3" /> Addresses
               </p>
             </div>
           )}
           {suggestions.filter(s => s.type === "address").map((s, i) => (
-            <button key={`a-${i}`} onClick={() => selectSuggestion(s)}
-              className="w-full text-left px-3 py-2.5 hover:bg-primary/10 flex items-start gap-2 transition-colors min-h-[44px]">
-              <MapPin className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{s.label}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{s.address}</p>
-              </div>
-              {s.distance != null && (
-                <span className="text-[9px] text-muted-foreground whitespace-nowrap mt-1">{s.distance < 1 ? `${(s.distance * 1000).toFixed(0)}m` : `${s.distance.toFixed(1)}km`}</span>
-              )}
-            </button>
+            <POICard
+              key={`a-${i}`}
+              compact
+              variant="solid"
+              index={i}
+              poi={{
+                name: s.label,
+                emoji: "📍",
+                category: "Address",
+                address: s.address,
+                lat: s.lat,
+                lng: s.lng,
+                distance: s.distance,
+              }}
+              onSelect={() => selectSuggestion(s)}
+            />
           ))}
         </div>
       )}
