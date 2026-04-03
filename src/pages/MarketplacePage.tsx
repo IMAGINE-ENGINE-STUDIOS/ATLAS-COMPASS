@@ -84,10 +84,31 @@ export default function MarketplacePage() {
   const [hoveredProduct, setHoveredProduct] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
 
-  const filtered = products.filter(p =>
-    (activeCategory === "All" || p.sector === activeCategory) &&
-    (searchQuery === "" || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.seller.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [deliveryProduct, setDeliveryProduct] = useState<typeof products[0] | null>(null);
+
+  useEffect(() => {
+    getUserLocation().then(setUserLocation).catch(() => {});
+  }, []);
+
+  const getProductDistance = (p: typeof products[0]) => {
+    if (!userLocation) return null;
+    return haversineDistance(userLocation.lat, userLocation.lng, p.storeLat, p.storeLng);
+  };
+
+  const filtered = products.filter(p => {
+    if (activeCategory === "Nearby") {
+      const dist = getProductDistance(p);
+      return dist !== null && dist < 30;
+    }
+    return (activeCategory === "All" || p.sector === activeCategory) &&
+      (searchQuery === "" || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.seller.toLowerCase().includes(searchQuery.toLowerCase()));
+  }).sort((a, b) => {
+    if (activeCategory === "Nearby" && userLocation) {
+      return (getProductDistance(a) || 999) - (getProductDistance(b) || 999);
+    }
+    return 0;
+  });
 
   const featured = filtered.filter(p => p.featured);
   const regular = filtered.filter(p => !p.featured);
