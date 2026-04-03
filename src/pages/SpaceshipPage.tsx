@@ -24,6 +24,7 @@ import {
   PolylineGlowMaterialProperty,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
@@ -184,6 +185,7 @@ function getTypeIcon(type: string) {
 export default function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
+  const isMobile = useIsMobile();
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2217,16 +2219,19 @@ out center 20;`;
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-sm px-4"
+                className={isMobile
+                  ? "absolute inset-x-3 bottom-24 z-40 max-h-[calc(100dvh-9rem)]"
+                  : "absolute top-1/2 left-1/2 z-40 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
+                }
               >
-                <GlassPanel className="p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <MapPin className="w-5 h-5 text-yellow-400" />
-                    <h3 className="text-sm font-bold text-white">Create Point of Interest</h3>
+                <GlassPanel className={isMobile ? "max-h-[calc(100dvh-9rem)] overflow-y-auto p-4" : "p-5"}>
+                  <div className="mb-4 flex items-start gap-2">
+                    <MapPin className="mt-0.5 w-5 h-5 text-yellow-400 shrink-0" />
+                    <h3 className="min-w-0 text-sm font-bold text-white">Create Point of Interest</h3>
                   </div>
                   <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-4">
                     <p className="text-[9px] text-white/40 uppercase tracking-wider mb-1">Exact Coordinates</p>
-                    <div className="grid grid-cols-3 gap-2 text-xs font-mono text-white/70">
+                    <div className="grid grid-cols-1 gap-2 text-xs font-mono text-white/70 xs:grid-cols-3">
                       <div><span className="text-[8px] text-white/30">LAT</span><p>{namingPOI.lat.toFixed(6)}°</p></div>
                       <div><span className="text-[8px] text-white/30">LNG</span><p>{namingPOI.lng.toFixed(6)}°</p></div>
                       <div><span className="text-[8px] text-white/30">ALT</span><p>{formatAlt(namingPOI.alt)}</p></div>
@@ -2244,7 +2249,7 @@ out center 20;`;
                     placeholder="Description (optional)..." rows={3}
                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/20 transition-colors resize-none"
                   />
-                  <div className="flex gap-2 mt-4">
+                  <div className={isMobile ? "mt-4 flex flex-col-reverse gap-2" : "mt-4 flex gap-2"}>
                     <button onClick={confirmPOI} disabled={!poiName.trim()}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded-xl text-sm font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                       <Check className="w-4 h-4" /> Save Point
