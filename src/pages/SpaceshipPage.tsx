@@ -1091,6 +1091,9 @@ out center 20;`;
             phone: tags.phone || tags["contact:phone"] || undefined,
             website: tags.website || tags["contact:website"] || undefined,
             openNow: tags.opening_hours === "24/7" ? true : undefined,
+            brand: tags.brand || undefined,
+            cuisine: tags.cuisine || undefined,
+            description: tags.description || undefined,
           });
 
           const entity = viewer.entities.add({
