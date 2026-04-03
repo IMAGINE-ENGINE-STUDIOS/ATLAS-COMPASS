@@ -1015,11 +1015,11 @@ out center 20;`;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Scale radius and results by altitude — allow up to 200km
-      if (alt > 200000) return;
+      // Scale radius and results by altitude — allow up to 500km for wider view
+      if (alt > 500000) return;
 
-      const radius = alt < 5000 ? 0.03 : alt < 20000 ? 0.08 : alt < 80000 ? 0.2 : 0.4;
-      const limit = alt < 20000 ? 80 : 40;
+      const radius = alt < 5000 ? 0.05 : alt < 20000 ? 0.12 : alt < 80000 ? 0.3 : 0.5;
+      const limit = alt < 20000 ? 120 : 60;
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
@@ -1814,7 +1814,7 @@ out center 20;`;
 
               <div className="flex items-center gap-2">
                 <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
-                  <button onClick={() => { setSearchOpen(!searchOpen); if (!searchOpen) { setSearchResults(PRESETS); if (!geoCenter) geofenceFromCamera(); } }}>
+                  <button onClick={() => { setSearchOpen(!searchOpen); if (!searchOpen) { setSearchResults(PRESETS); geoLocateUser(); } }}>
                     <Search className="w-5 h-5 text-white/70" />
                   </button>
                 </GlassPanel>
@@ -1868,11 +1868,15 @@ out center 20;`;
                   {/* Business/Store Icons Toggle */}
                   <button
                     onClick={() => {
-                      setShowBusinessIcons(!showBusinessIcons);
-                      if (!showBusinessIcons) {
+                      const next = !showBusinessIcons;
+                      setShowBusinessIcons(next);
+                      if (next) {
+                        // Reset cache so pins reload immediately
+                        businessLoadedAreaRef.current = "";
                         setSearchOpen(true);
                         setGeoCategory("all");
-                        if (!geoCenter) geofenceFromCamera();
+                        // Auto-locate user for nearby results
+                        geoLocateUser();
                       }
                     }}
                     className={`p-1.5 rounded-lg transition-colors ${showBusinessIcons ? "bg-emerald-500/20 text-emerald-400" : "text-white/40 hover:text-white/70"}`}
@@ -1994,8 +1998,8 @@ out center 20;`;
                       </div>
                     )}
 
-                    {/* Geofenced nearby businesses (always shown when available) */}
-                    {geoBusinesses.length > 0 && !searchQuery && (
+                    {/* Geofenced nearby businesses (always shown) */}
+                    {geoBusinesses.length > 0 && (
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-emerald-500/20" />
@@ -2003,8 +2007,9 @@ out center 20;`;
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
                         {(() => {
-                          const filtered = geoSearchQuery
-                            ? geoBusinesses.filter(b => b.name.toLowerCase().includes(geoSearchQuery.toLowerCase()) || b.type.toLowerCase().includes(geoSearchQuery.toLowerCase()))
+                          const q = searchQuery.toLowerCase();
+                          const filtered = q
+                            ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q))
                             : geoBusinesses;
                           return filtered.map((b: any, idx: number) => (
                             <POICard
