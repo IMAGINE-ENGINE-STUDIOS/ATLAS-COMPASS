@@ -853,7 +853,7 @@ out center 15;`;
       businessLoadedAreaRef.current = areaKey;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
-      const query = `[out:json][timeout:10];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|hospital|bank|bar|pub"](${bbox});node["tourism"~"hotel|motel|hostel|guest_house"](${bbox}););out 80;`;
+      const query = `[out:json][timeout:15];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|hospital|bank|bar|pub"](${bbox});node["tourism"~"hotel|motel|hostel|guest_house"](${bbox}););out 200;`;
       try {
         const resp = await fetch("https://overpass-api.de/api/interpreter", {
           method: "POST",
