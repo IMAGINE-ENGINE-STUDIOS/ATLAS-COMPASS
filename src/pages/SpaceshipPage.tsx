@@ -1527,22 +1527,20 @@ out center 20;`;
     const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 500 : 5000;
     viewerRef.current.camera.flyTo({
       destination: Cartesian3.fromDegrees(result.lng, result.lat, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -45 : -35), roll: 0 },
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -50 : -35), roll: 0 },
       duration: 1.8,
     });
     viewerRef.current.entities.add({
       position: Cartesian3.fromDegrees(result.lng, result.lat),
       name: result.name,
       label: {
-        text: result.name, font: "14px Inter, sans-serif",
+        text: `📍 ${result.name}`, font: "bold 14px 'Inter', system-ui, sans-serif",
         fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
-        pixelOffset: new Cartesian2(0, -30),
+        pixelOffset: new Cartesian2(0, -8),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-      point: {
-        pixelSize: 10, color: Color.fromCssColorString("#00d4ff"),
-        outlineColor: Color.WHITE, outlineWidth: 2,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        showBackground: true,
+        backgroundColor: Color.fromCssColorString("#00d4ff").withAlpha(0.55),
+        backgroundPadding: new Cartesian2(10, 6),
       },
     });
     setSearchOpen(false);
