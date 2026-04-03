@@ -2050,6 +2050,9 @@ out center 20;`;
                                   id: b.id, name: b.name, emoji: b.type.split(" ")[0],
                                   category: b.type.slice(b.type.indexOf(" ") + 1),
                                   address: b.address, lat: b.lat, lng: b.lng, distance: b.distance,
+                                  phone: b.phone || undefined, website: b.website || undefined,
+                                  brand: b.brand || undefined, cuisine: b.cuisine || undefined,
+                                  openNow: b.openNow,
                                 });
                                 setSearchOpen(false);
                               }}
