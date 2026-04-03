@@ -679,6 +679,10 @@ out center 20;`;
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
 
+    // Force continuous rendering so the globe appears immediately
+    viewer.scene.requestRenderMode = false;
+    viewer.scene.maximumRenderTimeChange = Infinity;
+
     // Add world terrain
     createWorldTerrainAsync({
       requestWaterMask: false,
@@ -686,6 +690,7 @@ out center 20;`;
     }).then((terrain) => {
       if (!viewer.isDestroyed()) {
         viewer.terrainProvider = terrain;
+        viewer.scene.requestRender();
       }
     });
 
@@ -697,6 +702,7 @@ out center 20;`;
         (viewer as any)._realisticTileset = tileset;
         // Hide globe when realistic tiles are active to prevent z-fighting
         viewer.scene.globe.show = false;
+        viewer.scene.requestRender();
       }
     }).catch(() => {
       // Fallback: if realistic tiles fail, use OSM buildings
