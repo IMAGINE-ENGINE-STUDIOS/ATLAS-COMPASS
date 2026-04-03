@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Search, Plus, Star, Package, Sparkles, Filter, ArrowUpRight, Eye, Heart, ShoppingCart, TrendingUp, Zap, Globe, ChevronRight, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Search, Plus, Star, Package, Sparkles, Filter, ArrowUpRight, Eye, Heart, ShoppingCart, TrendingUp, Zap, Globe, ChevronRight, X, Truck, MapPin } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 
 /* ── DATA ── */
