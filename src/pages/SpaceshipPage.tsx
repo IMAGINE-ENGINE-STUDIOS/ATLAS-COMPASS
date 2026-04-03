@@ -1014,6 +1014,9 @@ out center 20;`;
   }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
 
   // ── Business/Store Icons on Globe ──
+  const bizLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bizLastFetchRef = useRef<number>(0);
+
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
@@ -1023,29 +1026,48 @@ out center 20;`;
       if (viewer.entities.contains(e)) viewer.entities.remove(e);
     });
     businessEntitiesRef.current = [];
+    businessDataRef.current.clear();
+    businessLoadedAreaRef.current = "";
 
     if (!showBusinessIcons) return;
 
-    // Load businesses in current view area
     const loadBusinesses = async () => {
+      // Throttle: min 3s between fetches
+      const now = Date.now();
+      if (now - bizLastFetchRef.current < 3000) return;
+
       const cam = viewer.camera.positionCartographic;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      // Scale radius and results by altitude — allow up to 500km for wider view
       if (alt > 500000) return;
 
-      const radius = alt < 5000 ? 0.05 : alt < 20000 ? 0.12 : alt < 80000 ? 0.3 : 0.5;
-      const limit = alt < 20000 ? 120 : 60;
-      const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)}`;
+      const radius = alt < 5000 ? 0.05 : alt < 20000 ? 0.1 : alt < 80000 ? 0.25 : 0.4;
+      const limit = alt < 10000 ? 60 : 30;
+      const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)},${geoCategory}`;
       if (businessLoadedAreaRef.current === areaKey) return;
       businessLoadedAreaRef.current = areaKey;
+      bizLastFetchRef.current = now;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
-      const query = `[out:json][timeout:10];(node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|pharmacy"](${bbox});node["tourism"~"hotel|motel"](${bbox}););out ${limit};`;
+
+      // Apply category filter to globe pins query
+      let filter = "";
+      switch (geoCategory) {
+        case "restaurant": filter = `node["amenity"~"restaurant|fast_food"](${bbox});`; break;
+        case "cafe": filter = `node["amenity"="cafe"](${bbox});`; break;
+        case "hotel": filter = `node["tourism"~"hotel|motel|hostel"](${bbox});`; break;
+        case "fuel": filter = `node["amenity"="fuel"](${bbox});`; break;
+        case "health": filter = `node["amenity"~"hospital|pharmacy|clinic"](${bbox});`; break;
+        case "supermarket": filter = `node["shop"~"supermarket|convenience|grocery"](${bbox});`; break;
+        case "shop": filter = `node["shop"](${bbox});`; break;
+        default: filter = `node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital"](${bbox});node["tourism"~"hotel|motel"](${bbox});`;
+      }
+
+      const query = `[out:json][timeout:8];(${filter});out ${limit};`;
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
         const resp = await fetch("https://overpass-api.de/api/interpreter", {
           method: "POST",
           body: `data=${encodeURIComponent(query)}`,
@@ -1053,9 +1075,9 @@ out center 20;`;
           signal: controller.signal,
         });
         clearTimeout(timeout);
-        if (!resp.ok) return;
+        if (!resp.ok || viewer.isDestroyed()) return;
         const data = await resp.json();
-        if (!data.elements) return;
+        if (!data.elements || viewer.isDestroyed()) return;
 
         // Clear old before adding new
         businessEntitiesRef.current.forEach(e => {
@@ -1071,6 +1093,12 @@ out center 20;`;
           bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
         };
 
+        const colorMap: Record<string, string> = {
+          restaurant: "#f97316", fast_food: "#f97316", cafe: "#d97706",
+          fuel: "#ef4444", pharmacy: "#a855f7", hospital: "#ef4444", bank: "#3b82f6",
+          hotel: "#6366f1", supermarket: "#22c55e", convenience: "#22c55e",
+        };
+
         data.elements.forEach((el: any) => {
           const tags = el.tags || {};
           if (!tags.name) return;
@@ -1078,8 +1106,8 @@ out center 20;`;
           const icon = iconMap[amenity] || "📍";
           const entityId = `biz-${el.id}`;
           const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ");
-          
-          // Store full data for popup
+          const pinColor = colorMap[amenity] || "#00d4ff";
+
           businessDataRef.current.set(entityId, {
             id: el.id,
             name: tags.name,
@@ -1096,22 +1124,32 @@ out center 20;`;
             description: tags.description || undefined,
           });
 
+          // Use point + small label for performance (not heavy billboard)
           const entity = viewer.entities.add({
             id: entityId,
             position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
+            point: {
+              pixelSize: 10,
+              color: Color.fromCssColorString(pinColor),
+              outlineColor: Color.WHITE,
+              outlineWidth: 2,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: { near: 100, nearValue: 1.5, far: 8000, farValue: 0.4 } as any,
+              heightReference: 1, // CLAMP_TO_GROUND
+            },
             label: {
               text: `${icon} ${tags.name}`,
-              font: "13px sans-serif",
+              font: "12px sans-serif",
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              style: 2, // FILL_AND_OUTLINE
-              outlineWidth: 3,
-              outlineColor: { red: 0, green: 0, blue: 0, alpha: 0.7 } as any,
-              fillColor: { red: 1, green: 1, blue: 1, alpha: 1 } as any,
-              scaleByDistance: { near: 100, nearValue: 1.0, far: 5000, farValue: 0.2 } as any,
-              translucencyByDistance: { near: 100, nearValue: 1.0, far: 8000, farValue: 0.0 } as any,
-              pixelOffset: { x: 0, y: -10 } as any,
+              style: 2,
+              outlineWidth: 2,
+              outlineColor: Color.BLACK.withAlpha(0.8),
+              fillColor: Color.WHITE,
+              scaleByDistance: { near: 100, nearValue: 0.9, far: 3000, farValue: 0.0 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 4000, farValue: 0.0 } as any,
+              pixelOffset: new Cartesian2(0, -14),
             },
-            description: tags.name + (tags["addr:street"] ? ` — ${tags["addr:street"]}` : ""),
+            description: tags.name + (addr ? ` — ${addr}` : ""),
           });
           businessEntitiesRef.current.push(entity);
         });
@@ -1120,15 +1158,17 @@ out center 20;`;
 
     loadBusinesses();
 
-    // Reload on camera move end
+    // Debounced reload on camera move end (800ms delay)
     const removeListener = viewer.camera.moveEnd.addEventListener(() => {
-      loadBusinesses();
+      if (bizLoadTimerRef.current) clearTimeout(bizLoadTimerRef.current);
+      bizLoadTimerRef.current = setTimeout(loadBusinesses, 800);
     });
 
     return () => {
       removeListener();
+      if (bizLoadTimerRef.current) clearTimeout(bizLoadTimerRef.current);
     };
-  }, [showBusinessIcons]);
+  }, [showBusinessIcons, geoCategory]);
 
   // ── Real-time Aircraft & Ship Tracking ──
   useEffect(() => {
