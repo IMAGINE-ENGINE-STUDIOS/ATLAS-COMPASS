@@ -791,30 +791,7 @@ out center 15;`;
         }));
       }
 
-      // Vessel entities — positioned by interpolation
-      route.vessels.forEach((vessel) => {
-        const prog = vesselProgressRef.current.get(vessel.id) || vessel.progress;
-        const [vLng, vLat] = interpolatePosition(route.waypoints, prog);
-        const vHeight = route.type === "air" ? 35000 + (prog * 5000) : 0;
-        const catInfo = CARGO_CATEGORIES.find(c => c.id === vessel.category);
-        const vesselEntity = viewer.entities.add({
-          id: `vessel-${vessel.id}`,
-          position: Cartesian3.fromDegrees(vLng, vLat, vHeight),
-          label: {
-            text: catInfo?.icon || (route.type === "air" ? "✈" : "🚢"),
-            font: route.type === "air" ? "20px sans-serif" : "18px sans-serif",
-            fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 1, style: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: { near: 1e4, nearValue: 1.5, far: 3e6, farValue: 0.1 } as any,
-            translucencyByDistance: { near: 1e4, nearValue: 1.0, far: 5e6, farValue: 0.0 } as any,
-          },
-          point: { pixelSize: 5, color: lineColor, outlineColor: lineColor.withAlpha(0.3), outlineWidth: 10, disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: { near: 1e4, nearValue: 1.0, far: 1e7, farValue: 0.3 } as any },
-          description: JSON.stringify({ vesselId: vessel.id, routeId: route.id }),
-        });
-        cargoEntitiesRef.current.push(vesselEntity);
-      });
-
-      // Port markers at endpoints
+      // Port markers at endpoints (no fake vessels — only real live tracking is used)
       [[route.waypoints[0],0],[route.waypoints[route.waypoints.length-1],1]].forEach(([pt, pi]) => {
         const [pLng, pLat] = pt as [number, number];
         cargoEntitiesRef.current.push(viewer.entities.add({
