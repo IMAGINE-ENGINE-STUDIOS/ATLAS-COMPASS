@@ -2006,7 +2006,15 @@ out center 20;`;
                       return (
                         <button
                           key={t}
-                          onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; handleSearch(catKey === "all" ? "" : t); }}
+                          onClick={() => {
+                            setGeoCategory(catKey);
+                            businessLoadedAreaRef.current = "";
+                            // Auto-enable business pins on globe when any category is selected
+                            if (!showBusinessIcons) setShowBusinessIcons(true);
+                            // Auto-locate user if no center yet
+                            if (!geoCenter) geoLocateUser();
+                            else fetchGeofencedBusinesses(geoCenter);
+                          }}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
                             geoCategory === catKey
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
