@@ -1782,12 +1782,6 @@ out center 20;`;
                   <span className="text-sm font-bold text-white">NEXUS</span>
                   <span className="text-xs text-white/30 font-mono">ATLAS</span>
                 </GlassPanel>
-                <button onClick={() => { setGeofencingOpen(!geofencingOpen); if (!geofencingOpen && !geoCenter) geofenceFromCamera(); }}>
-                  <GlassPanel className={`px-3 py-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors flex items-center gap-1.5 ${geofencingOpen ? "ring-1 ring-emerald-500/40" : ""}`}>
-                    <Filter className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs text-white/50 hidden sm:inline">Nearby</span>
-                  </GlassPanel>
-                </button>
               </div>
 
               <div className="flex items-center gap-2">
