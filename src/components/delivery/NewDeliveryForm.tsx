@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, Package, Truck, Loader2, CheckCircle2, Clock,
-  DollarSign, Shield, FileSignature, Calendar,
+  DollarSign, Navigation, Shield, FileSignature, Calendar,
   ChevronDown, ChevronUp, Zap, AlertCircle, ArrowRight
 } from "lucide-react";
 import { getDeliveryQuote, createDelivery } from "@/lib/delivery-service";

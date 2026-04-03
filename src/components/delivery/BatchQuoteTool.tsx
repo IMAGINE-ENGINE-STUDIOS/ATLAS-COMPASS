@@ -32,8 +32,6 @@ export default function BatchQuoteTool() {
     setLoading(false);
   };
 
-  const inputCls = "w-full bg-secondary/30 border border-border/30 rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary";
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">

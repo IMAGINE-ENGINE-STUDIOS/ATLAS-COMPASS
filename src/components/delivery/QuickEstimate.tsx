@@ -20,8 +20,6 @@ export default function QuickEstimate() {
     setLoading(false);
   };
 
-  const inputCls = "w-full bg-secondary/30 border border-border/30 rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary";
-
   return (
     <div className="space-y-5">
       <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
