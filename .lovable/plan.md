@@ -1,97 +1,48 @@
 
 
-## Uber Direct API Integration for Global Deliveries
+## Address Autocomplete for Delivery Tools
 
-### Overview
-Integrate the Uber Direct API to enable on-demand delivery for marketplace products. The system will use geofencing to show products to local consumers and provide delivery options based on proximity, Uber driver availability, and service range.
+### Problem
+All address inputs in Quick Estimate, Batch Quotes, and New Delivery Form are plain text fields with no suggestions. Users must type full addresses manually with no way to search for businesses/stores or pick locations from the Atlas globe.
 
-### Architecture
+### Solution
+Create a reusable `AddressAutocomplete` component and integrate it across all delivery tools. Two input methods:
+1. **Type-ahead autocomplete** -- queries Nominatim (OpenStreetMap) + Overpass API as user types, showing address matches AND business/store names
+2. **Pick from Atlas** -- a small globe/pin button opens the Atlas view where user can click a point, and the coordinates are reverse-geocoded back into the address field
 
-```text
-┌─────────────────────────────────────────────────┐
-│  Frontend (MarketplacePage / DeliveryPage)       │
-│  - Geolocation detection                        │
-│  - Product proximity filtering                  │
-│  - Delivery quote UI                            │
-│  - Order tracking widget                        │
-└──────────────┬──────────────────────────────────┘
-               │ supabase.functions.invoke()
-┌──────────────▼──────────────────────────────────┐
-│  Edge Function: uber-direct                     │
-│  - OAuth2 client_credentials → Bearer token     │
-│  - POST /v1/customers/{id}/delivery_quotes      │
-│  - POST /v1/customers/{id}/deliveries           │
-│  - GET  /v1/customers/{id}/deliveries/{id}      │
-│  - Webhook handler for status updates           │
-└──────────────┬──────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────┐
-│  Uber Direct API (api.uber.com)                 │
-└─────────────────────────────────────────────────┘
-```
+### Plan
 
-### Prerequisites
-- **Uber Direct Developer Account** at direct.uber.com with API credentials (Client ID, Client Secret, Customer ID)
-- **Lovable Cloud** enabled for edge functions
-- **3 secrets**: `UBER_CLIENT_ID`, `UBER_CLIENT_SECRET`, `UBER_CUSTOMER_ID`
+**Step 1: Create `AddressAutocomplete` component**
+- New file: `src/components/delivery/AddressAutocomplete.tsx`
+- Debounced input (300ms) that queries two sources in parallel:
+  - **Nominatim geocoding** (`nominatim.openstreetmap.org/search`) for street addresses
+  - **Overpass API** for businesses/stores matching the query text (within a ~50km radius of user location or last known position)
+- Dropdown shows results grouped: "Addresses" section and "Businesses & Stores" section with emoji icons (🍽️, 🛒, ⛽, etc.)
+- Each result shows name, full address, and distance if user location is available
+- On selection, fills the input with the formatted address and stores lat/lng
+- A small 🌍 button on the right opens Atlas in a modal/drawer for point-picking
+- Props: `value`, `onChange(address, coords?)`, `placeholder`
 
-### Implementation Steps
+**Step 2: Atlas point-picker modal**
+- When user clicks the globe icon, open a lightweight dialog with an embedded Cesium viewer (or navigate to `/atlas` with a `?pickMode=true` query param and listen for a postMessage/callback)
+- Simpler approach: use a modal with a mini-map powered by Leaflet (lightweight) where user can click to drop a pin, then reverse-geocode via Nominatim
+- On confirm, the address and coordinates populate the input field
 
-#### 1. Create Edge Function: `supabase/functions/uber-direct/index.ts`
-Handles all Uber Direct API communication server-side:
-- **OAuth2 token management**: `POST https://login.uber.com/oauth/v2/token` with `client_credentials` grant, scope `eats.deliveries`
-- **Endpoints exposed**:
-  - `POST /quote` — Get delivery quote (fee, ETA, deliverability) between pickup/dropoff addresses
-  - `POST /create` — Create a delivery order with quote_id, manifest items, contacts
-  - `GET /status/:id` — Get delivery status and driver location
-  - `POST /cancel/:id` — Cancel a delivery
-- Input validation with Zod for all request bodies
-- CORS headers on all responses
+**Step 3: Integrate into QuickEstimate**
+- Replace both plain `<input>` elements (pickup/dropoff) with `<AddressAutocomplete>`
 
-#### 2. Create Geofencing & Proximity Service: `src/lib/delivery-service.ts`
-- **Browser geolocation** to detect consumer's current position
-- **Haversine distance calculation** to filter products/stores within configurable radius (default 15km)
-- **Service area check**: Call Uber quote endpoint to verify deliverability before showing delivery option
-- **Delivery zone types**: Immediate (< 5km), Standard (5-15km), Extended (15-30km) with estimated cost tiers
+**Step 4: Integrate into BatchQuoteTool**
+- Replace all pickup/dropoff `<input>` elements in the batch rows with `<AddressAutocomplete>`
 
-#### 3. Create Delivery UI Components: `src/components/delivery/`
-- **DeliveryBanner.tsx** — Shows "Delivery available" badge on eligible products with estimated time/cost
-- **DeliveryQuoteCard.tsx** — Detailed quote display: fee breakdown, ETA, pickup/dropoff addresses, driver availability indicator
-- **DeliveryTracker.tsx** — Real-time order tracking: status timeline (pending → pickup → en_route → delivered), driver location on map, ETA countdown
-- **DeliveryCheckout.tsx** — Delivery address form, quote confirmation, place order flow
+**Step 5: Integrate into NewDeliveryForm**
+- Replace pickup and dropoff address inputs in Step 1 ("Addresses") with `<AddressAutocomplete>`
 
-#### 4. Update Marketplace Page: `src/pages/MarketplacePage.tsx`
-- Add geolocation prompt on page load to detect user position
-- Add "Nearby" filter tab that uses proximity to sort/filter products
-- Add delivery availability badge on each product card
-- Add delivery option in product detail modal with inline quote fetching
-- Show "Uber delivers in ~XX min" when hovering delivery-eligible products
-
-#### 5. Create Delivery Management Page: `src/pages/DeliveryPage.tsx`
-- Dashboard for merchants to manage active deliveries
-- List of pending, in-transit, and completed deliveries
-- Real-time status updates via polling (every 30s)
-- Add route to `/dashboard/deliveries` in App.tsx and nav in AppShell.tsx
-
-### Geofencing Logic
-- Products tagged with a store location (lat/lng)
-- Consumer location obtained via `navigator.geolocation`
-- Distance calculated client-side using Haversine formula
-- Uber quote API called to confirm actual deliverability and get real pricing
-- Products outside Uber's service range show "Pickup Only" or "Shipping" instead
-
-### Data Flow for a Delivery
-1. Consumer browses marketplace → geolocation detected
-2. Products filtered by proximity → delivery badge shown on eligible items
-3. Consumer clicks "Get Delivery Quote" → edge function calls Uber `/delivery_quotes`
-4. Quote returned with fee + ETA → consumer confirms
-5. "Order with Delivery" → edge function calls Uber `/deliveries`
-6. Tracking URL returned → DeliveryTracker shows real-time status
-7. Status polled every 30s until delivered
-
-### Technical Notes
-- Uber Direct sandbox mode available for testing (no real drivers dispatched)
-- OAuth tokens cached in-memory with TTL (token expires in ~30 min)
-- All API keys stored as Lovable secrets, never exposed to client
-- Uber Direct API requires written approval from Uber for production access
+### Technical Details
+- Nominatim API: `https://nominatim.openstreetmap.org/search?q={query}&format=json&addressdetails=1&limit=5`
+- Overpass API for business search: query `node["name"~"{query}"i]["shop"](bbox)` + amenities within user's approximate area
+- User location obtained via `navigator.geolocation` (cached) for proximity sorting and bounding box
+- Reverse geocoding for Atlas picks: `https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json`
+- Debounce at 300ms, minimum 3 characters before querying
+- Dropdown positioned absolutely below input, max-height with scroll, z-50 for layering
+- Mobile-friendly: full-width dropdown, touch-friendly tap targets (min 44px height per row)
 
