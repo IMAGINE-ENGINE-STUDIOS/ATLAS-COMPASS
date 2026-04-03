@@ -1001,8 +1001,12 @@ out center 20;`;
           const bizData = businessDataRef.current.get(entityId);
           if (bizData) {
             setSelectedBusiness(bizData);
-            // Fly closer
-            viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 300), duration: 1 });
+            // Fly to pin and center camera directly on it
+            viewer.camera.flyTo({
+              destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 200),
+              orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+              duration: 1.2,
+            });
           }
         }
       }
@@ -1124,33 +1128,26 @@ out center 20;`;
             description: tags.description || undefined,
           });
 
-          // Visible pin + label with icon at real coordinates
+          // Glassmorphic tag pin at real coordinates
+          const tagText = `${icon} ${tags.name}`;
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(el.lon, el.lat, 5),
-            point: {
-              pixelSize: 14,
-              color: Color.fromCssColorString(pinColor),
-              outlineColor: Color.WHITE,
-              outlineWidth: 3,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 200, nearValue: 1.8, far: 50000, farValue: 0.5 } as any,
-              heightReference: 1,
-            },
+            position: Cartesian3.fromDegrees(el.lon, el.lat, 8),
             label: {
-              text: `${icon} ${tags.name}`,
-              font: "bold 13px sans-serif",
+              text: tagText,
+              font: "bold 14px 'Inter', 'SF Pro', system-ui, sans-serif",
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
               style: 2,
-              outlineWidth: 3,
-              outlineColor: Color.BLACK.withAlpha(0.9),
+              outlineWidth: 2,
+              outlineColor: Color.BLACK.withAlpha(0.6),
               fillColor: Color.WHITE,
-              backgroundColor: Color.fromCssColorString(pinColor).withAlpha(0.7),
+              backgroundColor: Color.fromCssColorString(pinColor).withAlpha(0.55),
               showBackground: true,
-              backgroundPadding: new Cartesian2(6, 4),
-              scaleByDistance: { near: 200, nearValue: 1.0, far: 20000, farValue: 0.3 } as any,
-              translucencyByDistance: { near: 200, nearValue: 1.0, far: 30000, farValue: 0.0 } as any,
-              pixelOffset: new Cartesian2(0, -20),
+              backgroundPadding: new Cartesian2(10, 6),
+              scaleByDistance: { near: 100, nearValue: 1.2, far: 15000, farValue: 0.35 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 25000, farValue: 0.0 } as any,
+              pixelOffset: new Cartesian2(0, -8),
+              heightReference: 1,
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
           });
@@ -1530,22 +1527,20 @@ out center 20;`;
     const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 500 : 5000;
     viewerRef.current.camera.flyTo({
       destination: Cartesian3.fromDegrees(result.lng, result.lat, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -45 : -35), roll: 0 },
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -50 : -35), roll: 0 },
       duration: 1.8,
     });
     viewerRef.current.entities.add({
       position: Cartesian3.fromDegrees(result.lng, result.lat),
       name: result.name,
       label: {
-        text: result.name, font: "14px Inter, sans-serif",
+        text: `📍 ${result.name}`, font: "bold 14px 'Inter', system-ui, sans-serif",
         fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
-        pixelOffset: new Cartesian2(0, -30),
+        pixelOffset: new Cartesian2(0, -8),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-      point: {
-        pixelSize: 10, color: Color.fromCssColorString("#00d4ff"),
-        outlineColor: Color.WHITE, outlineWidth: 2,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        showBackground: true,
+        backgroundColor: Color.fromCssColorString("#00d4ff").withAlpha(0.55),
+        backgroundPadding: new Cartesian2(10, 6),
       },
     });
     setSearchOpen(false);
