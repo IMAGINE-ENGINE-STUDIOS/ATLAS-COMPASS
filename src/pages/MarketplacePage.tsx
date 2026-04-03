@@ -407,12 +407,23 @@ export default function MarketplacePage() {
                         <Globe className="w-3 h-3" /> {product.seller}
                       </p>
 
-                      <div className="flex items-center gap-2 mt-3">
-                        <span className="text-[10px] bg-secondary/40 backdrop-blur-sm px-2 py-0.5 rounded-full text-secondary-foreground border border-border/20">{product.sector}</span>
-                        <span className="text-[10px] text-warning flex items-center gap-0.5">
-                          <Star className="w-3 h-3 fill-warning" /> {product.rating}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                          <span className="text-[10px] bg-secondary/40 backdrop-blur-sm px-2 py-0.5 rounded-full text-secondary-foreground border border-border/20">{product.sector}</span>
+                          <span className="text-[10px] text-warning flex items-center gap-0.5">
+                            <Star className="w-3 h-3 fill-warning" /> {product.rating}
+                          </span>
+                          {(() => {
+                            const dist = getProductDistance(product);
+                            if (dist === null) return null;
+                            const zone = getDeliveryZone(dist);
+                            if (zone === "out_of_range") return null;
+                            return (
+                              <span className="text-[9px] flex items-center gap-0.5 px-2 py-0.5 rounded-full border" style={{ borderColor: `${zoneInfo[zone].color}40`, background: `${zoneInfo[zone].color}15`, color: zoneInfo[zone].color }}>
+                                <Truck className="w-2.5 h-2.5" /> {zoneInfo[zone].eta}
+                              </span>
+                            );
+                          })()}
+                        </div>
 
                       <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/20">
                         <div className="flex items-baseline gap-0.5">
