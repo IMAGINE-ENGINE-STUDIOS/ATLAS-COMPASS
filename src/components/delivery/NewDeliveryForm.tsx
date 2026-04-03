@@ -2,10 +2,11 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, Package, Truck, Loader2, CheckCircle2, Clock,
-  DollarSign, Navigation, Shield, FileSignature, Calendar,
+  DollarSign, Shield, FileSignature, Calendar,
   ChevronDown, ChevronUp, Zap, AlertCircle, ArrowRight
 } from "lucide-react";
 import { getDeliveryQuote, createDelivery } from "@/lib/delivery-service";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 type Step = "addresses" | "options" | "quote" | "confirm" | "success";
 
