@@ -1620,7 +1620,7 @@ out center 15;`;
                   </button>
                 </GlassPanel>
 
-                <GlassPanel className="flex items-center gap-1 p-1.5">
+                <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
