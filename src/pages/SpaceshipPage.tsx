@@ -2058,7 +2058,12 @@ out center 20;`;
                               lat: r.lat,
                               lng: r.lng,
                             }}
-                            onNavigate={() => flyTo(r)}
+                            onNavigate={() => {
+                              flyTo(r);
+                              const emoji = (() => { const t = r.type; if (t.includes("Restaurant") || t.includes("Food")) return "🍽️"; if (t.includes("Cafe")) return "☕"; if (t.includes("Hotel")) return "🏨"; if (t.includes("Shop") || t.includes("Supermarket")) return "🛒"; if (t.includes("Fuel")) return "⛽"; if (t.includes("Health")) return "🏥"; return "📍"; })();
+                              setSelectedBusiness({ name: r.name, emoji, category: r.type, lat: r.lat, lng: r.lng });
+                              setSearchOpen(false);
+                            }}
                           />
                         ))}
                       </>
