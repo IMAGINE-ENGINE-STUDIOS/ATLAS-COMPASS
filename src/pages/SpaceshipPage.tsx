@@ -469,13 +469,18 @@ export default function SpaceshipPage() {
   const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
     try {
       const sanitized = query.replace(/["\\\n\r]/g, '');
-      // Geofence: use camera position as center, search within ~50km radius
-      let lat = 40.7128, lng = -74.006; // fallback NYC
-      const viewer = viewerRef.current;
-      if (viewer && !viewer.isDestroyed()) {
-        const cam = viewer.camera.positionCartographic;
-        lat = CesiumMath.toDegrees(cam.latitude);
-        lng = CesiumMath.toDegrees(cam.longitude);
+      // Use user location (geoCenter) first, then camera, then fallback
+      let lat = 40.7128, lng = -74.006;
+      if (geoCenter) {
+        lat = geoCenter.lat;
+        lng = geoCenter.lng;
+      } else {
+        const viewer = viewerRef.current;
+        if (viewer && !viewer.isDestroyed()) {
+          const cam = viewer.camera.positionCartographic;
+          lat = CesiumMath.toDegrees(cam.latitude);
+          lng = CesiumMath.toDegrees(cam.longitude);
+        }
       }
       const radius = 0.45; // ~50km
       const bbox = `${(lat - radius).toFixed(4)},${(lng - radius).toFixed(4)},${(lat + radius).toFixed(4)},${(lng + radius).toFixed(4)}`;
