@@ -979,6 +979,15 @@ out center 20;`;
             setSelectedVessel(null);
           }
         }
+        // Check if it's a business entity
+        if (entityId.startsWith("biz-")) {
+          const bizData = businessDataRef.current.get(entityId);
+          if (bizData) {
+            setSelectedBusiness(bizData);
+            // Fly closer
+            viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 300), duration: 1 });
+          }
+        }
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
 
