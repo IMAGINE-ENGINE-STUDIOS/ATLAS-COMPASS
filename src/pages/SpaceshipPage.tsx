@@ -2450,22 +2450,25 @@ out center 30;`;
                 <GlassPanel className="p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Ship className="w-5 h-5 text-amber-400" />
-                    <span className="text-sm font-bold text-white">Global Cargo Traffic</span>
-                    <button onClick={() => { setShowCargoRoutes(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
+                    <span className="text-sm font-bold text-white">Trade Routes</span>
+                    <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
                       <X className="w-4 h-4 text-white/40 hover:text-white" />
                     </button>
                   </div>
 
-                  {/* Stats */}
+                  {/* Live Traffic Stats */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2 text-center">
-                      <div className="text-lg font-bold font-mono text-blue-400">{MARITIME_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-blue-400/60 uppercase">🚢 Ships</div>
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-2 text-center">
+                      <div className="text-lg font-bold font-mono text-yellow-400">{liveTrafficStats.planes.toLocaleString()}</div>
+                      <div className="text-[9px] text-yellow-400/60 uppercase">✈ Live Aircraft</div>
                     </div>
-                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2 text-center">
-                      <div className="text-lg font-bold font-mono text-pink-400">{AIR_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-pink-400/60 uppercase">✈ Planes</div>
+                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-2 text-center">
+                      <div className="text-lg font-bold font-mono text-cyan-400">{liveTrafficStats.ships.toLocaleString()}</div>
+                      <div className="text-[9px] text-cyan-400/60 uppercase">🚢 Live Vessels</div>
                     </div>
+                  </div>
+                  <div className="text-[9px] text-white/30 font-mono text-center mb-3">
+                    Aircraft: OpenSky · 10s | Ships: AISStream · Real-time WS
                   </div>
 
                   {/* Type / Category Filter */}
