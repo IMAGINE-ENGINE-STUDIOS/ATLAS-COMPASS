@@ -824,14 +824,14 @@ out center 30;`;
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 8;
         (viewer as any)._realisticTileset = tileset;
-        // Hide globe when realistic tiles are active to prevent z-fighting
-        viewer.scene.globe.show = false;
         viewer.scene.requestRender();
       }
     }).catch(() => {
-      // Fallback: if realistic tiles fail, use OSM buildings
+      // Fallback: if realistic tiles fail, show globe + OSM buildings
       if (!viewer.isDestroyed()) {
         console.warn("Realistic tiles unavailable, falling back to OSM");
+        viewer.scene.globe.show = true;
+        viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
         createOsmBuildingsAsync().then((tileset) => {
           if (!viewer.isDestroyed()) {
             viewer.scene.primitives.add(tileset);
