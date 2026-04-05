@@ -2248,7 +2248,7 @@ out center 30;`;
                   <div className="flex items-center gap-2 mb-3">
                     <Ship className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-bold text-white">Trade Routes</span>
-                    <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
+                    <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); }} className="ml-auto">
                       <X className="w-4 h-4 text-white/40 hover:text-white" />
                     </button>
                   </div>
