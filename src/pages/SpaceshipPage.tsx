@@ -12,8 +12,13 @@ import {
 } from "lucide-react";
 import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
-  ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
+  ACCEPT_STRING, convertToGltfBlob, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
+import {
+  deleteAtlasModelBlob,
+  loadAtlasModelBlob,
+  saveAtlasModelBlob,
+} from "@/lib/atlas-model-storage";
 import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type CargoCategory } from "@/lib/cargo-routes";
 import POICard, { type POIData } from "@/components/POICard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
@@ -320,6 +325,7 @@ function SpaceshipPage() {
   const [modelHeading, setModelHeading] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
+  const restoringModelIdsRef = useRef<Set<string>>(new Set());
   const brushIndicatorRef = useRef<any>(null);
   const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
@@ -1699,11 +1705,33 @@ out center 30;`;
       setPlacedModels(prev => {
         const updated = prev.map(m => m.id === id ? { ...m, lat, lng, alt } : m);
         savePlacedModels(updated);
+        const movedModel = updated.find(m => m.id === id);
+        if (movedModel && viewerRef.current) {
+          const entity = viewerRef.current.entities.getById(`model-${id}`);
+          if (entity) {
+            const pos = Cartesian3.fromDegrees(movedModel.lng, movedModel.lat, movedModel.alt || 0);
+            const hpr = new HeadingPitchRoll(
+              CesiumMath.toRadians(movedModel.heading || 0),
+              CesiumMath.toRadians(movedModel.pitch || 0),
+              CesiumMath.toRadians(movedModel.roll || 0),
+            );
+            entity.position = pos as any;
+            entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
+          }
+        }
+        setEditingModel(current => current?.id === id ? { ...current, lat, lng, alt } : current);
         return updated;
       });
     };
     window.addEventListener("cesium-model-moved", handleModelMoved);
     return () => window.removeEventListener("cesium-model-moved", handleModelMoved);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      modelUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      modelUrlsRef.current.clear();
+    };
   }, []);
 
   // Brush mode indicator visibility
@@ -1941,17 +1969,30 @@ out center 30;`;
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Tile Brush / 3D Model Placement ── */
+  const applyModelTransformToEntity = useCallback((entity: any, model: Pick<PlacedModel, "lat" | "lng" | "alt" | "heading" | "pitch" | "roll" | "scale">) => {
+    const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0);
+    entity.position = position as any;
+    if (entity.model) {
+      (entity.model as any).heightReference = 0;
+      (entity.model as any).scale = model.scale || 1;
+    }
+
+    const hpr = new HeadingPitchRoll(
+      CesiumMath.toRadians(model.heading || 0),
+      CesiumMath.toRadians(model.pitch || 0),
+      CesiumMath.toRadians(model.roll || 0),
+    );
+    entity.orientation = Transforms.headingPitchRollQuaternion(position, hpr) as any;
+  }, []);
+
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
     if (!viewerRef.current) return;
-    // Always use heightReference NONE so orientation/rotation works
-    const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0);
-    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(model.heading), CesiumMath.toRadians(model.pitch || 0), CesiumMath.toRadians(model.roll || 0));
-    const orientation = Transforms.headingPitchRollQuaternion(position, hpr);
+    const viewer = viewerRef.current;
+    const existing = viewer.entities.getById(`model-${model.id}`);
+    if (existing) viewer.entities.remove(existing);
 
-    viewerRef.current.entities.add({
+    const entity = viewer.entities.add({
       id: `model-${model.id}`,
-      position,
-      orientation: orientation as any,
       name: model.name,
       model: {
         uri: blobUrl,
@@ -1968,7 +2009,55 @@ out center 30;`;
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
-  }, []);
+
+    applyModelTransformToEntity(entity, model);
+  }, [applyModelTransformToEntity]);
+
+  useEffect(() => {
+    if (!isLoaded || !viewerRef.current) return;
+
+    let cancelled = false;
+    const viewer = viewerRef.current;
+
+    const restoreModels = async () => {
+      await Promise.all(placedModels.map(async (model) => {
+        if (cancelled || !viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+        const entityId = `model-${model.id}`;
+        const existingEntity = viewer.entities.getById(entityId);
+        if (existingEntity) {
+          applyModelTransformToEntity(existingEntity, model);
+          return;
+        }
+
+        const existingUrl = modelUrlsRef.current.get(model.id);
+        if (existingUrl) {
+          placeModelOnGlobe(model, existingUrl);
+          return;
+        }
+
+        if (restoringModelIdsRef.current.has(model.id)) return;
+        restoringModelIdsRef.current.add(model.id);
+
+        try {
+          const blob = await loadAtlasModelBlob(model.id);
+          if (!blob || cancelled || !viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+          const url = URL.createObjectURL(blob);
+          modelUrlsRef.current.set(model.id, url);
+          placeModelOnGlobe(model, url);
+        } finally {
+          restoringModelIdsRef.current.delete(model.id);
+        }
+      }));
+    };
+
+    void restoreModels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyModelTransformToEntity, isLoaded, placeModelOnGlobe, placedModels]);
 
   // ── Model Transform: live update entity in Cesium ──
   const handleTransformUpdate = useCallback((data: TransformData) => {
@@ -1978,67 +2067,50 @@ out center 30;`;
     viewer.selectedEntity = undefined;
     const entity = viewer.entities.getById(`model-${editingModel.id}`);
     if (!entity) return;
-    const pos = Cartesian3.fromDegrees(data.lng, data.lat, data.alt);
-    entity.position = pos as any;
-    // Always NONE so rotation works
-    if (entity.model) {
-      (entity.model as any).heightReference = 0;
-    }
-    const hpr = new HeadingPitchRoll(
-      CesiumMath.toRadians(data.heading),
-      CesiumMath.toRadians(data.pitch),
-      CesiumMath.toRadians(data.roll)
-    );
-    entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
-    if (entity.model) (entity.model as any).scale = data.scale;
-  }, [editingModel]);
-
-  const handleTransformApply = useCallback((data: TransformData) => {
-    if (!editingModel) return;
+    applyModelTransformToEntity(entity, data);
+    setEditingModel(current => current?.id === editingModel.id ? { ...current, ...data } : current);
     setPlacedModels(prev => {
-      const updated = prev.map(m => m.id === editingModel.id
-        ? { ...m, lat: data.lat, lng: data.lng, alt: data.alt, heading: data.heading, pitch: data.pitch, roll: data.roll, scale: data.scale }
-        : m
-      );
+      const updated = prev.map((model) => model.id === editingModel.id ? { ...model, ...data } : model);
       savePlacedModels(updated);
       return updated;
     });
+  }, [applyModelTransformToEntity, editingModel]);
+
+  const handleTransformApply = useCallback((data: TransformData) => {
+    if (!editingModel) return;
+    setEditingModel(current => current?.id === editingModel.id ? { ...current, ...data } : current);
     setEditingModel(null);
   }, [editingModel]);
 
-  const handleSnapToGround = useCallback((callback: (snapped: TransformData) => void) => {
+  const handleSnapToGround = useCallback((currentData: TransformData, callback: (snapped: TransformData) => void) => {
     if (!editingModel || !viewerRef.current) return;
     const viewer = viewerRef.current;
     const entity = viewer.entities.getById(`model-${editingModel.id}`);
     if (!entity) return;
 
-    // Sample the actual terrain/tile height at this location
-    const cartographic = Cartographic.fromDegrees(editingModel.lng, editingModel.lat);
-    let groundHeight = 0;
+    const cartographic = Cartographic.fromDegrees(currentData.lng, currentData.lat);
+    let groundHeight = currentData.alt;
     try {
-      // scene.sampleHeight samples 3D tiles + terrain
       const sampled = viewer.scene.sampleHeight(cartographic);
       if (sampled !== undefined && sampled !== null && !isNaN(sampled)) {
         groundHeight = sampled;
+      } else {
+        const terrainHeight = viewer.scene.globe.getHeight(cartographic);
+        if (terrainHeight !== undefined && terrainHeight !== null && !isNaN(terrainHeight)) {
+          groundHeight = terrainHeight;
+        }
       }
     } catch {
-      // fallback to 0
+      const terrainHeight = viewer.scene.globe.getHeight(cartographic);
+      if (terrainHeight !== undefined && terrainHeight !== null && !isNaN(terrainHeight)) {
+        groundHeight = terrainHeight;
+      }
     }
 
-    const pos = Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, groundHeight);
-    entity.position = pos as any;
-    // Keep heightReference NONE so rotation still works
-    if (entity.model) (entity.model as any).heightReference = 0;
-    const heading = editingModel.heading || 0;
-    const pitch = editingModel.pitch || 0;
-    const roll = editingModel.roll || 0;
-    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading), CesiumMath.toRadians(pitch), CesiumMath.toRadians(roll));
-    entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
-    callback({
-      lat: editingModel.lat, lng: editingModel.lng, alt: groundHeight,
-      heading, pitch, roll, scale: editingModel.scale || 1,
-    });
-  }, [editingModel]);
+    const snapped = { ...currentData, alt: groundHeight };
+    applyModelTransformToEntity(entity, snapped);
+    callback(snapped);
+  }, [applyModelTransformToEntity, editingModel]);
 
   const confirmModelPlacement = useCallback(async () => {
     if (!pendingPlacement || !modelFile || !modelName.trim()) return;
@@ -2046,15 +2118,20 @@ out center 30;`;
     setConvertingModel(true);
     setConvertError(null);
     try {
-      const blobUrl = await convertToGltfBlobUrl(modelFile, setConvertProgress);
+      const gltfBlob = await convertToGltfBlob(modelFile, setConvertProgress);
+      const modelId = crypto.randomUUID();
+      await saveAtlasModelBlob(modelId, gltfBlob, modelFile.name);
+      const blobUrl = URL.createObjectURL(gltfBlob);
       const newModel: PlacedModel = {
-        id: crypto.randomUUID(),
+        id: modelId,
         name: modelName.trim(),
         fileName: modelFile.name,
         lat: pendingPlacement.lat,
         lng: pendingPlacement.lng,
         alt: pendingPlacement.alt,
         heading: modelHeading,
+        pitch: 0,
+        roll: 0,
         scale: modelScale,
         createdAt: Date.now(),
       };
@@ -2078,16 +2155,18 @@ out center 30;`;
     }
   }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe]);
 
-  const deleteModel = useCallback((id: string) => {
+  const deleteModel = useCallback(async (id: string) => {
     const updated = placedModels.filter((m) => m.id !== id);
     setPlacedModels(updated);
     savePlacedModels(updated);
+    setEditingModel(current => current?.id === id ? null : current);
     if (viewerRef.current) {
       const entity = viewerRef.current.entities.getById(`model-${id}`);
       if (entity) viewerRef.current.entities.remove(entity);
     }
     const url = modelUrlsRef.current.get(id);
     if (url) { URL.revokeObjectURL(url); modelUrlsRef.current.delete(id); }
+    await deleteAtlasModelBlob(id);
   }, [placedModels]);
 
   const flyToModel = useCallback((model: PlacedModel) => {

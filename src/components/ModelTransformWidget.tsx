@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Move, RotateCcw, Scale, X, Check, ArrowDown,
   Plus, Minus,
@@ -20,7 +20,7 @@ interface Props {
   onUpdate: (data: TransformData) => void;
   onApply: (data: TransformData) => void;
   onClose: () => void;
-  onSnapToGround: (callback: (snapped: TransformData) => void) => void;
+  onSnapToGround: (data: TransformData, callback: (snapped: TransformData) => void) => void;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
@@ -87,6 +87,10 @@ function RotationSlider({ label, value, min, max, onChange }: {
 export default function ModelTransformWidget({ modelName, initial, onUpdate, onApply, onClose, onSnapToGround }: Props) {
   const [data, setData] = useState<TransformData>(initial);
   const [tab, setTab] = useState<"position" | "rotation" | "scale">("position");
+
+  useEffect(() => {
+    setData(initial);
+  }, [initial]);
 
   const update = useCallback((partial: Partial<TransformData>) => {
     setData(prev => {
@@ -155,9 +159,9 @@ export default function ModelTransformWidget({ modelName, initial, onUpdate, onA
             <>
               <StepInput label="Lat" value={data.lat} step={0.0001} decimals={6} onChange={v => update({ lat: v })} />
               <StepInput label="Lng" value={data.lng} step={0.0001} decimals={6} onChange={v => update({ lng: v })} />
-              <StepInput label="Alt" value={data.alt} step={1} min={0} decimals={1} onChange={v => update({ alt: v })} />
+              <StepInput label="Alt" value={data.alt} step={1} decimals={1} onChange={v => update({ alt: v })} />
               <button
-                onClick={() => onSnapToGround((snapped) => {
+                onClick={() => onSnapToGround(data, (snapped) => {
                   setData(snapped);
                   onUpdate(snapped);
                 })}
