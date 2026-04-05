@@ -388,15 +388,15 @@ function SpaceshipPage() {
   };
 
   const geoClassify = (tags: Record<string, string>) => {
-    const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "";
+    const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "", h = tags.healthcare || "";
     if (a === "restaurant" || a === "fast_food") return "🍽️ Restaurant";
     if (a === "cafe") return "☕ Café";
-    if (a === "fuel") return "⛽ Fuel";
-    if (a === "hospital" || a === "pharmacy" || a === "clinic") return "🏥 Health";
+    if (a === "fuel" || a === "charging_station") return "⛽ Fuel";
+    if (a === "hospital" || a === "pharmacy" || a === "clinic" || a === "doctors" || a === "dentist" || h) return "🏥 Health";
     if (a === "school" || a === "university") return "🎓 Education";
     if (a === "bank") return "🏦 Bank";
-    if (s === "supermarket" || s === "convenience" || s === "grocery") return "🛒 Grocery";
-    if (t === "hotel" || t === "motel" || t === "hostel") return "🏨 Hotel";
+    if (s === "supermarket" || s === "convenience" || s === "grocery" || s === "department_store" || s === "general") return "🛒 Grocery";
+    if (t === "hotel" || t === "motel" || t === "hostel" || t === "guest_house") return "🏨 Hotel";
     if (s) return "🏪 Shop";
     return "📍 Business";
   };
