@@ -1915,7 +1915,7 @@ out center 30;`;
   /* ── Tile Brush / 3D Model Placement ── */
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
     if (!viewerRef.current) return;
-    // Place at ground level (alt=0) and clamp to terrain/3D tiles
+    // Always use heightReference NONE so orientation/rotation works
     const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0);
     const hpr = new HeadingPitchRoll(CesiumMath.toRadians(model.heading), CesiumMath.toRadians(model.pitch || 0), CesiumMath.toRadians(model.roll || 0));
     const orientation = Transforms.headingPitchRollQuaternion(position, hpr);
@@ -1930,7 +1930,7 @@ out center 30;`;
         scale: model.scale,
         minimumPixelSize: 64,
         maximumScale: 20000,
-        heightReference: 1, // CLAMP_TO_GROUND
+        heightReference: 0, // NONE — required for orientation to work
       } as any,
       label: {
         text: `🏗️ ${model.name}`, font: "12px Inter, sans-serif",
@@ -1946,16 +1946,15 @@ out center 30;`;
   const handleTransformUpdate = useCallback((data: TransformData) => {
     if (!editingModel || !viewerRef.current) return;
     const viewer = viewerRef.current;
-    // Prevent camera from tracking the entity
     viewer.trackedEntity = undefined;
     viewer.selectedEntity = undefined;
     const entity = viewer.entities.getById(`model-${editingModel.id}`);
     if (!entity) return;
     const pos = Cartesian3.fromDegrees(data.lng, data.lat, data.alt);
     entity.position = pos as any;
-    // Disable height reference when alt > 0 so rotation/position are fully manual
+    // Always NONE so rotation works
     if (entity.model) {
-      (entity.model as any).heightReference = data.alt > 0 ? 0 : 1; // NONE vs CLAMP_TO_GROUND
+      (entity.model as any).heightReference = 0;
     }
     const hpr = new HeadingPitchRoll(
       CesiumMath.toRadians(data.heading),
@@ -1981,18 +1980,35 @@ out center 30;`;
 
   const handleSnapToGround = useCallback((callback: (snapped: TransformData) => void) => {
     if (!editingModel || !viewerRef.current) return;
-    const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
+    const viewer = viewerRef.current;
+    const entity = viewer.entities.getById(`model-${editingModel.id}`);
     if (!entity) return;
-    const pos = Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, 0);
+
+    // Sample the actual terrain/tile height at this location
+    const cartographic = Cartographic.fromDegrees(editingModel.lng, editingModel.lat);
+    let groundHeight = 0;
+    try {
+      // scene.sampleHeight samples 3D tiles + terrain
+      const sampled = viewer.scene.sampleHeight(cartographic);
+      if (sampled !== undefined && sampled !== null && !isNaN(sampled)) {
+        groundHeight = sampled;
+      }
+    } catch {
+      // fallback to 0
+    }
+
+    const pos = Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, groundHeight);
     entity.position = pos as any;
-    if (entity.model) (entity.model as any).heightReference = 1; // CLAMP_TO_GROUND
+    // Keep heightReference NONE so rotation still works
+    if (entity.model) (entity.model as any).heightReference = 0;
     const heading = editingModel.heading || 0;
-    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading), 0, 0);
+    const pitch = editingModel.pitch || 0;
+    const roll = editingModel.roll || 0;
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading), CesiumMath.toRadians(pitch), CesiumMath.toRadians(roll));
     entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
-    // Update widget state via callback
     callback({
-      lat: editingModel.lat, lng: editingModel.lng, alt: 0,
-      heading, pitch: 0, roll: 0, scale: editingModel.scale || 1,
+      lat: editingModel.lat, lng: editingModel.lng, alt: groundHeight,
+      heading, pitch, roll, scale: editingModel.scale || 1,
     });
   }, [editingModel]);
 
