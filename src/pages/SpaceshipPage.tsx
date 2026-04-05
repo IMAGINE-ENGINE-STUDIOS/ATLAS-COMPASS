@@ -872,6 +872,32 @@ out center 30;`;
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
       console.error("[Atlas Render Error — suppressed reload]", error);
     });
+
+    // Throttle tile loading on resize/fullscreen to prevent OOM crashes
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const onResize = () => {
+      if (viewer.isDestroyed()) return;
+      // Temporarily reduce quality during resize
+      const rt = (viewer as any)._realisticTileset;
+      const ot = (viewer as any)._osmTileset;
+      if (rt) rt.maximumScreenSpaceError = 32;
+      if (ot) ot.maximumScreenSpaceError = 32;
+      viewer.scene.globe.maximumScreenSpaceError = 8;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (viewer.isDestroyed()) return;
+        if (rt) rt.maximumScreenSpaceError = 8;
+        if (ot) ot.maximumScreenSpaceError = 4;
+        viewer.scene.globe.maximumScreenSpaceError = 2;
+        viewer.scene.requestRender();
+      }, 600);
+    };
+    window.addEventListener("resize", onResize);
+    document.addEventListener("fullscreenchange", onResize);
+    (viewer as any)._resizeCleanup = () => {
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("fullscreenchange", onResize);
+    };
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Hide globe immediately — photorealistic tiles will be the only visible layer
@@ -1085,6 +1111,7 @@ out center 30;`;
 
     return () => {
       handler.destroy();
+      if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
@@ -3182,13 +3209,23 @@ out center 30;`;
 // ── Error Boundary: prevent crash-reload loops ──
 import { Component, type ReactNode, type ErrorInfo } from "react";
 
-class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
-  state = { hasError: false, error: "" };
+class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string; retryCount: number }> {
+  state = { hasError: false, error: "", retryCount: 0 };
+  private autoRetryTimer: ReturnType<typeof setTimeout> | null = null;
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error: error.message };
   }
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[Atlas Error Boundary]", error, info);
+    // Auto-recover after 1.5s if less than 3 retries
+    if (this.state.retryCount < 3) {
+      this.autoRetryTimer = setTimeout(() => {
+        this.setState((s) => ({ hasError: false, error: "", retryCount: s.retryCount + 1 }));
+      }, 1500);
+    }
+  }
+  componentWillUnmount() {
+    if (this.autoRetryTimer) clearTimeout(this.autoRetryTimer);
   }
   render() {
     if (this.state.hasError) {
@@ -3197,8 +3234,9 @@ class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
           <div className="text-4xl">🌍</div>
           <h2 className="text-lg font-semibold">Atlas encountered an issue</h2>
           <p className="text-sm text-white/50 max-w-sm text-center">{this.state.error || "Something went wrong"}</p>
+          {this.state.retryCount < 3 && <p className="text-xs text-white/30">Auto-recovering…</p>}
           <button
-            onClick={() => this.setState({ hasError: false, error: "" })}
+            onClick={() => this.setState({ hasError: false, error: "", retryCount: 0 })}
             className="mt-2 px-5 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition-colors"
           >
             Try Again
