@@ -1758,10 +1758,12 @@ out center 30;`;
     // Closer zoom for businesses/shops/restaurants
     const businessTypes = ["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"];
     const isBusiness = businessTypes.includes(result.type);
-    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 500 : 5000;
+    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 400 : 5000;
+    // Offset camera north so target is centered in viewport
+    const offsetDeg = isBusiness ? 0.0025 : result.type === "City" ? 0.01 : 0.005;
     viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(result.lng, result.lat, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -50 : -35), roll: 0 },
+      destination: Cartesian3.fromDegrees(result.lng, result.lat + offsetDeg, altitude),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -55 : -40), roll: 0 },
       duration: 1.8,
     });
     viewerRef.current.entities.add({
