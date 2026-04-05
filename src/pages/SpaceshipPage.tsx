@@ -64,6 +64,8 @@ interface PlacedModel {
   lng: number;
   alt: number;
   heading: number;
+  pitch?: number;
+  roll?: number;
   scale: number;
   createdAt: number;
 }
