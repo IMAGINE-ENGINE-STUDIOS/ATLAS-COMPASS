@@ -78,16 +78,16 @@ export function getFormatLabel(filename: string): string {
  * For convertible formats, uses three.js to load & re-export as glB.
  * For unsupported formats, throws with a helpful message.
  */
-export async function convertToGltfBlobUrl(
+export async function convertToGltfBlob(
   file: File,
   onProgress?: (msg: string) => void
-): Promise<string> {
+): Promise<Blob> {
   const ext = getExtension(file.name);
 
   // Native - just create blob URL
   if (CESIUM_NATIVE.has(ext)) {
     onProgress?.("Using native glTF format");
-    return URL.createObjectURL(file);
+    return file;
   }
 
   // Not convertible client-side
@@ -172,6 +172,13 @@ export async function convertToGltfBlobUrl(
   });
 
   onProgress?.("Model ready!");
-  const glbBlob = new Blob([glbBuffer], { type: "model/gltf-binary" });
-  return URL.createObjectURL(glbBlob);
+  return new Blob([glbBuffer], { type: "model/gltf-binary" });
+}
+
+export async function convertToGltfBlobUrl(
+  file: File,
+  onProgress?: (msg: string) => void
+): Promise<string> {
+  const blob = await convertToGltfBlob(file, onProgress);
+  return URL.createObjectURL(blob);
 }
