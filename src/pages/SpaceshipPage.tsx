@@ -14,7 +14,7 @@ import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
-import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
+import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
 import POICard, { type POIData } from "@/components/POICard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import {
@@ -974,6 +974,10 @@ out center 30;`;
 
     // Double-click handler — edit model, create POI, or place model depending on mode
     handler.setInputAction((click: any) => {
+      // Always clear tracked/selected entity so camera never gets stuck
+      viewer.trackedEntity = undefined;
+      viewer.selectedEntity = undefined;
+
       // Check if double-clicked on a model entity
       const picked = viewer.scene.pick(click.position);
       if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
@@ -2160,22 +2164,17 @@ out center 30;`;
                   >
                     <Route className="w-4 h-4" />
                   </button>
-                  {/* Cargo Routes Toggle */}
+                  {/* Trade Routes Toggle (merged cargo routes + live traffic) */}
                   <button
-                    onClick={() => setShowCargoRoutes(!showCargoRoutes)}
+                    onClick={() => {
+                      const next = !showCargoRoutes;
+                      setShowCargoRoutes(next);
+                      setShowLiveTraffic(next);
+                    }}
                     className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"}`}
-                    title="Global Cargo Routes"
+                    title="Trade Routes"
                   >
                     <Ship className="w-4 h-4" />
-                  </button>
-                  {/* Business/Store Icons Toggle — removed, auto-enabled from search */}
-                  {/* Live Traffic Toggle */}
-                  <button
-                    onClick={() => setShowLiveTraffic(!showLiveTraffic)}
-                    className={`p-1.5 rounded-lg transition-colors ${showLiveTraffic ? "bg-yellow-500/20 text-yellow-400" : "text-white/40 hover:text-white/70"}`}
-                    title="Live Aircraft & Ship Tracking"
-                  >
-                    <Plane className="w-4 h-4" />
                   </button>
                   <button
                     onClick={toggleFullscreen}
@@ -2451,22 +2450,25 @@ out center 30;`;
                 <GlassPanel className="p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Ship className="w-5 h-5 text-amber-400" />
-                    <span className="text-sm font-bold text-white">Global Cargo Traffic</span>
-                    <button onClick={() => { setShowCargoRoutes(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
+                    <span className="text-sm font-bold text-white">Trade Routes</span>
+                    <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
                       <X className="w-4 h-4 text-white/40 hover:text-white" />
                     </button>
                   </div>
 
-                  {/* Stats */}
+                  {/* Live Traffic Stats */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2 text-center">
-                      <div className="text-lg font-bold font-mono text-blue-400">{MARITIME_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-blue-400/60 uppercase">🚢 Ships</div>
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-2 text-center">
+                      <div className="text-lg font-bold font-mono text-yellow-400">{liveTrafficStats.planes.toLocaleString()}</div>
+                      <div className="text-[9px] text-yellow-400/60 uppercase">✈ Live Aircraft</div>
                     </div>
-                    <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-2 text-center">
-                      <div className="text-lg font-bold font-mono text-pink-400">{AIR_VESSEL_COUNT}</div>
-                      <div className="text-[9px] text-pink-400/60 uppercase">✈ Planes</div>
+                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-2 text-center">
+                      <div className="text-lg font-bold font-mono text-cyan-400">{liveTrafficStats.ships.toLocaleString()}</div>
+                      <div className="text-[9px] text-cyan-400/60 uppercase">🚢 Live Vessels</div>
                     </div>
+                  </div>
+                  <div className="text-[9px] text-white/30 font-mono text-center mb-3">
+                    Aircraft: OpenSky · 10s | Ships: AISStream · Real-time WS
                   </div>
 
                   {/* Type / Category Filter */}
@@ -2541,40 +2543,10 @@ out center 30;`;
                       </div>
                     </div>
                   )}
-                </GlassPanel>
-              </div>
-            )}
-          
 
-
-          {/* ── LIVE TRAFFIC PANEL ── */}
-          
-            {showLiveTraffic && (
-              <div
-                className="absolute bottom-24 right-4 z-30 w-[calc(100vw-2rem)] max-w-64"
-              >
-              <GlassPanel className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Plane className="w-5 h-5 text-yellow-400" />
-                    <span className="text-sm font-bold text-white">Live Global Traffic</span>
-                    <button onClick={() => setShowLiveTraffic(false)} className="ml-auto">
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center">
-                      <div className="text-xl font-bold font-mono text-yellow-400">{liveTrafficStats.planes.toLocaleString()}</div>
-                      <div className="text-[9px] text-yellow-400/60 uppercase tracking-wider">✈ Aircraft</div>
-                    </div>
-                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 text-center">
-                      <div className="text-xl font-bold font-mono text-cyan-400">{liveTrafficStats.ships.toLocaleString()}</div>
-                      <div className="text-[9px] text-cyan-400/60 uppercase tracking-wider">🚢 Vessels</div>
-                    </div>
-                  </div>
-                  <div className="text-[9px] text-white/30 font-mono text-center">
-                    Aircraft: OpenSky · 10s | Ships: AISStream · Real-time WS
-                  </div>
-                  <div className="mt-2 space-y-1">
+                  {/* Vessel Type Legend */}
+                  <div className="mt-3 space-y-1 border-t border-white/[0.06] pt-2">
+                    <div className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Vessel Types</div>
                     <div className="flex items-center gap-1.5 text-[9px] text-white/40">
                       <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Cargo
                       <span className="w-2 h-2 rounded-full bg-blue-500 inline-block ml-1" /> Tanker
@@ -2590,6 +2562,9 @@ out center 30;`;
               </div>
             )}
           
+
+
+
 
           {/* ── DIRECTIONS PANEL ── */}
           
