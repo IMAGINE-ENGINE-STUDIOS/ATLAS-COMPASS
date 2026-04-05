@@ -1269,7 +1269,31 @@ out center 30;`;
     };
   }, [showBusinessIcons, geoCategory]);
 
-  // ── Real-time Aircraft & Ship Tracking ──
+  // ── Always-active click handler for business pin entities ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (picked?.id?.id) {
+        const entityId = picked.id.id as string;
+        if (entityId.startsWith("biz-")) {
+          const bizData = businessDataRef.current.get(entityId);
+          if (bizData) {
+            setSelectedBusiness(bizData);
+            viewer.camera.flyTo({
+              destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 200),
+              orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+              duration: 1.2,
+            });
+          }
+        }
+      }
+    }, ScreenSpaceEventType.LEFT_CLICK);
+    return () => { handler.destroy(); };
+  }, [isLoaded]);
+
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
