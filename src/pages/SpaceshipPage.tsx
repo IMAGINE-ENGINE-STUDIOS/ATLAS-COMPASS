@@ -872,6 +872,32 @@ out center 30;`;
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
       console.error("[Atlas Render Error — suppressed reload]", error);
     });
+
+    // Throttle tile loading on resize/fullscreen to prevent OOM crashes
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const onResize = () => {
+      if (viewer.isDestroyed()) return;
+      // Temporarily reduce quality during resize
+      const rt = (viewer as any)._realisticTileset;
+      const ot = (viewer as any)._osmTileset;
+      if (rt) rt.maximumScreenSpaceError = 32;
+      if (ot) ot.maximumScreenSpaceError = 32;
+      viewer.scene.globe.maximumScreenSpaceError = 8;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (viewer.isDestroyed()) return;
+        if (rt) rt.maximumScreenSpaceError = 8;
+        if (ot) ot.maximumScreenSpaceError = 4;
+        viewer.scene.globe.maximumScreenSpaceError = 2;
+        viewer.scene.requestRender();
+      }, 600);
+    };
+    window.addEventListener("resize", onResize);
+    document.addEventListener("fullscreenchange", onResize);
+    (viewer as any)._resizeCleanup = () => {
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("fullscreenchange", onResize);
+    };
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Hide globe immediately — photorealistic tiles will be the only visible layer
