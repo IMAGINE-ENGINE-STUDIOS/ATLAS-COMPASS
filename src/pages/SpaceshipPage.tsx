@@ -530,23 +530,44 @@ export default function SpaceshipPage() {
     return "Place";
   }, []);
 
-  /* ── Nominatim Geocoding Search ── */
+  /* ── Nominatim Geocoding Search (geofenced when possible) ── */
   const searchNominatim = useCallback(async (query: string): Promise<SearchResult[]> => {
     if (!query.trim() || query.trim().length < 2) return [];
     try {
+      // Build viewbox from user location for local-first results
+      let viewboxParam = "";
+      const center = geoCenter || (() => {
+        const viewer = viewerRef.current;
+        if (viewer && !viewer.isDestroyed()) {
+          const cam = viewer.camera.positionCartographic;
+          return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+        }
+        return null;
+      })();
+      if (center) {
+        const degR = geoRadiusKm / 111;
+        viewboxParam = `&viewbox=${(center.lng - degR).toFixed(4)},${(center.lat + degR).toFixed(4)},${(center.lng + degR).toFixed(4)},${(center.lat - degR).toFixed(4)}&bounded=0`;
+      }
       const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1&extratags=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=12&addressdetails=1&extratags=1${viewboxParam}`,
         { headers: { "Accept-Language": "en" } }
       );
       const data = await resp.json();
-      return data.map((r: any) => ({
+      const results = data.map((r: any) => ({
         name: r.display_name.split(",").slice(0, 3).join(","),
         lat: parseFloat(r.lat),
         lng: parseFloat(r.lon),
         type: classifyOsmResult(r),
       }));
+      // Sort by distance if we have a center
+      if (center) {
+        results.sort((a: SearchResult, b: SearchResult) =>
+          geoHaversine(center.lat, center.lng, a.lat, a.lng) - geoHaversine(center.lat, center.lng, b.lat, b.lng)
+        );
+      }
+      return results;
     } catch { return []; }
-  }, [classifyOsmResult]);
+  }, [classifyOsmResult, geoCenter, geoRadiusKm]);
 
   /* ── Overpass API for nearby businesses/POIs (geofenced to camera) ── */
   const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
