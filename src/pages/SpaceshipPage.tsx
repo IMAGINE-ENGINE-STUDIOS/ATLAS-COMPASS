@@ -972,8 +972,16 @@ out center 30;`;
       }
     }, ScreenSpaceEventType.LEFT_UP);
 
-    // Double-click handler — creates POI or places model depending on mode
+    // Double-click handler — edit model, create POI, or place model depending on mode
     handler.setInputAction((click: any) => {
+      // Check if double-clicked on a model entity
+      const picked = viewer.scene.pick(click.position);
+      if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
+        const modelId = picked.id.id.replace("model-", "");
+        window.dispatchEvent(new CustomEvent("cesium-model-dblclick", { detail: { id: modelId } }));
+        return;
+      }
+
       const ray = viewer.camera.getPickRay(click.position);
       if (!ray) return;
       const cartesian = viewer.scene.pickPosition(click.position)
