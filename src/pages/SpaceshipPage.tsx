@@ -1134,7 +1134,6 @@ out center 20;`;
           // High-quality glassmorphic pin at real coordinates
           const bgColor = colorMap[amenity] || "rgba(0,212,255,0.65)";
           const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
-          const tagText = `${icon} ${truncName}`;
           const entity = viewer.entities.add({
             id: entityId,
             position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
