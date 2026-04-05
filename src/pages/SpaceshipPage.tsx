@@ -974,6 +974,10 @@ out center 30;`;
 
     // Double-click handler — edit model, create POI, or place model depending on mode
     handler.setInputAction((click: any) => {
+      // Always clear tracked/selected entity so camera never gets stuck
+      viewer.trackedEntity = undefined;
+      viewer.selectedEntity = undefined;
+
       // Check if double-clicked on a model entity
       const picked = viewer.scene.pick(click.position);
       if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
