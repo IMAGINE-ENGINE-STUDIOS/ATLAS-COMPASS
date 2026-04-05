@@ -24,6 +24,7 @@ interface POICardProps {
   poi: POIData;
   onNavigate?: (poi: POIData) => void;
   onSelect?: (poi: POIData) => void;
+  onDirections?: (poi: POIData) => void;
   compact?: boolean;
   variant?: "glass" | "solid";
   index?: number;
