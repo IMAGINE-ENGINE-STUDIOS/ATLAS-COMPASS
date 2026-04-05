@@ -1863,11 +1863,23 @@ out center 30;`;
   // ── Model Transform: live update entity in Cesium ──
   const handleTransformUpdate = useCallback((data: TransformData) => {
     if (!editingModel || !viewerRef.current) return;
-    const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
+    const viewer = viewerRef.current;
+    // Prevent camera from tracking the entity
+    viewer.trackedEntity = undefined;
+    viewer.selectedEntity = undefined;
+    const entity = viewer.entities.getById(`model-${editingModel.id}`);
     if (!entity) return;
     const pos = Cartesian3.fromDegrees(data.lng, data.lat, data.alt);
     entity.position = pos as any;
-    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(data.heading), CesiumMath.toRadians(data.pitch), CesiumMath.toRadians(data.roll));
+    // Disable height reference when alt > 0 so rotation/position are fully manual
+    if (entity.model) {
+      (entity.model as any).heightReference = data.alt > 0 ? 0 : 1; // NONE vs CLAMP_TO_GROUND
+    }
+    const hpr = new HeadingPitchRoll(
+      CesiumMath.toRadians(data.heading),
+      CesiumMath.toRadians(data.pitch),
+      CesiumMath.toRadians(data.roll)
+    );
     entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
     if (entity.model) (entity.model as any).scale = data.scale;
   }, [editingModel]);
@@ -1885,13 +1897,23 @@ out center 30;`;
     setEditingModel(null);
   }, [editingModel]);
 
+  // Ref to allow snap-to-ground to update widget state
+  const transformWidgetRef = useRef<{ snapToGround: () => void }>(null);
+
   const handleSnapToGround = useCallback(() => {
     if (!editingModel || !viewerRef.current) return;
     const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
     if (!entity) return;
     const pos = Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, 0);
     entity.position = pos as any;
-    if (entity.model) (entity.model as any).heightReference = 1;
+    if (entity.model) (entity.model as any).heightReference = 1; // CLAMP_TO_GROUND
+    // Also reset orientation at ground level
+    const hpr = new HeadingPitchRoll(
+      CesiumMath.toRadians(editingModel.heading || 0),
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0)
+    );
+    entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
   }, [editingModel]);
 
   const confirmModelPlacement = useCallback(async () => {
