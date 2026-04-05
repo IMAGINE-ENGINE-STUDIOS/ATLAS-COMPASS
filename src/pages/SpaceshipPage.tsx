@@ -2972,10 +2972,10 @@ out center 30;`;
           
             {selectedBusiness && (
               <div
-                className={isMobile
+                className={`animate-scale-in ${isMobile
                   ? "absolute inset-x-3 bottom-28 z-40"
                   : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
-                }
+                }`}
               >
                 <div className="relative">
                   <button onClick={() => setSelectedBusiness(null)}
