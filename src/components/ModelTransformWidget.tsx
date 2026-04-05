@@ -20,7 +20,7 @@ interface Props {
   onUpdate: (data: TransformData) => void;
   onApply: (data: TransformData) => void;
   onClose: () => void;
-  onSnapToGround: () => void;
+  onSnapToGround: (callback: (snapped: TransformData) => void) => void;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
