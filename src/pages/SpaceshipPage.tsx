@@ -1197,19 +1197,18 @@ out center 30;`;
 
         const iconMap: Record<string, string> = {
           restaurant: "🍽️", fast_food: "🍔", cafe: "☕", bar: "🍺", pub: "🍺",
-          fuel: "⛽", pharmacy: "💊", hospital: "🏥", bank: "🏦",
+          fuel: "⛽", charging_station: "🔌", pharmacy: "💊", hospital: "🏥", clinic: "🏥", doctors: "👨‍⚕️", dentist: "🦷", bank: "🏦",
           hotel: "🏨", motel: "🏨", hostel: "🏨", guest_house: "🏨",
-          supermarket: "🛒", convenience: "🏪", clothes: "👕", electronics: "📱",
-          bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
+          supermarket: "🛒", convenience: "🏪", department_store: "🏬", general: "🏪", grocery: "🛒",
+          clothes: "👕", electronics: "📱", bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
         };
 
-        // Refined category colors matching the UI design system
         const colorMap: Record<string, string> = {
           restaurant: "rgba(249,115,22,0.75)", fast_food: "rgba(249,115,22,0.7)",
-          cafe: "rgba(217,119,6,0.75)", fuel: "rgba(239,68,68,0.7)",
-          pharmacy: "rgba(168,85,247,0.7)", hospital: "rgba(239,68,68,0.7)",
+          cafe: "rgba(217,119,6,0.75)", fuel: "rgba(239,68,68,0.7)", charging_station: "rgba(239,68,68,0.7)",
+          pharmacy: "rgba(168,85,247,0.7)", hospital: "rgba(239,68,68,0.7)", clinic: "rgba(239,68,68,0.7)", doctors: "rgba(239,68,68,0.7)", dentist: "rgba(239,68,68,0.7)",
           bank: "rgba(59,130,246,0.7)", hotel: "rgba(99,102,241,0.7)",
-          supermarket: "rgba(34,197,94,0.7)", convenience: "rgba(34,197,94,0.65)",
+          supermarket: "rgba(34,197,94,0.7)", convenience: "rgba(34,197,94,0.65)", department_store: "rgba(34,197,94,0.7)", grocery: "rgba(34,197,94,0.7)",
         };
 
         data.elements.forEach((el: any) => {
