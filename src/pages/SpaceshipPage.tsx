@@ -1218,10 +1218,12 @@ out center 30;`;
           const elLat = el.lat || el.center?.lat;
           const elLng = el.lon || el.center?.lon;
           if (!elLat || !elLng) return;
-          const amenity = tags.amenity || tags.shop || tags.tourism || "";
+          const amenity = tags.amenity || tags.shop || tags.tourism || tags.healthcare || "";
           const icon = iconMap[amenity] || "📍";
           const entityId = `biz-${el.id}`;
           const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ");
+          const _lat = elLat;
+          const _lng = elLng;
           
 
           businessDataRef.current.set(entityId, {
