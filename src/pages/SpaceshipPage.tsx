@@ -431,14 +431,16 @@ function SpaceshipPage() {
       if (!resp.ok) throw new Error("API error");
       const data = await resp.json();
       const results = (data.elements || [])
-        .filter((el: any) => el.tags?.name)
+        .filter((el: any) => el.tags?.name && (el.lat || el.center?.lat))
         .map((el: any) => {
           const tags = el.tags || {};
+          const elLat = el.lat || el.center?.lat;
+          const elLng = el.lon || el.center?.lon;
           return {
-            id: el.id, name: tags.name, lat: el.lat, lng: el.lon,
+            id: el.id, name: tags.name, lat: elLat, lng: elLng,
             type: geoClassify(tags),
             address: [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"]].filter(Boolean).join(" ") || "",
-            distance: geoHaversine(center.lat, center.lng, el.lat, el.lon),
+            distance: geoHaversine(center.lat, center.lng, elLat, elLng),
             phone: tags.phone || tags["contact:phone"] || "",
             website: tags.website || tags["contact:website"] || "",
             brand: tags.brand || "",
