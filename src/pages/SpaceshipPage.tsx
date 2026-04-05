@@ -1853,6 +1853,40 @@ out center 30;`;
     });
   }, []);
 
+  // ── Model Transform: live update entity in Cesium ──
+  const handleTransformUpdate = useCallback((data: TransformData) => {
+    if (!editingModel || !viewerRef.current) return;
+    const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
+    if (!entity) return;
+    const pos = Cartesian3.fromDegrees(data.lng, data.lat, data.alt);
+    entity.position = pos as any;
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(data.heading), CesiumMath.toRadians(data.pitch), CesiumMath.toRadians(data.roll));
+    entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
+    if (entity.model) (entity.model as any).scale = data.scale;
+  }, [editingModel]);
+
+  const handleTransformApply = useCallback((data: TransformData) => {
+    if (!editingModel) return;
+    setPlacedModels(prev => {
+      const updated = prev.map(m => m.id === editingModel.id
+        ? { ...m, lat: data.lat, lng: data.lng, alt: data.alt, heading: data.heading, pitch: data.pitch, roll: data.roll, scale: data.scale }
+        : m
+      );
+      savePlacedModels(updated);
+      return updated;
+    });
+    setEditingModel(null);
+  }, [editingModel]);
+
+  const handleSnapToGround = useCallback(() => {
+    if (!editingModel || !viewerRef.current) return;
+    const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
+    if (!entity) return;
+    const pos = Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, 0);
+    entity.position = pos as any;
+    if (entity.model) (entity.model as any).heightReference = 1;
+  }, [editingModel]);
+
   const confirmModelPlacement = useCallback(async () => {
     if (!pendingPlacement || !modelFile || !modelName.trim()) return;
 
