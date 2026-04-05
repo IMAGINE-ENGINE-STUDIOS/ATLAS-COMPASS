@@ -1111,6 +1111,7 @@ out center 30;`;
 
     return () => {
       handler.destroy();
+      if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
