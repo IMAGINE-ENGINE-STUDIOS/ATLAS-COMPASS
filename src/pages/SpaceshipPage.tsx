@@ -1572,7 +1572,14 @@ out center 30;`;
     const handleModelDblClick = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
       const model = placedModels.find(m => m.id === id);
-      if (model) setEditingModel(model);
+      if (model) {
+        // Clear tracked/selected entity so camera doesn't follow
+        if (viewerRef.current) {
+          viewerRef.current.trackedEntity = undefined;
+          viewerRef.current.selectedEntity = undefined;
+        }
+        setEditingModel(model);
+      }
     };
     window.addEventListener("cesium-model-dblclick", handleModelDblClick);
     return () => window.removeEventListener("cesium-model-dblclick", handleModelDblClick);
