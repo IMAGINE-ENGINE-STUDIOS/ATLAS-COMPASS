@@ -38,6 +38,13 @@ interface SearchResult {
   lat: number;
   lng: number;
   type: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  brand?: string;
+  cuisine?: string;
+  distance?: number;
+  description?: string;
 }
 
 interface CursorInfo {
@@ -522,9 +529,11 @@ function SpaceshipPage() {
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+    // Offset camera north so target appears centered in view with -50° pitch
+    const offsetDeg = 0.0025; // ~280m north offset
     viewer.camera.flyTo({
-      destination: Cartesian3.fromDegrees(b.lng, b.lat, 500),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+      destination: Cartesian3.fromDegrees(b.lng, b.lat + offsetDeg, 400),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-55), roll: 0 },
       duration: 1.5,
     });
   }, []);
@@ -583,12 +592,23 @@ function SpaceshipPage() {
         { headers: { "Accept-Language": "en" } }
       );
       const data = await resp.json();
-      const results = data.map((r: any) => ({
-        name: r.display_name.split(",").slice(0, 3).join(","),
-        lat: parseFloat(r.lat),
-        lng: parseFloat(r.lon),
-        type: classifyOsmResult(r),
-      }));
+      const results = data.map((r: any) => {
+        const extra = r.extratags || {};
+        const addrParts = r.address || {};
+        const addr = [addrParts.road, addrParts.house_number, addrParts.city || addrParts.town || addrParts.village, addrParts.state].filter(Boolean).join(", ");
+        return {
+          name: r.display_name.split(",").slice(0, 3).join(","),
+          lat: parseFloat(r.lat),
+          lng: parseFloat(r.lon),
+          type: classifyOsmResult(r),
+          address: addr || undefined,
+          phone: extra.phone || extra["contact:phone"] || undefined,
+          website: extra.website || extra["contact:website"] || undefined,
+          brand: extra.brand || undefined,
+          description: extra.description || undefined,
+          distance: center ? geoHaversine(center.lat, center.lng, parseFloat(r.lat), parseFloat(r.lon)) : undefined,
+        };
+      });
       // Sort by distance if we have a center
       if (center) {
         results.sort((a: SearchResult, b: SearchResult) =>
@@ -656,17 +676,19 @@ out center 30;`;
         else if (tags.amenity === "fuel") type = "Fuel";
         else if (tags.amenity === "hospital" || tags.amenity === "pharmacy") type = "Health";
         else if (tags.amenity === "school" || tags.amenity === "university") type = "Education";
-        const addr = [tags["addr:street"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
+        const addr = [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
         return {
-          name: tags.name + (addr ? ` — ${addr}` : ""),
+          name: tags.name,
           lat: elLat,
           lng: elLng,
           type,
+          address: addr || undefined,
           distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
           phone: tags.phone || tags["contact:phone"] || undefined,
           website: tags.website || tags["contact:website"] || undefined,
           brand: tags.brand || undefined,
           cuisine: tags.cuisine || undefined,
+          description: tags.description || undefined,
         };
       })
       .filter((r: any) => r.lat && r.lng)
@@ -1756,10 +1778,12 @@ out center 30;`;
     // Closer zoom for businesses/shops/restaurants
     const businessTypes = ["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"];
     const isBusiness = businessTypes.includes(result.type);
-    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 500 : 5000;
+    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 400 : 5000;
+    // Offset camera north so target is centered in viewport
+    const offsetDeg = isBusiness ? 0.0025 : result.type === "City" ? 0.01 : 0.005;
     viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(result.lng, result.lat, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -50 : -35), roll: 0 },
+      destination: Cartesian3.fromDegrees(result.lng, result.lat + offsetDeg, altitude),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -55 : -40), roll: 0 },
       duration: 1.8,
     });
     viewerRef.current.entities.add({
@@ -1860,9 +1884,10 @@ out center 30;`;
 
   const flyToPOI = useCallback((poi: POI) => {
     if (!viewerRef.current) return;
+    const offsetDeg = 0.01;
     viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 2000),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-35), roll: 0 },
+      destination: Cartesian3.fromDegrees(poi.lng, poi.lat + offsetDeg, 2000),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-45), roll: 0 },
       duration: 2,
     });
   }, []);
@@ -3016,8 +3041,12 @@ out center 30;`;
                         </div>
                         {overpassResults.map((r, idx) => (
                           <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
-                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, lat: r.lat, lng: r.lng }}
-                            onNavigate={() => { flyTo(r); setSearchOpen(false); }}
+                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine }}
+                            onNavigate={() => {
+                              flyTo(r);
+                              setSelectedBusiness({ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine });
+                              setSearchOpen(false);
+                            }}
                           />
                         ))}
                       </>
@@ -3031,8 +3060,12 @@ out center 30;`;
                         </div>
                         {nominatimResults.map((r, idx) => (
                           <POICard key={`nom-${idx}`} compact variant="glass" index={idx}
-                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, lat: r.lat, lng: r.lng }}
-                            onNavigate={() => { flyTo(r); setSearchOpen(false); }}
+                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, description: r.description }}
+                            onNavigate={() => {
+                              flyTo(r);
+                              setSelectedBusiness({ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, description: r.description });
+                              setSearchOpen(false);
+                            }}
                           />
                         ))}
                       </>
