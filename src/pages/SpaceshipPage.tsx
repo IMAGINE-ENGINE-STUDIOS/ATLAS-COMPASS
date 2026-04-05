@@ -183,6 +183,81 @@ function getTypeIcon(type: string) {
   }
 }
 
+/* ── Create high-quality pin canvas for billboard ── */
+const pinCanvasCache = new Map<string, string>();
+function createPinCanvas(icon: string, name: string, bgColor: string): string {
+  const key = `${icon}|${name}|${bgColor}`;
+  if (pinCanvasCache.has(key)) return pinCanvasCache.get(key)!;
+  
+  const dpr = 2;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+  
+  // Measure text
+  ctx.font = `bold ${12 * dpr}px Inter, system-ui, sans-serif`;
+  const textWidth = ctx.measureText(name).width;
+  const iconWidth = 18 * dpr;
+  const padding = 10 * dpr;
+  const gap = 4 * dpr;
+  const pointerH = 8 * dpr;
+  const w = iconWidth + gap + textWidth + padding * 2;
+  const h = 28 * dpr;
+  const totalH = h + pointerH;
+  const r = 8 * dpr;
+  
+  canvas.width = w;
+  canvas.height = totalH;
+  
+  // Glassmorphic background
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(w - r, 0);
+  ctx.quadraticCurveTo(w, 0, w, r);
+  ctx.lineTo(w, h - r);
+  ctx.quadraticCurveTo(w, h, w - r, h);
+  // Pointer triangle
+  ctx.lineTo(w / 2 + 6 * dpr, h);
+  ctx.lineTo(w / 2, totalH);
+  ctx.lineTo(w / 2 - 6 * dpr, h);
+  ctx.lineTo(r, h);
+  ctx.quadraticCurveTo(0, h, 0, h - r);
+  ctx.lineTo(0, r);
+  ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  
+  // Fill with semi-transparent bg
+  ctx.fillStyle = bgColor;
+  ctx.fill();
+  
+  // Subtle top highlight
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, "rgba(255,255,255,0.18)");
+  grad.addColorStop(0.5, "rgba(255,255,255,0.02)");
+  grad.addColorStop(1, "rgba(0,0,0,0.1)");
+  ctx.fillStyle = grad;
+  ctx.fill();
+  
+  // Border
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.stroke();
+  
+  // Icon emoji
+  ctx.font = `${14 * dpr}px sans-serif`;
+  ctx.textBaseline = "middle";
+  ctx.fillText(icon, padding, h / 2);
+  
+  // Name text
+  ctx.font = `bold ${12 * dpr}px Inter, system-ui, sans-serif`;
+  ctx.fillStyle = "white";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name, padding + iconWidth + gap, h / 2);
+  
+  const dataUrl = canvas.toDataURL("image/png");
+  pinCanvasCache.set(key, dataUrl);
+  return dataUrl;
+}
+
 /* ── Main Spaceship Component ── */
 export default function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
@@ -1132,34 +1207,18 @@ out center 20;`;
           });
 
           // High-quality glassmorphic pin at real coordinates
-          const tagText = `${icon} ${tags.name}`;
           const bgColor = colorMap[amenity] || "rgba(0,212,255,0.65)";
+          const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(el.lon, el.lat, 5),
-            point: {
-              pixelSize: 10,
-              color: Color.fromCssColorString(bgColor),
-              outlineColor: Color.WHITE.withAlpha(0.9),
-              outlineWidth: 2.5,
+            position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
+            billboard: {
+              image: createPinCanvas(icon, truncName, bgColor),
+              verticalOrigin: 1, // BOTTOM
+              pixelOffset: new Cartesian2(0, -4),
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 100, nearValue: 1.4, far: 20000, farValue: 0.4 } as any,
-              heightReference: 1,
-            },
-            label: {
-              text: tagText,
-              font: "bold 13px 'Inter', system-ui, sans-serif",
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              style: 2,
-              outlineWidth: 3,
-              outlineColor: Color.BLACK.withAlpha(0.8),
-              fillColor: Color.WHITE,
-              backgroundColor: Color.fromCssColorString(bgColor),
-              showBackground: true,
-              backgroundPadding: new Cartesian2(8, 5),
-              scaleByDistance: { near: 100, nearValue: 1.1, far: 12000, farValue: 0.3 } as any,
-              translucencyByDistance: { near: 100, nearValue: 1.0, far: 20000, farValue: 0.0 } as any,
-              pixelOffset: new Cartesian2(0, -22),
+              scaleByDistance: { near: 100, nearValue: 0.9, far: 15000, farValue: 0.25 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
               heightReference: 1,
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
@@ -1884,11 +1943,13 @@ out center 20;`;
               </div>
 
               <div className="flex items-center gap-2">
-                <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
-                  <button onClick={() => { const opening = !searchOpen; setSearchOpen(opening); if (opening) { setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geoLocateUser(); } }}>
-                    <Search className="w-5 h-5 text-white/70" />
-                  </button>
-                </GlassPanel>
+                <button
+                  onClick={() => { const opening = !searchOpen; setSearchOpen(opening); if (opening) { setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geoLocateUser(); } }}
+                  className="bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors relative"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent rounded-2xl pointer-events-none" />
+                  <Search className="w-5 h-5 text-white/70 relative z-10" />
+                </button>
 
                 <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
