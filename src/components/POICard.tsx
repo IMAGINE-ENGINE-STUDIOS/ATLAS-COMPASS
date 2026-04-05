@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Navigation, MapPin, Clock, Phone, Globe, ExternalLink, Truck, Copy, Check } from "lucide-react";
+import { Navigation, MapPin, Clock, Phone, Globe, ExternalLink, Truck, Copy, Check, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -233,6 +233,23 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
               <Truck className="w-3.5 h-3.5" /> Delivery
             </button>
           )}
+          {/* Visit Store / ecommerce action — only for business-type POIs */}
+          {poi.address && navigate && (() => {
+            const bizTypes = new Set(["Restaurant","Fast food","Cafe","Café","Hotel","Shop","Store","Supermarket","Convenience","Grocery","Mall","Business"]);
+            const isBiz = poi.category && bizTypes.has(poi.category);
+            return isBiz ? (
+              <button
+                onClick={() => navigate!(`/marketplace?store=${encodeURIComponent(poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
+                  isGlass
+                    ? "bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20"
+                    : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+                }`}
+              >
+                <ShoppingBag className="w-3.5 h-3.5" /> Visit Store
+              </button>
+            ) : null;
+          })()}
           {onSelect && (
             <button
               onClick={() => onSelect(poi)}

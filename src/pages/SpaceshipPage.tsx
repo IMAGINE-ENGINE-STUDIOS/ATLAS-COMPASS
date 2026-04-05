@@ -530,30 +530,52 @@ export default function SpaceshipPage() {
     return "Place";
   }, []);
 
-  /* ── Nominatim Geocoding Search ── */
+  /* ── Nominatim Geocoding Search (geofenced when possible) ── */
   const searchNominatim = useCallback(async (query: string): Promise<SearchResult[]> => {
     if (!query.trim() || query.trim().length < 2) return [];
     try {
+      // Build viewbox from user location for local-first results
+      let viewboxParam = "";
+      const center = geoCenter || (() => {
+        const viewer = viewerRef.current;
+        if (viewer && !viewer.isDestroyed()) {
+          const cam = viewer.camera.positionCartographic;
+          return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+        }
+        return null;
+      })();
+      if (center) {
+        const degR = geoRadiusKm / 111;
+        viewboxParam = `&viewbox=${(center.lng - degR).toFixed(4)},${(center.lat + degR).toFixed(4)},${(center.lng + degR).toFixed(4)},${(center.lat - degR).toFixed(4)}&bounded=0`;
+      }
       const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1&extratags=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=12&addressdetails=1&extratags=1${viewboxParam}`,
         { headers: { "Accept-Language": "en" } }
       );
       const data = await resp.json();
-      return data.map((r: any) => ({
+      const results = data.map((r: any) => ({
         name: r.display_name.split(",").slice(0, 3).join(","),
         lat: parseFloat(r.lat),
         lng: parseFloat(r.lon),
         type: classifyOsmResult(r),
       }));
+      // Sort by distance if we have a center
+      if (center) {
+        results.sort((a: SearchResult, b: SearchResult) =>
+          geoHaversine(center.lat, center.lng, a.lat, a.lng) - geoHaversine(center.lat, center.lng, b.lat, b.lng)
+        );
+      }
+      return results;
     } catch { return []; }
-  }, [classifyOsmResult]);
+  }, [classifyOsmResult, geoCenter, geoRadiusKm]);
 
-  /* ── Overpass API for nearby businesses/POIs (geofenced to camera) ── */
+  /* ── Overpass API for nearby businesses/POIs (geofenced to user location) ── */
   const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
     try {
-      const sanitized = query.replace(/["\\\n\r]/g, '');
-      // Use user location (geoCenter) first, then camera, then fallback
-      let lat = 40.7128, lng = -74.006;
+      const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '');
+      if (!sanitized) return [];
+      // Use user location first, then camera — NO hardcoded fallback
+      let lat: number | null = null, lng: number | null = null;
       if (geoCenter) {
         lat = geoCenter.lat;
         lng = geoCenter.lng;
@@ -565,19 +587,20 @@ export default function SpaceshipPage() {
           lng = CesiumMath.toDegrees(cam.longitude);
         }
       }
-      const radius = 0.45; // ~50km
-      const bbox = `${(lat - radius).toFixed(4)},${(lng - radius).toFixed(4)},${(lat + radius).toFixed(4)},${(lng + radius).toFixed(4)}`;
+      if (lat === null || lng === null) return []; // No location available, defer
+      const degR = geoRadiusKm / 111; // Use user-configurable radius
+      const bbox = `${(lat - degR).toFixed(4)},${(lng - degR).toFixed(4)},${(lat + degR).toFixed(4)},${(lng + degR).toFixed(4)}`;
       const overpassQuery = `
 [out:json][timeout:10];
 (
-  node["name"~"${sanitized}"i]["shop"](${bbox});
-  node["name"~"${sanitized}"i]["amenity"](${bbox});
-  node["name"~"${sanitized}"i]["tourism"](${bbox});
-  node["name"~"${sanitized}"i]["office"](${bbox});
-  node["name"~"${sanitized}"i]["leisure"](${bbox});
-  node["name"~"${sanitized}"i]["brand"](${bbox});
+  node["name"~"${sanitized}",i]["shop"](${bbox});
+  node["name"~"${sanitized}",i]["amenity"](${bbox});
+  node["name"~"${sanitized}",i]["tourism"](${bbox});
+  node["name"~"${sanitized}",i]["office"](${bbox});
+  node["name"~"${sanitized}",i]["leisure"](${bbox});
+  node["brand"~"${sanitized}",i](${bbox});
 );
-out center 20;`;
+out center 30;`;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       const resp = await fetch("https://overpass-api.de/api/interpreter", {
@@ -590,7 +613,7 @@ out center 20;`;
       const data = await resp.json();
       if (!data.elements) return [];
       const searchLat = lat, searchLng = lng;
-      return data.elements.slice(0, 20).map((el: any) => {
+      return data.elements.slice(0, 30).map((el: any) => {
         const tags = el.tags || {};
         const elLat = el.lat || el.center?.lat;
         const elLng = el.lon || el.center?.lon;
@@ -610,12 +633,16 @@ out center 20;`;
           lng: elLng,
           type,
           distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
+          phone: tags.phone || tags["contact:phone"] || undefined,
+          website: tags.website || tags["contact:website"] || undefined,
+          brand: tags.brand || undefined,
+          cuisine: tags.cuisine || undefined,
         };
       })
-      .filter((r: SearchResult & { distance?: number }) => r.lat && r.lng)
+      .filter((r: any) => r.lat && r.lng)
       .sort((a: any, b: any) => (a.distance ?? 9999) - (b.distance ?? 9999));
     } catch { return []; }
-  }, [geoCenter]);
+  }, [geoCenter, geoRadiusKm]);
 
   /* ── OSRM Routing ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
@@ -1534,7 +1561,10 @@ out center 20;`;
     }
     setSearchResults(filtered);
 
-    // Debounced parallel search: Nominatim + Overpass — prioritize businesses
+    // Auto-geolocate if no center when user starts searching
+    if (query.trim().length >= 3 && !geoCenter) geoLocateUser();
+
+    // Debounced parallel search: Nominatim + Overpass — prioritize local businesses
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (query.trim().length >= 3) {
       setSearchLoading(true);
@@ -1547,15 +1577,30 @@ out center 20;`;
         const deduped = ovResults.filter(ov =>
           !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
         );
-        // Prioritize: exact name matches first, then businesses, then other results
+        // Smart ranking: local businesses first, then local places, then global
         const businessTypes = new Set(["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"]);
+        const nearbyThreshold = geoRadiusKm || 10; // km
+        const center = geoCenter || (viewerRef.current && !viewerRef.current.isDestroyed() ? (() => {
+          const cam = viewerRef.current!.camera.positionCartographic;
+          return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+        })() : null);
+
         const allResults = [...deduped, ...nomResults];
-        const exactMatches = allResults.filter(r => r.name.toLowerCase().includes(q));
-        const businessMatches = allResults.filter(r => businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
-        const otherMatches = allResults.filter(r => !businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
-        // Put business/exact matches into overpassResults (shown first), rest in nominatim
-        setOverpassResults([...exactMatches.filter(r => businessTypes.has(r.type)), ...businessMatches]);
-        setNominatimResults([...exactMatches.filter(r => !businessTypes.has(r.type)), ...otherMatches]);
+        // Compute distance for all
+        const withDist = allResults.map(r => ({
+          ...r,
+          _dist: center ? geoHaversine(center.lat, center.lng, r.lat, r.lng) : 9999,
+          _isBiz: businessTypes.has(r.type),
+        }));
+        // Local businesses (within radius)
+        const localBiz = withDist.filter(r => r._isBiz && r._dist <= nearbyThreshold).sort((a, b) => a._dist - b._dist);
+        // Local non-business places
+        const localPlaces = withDist.filter(r => !r._isBiz && r._dist <= nearbyThreshold * 3).sort((a, b) => a._dist - b._dist);
+        // Global results (everything else)
+        const globalResults = withDist.filter(r => !localBiz.includes(r) && !localPlaces.includes(r)).sort((a, b) => a._dist - b._dist);
+
+        setOverpassResults(localBiz.slice(0, 20));
+        setNominatimResults([...localPlaces.slice(0, 10), ...globalResults.slice(0, 10)]);
         setSearchLoading(false);
       }, 400);
     } else {
@@ -2172,10 +2217,10 @@ out center 20;`;
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-emerald-500/20" />
-                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Businesses</span>
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
-                        {overpassResults.map((r, i) => (
+                        {overpassResults.map((r: any, i: number) => (
                           <POICard
                             key={`ov-${i}`}
                             compact
@@ -2187,11 +2232,16 @@ out center 20;`;
                               category: r.type,
                               lat: r.lat,
                               lng: r.lng,
+                              distance: r.distance,
+                              phone: r.phone,
+                              website: r.website,
+                              brand: r.brand,
+                              cuisine: r.cuisine,
                             }}
                             onNavigate={() => {
                               flyTo(r);
                               const emoji = (() => { const t = r.type; if (t.includes("Restaurant") || t.includes("Food")) return "🍽️"; if (t.includes("Cafe")) return "☕"; if (t.includes("Hotel")) return "🏨"; if (t.includes("Shop") || t.includes("Supermarket")) return "🛒"; if (t.includes("Fuel")) return "⛽"; if (t.includes("Health")) return "🏥"; return "📍"; })();
-                              setSelectedBusiness({ name: r.name, emoji, category: r.type, lat: r.lat, lng: r.lng });
+                              setSelectedBusiness({ name: r.name, emoji, category: r.type, lat: r.lat, lng: r.lng, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, distance: r.distance });
                               setSearchOpen(false);
                             }}
                           />
@@ -2199,12 +2249,14 @@ out center 20;`;
                       </>
                     )}
 
-                    {/* Nominatim global results */}
+                    {/* Nominatim / global results */}
                     {nominatimResults.length > 0 && searchQuery && (
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-white/[0.06]" />
-                          <span className="text-[9px] text-white/30 font-mono uppercase">Global Results</span>
+                          <span className="text-[9px] text-white/30 font-mono uppercase">
+                            {overpassResults.length === 0 ? "📌 No nearby businesses found · showing all results" : "🌍 Other Results"}
+                          </span>
                           <div className="flex-1 h-px bg-white/[0.06]" />
                         </div>
                         {nominatimResults.map((r, i) => (
