@@ -1897,23 +1897,21 @@ out center 30;`;
     setEditingModel(null);
   }, [editingModel]);
 
-  // Ref to allow snap-to-ground to update widget state
-  const transformWidgetRef = useRef<{ snapToGround: () => void }>(null);
-
-  const handleSnapToGround = useCallback(() => {
+  const handleSnapToGround = useCallback((callback: (snapped: TransformData) => void) => {
     if (!editingModel || !viewerRef.current) return;
     const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
     if (!entity) return;
     const pos = Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, 0);
     entity.position = pos as any;
     if (entity.model) (entity.model as any).heightReference = 1; // CLAMP_TO_GROUND
-    // Also reset orientation at ground level
-    const hpr = new HeadingPitchRoll(
-      CesiumMath.toRadians(editingModel.heading || 0),
-      CesiumMath.toRadians(0),
-      CesiumMath.toRadians(0)
-    );
+    const heading = editingModel.heading || 0;
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading), 0, 0);
     entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
+    // Update widget state via callback
+    callback({
+      lat: editingModel.lat, lng: editingModel.lng, alt: 0,
+      heading, pitch: 0, roll: 0, scale: editingModel.scale || 1,
+    });
   }, [editingModel]);
 
   const confirmModelPlacement = useCallback(async () => {
