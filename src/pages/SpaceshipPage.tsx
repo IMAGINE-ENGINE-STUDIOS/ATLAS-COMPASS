@@ -676,17 +676,19 @@ out center 30;`;
         else if (tags.amenity === "fuel") type = "Fuel";
         else if (tags.amenity === "hospital" || tags.amenity === "pharmacy") type = "Health";
         else if (tags.amenity === "school" || tags.amenity === "university") type = "Education";
-        const addr = [tags["addr:street"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
+        const addr = [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
         return {
-          name: tags.name + (addr ? ` — ${addr}` : ""),
+          name: tags.name,
           lat: elLat,
           lng: elLng,
           type,
+          address: addr || undefined,
           distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
           phone: tags.phone || tags["contact:phone"] || undefined,
           website: tags.website || tags["contact:website"] || undefined,
           brand: tags.brand || undefined,
           cuisine: tags.cuisine || undefined,
+          description: tags.description || undefined,
         };
       })
       .filter((r: any) => r.lat && r.lng)
