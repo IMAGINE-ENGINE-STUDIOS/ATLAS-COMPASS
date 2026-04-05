@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { Navigation, MapPin, Clock, Phone, Globe, ExternalLink, Truck, Copy, Check } from "lucide-react";
+import { Navigation, MapPin, Clock, Phone, Globe, ExternalLink, Truck, Copy, Check, ShoppingBag } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
 export interface POIData {
