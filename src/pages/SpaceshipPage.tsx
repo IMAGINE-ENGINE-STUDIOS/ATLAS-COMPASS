@@ -2423,7 +2423,7 @@ out center 30;`;
                       <p className="text-sm text-white/30 text-center py-4">No results found.</p>
                     )}
                   </div>
-                </GlassPanel>
+                </div>
               </div>
             )}
           
