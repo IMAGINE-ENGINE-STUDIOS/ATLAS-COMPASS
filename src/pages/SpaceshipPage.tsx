@@ -828,6 +828,11 @@ out center 30;`;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
     viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
+
+    // Prevent crash-reloads: catch render errors instead of letting them propagate
+    viewer.scene.renderError.addEventListener((scene: any, error: any) => {
+      console.error("[Atlas Render Error — suppressed reload]", error);
+    });
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Hide globe immediately — photorealistic tiles will be the only visible layer
