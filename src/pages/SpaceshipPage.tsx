@@ -2829,7 +2829,7 @@ out center 30;`;
                     onNavigate={(poi) => {
                       const viewer = viewerRef.current;
                       if (viewer && !viewer.isDestroyed()) {
-                        viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), duration: 1 });
+                        viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 }, duration: 1 });
                       }
                     }}
                     onSelect={(poi) => {
