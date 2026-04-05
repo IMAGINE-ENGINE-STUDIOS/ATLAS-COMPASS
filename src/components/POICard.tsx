@@ -1,5 +1,4 @@
-import { motion } from "framer-motion";
-import { Navigation, MapPin, Clock, Phone, Globe, ExternalLink, Truck, Copy, Check, ShoppingBag } from "lucide-react";
+import { Navigation, MapPin, Phone, Globe, Truck, Copy, Check, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -50,10 +49,7 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
 
   if (compact) {
     return (
-      <motion.button
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.03 }}
+      <button
         onClick={() => (onSelect || onNavigate)?.(poi)}
         className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all group min-h-[44px] ${
           isGlass
@@ -83,16 +79,17 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
         <Navigation className={`w-3.5 h-3.5 shrink-0 transition-colors ${
           isGlass ? "text-white/10 group-hover:text-emerald-400" : "text-muted-foreground/30 group-hover:text-primary"
         }`} />
-      </motion.button>
+      </button>
     );
   }
 
+  // Determine if this is a business POI (for Visit Store button)
+  const bizTypes = new Set(["Restaurant","Fast food","Cafe","Café","Hotel","Shop","Store","Supermarket","Convenience","Grocery","Mall","Business"]);
+  const isBiz = poi.category && bizTypes.has(poi.category);
+
   // Full-size glassmorphic detail card
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: index * 0.04, type: "spring", stiffness: 300, damping: 25 }}
+    <div
       className={`rounded-2xl overflow-hidden transition-all group max-w-sm w-full ${
         isGlass
           ? "bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] hover:border-emerald-500/30 hover:bg-white/[0.07]"
@@ -105,7 +102,7 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
       <div className="p-3.5">
         <div className="flex items-start gap-3">
           {/* Large emoji icon */}
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner ${
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0 ${
             isGlass
               ? "bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/[0.08]"
               : "bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/10"
@@ -116,9 +113,9 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h4 className={`text-sm font-bold truncate ${isGlass ? "text-white" : "text-foreground"}`}>
-                  {poi.name}
+              <div className="min-w-0 flex-1">
+                <h4 className={`text-sm font-bold leading-tight ${isGlass ? "text-white" : "text-foreground"}`}>
+                  <span className="line-clamp-2">{poi.name}</span>
                 </h4>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   {poi.category && (
@@ -150,7 +147,7 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
 
             {/* Brand / cuisine / description */}
             {(poi.brand || poi.cuisine || poi.description) && (
-              <p className={`text-[10px] mt-1 ${isGlass ? "text-white/25" : "text-muted-foreground/70"}`}>
+              <p className={`text-[10px] mt-1 line-clamp-2 ${isGlass ? "text-white/25" : "text-muted-foreground/70"}`}>
                 {poi.brand && poi.brand !== poi.name ? `${poi.brand} · ` : ""}
                 {poi.cuisine || poi.description || ""}
               </p>
@@ -159,7 +156,7 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
             {/* Address with copy */}
             {poi.address && (
               <button onClick={copyAddress}
-                className={`text-[11px] mt-1.5 flex items-start gap-1 group/addr ${isGlass ? "text-white/30 hover:text-white/50" : "text-muted-foreground hover:text-foreground"} transition-colors`}>
+                className={`text-[11px] mt-1.5 flex items-start gap-1 group/addr max-w-full ${isGlass ? "text-white/30 hover:text-white/50" : "text-muted-foreground hover:text-foreground"} transition-colors`}>
                 <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
                 <span className="truncate text-left">{poi.address}</span>
                 {copied
@@ -171,10 +168,10 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
 
             {/* Phone + Website row */}
             {(poi.phone || poi.website) && (
-              <div className="flex items-center gap-3 mt-1.5">
+              <div className="flex items-center gap-3 mt-1.5 overflow-hidden">
                 {poi.phone && (
                   <a href={`tel:${poi.phone}`}
-                    className={`flex items-center gap-1 text-[10px] ${isGlass ? "text-cyan-400/60 hover:text-cyan-400" : "text-primary/60 hover:text-primary"} transition-colors`}
+                    className={`flex items-center gap-1 text-[10px] shrink-0 ${isGlass ? "text-cyan-400/60 hover:text-cyan-400" : "text-primary/60 hover:text-primary"} transition-colors`}
                     onClick={e => e.stopPropagation()}>
                     <Phone className="w-3 h-3" />
                     <span className="font-mono">{poi.phone}</span>
@@ -183,7 +180,7 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
                 {poi.website && (
                   <a href={poi.website.startsWith("http") ? poi.website : `https://${poi.website}`}
                     target="_blank" rel="noopener noreferrer"
-                    className={`flex items-center gap-1 text-[10px] truncate ${isGlass ? "text-cyan-400/60 hover:text-cyan-400" : "text-primary/60 hover:text-primary"} transition-colors`}
+                    className={`flex items-center gap-1 text-[10px] truncate min-w-0 ${isGlass ? "text-cyan-400/60 hover:text-cyan-400" : "text-primary/60 hover:text-primary"} transition-colors`}
                     onClick={e => e.stopPropagation()}>
                     <Globe className="w-3 h-3 shrink-0" />
                     <span className="truncate">{poi.website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}</span>
@@ -192,7 +189,7 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
               </div>
             )}
 
-            {/* Rating + coords */}
+            {/* Coords */}
             <div className="flex items-center gap-3 mt-2">
               {poi.rating != null && (
                 <span className={`text-[10px] font-mono ${isGlass ? "text-amber-400/70" : "text-amber-500"}`}>
@@ -206,64 +203,58 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 mt-3">
+        {/* Actions — grid layout prevents overflow */}
+        <div className="grid grid-cols-2 gap-1.5 mt-3">
           {onNavigate && (
             <button
               onClick={() => onNavigate(poi)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
+              className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
                 isGlass
                   ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25"
                   : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
               }`}
             >
-              <Navigation className="w-3.5 h-3.5" /> Navigate
+              <Navigation className="w-3.5 h-3.5 shrink-0" /> Navigate
             </button>
           )}
-          {/* Delivery action */}
           {poi.address && navigate && (
             <button
               onClick={() => navigate!(`/delivery?address=${encodeURIComponent(poi.address || poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
+              className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
                 isGlass
                   ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20"
                   : "bg-accent/10 text-accent-foreground border border-accent/20 hover:bg-accent/20"
               }`}
             >
-              <Truck className="w-3.5 h-3.5" /> Delivery
+              <Truck className="w-3.5 h-3.5 shrink-0" /> Delivery
             </button>
           )}
-          {/* Visit Store / ecommerce action — only for business-type POIs */}
-          {poi.address && navigate && (() => {
-            const bizTypes = new Set(["Restaurant","Fast food","Cafe","Café","Hotel","Shop","Store","Supermarket","Convenience","Grocery","Mall","Business"]);
-            const isBiz = poi.category && bizTypes.has(poi.category);
-            return isBiz ? (
-              <button
-                onClick={() => navigate!(`/marketplace?store=${encodeURIComponent(poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
-                  isGlass
-                    ? "bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20"
-                    : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
-                }`}
-              >
-                <ShoppingBag className="w-3.5 h-3.5" /> Visit Store
-              </button>
-            ) : null;
-          })()}
+          {isBiz && navigate && (
+            <button
+              onClick={() => navigate!(`/marketplace?store=${encodeURIComponent(poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
+              className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
+                isGlass
+                  ? "bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20"
+                  : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5 shrink-0" /> Visit Store
+            </button>
+          )}
           {onSelect && (
             <button
               onClick={() => onSelect(poi)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
+              className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
                 isGlass
                   ? "bg-white/[0.06] text-white/60 border border-white/[0.08] hover:bg-white/[0.1]"
                   : "bg-secondary/30 text-foreground border border-border/20 hover:bg-secondary/50"
               }`}
             >
-              <ExternalLink className="w-3.5 h-3.5" /> Select
+              <MapPin className="w-3.5 h-3.5 shrink-0" /> Details
             </button>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

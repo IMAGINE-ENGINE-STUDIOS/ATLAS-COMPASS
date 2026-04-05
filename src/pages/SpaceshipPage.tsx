@@ -151,9 +151,9 @@ const PRESETS: SearchResult[] = [
 ];
 
 /* ── HUD Panel Glass ── */
-function GlassPanel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function GlassPanel({ children, className = "", onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
   return (
-    <div className={`bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] ${className}`}>
+    <div onClick={onClick} className={`bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] ${className}`}>
       <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent rounded-2xl pointer-events-none" />
       <div className="relative z-10">{children}</div>
     </div>
@@ -388,15 +388,15 @@ function SpaceshipPage() {
   };
 
   const geoClassify = (tags: Record<string, string>) => {
-    const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "";
+    const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "", h = tags.healthcare || "";
     if (a === "restaurant" || a === "fast_food") return "🍽️ Restaurant";
     if (a === "cafe") return "☕ Café";
-    if (a === "fuel") return "⛽ Fuel";
-    if (a === "hospital" || a === "pharmacy" || a === "clinic") return "🏥 Health";
+    if (a === "fuel" || a === "charging_station") return "⛽ Fuel";
+    if (a === "hospital" || a === "pharmacy" || a === "clinic" || a === "doctors" || a === "dentist" || h) return "🏥 Health";
     if (a === "school" || a === "university") return "🎓 Education";
     if (a === "bank") return "🏦 Bank";
-    if (s === "supermarket" || s === "convenience" || s === "grocery") return "🛒 Grocery";
-    if (t === "hotel" || t === "motel" || t === "hostel") return "🏨 Hotel";
+    if (s === "supermarket" || s === "convenience" || s === "grocery" || s === "department_store" || s === "general") return "🛒 Grocery";
+    if (t === "hotel" || t === "motel" || t === "hostel" || t === "guest_house") return "🏨 Hotel";
     if (s) return "🏪 Shop";
     return "📍 Business";
   };
@@ -411,17 +411,17 @@ function SpaceshipPage() {
     const bbox = `${(center.lat - degR).toFixed(5)},${(center.lng - degR).toFixed(5)},${(center.lat + degR).toFixed(5)},${(center.lng + degR).toFixed(5)}`;
     let filter = "";
     switch (geoCategory) {
-      case "restaurant": filter = `node["amenity"~"restaurant|fast_food"](${bbox});`; break;
-      case "cafe": filter = `node["amenity"="cafe"](${bbox});`; break;
-      case "hotel": filter = `node["tourism"~"hotel|motel|hostel"](${bbox});`; break;
-      case "fuel": filter = `node["amenity"="fuel"](${bbox});`; break;
-      case "health": filter = `node["amenity"~"hospital|pharmacy|clinic"](${bbox});`; break;
-      case "supermarket": filter = `node["shop"~"supermarket|convenience|grocery"](${bbox});`; break;
-      case "shop": filter = `node["shop"](${bbox});`; break;
-      default: filter = `node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital"](${bbox});node["tourism"~"hotel|motel"](${bbox});`;
+      case "restaurant": filter = `nwr["amenity"~"restaurant|fast_food"](${bbox});`; break;
+      case "cafe": filter = `nwr["amenity"="cafe"](${bbox});`; break;
+      case "hotel": filter = `nwr["tourism"~"hotel|motel|hostel|guest_house"](${bbox});`; break;
+      case "fuel": filter = `nwr["amenity"~"fuel|charging_station"](${bbox});`; break;
+      case "health": filter = `nwr["amenity"~"hospital|pharmacy|clinic|doctors|dentist"](${bbox});nwr["healthcare"](${bbox});`; break;
+      case "supermarket": filter = `nwr["shop"~"supermarket|convenience|grocery|department_store|general"](${bbox});`; break;
+      case "shop": filter = `nwr["shop"](${bbox});`; break;
+      default: filter = `nwr["shop"](${bbox});nwr["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|clinic|doctors"](${bbox});nwr["tourism"~"hotel|motel"](${bbox});nwr["healthcare"](${bbox});`;
     }
-    const limit = geoRadiusKm <= 5 ? 100 : 50;
-    const q = `[out:json][timeout:12];(${filter});out ${limit};`;
+    const limit = geoRadiusKm <= 5 ? 150 : 80;
+    const q = `[out:json][timeout:15];(${filter});out center ${limit};`;
     try {
       const resp = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST", body: `data=${encodeURIComponent(q)}`,
@@ -431,14 +431,16 @@ function SpaceshipPage() {
       if (!resp.ok) throw new Error("API error");
       const data = await resp.json();
       const results = (data.elements || [])
-        .filter((el: any) => el.tags?.name)
+        .filter((el: any) => el.tags?.name && (el.lat || el.center?.lat))
         .map((el: any) => {
           const tags = el.tags || {};
+          const elLat = el.lat || el.center?.lat;
+          const elLng = el.lon || el.center?.lon;
           return {
-            id: el.id, name: tags.name, lat: el.lat, lng: el.lon,
+            id: el.id, name: tags.name, lat: elLat, lng: elLng,
             type: geoClassify(tags),
             address: [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"]].filter(Boolean).join(" ") || "",
-            distance: geoHaversine(center.lat, center.lng, el.lat, el.lon),
+            distance: geoHaversine(center.lat, center.lng, elLat, elLng),
             phone: tags.phone || tags["contact:phone"] || "",
             website: tags.website || tags["contact:website"] || "",
             brand: tags.brand || "",
@@ -1159,20 +1161,20 @@ out center 30;`;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
 
-      // Apply category filter to globe pins query
+      // Apply category filter to globe pins query — use nwr for full store coverage
       let filter = "";
       switch (geoCategory) {
-        case "restaurant": filter = `node["amenity"~"restaurant|fast_food"](${bbox});`; break;
-        case "cafe": filter = `node["amenity"="cafe"](${bbox});`; break;
-        case "hotel": filter = `node["tourism"~"hotel|motel|hostel"](${bbox});`; break;
-        case "fuel": filter = `node["amenity"="fuel"](${bbox});`; break;
-        case "health": filter = `node["amenity"~"hospital|pharmacy|clinic"](${bbox});`; break;
-        case "supermarket": filter = `node["shop"~"supermarket|convenience|grocery"](${bbox});`; break;
-        case "shop": filter = `node["shop"](${bbox});`; break;
-        default: filter = `node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital"](${bbox});node["tourism"~"hotel|motel"](${bbox});`;
+        case "restaurant": filter = `nwr["amenity"~"restaurant|fast_food"](${bbox});`; break;
+        case "cafe": filter = `nwr["amenity"="cafe"](${bbox});`; break;
+        case "hotel": filter = `nwr["tourism"~"hotel|motel|hostel|guest_house"](${bbox});`; break;
+        case "fuel": filter = `nwr["amenity"~"fuel|charging_station"](${bbox});`; break;
+        case "health": filter = `nwr["amenity"~"hospital|pharmacy|clinic|doctors|dentist"](${bbox});nwr["healthcare"](${bbox});`; break;
+        case "supermarket": filter = `nwr["shop"~"supermarket|convenience|grocery|department_store|general"](${bbox});`; break;
+        case "shop": filter = `nwr["shop"](${bbox});`; break;
+        default: filter = `nwr["shop"](${bbox});nwr["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|clinic|doctors"](${bbox});nwr["tourism"~"hotel|motel"](${bbox});nwr["healthcare"](${bbox});`;
       }
 
-      const query = `[out:json][timeout:8];(${filter});out ${limit};`;
+      const query = `[out:json][timeout:10];(${filter});out center ${limit};`;
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
@@ -1195,28 +1197,32 @@ out center 30;`;
 
         const iconMap: Record<string, string> = {
           restaurant: "🍽️", fast_food: "🍔", cafe: "☕", bar: "🍺", pub: "🍺",
-          fuel: "⛽", pharmacy: "💊", hospital: "🏥", bank: "🏦",
+          fuel: "⛽", charging_station: "🔌", pharmacy: "💊", hospital: "🏥", clinic: "🏥", doctors: "👨‍⚕️", dentist: "🦷", bank: "🏦",
           hotel: "🏨", motel: "🏨", hostel: "🏨", guest_house: "🏨",
-          supermarket: "🛒", convenience: "🏪", clothes: "👕", electronics: "📱",
-          bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
+          supermarket: "🛒", convenience: "🏪", department_store: "🏬", general: "🏪", grocery: "🛒",
+          clothes: "👕", electronics: "📱", bakery: "🍞", butcher: "🥩", hairdresser: "💇", car_repair: "🔧",
         };
 
-        // Refined category colors matching the UI design system
         const colorMap: Record<string, string> = {
           restaurant: "rgba(249,115,22,0.75)", fast_food: "rgba(249,115,22,0.7)",
-          cafe: "rgba(217,119,6,0.75)", fuel: "rgba(239,68,68,0.7)",
-          pharmacy: "rgba(168,85,247,0.7)", hospital: "rgba(239,68,68,0.7)",
+          cafe: "rgba(217,119,6,0.75)", fuel: "rgba(239,68,68,0.7)", charging_station: "rgba(239,68,68,0.7)",
+          pharmacy: "rgba(168,85,247,0.7)", hospital: "rgba(239,68,68,0.7)", clinic: "rgba(239,68,68,0.7)", doctors: "rgba(239,68,68,0.7)", dentist: "rgba(239,68,68,0.7)",
           bank: "rgba(59,130,246,0.7)", hotel: "rgba(99,102,241,0.7)",
-          supermarket: "rgba(34,197,94,0.7)", convenience: "rgba(34,197,94,0.65)",
+          supermarket: "rgba(34,197,94,0.7)", convenience: "rgba(34,197,94,0.65)", department_store: "rgba(34,197,94,0.7)", grocery: "rgba(34,197,94,0.7)",
         };
 
         data.elements.forEach((el: any) => {
           const tags = el.tags || {};
           if (!tags.name) return;
-          const amenity = tags.amenity || tags.shop || tags.tourism || "";
+          const elLat = el.lat || el.center?.lat;
+          const elLng = el.lon || el.center?.lon;
+          if (!elLat || !elLng) return;
+          const amenity = tags.amenity || tags.shop || tags.tourism || tags.healthcare || "";
           const icon = iconMap[amenity] || "📍";
           const entityId = `biz-${el.id}`;
           const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(", ");
+          const _lat = elLat;
+          const _lng = elLng;
           
 
           businessDataRef.current.set(entityId, {
@@ -1225,8 +1231,8 @@ out center 30;`;
             emoji: icon,
             category: amenity ? (amenity.charAt(0).toUpperCase() + amenity.slice(1)).replace(/_/g, " ") : "Business",
             address: addr || undefined,
-            lat: el.lat,
-            lng: el.lon,
+            lat: _lat,
+            lng: _lng,
             phone: tags.phone || tags["contact:phone"] || undefined,
             website: tags.website || tags["contact:website"] || undefined,
             openNow: tags.opening_hours === "24/7" ? true : undefined,
@@ -1240,7 +1246,7 @@ out center 30;`;
           const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
+            position: Cartesian3.fromDegrees(_lng, _lat, 2),
             billboard: {
               image: createPinCanvas(icon, truncName, bgColor),
               verticalOrigin: 1, // BOTTOM
@@ -1999,14 +2005,36 @@ out center 30;`;
                 </GlassPanel>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { const opening = !searchOpen; setSearchOpen(opening); if (opening) { setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geoLocateUser(); } }}
-                  className="bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors relative"
+              <div className="flex items-center gap-2 flex-1 min-w-0 max-w-lg">
+                {/* Inline search bar in HUD */}
+                <GlassPanel className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 cursor-text"
+                  onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent rounded-2xl pointer-events-none" />
-                  <Search className="w-5 h-5 text-white/70 relative z-10" />
-                </button>
+                  <Search className="w-4 h-4 text-white/40 shrink-0" />
+                  {searchOpen ? (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      placeholder="Search stores, addresses…"
+                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30 min-w-0"
+                      onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
+                    />
+                  ) : (
+                    <span className="text-sm text-white/30 truncate">Search stores, addresses…</span>
+                  )}
+                  {searchOpen && searchQuery && (
+                    <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0">
+                      <X className="w-3.5 h-3.5 text-white/30 hover:text-white/60" />
+                    </button>
+                  )}
+                  {searchOpen && (
+                    <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0 p-0.5 rounded-lg hover:bg-white/[0.08]">
+                      <X className="w-4 h-4 text-white/40" />
+                    </button>
+                  )}
+                </GlassPanel>
 
                 <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
@@ -2079,32 +2107,22 @@ out center 30;`;
           
             {searchOpen && (
               <div
-                className={`animate-fade-in ${isMobile
+                className={`${isMobile
                   ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
                   : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
                 }`}
               >
                 <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
-                  {/* Search bar + controls */}
-                  <div className="flex items-center gap-2 p-3 border-b border-white/[0.06]">
-                    <Search className="w-4 h-4 text-primary shrink-0" />
-                    <input
-                      type="text"
-                      autoFocus
-                      value={searchQuery}
-                      onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search addresses, businesses, stores…"
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30 min-w-0"
-                    />
+                  {/* Controls row — no duplicate search bar */}
+                  <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
                     <button onClick={geoLocateUser} title="Use my location"
                       className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0">
                       <Crosshair className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => { geofenceFromCamera(); }} title="Scan camera area"
+                    <button onClick={geofenceFromCamera} title="Scan camera area"
                       className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0">
                       <Globe className="w-3.5 h-3.5" />
                     </button>
-                    {/* Radius */}
                     <div className="relative shrink-0">
                       <button onClick={() => setGeoShowRadius(!geoShowRadius)}
                         className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
@@ -2121,9 +2139,6 @@ out center 30;`;
                         </div>
                       )}
                     </div>
-                    <button onClick={() => setSearchOpen(false)} className="p-1 rounded-lg text-white/30 hover:text-white/60 transition-colors shrink-0">
-                      <X className="w-4 h-4" />
-                    </button>
                   </div>
 
                   {/* Category + type filter pills */}
@@ -2139,9 +2154,8 @@ out center 30;`;
                             businessLoadedAreaRef.current = "";
                             // Auto-enable business pins on globe when any category is selected
                             if (!showBusinessIcons) setShowBusinessIcons(true);
-                            // Auto-locate user if no center yet
-                            if (!geoCenter) geoLocateUser();
-                            else fetchGeofencedBusinesses(geoCenter);
+                            // Use camera position — don't fly to user location
+                            geofenceFromCamera();
                           }}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
                             geoCategory === catKey
