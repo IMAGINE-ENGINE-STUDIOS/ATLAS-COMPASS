@@ -1102,6 +1102,11 @@ out center 30;`;
 
     if (!showCargoRoutes) return;
 
+    // Filter routes
+    let filteredRoutes = ALL_CARGO_ROUTES;
+    if (cargoFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.type === cargoFilter);
+    if (cargoTypeFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.category === cargoTypeFilter);
+
     filteredRoutes.forEach((route) => {
       const height = route.type === "air" ? 80000 : 0;
       const positions = route.waypoints.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat, height));
