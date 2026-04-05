@@ -1181,7 +1181,6 @@ out center 30;`;
           if (route) {
             setSelectedRoute(route);
           }
-          }
         }
         // Check if it's a business entity
         if (entityId.startsWith("biz-")) {
