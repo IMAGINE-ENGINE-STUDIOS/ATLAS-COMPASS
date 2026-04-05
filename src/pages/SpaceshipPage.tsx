@@ -486,7 +486,11 @@ function SpaceshipPage() {
         // Fly to user
         const viewer = viewerRef.current;
         if (viewer && !viewer.isDestroyed()) {
-          viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(loc.lng, loc.lat, 2000), duration: 2 });
+          viewer.camera.flyTo({
+            destination: Cartesian3.fromDegrees(loc.lng, loc.lat, 2000),
+            orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-45), roll: 0 },
+            duration: 2,
+          });
         }
         try {
           const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`, { headers: { "Accept-Language": "en" } });
