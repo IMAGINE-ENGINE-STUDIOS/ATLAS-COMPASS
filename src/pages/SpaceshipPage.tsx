@@ -2174,12 +2174,17 @@ out center 30;`;
           
             {searchOpen && (
               <div
-                className={`${isMobile
-                  ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
-                  : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
-                }`}
+                className="absolute right-2 sm:right-4 z-30"
+                style={{
+                  bottom: 'calc(100% - 0px)',
+                  width: 'min(50%, 420px)',
+                  animation: 'slideUp 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+                }}
               >
-                <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
+                <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                <GlassPanel className="flex flex-col max-h-[60vh] overflow-hidden p-0 backdrop-blur-2xl bg-black/50 border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+                  style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                >
                   {/* Controls row — no duplicate search bar */}
                   <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
                     <button onClick={geoLocateUser} title="Use my location"
