@@ -1132,34 +1132,19 @@ out center 20;`;
           });
 
           // High-quality glassmorphic pin at real coordinates
-          const tagText = `${icon} ${tags.name}`;
           const bgColor = colorMap[amenity] || "rgba(0,212,255,0.65)";
+          const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
+          const tagText = `${icon} ${truncName}`;
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(el.lon, el.lat, 5),
-            point: {
-              pixelSize: 10,
-              color: Color.fromCssColorString(bgColor),
-              outlineColor: Color.WHITE.withAlpha(0.9),
-              outlineWidth: 2.5,
+            position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
+            billboard: {
+              image: createPinCanvas(icon, truncName, bgColor),
+              verticalOrigin: 1, // BOTTOM
+              pixelOffset: new Cartesian2(0, -4),
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 100, nearValue: 1.4, far: 20000, farValue: 0.4 } as any,
-              heightReference: 1,
-            },
-            label: {
-              text: tagText,
-              font: "bold 13px 'Inter', system-ui, sans-serif",
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              style: 2,
-              outlineWidth: 3,
-              outlineColor: Color.BLACK.withAlpha(0.8),
-              fillColor: Color.WHITE,
-              backgroundColor: Color.fromCssColorString(bgColor),
-              showBackground: true,
-              backgroundPadding: new Cartesian2(8, 5),
-              scaleByDistance: { near: 100, nearValue: 1.1, far: 12000, farValue: 0.3 } as any,
-              translucencyByDistance: { near: 100, nearValue: 1.0, far: 20000, farValue: 0.0 } as any,
-              pixelOffset: new Cartesian2(0, -22),
+              scaleByDistance: { near: 100, nearValue: 0.9, far: 15000, farValue: 0.25 } as any,
+              translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
               heightReference: 1,
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
