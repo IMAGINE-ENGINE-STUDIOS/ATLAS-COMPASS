@@ -522,9 +522,11 @@ function SpaceshipPage() {
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+    // Offset camera north so target appears centered in view with -50° pitch
+    const offsetDeg = 0.0025; // ~280m north offset
     viewer.camera.flyTo({
-      destination: Cartesian3.fromDegrees(b.lng, b.lat, 500),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+      destination: Cartesian3.fromDegrees(b.lng, b.lat + offsetDeg, 400),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-55), roll: 0 },
       duration: 1.5,
     });
   }, []);
