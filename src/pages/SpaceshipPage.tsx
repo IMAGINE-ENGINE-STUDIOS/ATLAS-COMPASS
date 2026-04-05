@@ -1353,15 +1353,16 @@ out center 30;`;
           const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(_lng, _lat, 2),
+            position: Cartesian3.fromDegrees(_lng, _lat, 0),
             billboard: {
               image: createPinCanvas(icon, truncName, bgColor),
               verticalOrigin: 1, // BOTTOM
-              pixelOffset: new Cartesian2(0, -4),
+              pixelOffset: new Cartesian2(0, 0),
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 100, nearValue: 0.9, far: 15000, farValue: 0.25 } as any,
+              scaleByDistance: { near: 200, nearValue: 0.8, far: 15000, farValue: 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
-              heightReference: 1,
+              heightReference: 1, // CLAMP_TO_GROUND
+              alignedAxis: Cartesian3.ZERO, // Always face camera
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
           });

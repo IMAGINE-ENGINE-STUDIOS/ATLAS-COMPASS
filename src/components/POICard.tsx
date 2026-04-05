@@ -1,4 +1,4 @@
-import { Navigation, MapPin, Phone, Globe, Truck, Copy, Check, ShoppingBag } from "lucide-react";
+import { Navigation, MapPin, Phone, Globe, Truck, Copy, Check, ShoppingBag, Route } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
