@@ -2095,38 +2095,7 @@ out center 30;`;
                 </GlassPanel>
               </div>
 
-              <div className="flex items-center gap-2 flex-1 min-w-0 max-w-lg">
-                {/* Inline search bar in HUD */}
-                <GlassPanel className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 cursor-text"
-                  onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}
-                >
-                  <Search className="w-4 h-4 text-white/40 shrink-0" />
-                  {searchOpen ? (
-                    <input
-                      type="text"
-                      autoFocus
-                      value={searchQuery}
-                      onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search stores, addresses…"
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30 min-w-0"
-                      onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
-                    />
-                  ) : (
-                    <span className="text-sm text-white/30 truncate">Search stores, addresses…</span>
-                  )}
-                  {searchOpen && searchQuery && (
-                    <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0">
-                      <X className="w-3.5 h-3.5 text-white/30 hover:text-white/60" />
-                    </button>
-                  )}
-                  {searchOpen && (
-                    <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0 p-0.5 rounded-lg hover:bg-white/[0.08]">
-                      <X className="w-4 h-4 text-white/40" />
-                    </button>
-                  )}
-                </GlassPanel>
-
-                <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
+              <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
@@ -2184,7 +2153,6 @@ out center 30;`;
                     {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                   </button>
                 </GlassPanel>
-              </div>
             </div>
           </div>
 
@@ -3168,7 +3136,41 @@ out center 30;`;
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
               <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 flex-1 min-w-0">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <Crosshair className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+                  {/* Integrated Search */}
+                  <div
+                    className="flex items-center gap-1.5 cursor-text shrink-0"
+                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}
+                  >
+                    <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+                    {searchOpen ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={searchQuery}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        placeholder="Search…"
+                        className="w-24 sm:w-36 bg-transparent text-white text-xs sm:text-sm outline-none placeholder:text-white/30 min-w-0 font-mono"
+                        onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
+                      />
+                    ) : (
+                      <span className="text-[10px] sm:text-xs text-white/30 hidden sm:inline">Search</span>
+                    )}
+                    {searchOpen && searchQuery && (
+                      <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0">
+                        <X className="w-3 h-3 text-white/30 hover:text-white/60" />
+                      </button>
+                    )}
+                    {searchOpen && (
+                      <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0">
+                        <X className="w-3.5 h-3.5 text-white/40" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="w-px h-6 sm:h-8 bg-white/10" />
+
+                  {/* Coordinates */}
+                  <Crosshair className="w-3.5 h-3.5 text-white/40 shrink-0" />
                   {cursorInfo ? (
                     <div className="flex items-center gap-2 sm:gap-4 flex-wrap min-w-0">
                       <div className="min-w-0">
