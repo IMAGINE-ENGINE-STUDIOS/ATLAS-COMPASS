@@ -2155,9 +2155,8 @@ out center 30;`;
                             businessLoadedAreaRef.current = "";
                             // Auto-enable business pins on globe when any category is selected
                             if (!showBusinessIcons) setShowBusinessIcons(true);
-                            // Auto-locate user if no center yet
-                            if (!geoCenter) geoLocateUser();
-                            else fetchGeofencedBusinesses(geoCenter);
+                            // Use camera position — don't fly to user location
+                            geofenceFromCamera();
                           }}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
                             geoCategory === catKey
