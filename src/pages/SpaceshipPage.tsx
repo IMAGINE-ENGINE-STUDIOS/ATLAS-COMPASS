@@ -196,22 +196,22 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
   
-  // Measure text
-  ctx.font = `bold ${12 * dpr}px Inter, system-ui, sans-serif`;
+  // Measure text — use SF-style system font
+  ctx.font = `600 ${13 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
   const textWidth = ctx.measureText(name).width;
-  const iconWidth = 18 * dpr;
-  const padding = 10 * dpr;
-  const gap = 4 * dpr;
-  const pointerH = 8 * dpr;
+  const iconWidth = 20 * dpr;
+  const padding = 12 * dpr;
+  const gap = 6 * dpr;
+  const pointerH = 10 * dpr;
   const w = iconWidth + gap + textWidth + padding * 2;
-  const h = 28 * dpr;
+  const h = 32 * dpr;
   const totalH = h + pointerH;
-  const r = 8 * dpr;
+  const r = 14 * dpr;
   
   canvas.width = w;
   canvas.height = totalH;
   
-  // Glassmorphic background
+  // Solid frosted glass background
   ctx.beginPath();
   ctx.moveTo(r, 0);
   ctx.lineTo(w - r, 0);
@@ -219,42 +219,56 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
   ctx.lineTo(w, h - r);
   ctx.quadraticCurveTo(w, h, w - r, h);
   // Pointer triangle
-  ctx.lineTo(w / 2 + 6 * dpr, h);
+  ctx.lineTo(w / 2 + 7 * dpr, h);
   ctx.lineTo(w / 2, totalH);
-  ctx.lineTo(w / 2 - 6 * dpr, h);
+  ctx.lineTo(w / 2 - 7 * dpr, h);
   ctx.lineTo(r, h);
   ctx.quadraticCurveTo(0, h, 0, h - r);
   ctx.lineTo(0, r);
   ctx.quadraticCurveTo(0, 0, r, 0);
   ctx.closePath();
   
-  // Fill with semi-transparent bg
-  ctx.fillStyle = bgColor;
+  // Solid opaque fill (iPhone-style frosted glass)
+  ctx.fillStyle = bgColor.replace(/[\d.]+\)$/, "0.88)");
   ctx.fill();
   
-  // Subtle top highlight
+  // Top-to-bottom sheen
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "rgba(255,255,255,0.18)");
-  grad.addColorStop(0.5, "rgba(255,255,255,0.02)");
-  grad.addColorStop(1, "rgba(0,0,0,0.1)");
+  grad.addColorStop(0, "rgba(255,255,255,0.30)");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.08)");
+  grad.addColorStop(1, "rgba(0,0,0,0.05)");
   ctx.fillStyle = grad;
   ctx.fill();
   
-  // Border
-  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  // Crisp border
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
   ctx.lineWidth = 1.5 * dpr;
   ctx.stroke();
   
+  // Drop shadow effect (inner glow)
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.shadowColor = "rgba(0,0,0,0.3)";
+  ctx.shadowBlur = 6 * dpr;
+  ctx.shadowOffsetY = 3 * dpr;
+  ctx.fillStyle = "transparent";
+  ctx.fill();
+  ctx.restore();
+  
   // Icon emoji
-  ctx.font = `${14 * dpr}px sans-serif`;
+  ctx.font = `${15 * dpr}px -apple-system, BlinkMacSystemFont, sans-serif`;
   ctx.textBaseline = "middle";
   ctx.fillText(icon, padding, h / 2);
   
-  // Name text
-  ctx.font = `bold ${12 * dpr}px Inter, system-ui, sans-serif`;
+  // Name text — crisp white with subtle shadow
+  ctx.font = `600 ${13 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = 2 * dpr;
+  ctx.shadowOffsetY = 1;
   ctx.fillStyle = "white";
   ctx.textBaseline = "middle";
   ctx.fillText(name, padding + iconWidth + gap, h / 2);
+  ctx.shadowBlur = 0;
   
   const dataUrl = canvas.toDataURL("image/png");
   pinCanvasCache.set(key, dataUrl);
@@ -1670,7 +1684,7 @@ out center 30;`;
         setOverpassResults(localBiz.slice(0, 20));
         setNominatimResults([...localPlaces.slice(0, 10), ...globalResults.slice(0, 10)]);
         setSearchLoading(false);
-      }, 400);
+      }, 100);
     } else {
       setNominatimResults([]);
       setOverpassResults([]);
@@ -2156,258 +2170,8 @@ out center 30;`;
             </div>
           </div>
 
-          {/* Unified Search & Nearby Panel */}
-          
-            {searchOpen && (
-              <div
-                className={`${isMobile
-                  ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
-                  : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
-                }`}
-              >
-                <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
-                  {/* Controls row — no duplicate search bar */}
-                  <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
-                    <button onClick={geoLocateUser} title="Use my location"
-                      className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0">
-                      <Crosshair className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={geofenceFromCamera} title="Scan camera area"
-                      className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0">
-                      <Globe className="w-3.5 h-3.5" />
-                    </button>
-                    <div className="relative shrink-0">
-                      <button onClick={() => setGeoShowRadius(!geoShowRadius)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
-                        <Radius className="w-3 h-3" /> {geoRadiusKm}km <ChevronDown className="w-2.5 h-2.5" />
-                      </button>
-                      {geoShowRadius && (
-                        <div className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-xl p-1 z-50 min-w-[80px]">
-                          {GEO_RADIUS_OPTIONS.map(r => (
-                            <button key={r} onClick={() => { setGeoRadiusKm(r); setGeoShowRadius(false); }}
-                              className={`w-full text-left px-3 py-1 rounded-lg text-xs transition-colors ${r === geoRadiusKm ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-white/5 text-white/60"}`}>
-                              {r} km
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Category + type filter pills */}
-                  <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
-                    {["All", ...GEO_CATEGORIES.filter(c => c.key !== "all").map(c => c.label)].map((t, idx) => {
-                      const catKey = idx === 0 ? "all" : GEO_CATEGORIES[idx].key;
-                      const catIcon = idx === 0 ? <Layers className="w-3 h-3" /> : GEO_CATEGORIES[idx].icon;
-                      return (
-                        <button
-                          key={t}
-                          onClick={() => {
-                            setGeoCategory(catKey);
-                            businessLoadedAreaRef.current = "";
-                            // Auto-enable business pins on globe when any category is selected
-                            if (!showBusinessIcons) setShowBusinessIcons(true);
-                            // Use camera position — don't fly to user location
-                            geofenceFromCamera();
-                          }}
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${
-                            geoCategory === catKey
-                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                              : "bg-white/[0.03] text-white/40 border border-white/[0.06] hover:bg-white/[0.06]"
-                          }`}
-                        >
-                          {catIcon} {t}
-                        </button>
-                      );
-                    })}
-                  </div>
 
-                  {/* Location info */}
-                  {geoCenter && (
-                    <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center gap-2">
-                      <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                      <span className="text-[10px] text-white/30 truncate">{geoLocationName}</span>
-                      {geoBusinesses.length > 0 && <span className="text-[9px] font-mono text-emerald-400/50 shrink-0">{geoBusinesses.length} nearby</span>}
-                    </div>
-                  )}
-
-                  {/* Results */}
-                  <div className="flex-1 overflow-y-auto min-h-0 max-h-72 p-2 space-y-0.5">
-                    {/* Loading */}
-                    {(searchLoading || geoLoading) && (
-                      <div className="flex items-center justify-center gap-2 py-3">
-                        <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                        <span className="text-xs text-white/30">Searching…</span>
-                      </div>
-                    )}
-
-                    {/* Geofenced nearby businesses (always shown) */}
-                    {geoBusinesses.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-2 px-2 py-1">
-                          <div className="flex-1 h-px bg-emerald-500/20" />
-                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby · {geoRadiusKm}km</span>
-                          <div className="flex-1 h-px bg-emerald-500/20" />
-                        </div>
-                        {(() => {
-                          const q = searchQuery.toLowerCase();
-                          const filtered = q
-                            ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q))
-                            : geoBusinesses;
-                          return filtered.map((b: any, idx: number) => (
-                            <POICard
-                              key={b.id}
-                              compact
-                              variant="glass"
-                              index={idx}
-                              poi={{
-                                id: b.id,
-                                name: b.name,
-                                emoji: b.type.split(" ")[0],
-                                category: b.type.slice(b.type.indexOf(" ") + 1),
-                                address: b.address,
-                                lat: b.lat,
-                                lng: b.lng,
-                                distance: b.distance,
-                              }}
-                              onNavigate={() => {
-                                flyToBusiness(b);
-                                setSelectedBusiness({
-                                  id: b.id, name: b.name, emoji: b.type.split(" ")[0],
-                                  category: b.type.slice(b.type.indexOf(" ") + 1),
-                                  address: b.address, lat: b.lat, lng: b.lng, distance: b.distance,
-                                  phone: b.phone || undefined, website: b.website || undefined,
-                                  brand: b.brand || undefined, cuisine: b.cuisine || undefined,
-                                  openNow: b.openNow,
-                                });
-                                setSearchOpen(false);
-                              }}
-                            />
-                          ));
-                        })()}
-                      </>
-                    )}
-
-                    {/* Overpass business results from text search */}
-                    {overpassResults.length > 0 && searchQuery && (
-                      <>
-                        <div className="flex items-center gap-2 px-2 py-1">
-                          <div className="flex-1 h-px bg-emerald-500/20" />
-                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
-                          <div className="flex-1 h-px bg-emerald-500/20" />
-                        </div>
-                        {overpassResults.map((r: any, i: number) => (
-                          <POICard
-                            key={`ov-${i}`}
-                            compact
-                            variant="glass"
-                            index={i}
-                            poi={{
-                              name: r.name,
-                              emoji: (() => { const t = r.type; if (t.includes("Restaurant") || t.includes("Food")) return "🍽️"; if (t.includes("Cafe")) return "☕"; if (t.includes("Hotel")) return "🏨"; if (t.includes("Shop") || t.includes("Supermarket")) return "🛒"; if (t.includes("Fuel")) return "⛽"; if (t.includes("Health")) return "🏥"; return "📍"; })(),
-                              category: r.type,
-                              lat: r.lat,
-                              lng: r.lng,
-                              distance: r.distance,
-                              phone: r.phone,
-                              website: r.website,
-                              brand: r.brand,
-                              cuisine: r.cuisine,
-                            }}
-                            onNavigate={() => {
-                              flyTo(r);
-                              const emoji = (() => { const t = r.type; if (t.includes("Restaurant") || t.includes("Food")) return "🍽️"; if (t.includes("Cafe")) return "☕"; if (t.includes("Hotel")) return "🏨"; if (t.includes("Shop") || t.includes("Supermarket")) return "🛒"; if (t.includes("Fuel")) return "⛽"; if (t.includes("Health")) return "🏥"; return "📍"; })();
-                              setSelectedBusiness({ name: r.name, emoji, category: r.type, lat: r.lat, lng: r.lng, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, distance: r.distance });
-                              setSearchOpen(false);
-                            }}
-                          />
-                        ))}
-                      </>
-                    )}
-
-                    {/* Nominatim / global results */}
-                    {nominatimResults.length > 0 && searchQuery && (
-                      <>
-                        <div className="flex items-center gap-2 px-2 py-1">
-                          <div className="flex-1 h-px bg-white/[0.06]" />
-                          <span className="text-[9px] text-white/30 font-mono uppercase">
-                            {overpassResults.length === 0 ? "📌 No nearby businesses found · showing all results" : "🌍 Other Results"}
-                          </span>
-                          <div className="flex-1 h-px bg-white/[0.06]" />
-                        </div>
-                        {nominatimResults.map((r, i) => (
-                          <POICard
-                            key={`nom-${i}`}
-                            compact
-                            variant="glass"
-                            index={i}
-                            poi={{
-                              name: r.name,
-                              emoji: (() => { const t = r.type; if (t === "City") return "🏙️"; if (t === "Airport") return "✈️"; if (t === "Port") return "⚓"; if (t === "Mountain") return "🏔️"; return "📍"; })(),
-                              category: r.type,
-                              lat: r.lat,
-                              lng: r.lng,
-                            }}
-                            onNavigate={() => flyTo(r)}
-                          />
-                        ))}
-                      </>
-                    )}
-
-                    {/* Presets */}
-                    {searchQuery ? (
-                      searchResults.length > 0 && (
-                        <>
-                          <div className="flex items-center gap-2 px-2 py-1">
-                            <div className="flex-1 h-px bg-white/[0.06]" />
-                            <span className="text-[9px] text-white/30 font-mono uppercase">Presets</span>
-                            <div className="flex-1 h-px bg-white/[0.06]" />
-                          </div>
-                          {searchResults.map((r, i) => (
-                            <POICard
-                              key={`preset-${i}`}
-                              compact
-                              variant="glass"
-                              index={i}
-                              poi={{
-                                name: r.name,
-                                emoji: (() => { const t = r.type; if (t === "City") return "🏙️"; if (t === "Airport") return "✈️"; if (t === "Port") return "⚓"; if (t === "Mountain") return "🏔️"; return "📍"; })(),
-                                category: r.type,
-                                lat: r.lat,
-                                lng: r.lng,
-                              }}
-                              onNavigate={() => flyTo(r)}
-                            />
-                          ))}
-                        </>
-                      )
-                    ) : !geoBusinesses.length && (
-                      PRESETS.slice(0, 8).map((r, i) => (
-                        <POICard
-                          key={`preset-${i}`}
-                          compact
-                          variant="glass"
-                          index={i}
-                          poi={{
-                            name: r.name,
-                            emoji: (() => { const t = r.type; if (t === "City") return "🏙️"; if (t === "Airport") return "✈️"; if (t === "Port") return "⚓"; if (t === "Mountain") return "🏔️"; return "📍"; })(),
-                            category: r.type,
-                            lat: r.lat,
-                            lng: r.lng,
-                          }}
-                          onNavigate={() => flyTo(r)}
-                        />
-                      ))
-                    )}
-
-                    {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && geoBusinesses.length === 0 && !searchLoading && !geoLoading && searchQuery && (
-                      <p className="text-sm text-white/30 text-center py-4">No results found.</p>
-                    )}
-                  </div>
-                </GlassPanel>
-              </div>
-            )}
-          
 
           {/* ── CARGO ROUTES PANEL ── */}
           
@@ -3129,50 +2893,132 @@ out center 30;`;
           
 
 
-          {/* Bottom HUD — Coordinates & Camera Info */}
-          <div
-            className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4"
-          >
+           {/* Bottom HUD — Coordinates & Search */}
+          <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
+            {/* Search results — slides up from bottom bar */}
+            {searchOpen && (
+              <div
+                className="absolute right-2 sm:right-4 z-30"
+                style={{ bottom: '100%', marginBottom: '8px', width: 'min(55%, 440px)', animation: 'slideUp 0.25s cubic-bezier(0.22,1,0.36,1)' }}
+              >
+                <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+                <div className="flex flex-col max-h-[60vh] overflow-hidden rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+                  style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>
+                  {/* Controls */}
+                  <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
+                    <button onClick={geoLocateUser} title="Use my location" className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0"><Crosshair className="w-3.5 h-3.5" /></button>
+                    <button onClick={geofenceFromCamera} title="Scan camera area" className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0"><Globe className="w-3.5 h-3.5" /></button>
+                    <div className="relative shrink-0">
+                      <button onClick={() => setGeoShowRadius(!geoShowRadius)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
+                        <Radius className="w-3 h-3" /> {geoRadiusKm}km <ChevronDown className="w-2.5 h-2.5" />
+                      </button>
+                      {geoShowRadius && (
+                        <div className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-xl p-1 z-50 min-w-[80px]">
+                          {GEO_RADIUS_OPTIONS.map(r => (
+                            <button key={r} onClick={() => { setGeoRadiusKm(r); setGeoShowRadius(false); }}
+                              className={`w-full text-left px-3 py-1 rounded-lg text-xs transition-colors ${r === geoRadiusKm ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-white/5 text-white/60"}`}>{r} km</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Category pills */}
+                  <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
+                    {["All", ...GEO_CATEGORIES.filter(c => c.key !== "all").map(c => c.label)].map((t, idx) => {
+                      const catKey = idx === 0 ? "all" : GEO_CATEGORIES[idx].key;
+                      const catIcon = idx === 0 ? <Layers className="w-3 h-3" /> : GEO_CATEGORIES[idx].icon;
+                      return (
+                        <button key={t} onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; if (!showBusinessIcons) setShowBusinessIcons(true); geofenceFromCamera(); }}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${geoCategory === catKey ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-white/[0.03] text-white/40 border border-white/[0.06] hover:bg-white/[0.06]"}`}>
+                          {catIcon} {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Location info */}
+                  {geoCenter && (
+                    <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center gap-2">
+                      <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <span className="text-[10px] text-white/30 truncate">{geoLocationName}</span>
+                      {geoBusinesses.length > 0 && <span className="text-[9px] font-mono text-emerald-400/50 shrink-0">{geoBusinesses.length} nearby</span>}
+                    </div>
+                  )}
+                  {/* Results */}
+                  <div className="flex-1 overflow-y-auto min-h-0 max-h-72 p-2 space-y-0.5">
+                    {(searchLoading || geoLoading) && (
+                      <div className="flex items-center justify-center gap-2 py-3">
+                        <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                        <span className="text-xs text-white/30">Searching…</span>
+                      </div>
+                    )}
+                    {geoBusinesses.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-2 py-1">
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby · {geoRadiusKm}km</span>
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                        </div>
+                        {(() => {
+                          const q = searchQuery.toLowerCase();
+                          const filtered = q ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q)) : geoBusinesses;
+                          return filtered.map((b: any, idx: number) => (
+                            <POICard key={b.id} compact variant="glass" index={idx}
+                              poi={{ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance }}
+                              onNavigate={() => {
+                                flyToBusiness(b);
+                                setSelectedBusiness({ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance, phone: b.phone || undefined, website: b.website || undefined, brand: b.brand || undefined, cuisine: b.cuisine || undefined, openNow: b.openNow });
+                                setSearchOpen(false);
+                              }}
+                            />
+                          ));
+                        })()}
+                      </>
+                    )}
+                    {overpassResults.length > 0 && searchQuery && (
+                      <>
+                        <div className="flex items-center gap-2 px-2 py-1">
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
+                          <div className="flex-1 h-px bg-emerald-500/20" />
+                        </div>
+                        {overpassResults.map((r, idx) => (
+                          <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
+                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, lat: r.lat, lng: r.lng }}
+                            onNavigate={() => { flyTo(r); setSearchOpen(false); }}
+                          />
+                        ))}
+                      </>
+                    )}
+                    {nominatimResults.length > 0 && searchQuery && (
+                      <>
+                        <div className="flex items-center gap-2 px-2 py-1">
+                          <div className="flex-1 h-px bg-white/10" />
+                          <span className="text-[9px] text-white/40 font-mono uppercase">🌍 Places</span>
+                          <div className="flex-1 h-px bg-white/10" />
+                        </div>
+                        {nominatimResults.map((r, idx) => (
+                          <POICard key={`nom-${idx}`} compact variant="glass" index={idx}
+                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, lat: r.lat, lng: r.lng }}
+                            onNavigate={() => { flyTo(r); setSearchOpen(false); }}
+                          />
+                        ))}
+                      </>
+                    )}
+                    {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && geoBusinesses.length === 0 && !searchLoading && !geoLoading && searchQuery && (
+                      <p className="text-sm text-white/30 text-center py-4">No results found.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom bar content */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
               <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 flex-1 min-w-0">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  {/* Integrated Search */}
-                  <div
-                    className="flex items-center gap-1.5 cursor-text shrink-0"
-                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}
-                  >
-                    <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
-                    {searchOpen ? (
-                      <input
-                        type="text"
-                        autoFocus
-                        value={searchQuery}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        placeholder="Search…"
-                        className="w-24 sm:w-36 bg-transparent text-white text-xs sm:text-sm outline-none placeholder:text-white/30 min-w-0 font-mono"
-                        onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
-                      />
-                    ) : (
-                      <span className="text-[10px] sm:text-xs text-white/30 hidden sm:inline">Search</span>
-                    )}
-                    {searchOpen && searchQuery && (
-                      <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0">
-                        <X className="w-3 h-3 text-white/30 hover:text-white/60" />
-                      </button>
-                    )}
-                    {searchOpen && (
-                      <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0">
-                        <X className="w-3.5 h-3.5 text-white/40" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="w-px h-6 sm:h-8 bg-white/10" />
-
-                  {/* Coordinates */}
                   <Crosshair className="w-3.5 h-3.5 text-white/40 shrink-0" />
                   {cursorInfo ? (
-                    <div className="flex items-center gap-2 sm:gap-4 flex-wrap min-w-0">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className="min-w-0">
                         <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Lat</p>
                         <p className="text-xs sm:text-sm font-mono text-white truncate">{formatCoord(cursorInfo.lat, true)}</p>
@@ -3191,6 +3037,25 @@ out center 30;`;
                   ) : (
                     <p className="text-[10px] sm:text-xs text-white/30">Hover for coordinates</p>
                   )}
+                  <div className="w-px h-6 sm:h-8 bg-white/10 ml-auto" />
+                  <div className="flex items-center gap-1.5 cursor-text flex-1 min-w-0"
+                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}>
+                    <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+                    {searchOpen ? (
+                      <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search stores, addresses…"
+                        className="flex-1 bg-transparent text-white text-xs sm:text-sm outline-none placeholder:text-white/30 min-w-0"
+                        style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}
+                        onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }} />
+                    ) : (
+                      <span className="text-[10px] sm:text-xs text-white/30 truncate" style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>Search stores, addresses…</span>
+                    )}
+                    {searchOpen && searchQuery && (
+                      <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0"><X className="w-3 h-3 text-white/30 hover:text-white/60" /></button>
+                    )}
+                    {searchOpen && (
+                      <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0"><X className="w-3.5 h-3.5 text-white/40" /></button>
+                    )}
+                  </div>
                 </div>
               </GlassPanel>
 
@@ -3205,16 +3070,12 @@ out center 30;`;
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider mb-0.5">Mode</p>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => switchViewMode("realistic")}
-                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
-                      >
+                      <button onClick={() => switchViewMode("realistic")}
+                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Satellite className="w-3 h-3" /> <span className="hidden sm:inline">Realistic</span><span className="sm:hidden">3D</span></span>
                       </button>
-                      <button
-                        onClick={() => switchViewMode("osm")}
-                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}
-                      >
+                      <button onClick={() => switchViewMode("osm")}
+                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> OSM</span>
                       </button>
                     </div>
