@@ -2053,10 +2053,10 @@ out center 30;`;
           
             {searchOpen && (
               <div
-                className={isMobile
+                className={`animate-fade-in ${isMobile
                   ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
                   : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
-                }
+                }`}
               >
                 <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
                   {/* Search bar + controls */}
