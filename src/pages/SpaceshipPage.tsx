@@ -362,10 +362,7 @@ function SpaceshipPage() {
   const [cargoFilter, setCargoFilter] = useState<"all" | "maritime" | "air">("all");
   const [cargoTypeFilter, setCargoTypeFilter] = useState<CargoCategory | "all">("all");
   const [selectedRoute, setSelectedRoute] = useState<CargoRoute | null>(null);
-  const [selectedVessel, setSelectedVessel] = useState<(Vessel & { routeName: string; routeColor: string; lat: number; lng: number }) | null>(null);
   const cargoEntitiesRef = useRef<any[]>([]);
-  const vesselAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const vesselProgressRef = useRef<Map<string, number>>(new Map());
 
   // Business/Store icons toggle
   const [showBusinessIcons, setShowBusinessIcons] = useState(false);
