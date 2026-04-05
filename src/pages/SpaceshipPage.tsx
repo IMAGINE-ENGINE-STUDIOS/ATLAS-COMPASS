@@ -1911,10 +1911,10 @@ out center 30;`;
       {/* Loading Screen */}
       
         {!isLoaded && (
-          <div}}
+          <div
             className="absolute inset-0 z-50 bg-[#0a0a1a] flex flex-col items-center justify-center"
           >
-            <div}
+            <div
               className="w-16 h-16 rounded-full border-2 border-white/10 border-t-primary"
             />
             <p className="mt-6 text-white/50 text-sm font-mono">INITIALIZING EARTH SYSTEMS...</p>
@@ -1925,7 +1925,7 @@ out center 30;`;
       {/* Brush Mode Indicator */}
       
         {brushMode && !draggingModelId && (
-          <div}}}
+          <div
             className="absolute top-20 left-1/2 -translate-x-1/2 z-30"
           >
             <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/40 rounded-full px-5 py-2 flex items-center gap-2">
@@ -1940,7 +1940,7 @@ out center 30;`;
       {/* Dragging Model Indicator */}
       
         {draggingModelId && (
-          <div}}}
+          <div
             className="absolute top-20 left-1/2 -translate-x-1/2 z-30"
           >
             <div className="bg-cyan-500/20 backdrop-blur-xl border border-cyan-500/40 rounded-full px-5 py-2 flex items-center gap-2">
@@ -1956,7 +1956,7 @@ out center 30;`;
       {isLoaded && hudVisible && (
         <>
           {/* Top Bar */}
-          <div}}
+          <div
             className="absolute top-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
             <div className="flex items-start justify-between gap-2">
@@ -2052,7 +2052,7 @@ out center 30;`;
           {/* Unified Search & Nearby Panel */}
           
             {searchOpen && (
-              <div}}}
+              <div
                 className={isMobile
                   ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
                   : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
@@ -2319,7 +2319,7 @@ out center 30;`;
           {/* ── CARGO ROUTES PANEL ── */}
           
             {showCargoRoutes && (
-              <div}}}
+              <div
                 className="absolute bottom-24 left-4 z-30 w-[calc(100vw-2rem)] max-w-72"
               >
                 <GlassPanel className="p-4">
@@ -2424,7 +2424,7 @@ out center 30;`;
           {/* ── LIVE TRAFFIC PANEL ── */}
           
             {showLiveTraffic && (
-              <div}}}
+              <div
                 className="absolute bottom-24 right-4 z-30 w-[calc(100vw-2rem)] max-w-64"
               >
               <GlassPanel className="p-4">
@@ -2468,7 +2468,7 @@ out center 30;`;
           {/* ── DIRECTIONS PANEL ── */}
           
             {directionsOpen && (
-              <div}}}
+              <div
                 className="absolute top-20 left-4 z-30 w-[calc(100vw-2rem)] max-w-96"
               >
                 <GlassPanel className="p-4">
@@ -2649,7 +2649,7 @@ out center 30;`;
           {/* POI Naming Dialog */}
           
             {namingPOI && (
-              <div}}}
+              <div
                 className={isMobile
                   ? "absolute inset-x-3 bottom-24 z-40 max-h-[calc(100dvh-9rem)]"
                   : "absolute top-1/2 left-1/2 z-40 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
@@ -2698,7 +2698,7 @@ out center 30;`;
           {/* ── MODEL PLACEMENT DIALOG ── */}
           
             {pendingPlacement && (
-              <div}}}
+              <div
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-md px-4"
               >
                 <GlassPanel className="p-5">
@@ -2828,7 +2828,7 @@ out center 30;`;
           {/* ── TILE BRUSH PANEL (Placed Models) ── */}
           
             {brushPanelOpen && !pendingPlacement && (
-              <div}}}
+              <div
                 className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
                 <GlassPanel className="p-4">
@@ -2894,7 +2894,7 @@ out center 30;`;
           {/* POI Detail View */}
           
             {selectedPOI && (
-              <div}}}
+              <div
                 className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96"
               >
                 <GlassPanel className="p-5">
@@ -2971,7 +2971,7 @@ out center 30;`;
           {/* Business POI Card Popup */}
           
             {selectedBusiness && (
-              <div}}}
+              <div
                 className={isMobile
                   ? "absolute inset-x-3 bottom-28 z-40"
                   : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
@@ -3007,7 +3007,7 @@ out center 30;`;
           {/* POI List Panel */}
           
             {poisPanelOpen && !selectedPOI && !brushPanelOpen && (
-              <div}}}
+              <div
                 className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
                 <GlassPanel className="p-4">
@@ -3061,7 +3061,7 @@ out center 30;`;
 
 
           {/* Bottom HUD — Coordinates & Camera Info */}
-          <div}}
+          <div
             className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
