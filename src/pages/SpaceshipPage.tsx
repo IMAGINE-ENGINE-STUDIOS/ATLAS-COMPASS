@@ -14,7 +14,7 @@ import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlobUrl, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
-import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
+import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type CargoCategory } from "@/lib/cargo-routes";
 import POICard, { type POIData } from "@/components/POICard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import {
@@ -362,10 +362,7 @@ function SpaceshipPage() {
   const [cargoFilter, setCargoFilter] = useState<"all" | "maritime" | "air">("all");
   const [cargoTypeFilter, setCargoTypeFilter] = useState<CargoCategory | "all">("all");
   const [selectedRoute, setSelectedRoute] = useState<CargoRoute | null>(null);
-  const [selectedVessel, setSelectedVessel] = useState<(Vessel & { routeName: string; routeColor: string; lat: number; lng: number }) | null>(null);
   const cargoEntitiesRef = useRef<any[]>([]);
-  const vesselAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const vesselProgressRef = useRef<Map<string, number>>(new Map());
 
   // Business/Store icons toggle
   const [showBusinessIcons, setShowBusinessIcons] = useState(false);
@@ -1102,7 +1099,6 @@ out center 30;`;
       if (viewer.entities.contains(e)) viewer.entities.remove(e);
     });
     cargoEntitiesRef.current = [];
-    if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
 
     if (!showCargoRoutes) return;
 
@@ -1110,15 +1106,6 @@ out center 30;`;
     let filteredRoutes = ALL_CARGO_ROUTES;
     if (cargoFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.type === cargoFilter);
     if (cargoTypeFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.category === cargoTypeFilter);
-
-    // Initialize vessel progress
-    filteredRoutes.forEach(route => {
-      route.vessels.forEach(v => {
-        if (!vesselProgressRef.current.has(v.id)) {
-          vesselProgressRef.current.set(v.id, v.progress);
-        }
-      });
-    });
 
     filteredRoutes.forEach((route) => {
       const height = route.type === "air" ? 80000 : 0;
@@ -1193,7 +1180,6 @@ out center 30;`;
           const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
           if (route) {
             setSelectedRoute(route);
-            setSelectedVessel(null);
           }
         }
         // Check if it's a business entity
@@ -2261,7 +2247,7 @@ out center 30;`;
                   <div className="flex items-center gap-2 mb-3">
                     <Ship className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-bold text-white">Trade Routes</span>
-                    <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); setSelectedVessel(null); }} className="ml-auto">
+                    <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); }} className="ml-auto">
                       <X className="w-4 h-4 text-white/40 hover:text-white" />
                     </button>
                   </div>
@@ -2306,7 +2292,6 @@ out center 30;`;
                   {/* Route count */}
                   <div className="flex items-center justify-between text-[9px] text-white/30 font-mono mb-3">
                     <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes</span>
-                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + r.vessels.length, 0)} vessels</span>
                   </div>
 
                   {/* Selected Route Card */}
@@ -2320,52 +2305,18 @@ out center 30;`;
                         <div><span className="text-white/30">Type</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.label}</span></div>
                         <div><span className="text-white/30">Distance</span><br/><span className="text-white font-mono">{selectedRoute.distance}</span></div>
                         <div><span className="text-white/30">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
-                        <div><span className="text-white/30">Vessels</span><br/><span className="text-white font-mono">{selectedRoute.vessels.length} active</span></div>
-                      </div>
-                      <div className="mt-2 max-h-24 overflow-y-auto space-y-1">
-                        {selectedRoute.vessels.map(v => (
-                          <div key={v.id} className="flex items-center gap-2 text-[9px] text-white/50 bg-white/[0.02] rounded-lg px-2 py-1">
-                            <span>{v.flag}</span>
-                            <span className="text-white/70 truncate flex-1">{v.name}</span>
-                            <span className="text-white/30 font-mono">{v.speed}{selectedRoute.type === "air" ? "km/h" : "kn"}</span>
-                          </div>
-                        ))}
+                        <div><span className="text-white/30">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
                       </div>
                     </div>
                   )}
 
-                  {/* Selected Vessel Card */}
-                  {selectedVessel && (
-                    <div className="bg-white/[0.04] border rounded-xl p-3" style={{ borderColor: selectedVessel.routeColor + "40" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-white">{selectedVessel.flag} {selectedVessel.name}</span>
-                        <button onClick={() => setSelectedVessel(null)}><X className="w-3 h-3 text-white/30" /></button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        <div><span className="text-white/30">Route</span><br/><span className="text-white font-mono">{selectedVessel.routeName}</span></div>
-                        <div><span className="text-white/30">Category</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedVessel.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedVessel.category)?.label}</span></div>
-                        <div><span className="text-white/30">Speed</span><br/><span className="text-white font-mono">{selectedVessel.speed} {selectedVessel.category.startsWith("air") ? "km/h" : "knots"}</span></div>
-                        <div><span className="text-white/30">Tonnage</span><br/><span className="text-white font-mono">{selectedVessel.tonnage}</span></div>
-                        <div><span className="text-white/30">Operator</span><br/><span className="text-white font-mono">{selectedVessel.operator}</span></div>
-                        <div><span className="text-white/30">Built</span><br/><span className="text-white font-mono">{selectedVessel.built}</span></div>
-                        <div><span className="text-white/30">Position</span><br/><span className="text-white font-mono">{selectedVessel.lat.toFixed(3)}°, {selectedVessel.lng.toFixed(3)}°</span></div>
-                        {selectedVessel.imo && <div><span className="text-white/30">IMO</span><br/><span className="text-white font-mono">{selectedVessel.imo}</span></div>}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Vessel Type Legend */}
+                  {/* Route Category Legend */}
                   <div className="mt-3 space-y-1 border-t border-white/[0.06] pt-2">
-                    <div className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Vessel Types</div>
-                    <div className="flex items-center gap-1.5 text-[9px] text-white/40">
-                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Cargo
-                      <span className="w-2 h-2 rounded-full bg-blue-500 inline-block ml-1" /> Tanker
-                      <span className="w-2 h-2 rounded-full bg-orange-500 inline-block ml-1" /> Passenger
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[9px] text-white/40">
-                      <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> High-Speed
-                      <span className="w-2 h-2 rounded-full bg-teal-500 inline-block ml-1" /> Tug
-                      <span className="w-2 h-2 rounded-full bg-green-500 inline-block ml-1" /> Fishing
+                    <div className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Route Categories</div>
+                    <div className="flex flex-wrap gap-1">
+                      {CARGO_CATEGORIES.slice(0, 7).map(c => (
+                        <span key={c.id} className="text-[9px] text-white/40">{c.icon} {c.label}</span>
+                      ))}
                     </div>
                   </div>
                 </GlassPanel>

@@ -49,30 +49,12 @@ export interface StoreLocation {
   id: string; name: string; lat: number; lng: number; address: string;
 }
 
-export const mockStoreLocations: StoreLocation[] = [
-  { id: "store-1", name: "Aramco Industries", lat: 25.2854, lng: 51.5310, address: "Doha Industrial Area, Qatar" },
-  { id: "store-2", name: "CATL Manufacturing", lat: 26.0789, lng: 119.2965, address: "Fuzhou, Fujian, China" },
-  { id: "store-3", name: "AgriGlobal Co.", lat: 41.8781, lng: -87.6298, address: "Chicago, IL, USA" },
-  { id: "store-4", name: "ArcelorMittal", lat: 49.4987, lng: 5.9490, address: "Luxembourg City, Luxembourg" },
-  { id: "store-5", name: "LONGi Green", lat: 34.3416, lng: 108.9398, address: "Xi'an, Shaanxi, China" },
-  { id: "store-6", name: "TSMC Global", lat: 24.7736, lng: 121.0177, address: "Hsinchu, Taiwan" },
-  { id: "store-7", name: "Azure Partners", lat: 47.6062, lng: -122.3321, address: "Seattle, WA, USA" },
-  { id: "store-8", name: "Albemarle Corp", lat: 35.2271, lng: -80.8431, address: "Charlotte, NC, USA" },
-];
+// Store locations are fetched from real-world data sources (Overpass/Nominatim)
+// No hardcoded mock data — all business data comes from OpenStreetMap APIs
 
-export function getStoreDistance(userLoc: UserLocation, store: StoreLocation): number {
-  return haversineDistance(userLoc.lat, userLoc.lng, store.lat, store.lng);
-}
-
-export function getNearbyStores(userLoc: UserLocation, maxDistKm = 30) {
-  return mockStoreLocations
-    .map(store => ({
-      ...store,
-      distance: getStoreDistance(userLoc, store),
-      zone: getDeliveryZone(getStoreDistance(userLoc, store)),
-    }))
-    .filter(s => s.distance <= maxDistKm)
-    .sort((a, b) => a.distance - b.distance);
+export function getNearbyStores(_userLoc: UserLocation, _maxDistKm = 30): (StoreLocation & { distance: number; zone: DeliveryZone })[] {
+  // This function now returns empty — real store discovery happens via Overpass API in the Atlas
+  return [];
 }
 
 // ── API helpers ──
