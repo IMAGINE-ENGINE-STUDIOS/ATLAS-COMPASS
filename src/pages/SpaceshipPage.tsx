@@ -2108,32 +2108,22 @@ out center 30;`;
           
             {searchOpen && (
               <div
-                className={`animate-fade-in ${isMobile
+                className={`${isMobile
                   ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
                   : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
                 }`}
               >
                 <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
-                  {/* Search bar + controls */}
-                  <div className="flex items-center gap-2 p-3 border-b border-white/[0.06]">
-                    <Search className="w-4 h-4 text-primary shrink-0" />
-                    <input
-                      type="text"
-                      autoFocus
-                      value={searchQuery}
-                      onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search addresses, businesses, stores…"
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30 min-w-0"
-                    />
+                  {/* Controls row — no duplicate search bar */}
+                  <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
                     <button onClick={geoLocateUser} title="Use my location"
                       className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0">
                       <Crosshair className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => { geofenceFromCamera(); }} title="Scan camera area"
+                    <button onClick={geofenceFromCamera} title="Scan camera area"
                       className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0">
                       <Globe className="w-3.5 h-3.5" />
                     </button>
-                    {/* Radius */}
                     <div className="relative shrink-0">
                       <button onClick={() => setGeoShowRadius(!geoShowRadius)}
                         className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
@@ -2150,9 +2140,6 @@ out center 30;`;
                         </div>
                       )}
                     </div>
-                    <button onClick={() => setSearchOpen(false)} className="p-1 rounded-lg text-white/30 hover:text-white/60 transition-colors shrink-0">
-                      <X className="w-4 h-4" />
-                    </button>
                   </div>
 
                   {/* Category + type filter pills */}
