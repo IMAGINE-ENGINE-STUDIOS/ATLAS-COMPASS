@@ -1099,23 +1099,8 @@ out center 30;`;
       if (viewer.entities.contains(e)) viewer.entities.remove(e);
     });
     cargoEntitiesRef.current = [];
-    if (vesselAnimRef.current) { clearInterval(vesselAnimRef.current); vesselAnimRef.current = null; }
 
     if (!showCargoRoutes) return;
-
-    // Filter routes
-    let filteredRoutes = ALL_CARGO_ROUTES;
-    if (cargoFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.type === cargoFilter);
-    if (cargoTypeFilter !== "all") filteredRoutes = filteredRoutes.filter(r => r.category === cargoTypeFilter);
-
-    // Initialize vessel progress
-    filteredRoutes.forEach(route => {
-      route.vessels.forEach(v => {
-        if (!vesselProgressRef.current.has(v.id)) {
-          vesselProgressRef.current.set(v.id, v.progress);
-        }
-      });
-    });
 
     filteredRoutes.forEach((route) => {
       const height = route.type === "air" ? 80000 : 0;
