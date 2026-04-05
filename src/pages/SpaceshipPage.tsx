@@ -3148,10 +3148,25 @@ out center 30;`;
           
 
 
-          {/* Bottom HUD — Coordinates & Camera Info */}
+           {/* Bottom HUD — Coordinates & Search */}
           <div
             className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
+            {/* Search results panel — slides up from bottom bar */}
+            {searchOpen && (
+              <div
+                className="absolute right-2 sm:right-4 z-30"
+                style={{
+                  bottom: '100%',
+                  marginBottom: '8px',
+                  width: 'min(55%, 440px)',
+                  animation: 'slideUp 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+                }}
+              >
+                <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                <div className="flex flex-col max-h-[60vh] overflow-hidden rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+                  style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                >
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
               <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 flex-1 min-w-0">
                 <div className="flex items-center gap-2 sm:gap-4">
