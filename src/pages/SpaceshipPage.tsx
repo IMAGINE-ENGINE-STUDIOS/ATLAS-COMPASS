@@ -518,7 +518,11 @@ function SpaceshipPage() {
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(b.lng, b.lat, 500), duration: 1.5 });
+    viewer.camera.flyTo({
+      destination: Cartesian3.fromDegrees(b.lng, b.lat, 500),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+      duration: 1.5,
+    });
   }, []);
 
   // Keep ref in sync with state for use inside Cesium handlers
