@@ -797,9 +797,11 @@ out center 30;`;
     viewer.scene.globe.enableLighting = true;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
-    viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
+    viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
+    // Hide globe immediately — photorealistic tiles will be the only visible layer
+    viewer.scene.globe.show = false;
 
     // Force continuous rendering so the globe appears immediately
     viewer.scene.requestRenderMode = false;
