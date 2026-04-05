@@ -38,6 +38,13 @@ interface SearchResult {
   lat: number;
   lng: number;
   type: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  brand?: string;
+  cuisine?: string;
+  distance?: number;
+  description?: string;
 }
 
 interface CursorInfo {
