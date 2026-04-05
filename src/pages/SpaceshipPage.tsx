@@ -304,6 +304,9 @@ function SpaceshipPage() {
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
 
+  // Model transform editing state
+  const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
+
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [originQuery, setOriginQuery] = useState("");
