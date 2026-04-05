@@ -2897,8 +2897,24 @@ out center 30;`;
                         viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 }, duration: 1 });
                       }
                     }}
+                    onDirections={(poi) => {
+                      // Get user's current camera position as origin
+                      const viewer = viewerRef.current;
+                      if (!viewer || viewer.isDestroyed()) return;
+                      const cam = viewer.camera.positionCartographic;
+                      const userLat = CesiumMath.toDegrees(cam.latitude);
+                      const userLng = CesiumMath.toDegrees(cam.longitude);
+                      const origin: SearchResult = { name: "My Location", lat: userLat, lng: userLng, type: "Location" };
+                      const dest: SearchResult = { name: poi.name, lat: poi.lat, lng: poi.lng, type: poi.category || "Business" };
+                      setOriginPoint(origin);
+                      setDestPoint(dest);
+                      setOriginQuery(origin.name);
+                      setDestQuery(dest.name);
+                      setDirectionsOpen(true);
+                      setSelectedBusiness(null);
+                      fetchRoute(origin, dest);
+                    }}
                     onSelect={(poi) => {
-                      // Open in search for delivery address use
                       setSearchOpen(true);
                       setSearchQuery(poi.name);
                       handleSearch(poi.name);
