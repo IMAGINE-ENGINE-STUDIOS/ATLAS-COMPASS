@@ -2095,38 +2095,7 @@ out center 30;`;
                 </GlassPanel>
               </div>
 
-              <div className="flex items-center gap-2 flex-1 min-w-0 max-w-lg">
-                {/* Inline search bar in HUD */}
-                <GlassPanel className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5 cursor-text"
-                  onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}
-                >
-                  <Search className="w-4 h-4 text-white/40 shrink-0" />
-                  {searchOpen ? (
-                    <input
-                      type="text"
-                      autoFocus
-                      value={searchQuery}
-                      onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search stores, addresses…"
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30 min-w-0"
-                      onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
-                    />
-                  ) : (
-                    <span className="text-sm text-white/30 truncate">Search stores, addresses…</span>
-                  )}
-                  {searchOpen && searchQuery && (
-                    <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0">
-                      <X className="w-3.5 h-3.5 text-white/30 hover:text-white/60" />
-                    </button>
-                  )}
-                  {searchOpen && (
-                    <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0 p-0.5 rounded-lg hover:bg-white/[0.08]">
-                      <X className="w-4 h-4 text-white/40" />
-                    </button>
-                  )}
-                </GlassPanel>
-
-                <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
+              <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
