@@ -1827,8 +1827,8 @@ out center 30;`;
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
     if (!viewerRef.current) return;
     // Place at ground level (alt=0) and clamp to terrain/3D tiles
-    const position = Cartesian3.fromDegrees(model.lng, model.lat, 0);
-    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(model.heading), 0, 0);
+    const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0);
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(model.heading), CesiumMath.toRadians(model.pitch || 0), CesiumMath.toRadians(model.roll || 0));
     const orientation = Transforms.headingPitchRollQuaternion(position, hpr);
 
     viewerRef.current.entities.add({
