@@ -1215,6 +1215,9 @@ out center 30;`;
         data.elements.forEach((el: any) => {
           const tags = el.tags || {};
           if (!tags.name) return;
+          const elLat = el.lat || el.center?.lat;
+          const elLng = el.lon || el.center?.lon;
+          if (!elLat || !elLng) return;
           const amenity = tags.amenity || tags.shop || tags.tourism || "";
           const icon = iconMap[amenity] || "📍";
           const entityId = `biz-${el.id}`;
