@@ -1561,7 +1561,10 @@ out center 30;`;
     }
     setSearchResults(filtered);
 
-    // Debounced parallel search: Nominatim + Overpass — prioritize businesses
+    // Auto-geolocate if no center when user starts searching
+    if (query.trim().length >= 3 && !geoCenter) geoLocateUser();
+
+    // Debounced parallel search: Nominatim + Overpass — prioritize local businesses
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (query.trim().length >= 3) {
       setSearchLoading(true);
@@ -1574,15 +1577,30 @@ out center 30;`;
         const deduped = ovResults.filter(ov =>
           !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
         );
-        // Prioritize: exact name matches first, then businesses, then other results
+        // Smart ranking: local businesses first, then local places, then global
         const businessTypes = new Set(["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"]);
+        const nearbyThreshold = geoRadiusKm || 10; // km
+        const center = geoCenter || (viewerRef.current && !viewerRef.current.isDestroyed() ? (() => {
+          const cam = viewerRef.current!.camera.positionCartographic;
+          return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+        })() : null);
+
         const allResults = [...deduped, ...nomResults];
-        const exactMatches = allResults.filter(r => r.name.toLowerCase().includes(q));
-        const businessMatches = allResults.filter(r => businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
-        const otherMatches = allResults.filter(r => !businessTypes.has(r.type) && !r.name.toLowerCase().includes(q));
-        // Put business/exact matches into overpassResults (shown first), rest in nominatim
-        setOverpassResults([...exactMatches.filter(r => businessTypes.has(r.type)), ...businessMatches]);
-        setNominatimResults([...exactMatches.filter(r => !businessTypes.has(r.type)), ...otherMatches]);
+        // Compute distance for all
+        const withDist = allResults.map(r => ({
+          ...r,
+          _dist: center ? geoHaversine(center.lat, center.lng, r.lat, r.lng) : 9999,
+          _isBiz: businessTypes.has(r.type),
+        }));
+        // Local businesses (within radius)
+        const localBiz = withDist.filter(r => r._isBiz && r._dist <= nearbyThreshold).sort((a, b) => a._dist - b._dist);
+        // Local non-business places
+        const localPlaces = withDist.filter(r => !r._isBiz && r._dist <= nearbyThreshold * 3).sort((a, b) => a._dist - b._dist);
+        // Global results (everything else)
+        const globalResults = withDist.filter(r => !localBiz.includes(r) && !localPlaces.includes(r)).sort((a, b) => a._dist - b._dist);
+
+        setOverpassResults(localBiz.slice(0, 20));
+        setNominatimResults([...localPlaces.slice(0, 10), ...globalResults.slice(0, 10)]);
         setSearchLoading(false);
       }, 400);
     } else {
