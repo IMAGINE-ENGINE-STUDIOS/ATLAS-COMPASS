@@ -2153,7 +2153,6 @@ out center 30;`;
                     {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                   </button>
                 </GlassPanel>
-              </div>
             </div>
           </div>
 
