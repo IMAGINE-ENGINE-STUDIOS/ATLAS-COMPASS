@@ -724,7 +724,7 @@ out center 30;`;
           }],
         };
       }
-      const data = await resp.json();
+      
       if (data.code !== "Ok" || !data.routes?.length) {
         setRouteError("No route found between these locations");
         setRouteLoading(false);
