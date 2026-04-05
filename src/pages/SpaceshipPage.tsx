@@ -2549,49 +2549,7 @@ out center 30;`;
           
 
 
-          {/* ── LIVE TRAFFIC PANEL ── */}
-          
-            {showLiveTraffic && (
-              <div
-                className="absolute bottom-24 right-4 z-30 w-[calc(100vw-2rem)] max-w-64"
-              >
-              <GlassPanel className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Plane className="w-5 h-5 text-yellow-400" />
-                    <span className="text-sm font-bold text-white">Live Global Traffic</span>
-                    <button onClick={() => setShowLiveTraffic(false)} className="ml-auto">
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center">
-                      <div className="text-xl font-bold font-mono text-yellow-400">{liveTrafficStats.planes.toLocaleString()}</div>
-                      <div className="text-[9px] text-yellow-400/60 uppercase tracking-wider">✈ Aircraft</div>
-                    </div>
-                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 text-center">
-                      <div className="text-xl font-bold font-mono text-cyan-400">{liveTrafficStats.ships.toLocaleString()}</div>
-                      <div className="text-[9px] text-cyan-400/60 uppercase tracking-wider">🚢 Vessels</div>
-                    </div>
-                  </div>
-                  <div className="text-[9px] text-white/30 font-mono text-center">
-                    Aircraft: OpenSky · 10s | Ships: AISStream · Real-time WS
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center gap-1.5 text-[9px] text-white/40">
-                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Cargo
-                      <span className="w-2 h-2 rounded-full bg-blue-500 inline-block ml-1" /> Tanker
-                      <span className="w-2 h-2 rounded-full bg-orange-500 inline-block ml-1" /> Passenger
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[9px] text-white/40">
-                      <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> High-Speed
-                      <span className="w-2 h-2 rounded-full bg-teal-500 inline-block ml-1" /> Tug
-                      <span className="w-2 h-2 rounded-full bg-green-500 inline-block ml-1" /> Fishing
-                    </div>
-                  </div>
-                </GlassPanel>
-              </div>
-            )}
-          
+
 
           {/* ── DIRECTIONS PANEL ── */}
           
