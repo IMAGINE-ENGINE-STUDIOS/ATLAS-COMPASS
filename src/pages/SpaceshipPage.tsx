@@ -2249,12 +2249,14 @@ out center 30;`;
                       </>
                     )}
 
-                    {/* Nominatim global results */}
+                    {/* Nominatim / global results */}
                     {nominatimResults.length > 0 && searchQuery && (
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-white/[0.06]" />
-                          <span className="text-[9px] text-white/30 font-mono uppercase">Global Results</span>
+                          <span className="text-[9px] text-white/30 font-mono uppercase">
+                            {overpassResults.length === 0 ? "📌 No nearby businesses found · showing all results" : "🌍 Other Results"}
+                          </span>
                           <div className="flex-1 h-px bg-white/[0.06]" />
                         </div>
                         {nominatimResults.map((r, i) => (
