@@ -486,7 +486,11 @@ function SpaceshipPage() {
         // Fly to user
         const viewer = viewerRef.current;
         if (viewer && !viewer.isDestroyed()) {
-          viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(loc.lng, loc.lat, 2000), duration: 2 });
+          viewer.camera.flyTo({
+            destination: Cartesian3.fromDegrees(loc.lng, loc.lat, 2000),
+            orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-45), roll: 0 },
+            duration: 2,
+          });
         }
         try {
           const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`, { headers: { "Accept-Language": "en" } });
@@ -518,7 +522,11 @@ function SpaceshipPage() {
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(b.lng, b.lat, 500), duration: 1.5 });
+    viewer.camera.flyTo({
+      destination: Cartesian3.fromDegrees(b.lng, b.lat, 500),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+      duration: 1.5,
+    });
   }, []);
 
   // Keep ref in sync with state for use inside Cesium handlers
@@ -820,6 +828,11 @@ out center 30;`;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
     viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
+
+    // Prevent crash-reloads: catch render errors instead of letting them propagate
+    viewer.scene.renderError.addEventListener((scene: any, error: any) => {
+      console.error("[Atlas Render Error — suppressed reload]", error);
+    });
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Hide globe immediately — photorealistic tiles will be the only visible layer
@@ -2821,7 +2834,7 @@ out center 30;`;
                     onNavigate={(poi) => {
                       const viewer = viewerRef.current;
                       if (viewer && !viewer.isDestroyed()) {
-                        viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), duration: 1 });
+                        viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 }, duration: 1 });
                       }
                     }}
                     onSelect={(poi) => {
