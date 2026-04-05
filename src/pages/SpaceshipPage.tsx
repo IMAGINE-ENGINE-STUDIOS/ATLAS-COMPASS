@@ -569,12 +569,13 @@ export default function SpaceshipPage() {
     } catch { return []; }
   }, [classifyOsmResult, geoCenter, geoRadiusKm]);
 
-  /* ── Overpass API for nearby businesses/POIs (geofenced to camera) ── */
+  /* ── Overpass API for nearby businesses/POIs (geofenced to user location) ── */
   const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
     try {
-      const sanitized = query.replace(/["\\\n\r]/g, '');
-      // Use user location (geoCenter) first, then camera, then fallback
-      let lat = 40.7128, lng = -74.006;
+      const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '');
+      if (!sanitized) return [];
+      // Use user location first, then camera — NO hardcoded fallback
+      let lat: number | null = null, lng: number | null = null;
       if (geoCenter) {
         lat = geoCenter.lat;
         lng = geoCenter.lng;
@@ -586,19 +587,20 @@ export default function SpaceshipPage() {
           lng = CesiumMath.toDegrees(cam.longitude);
         }
       }
-      const radius = 0.45; // ~50km
-      const bbox = `${(lat - radius).toFixed(4)},${(lng - radius).toFixed(4)},${(lat + radius).toFixed(4)},${(lng + radius).toFixed(4)}`;
+      if (lat === null || lng === null) return []; // No location available, defer
+      const degR = geoRadiusKm / 111; // Use user-configurable radius
+      const bbox = `${(lat - degR).toFixed(4)},${(lng - degR).toFixed(4)},${(lat + degR).toFixed(4)},${(lng + degR).toFixed(4)}`;
       const overpassQuery = `
 [out:json][timeout:10];
 (
-  node["name"~"${sanitized}"i]["shop"](${bbox});
-  node["name"~"${sanitized}"i]["amenity"](${bbox});
-  node["name"~"${sanitized}"i]["tourism"](${bbox});
-  node["name"~"${sanitized}"i]["office"](${bbox});
-  node["name"~"${sanitized}"i]["leisure"](${bbox});
-  node["name"~"${sanitized}"i]["brand"](${bbox});
+  node["name"~"${sanitized}",i]["shop"](${bbox});
+  node["name"~"${sanitized}",i]["amenity"](${bbox});
+  node["name"~"${sanitized}",i]["tourism"](${bbox});
+  node["name"~"${sanitized}",i]["office"](${bbox});
+  node["name"~"${sanitized}",i]["leisure"](${bbox});
+  node["brand"~"${sanitized}",i](${bbox});
 );
-out center 20;`;
+out center 30;`;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       const resp = await fetch("https://overpass-api.de/api/interpreter", {
@@ -611,7 +613,7 @@ out center 20;`;
       const data = await resp.json();
       if (!data.elements) return [];
       const searchLat = lat, searchLng = lng;
-      return data.elements.slice(0, 20).map((el: any) => {
+      return data.elements.slice(0, 30).map((el: any) => {
         const tags = el.tags || {};
         const elLat = el.lat || el.center?.lat;
         const elLng = el.lon || el.center?.lon;
@@ -631,12 +633,16 @@ out center 20;`;
           lng: elLng,
           type,
           distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
+          phone: tags.phone || tags["contact:phone"] || undefined,
+          website: tags.website || tags["contact:website"] || undefined,
+          brand: tags.brand || undefined,
+          cuisine: tags.cuisine || undefined,
         };
       })
-      .filter((r: SearchResult & { distance?: number }) => r.lat && r.lng)
+      .filter((r: any) => r.lat && r.lng)
       .sort((a: any, b: any) => (a.distance ?? 9999) - (b.distance ?? 9999));
     } catch { return []; }
-  }, [geoCenter]);
+  }, [geoCenter, geoRadiusKm]);
 
   /* ── OSRM Routing ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
