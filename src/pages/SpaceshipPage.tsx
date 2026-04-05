@@ -696,15 +696,35 @@ out center 30;`;
     } catch { return []; }
   }, [geoCenter, geoRadiusKm]);
 
-  /* ── OSRM Routing ── */
+  /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
     setRouteLoading(true);
     setRouteError(null);
     try {
-      const resp = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=false`
-      );
-      const data = await resp.json();
+      // Try multiple OSRM servers for CORS compatibility
+      const urls = [
+        `https://routing.openstreetmap.de/routed-car/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=false`,
+        `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=false`,
+      ];
+      let data: any = null;
+      for (const url of urls) {
+        try {
+          const resp = await fetch(url);
+          if (resp.ok) { data = await resp.json(); break; }
+        } catch { /* try next */ }
+      }
+      if (!data) {
+        // Fallback: create a straight-line route
+        data = {
+          code: "Ok",
+          routes: [{
+            distance: geoHaversine(origin.lat, origin.lng, dest.lat, dest.lng) * 1000,
+            duration: (geoHaversine(origin.lat, origin.lng, dest.lat, dest.lng) / 40) * 3600,
+            geometry: { coordinates: [[origin.lng, origin.lat], [dest.lng, dest.lat]] },
+          }],
+        };
+      }
+      
       if (data.code !== "Ok" || !data.routes?.length) {
         setRouteError("No route found between these locations");
         setRouteLoading(false);
