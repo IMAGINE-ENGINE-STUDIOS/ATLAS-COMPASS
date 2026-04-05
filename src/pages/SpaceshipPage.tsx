@@ -1247,7 +1247,7 @@ out center 30;`;
           const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(el.lon, el.lat, 2),
+            position: Cartesian3.fromDegrees(_lng, _lat, 2),
             billboard: {
               image: createPinCanvas(icon, truncName, bgColor),
               verticalOrigin: 1, // BOTTOM
