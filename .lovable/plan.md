@@ -1,46 +1,56 @@
 
 
-## Fix Atlas Store Discovery + Enhanced POI Widget
+## Fix Atlas Search Locality + Store Interaction + Ecommerce Path
 
 ### Problems
-1. **Stores not appearing on globe** -- The `loadBusinesses` function only runs when `showBusinessIcons` is toggled, and area-caching prevents reloads. When the search panel opens or user geolocates, globe pins don't refresh.
-2. **Search not showing nearby businesses** -- The Overpass search uses the camera position (defaulting to NYC) rather than user location; when user types a store name the geofenced query may miss local results.
-3. **POICard widget not showing full business info** -- The popup POICard shows minimal data (no phone, website, hours, description). It needs to be a rich, detailed widget.
+1. **Search results are not local** -- `searchOverpassBusinesses` uses a hardcoded `radius = 0.45` (~50km) bounding box. If user location (`geoCenter`) is not set, it falls back to New York (40.7128, -74.006), returning stores in NYC regardless of where the user actually is.
+2. **Nominatim results are global** -- The Nominatim query has no `viewbox` or `bounded` parameter, so typing "Starbucks" returns results from anywhere in the world instead of prioritizing nearby.
+3. **No smart result ordering** -- The search shows sections (Nearby, Businesses, Global Results, Presets) but doesn't prioritize local results intelligently. When no user location exists, it should auto-geolocate first.
+4. **No path to ecommerce** -- Clicking a store shows a POI card with Navigate/Delivery but no way to browse the store's products or open an integrated marketplace/ecommerce page.
 
-### Plan
+### Solution
 
-**Step 1: Fix store pin loading to be automatic and reactive**
-- When the search panel opens with `geoLocateUser()`, also set `showBusinessIcons = true` and clear `businessLoadedAreaRef` so pins load at the user's location
-- After `geoLocateUser` flies the camera, trigger `loadBusinesses()` after a short delay (camera needs to arrive first)
-- Add a `moveEnd` camera listener that calls `loadBusinesses()` whenever the camera stops moving (so panning/zooming always shows stores)
+#### 1. Auto-geolocate on first search open
+When `searchOpen` is set to `true` and `geoCenter` is null, automatically call `geoLocateUser()`. This ensures all searches have a local anchor point from the start.
 
-**Step 2: Fix search to prioritize nearby results**
-- In `searchOverpassBusinesses`, use `geoCenter` (user location) instead of camera position when available, so typing "Starbucks" searches near the user, not near wherever the camera happens to be
-- Add distance calculation to Overpass text-search results using Haversine, and sort by proximity
-- Only fall back to Nominatim global results when Overpass returns < 3 results (keeping it local-first)
+#### 2. Fix `searchOverpassBusinesses` locality
+- Remove the NYC fallback. If no `geoCenter` and no camera position, trigger geolocation and defer the search.
+- Use `geoRadiusKm` setting (user-configurable) instead of hardcoded `0.45` degrees.
+- Increase result limit to 30 for better coverage.
 
-**Step 3: Enhance POICard with rich detail widget**
-- Update `POICard.tsx` full-size variant to show:
-  - Large emoji icon with gradient background
-  - Business name, category badge, open/closed status with pulsing dot
-  - Full address with copy-to-clipboard
-  - Phone number (clickable `tel:` link) and website (clickable, no Google Maps)
-  - Star rating display
-  - Distance in bold with "away" label
-  - Coordinates in small mono font
-  - Action buttons: "Navigate" (flies camera), "Delivery" (opens delivery page with address pre-filled), "Select" (for address autocomplete contexts)
-- Add a `description` field to `POIData` interface for brand/type description
-- Ensure the card uses `max-w-sm` on desktop and `inset-x-3 bottom-28` on mobile so it never overflows
+#### 3. Geofence Nominatim results
+- Add `viewbox` and `bounded=1` parameters to the Nominatim query using the user's `geoCenter` + `geoRadiusKm`:
+  ```
+  &viewbox={west},{south},{east},{north}&bounded=0
+  ```
+  Using `bounded=0` still allows global results but ranks local ones higher. For specific business name searches, also add a second unbounded query for worldwide matches, shown in a separate "Global" section.
 
-**Step 4: Auto-populate business metadata**
-- In `fetchGeofencedBusinesses` and `loadBusinesses`, extract all available OSM tags: `phone`, `website`, `opening_hours`, `brand`, `cuisine`, `description`
-- Map `opening_hours` to a simple `openNow` boolean using basic time parsing (or just flag "24/7" as open)
-- Store this enriched data in `geoBusinesses` and `businessDataRef` so the POICard popup gets the full picture
+#### 4. Unified smart result ranking
+Refactor the search results display to use a single sorted list with clear priority:
+- **Priority 1**: Geofenced businesses from `geoBusinesses` matching the query
+- **Priority 2**: Overpass text-search results (nearby businesses by name)
+- **Priority 3**: Nominatim local results (addresses/places near user)
+- **Priority 4**: Nominatim global results (only if user typed a specific name/address not found locally)
+- **Priority 5**: Presets (cities, landmarks) -- only shown when query matches
 
-**Step 5: Category filter triggers instant pin refresh**
-- When user taps a category pill (Food, Cafe, Fuel, etc.), clear the business entity cache and re-query Overpass with the selected category filter applied to both the globe pins AND the search panel results simultaneously
+Remove duplicate section headers when results are empty. Show a "No nearby results, showing global" message when local returns empty but global has matches.
+
+#### 5. Add "Visit Store" / ecommerce action to POI card
+- Add a new action button to `POICard.tsx` full-size variant: **"Visit Store"** (shopping bag icon)
+- When clicked, navigate to `/marketplace?store={storeName}&lat={lat}&lng={lng}` -- linking to the existing MarketplacePage
+- Only show for business-type POIs (shops, supermarkets, restaurants)
+- Add an `onVisitStore` callback prop to POICard for custom handling
+
+#### 6. Category filter auto-triggers local search
+When a category pill is tapped and `geoCenter` is null, auto-geolocate before fetching. Currently the code does this but there's a race condition -- the `fetchGeofencedBusinesses` may fire before `geoCenter` is set. Fix by awaiting geolocation result.
 
 ### Files to modify
-- `src/components/POICard.tsx` -- Enhance full-size variant with phone, website, description, delivery action
-- `src/pages/SpaceshipPage.tsx` -- Fix store loading reactivity, search locality, camera moveEnd listener, enriched metadata extraction
+- **`src/pages/SpaceshipPage.tsx`** -- Fix search locality logic, auto-geolocation, Nominatim viewbox, result ordering
+- **`src/components/POICard.tsx`** -- Add "Visit Store" action button with marketplace navigation
+
+### Technical details
+- Nominatim viewbox format: `viewbox=lng_west,lat_south,lng_east,lat_north`
+- Haversine-based sorting already exists via `geoHaversine` -- reuse for all result types
+- The `geoLocateUser` function returns via callback (async geolocation), so search must be deferred until location resolves -- use a ref flag or promise pattern
+- Overpass `"name"~"..."i` regex syntax is valid but can cause 429s; keep the existing sanitization and timeout handling
 
