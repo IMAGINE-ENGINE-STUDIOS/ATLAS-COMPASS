@@ -2982,8 +2982,8 @@ out center 30;`;
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
                         {overpassResults.map((r, idx) => (
-                          <POICard key={r.id || idx} compact variant="glass" index={idx}
-                            poi={{ id: String(r.id || idx), name: r.name, emoji: r.emoji || "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance }}
+                          <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
+                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, lat: r.lat, lng: r.lng }}
                             onNavigate={() => { flyTo(r); setSearchOpen(false); }}
                           />
                         ))}
