@@ -2543,6 +2543,21 @@ out center 30;`;
                       </div>
                     </div>
                   )}
+
+                  {/* Vessel Type Legend */}
+                  <div className="mt-3 space-y-1 border-t border-white/[0.06] pt-2">
+                    <div className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Vessel Types</div>
+                    <div className="flex items-center gap-1.5 text-[9px] text-white/40">
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Cargo
+                      <span className="w-2 h-2 rounded-full bg-blue-500 inline-block ml-1" /> Tanker
+                      <span className="w-2 h-2 rounded-full bg-orange-500 inline-block ml-1" /> Passenger
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[9px] text-white/40">
+                      <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> High-Speed
+                      <span className="w-2 h-2 rounded-full bg-teal-500 inline-block ml-1" /> Tug
+                      <span className="w-2 h-2 rounded-full bg-green-500 inline-block ml-1" /> Fishing
+                    </div>
+                  </div>
                 </GlassPanel>
               </div>
             )}
