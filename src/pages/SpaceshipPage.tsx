@@ -259,7 +259,7 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
 }
 
 /* ── Main Spaceship Component ── */
-export default function SpaceshipPage() {
+function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
