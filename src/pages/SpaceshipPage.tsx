@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+// CSS-only animations — no framer-motion in this heavy page
 import {
   ArrowLeft, Search, MapPin, Mountain, Building2, Navigation,
   Maximize2, Minimize2, Globe, Crosshair, X,
@@ -1269,7 +1269,31 @@ out center 30;`;
     };
   }, [showBusinessIcons, geoCategory]);
 
-  // ── Real-time Aircraft & Ship Tracking ──
+  // ── Always-active click handler for business pin entities ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (picked?.id?.id) {
+        const entityId = picked.id.id as string;
+        if (entityId.startsWith("biz-")) {
+          const bizData = businessDataRef.current.get(entityId);
+          if (bizData) {
+            setSelectedBusiness(bizData);
+            viewer.camera.flyTo({
+              destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 200),
+              orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
+              duration: 1.2,
+            });
+          }
+        }
+      }
+    }, ScreenSpaceEventType.LEFT_CLICK);
+    return () => { handler.destroy(); };
+  }, [isLoaded]);
+
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
@@ -1909,31 +1933,23 @@ out center 30;`;
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
       {/* Loading Screen */}
-      <AnimatePresence>
+      
         {!isLoaded && (
-          <motion.div
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1 }}
-            className="absolute inset-0 z-50 bg-[#0a0a1a] flex flex-col items-center justify-center"
+          <div
+            className="absolute inset-0 z-50 bg-[#0a0a1a] flex flex-col items-center justify-center animate-fade-in"
           >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="w-16 h-16 rounded-full border-2 border-white/10 border-t-primary"
+            <div
+              className="w-16 h-16 rounded-full border-2 border-white/10 border-t-primary animate-spin"
             />
             <p className="mt-6 text-white/50 text-sm font-mono">INITIALIZING EARTH SYSTEMS...</p>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Brush Mode Indicator */}
-      <AnimatePresence>
+      
         {brushMode && !draggingModelId && (
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
+          <div
             className="absolute top-20 left-1/2 -translate-x-1/2 z-30"
           >
             <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/40 rounded-full px-5 py-2 flex items-center gap-2">
@@ -1941,17 +1957,14 @@ out center 30;`;
               <span className="text-sm font-medium text-emerald-300">TILE BRUSH ACTIVE</span>
               <span className="text-xs text-emerald-400/60">— Double-click to place model</span>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Dragging Model Indicator */}
-      <AnimatePresence>
+      
         {draggingModelId && (
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
+          <div
             className="absolute top-20 left-1/2 -translate-x-1/2 z-30"
           >
             <div className="bg-cyan-500/20 backdrop-blur-xl border border-cyan-500/40 rounded-full px-5 py-2 flex items-center gap-2">
@@ -1959,18 +1972,15 @@ out center 30;`;
               <span className="text-sm font-medium text-cyan-300">DRAGGING MODEL</span>
               <span className="text-xs text-cyan-400/60">— Release to place</span>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* ── HUD Overlay ── */}
       {isLoaded && hudVisible && (
         <>
           {/* Top Bar */}
-          <motion.div
-            initial={{ y: -40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
+          <div
             className="absolute top-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
             <div className="flex items-start justify-between gap-2">
@@ -2061,19 +2071,16 @@ out center 30;`;
                 </GlassPanel>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Unified Search & Nearby Panel */}
-          <AnimatePresence>
+          
             {searchOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: isMobile ? 20 : -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: isMobile ? 20 : -20 }}
-                className={isMobile
+              <div
+                className={`animate-fade-in ${isMobile
                   ? "absolute inset-x-2 bottom-28 z-30 max-h-[60dvh]"
                   : "absolute top-20 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4"
-                }
+                }`}
               >
                 <GlassPanel className="flex flex-col max-h-[inherit] overflow-hidden p-0">
                   {/* Search bar + controls */}
@@ -2329,17 +2336,14 @@ out center 30;`;
                     )}
                   </div>
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* ── CARGO ROUTES PANEL ── */}
-          <AnimatePresence>
+          
             {showCargoRoutes && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
+              <div
                 className="absolute bottom-24 left-4 z-30 w-[calc(100vw-2rem)] max-w-72"
               >
                 <GlassPanel className="p-4">
@@ -2436,18 +2440,15 @@ out center 30;`;
                     </div>
                   )}
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
 
           {/* ── LIVE TRAFFIC PANEL ── */}
-          <AnimatePresence>
+          
             {showLiveTraffic && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
+              <div
                 className="absolute bottom-24 right-4 z-30 w-[calc(100vw-2rem)] max-w-64"
               >
               <GlassPanel className="p-4">
@@ -2484,17 +2485,14 @@ out center 30;`;
                     </div>
                   </div>
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* ── DIRECTIONS PANEL ── */}
-          <AnimatePresence>
+          
             {directionsOpen && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+              <div
                 className="absolute top-20 left-4 z-30 w-[calc(100vw-2rem)] max-w-96"
               >
                 <GlassPanel className="p-4">
@@ -2668,17 +2666,14 @@ out center 30;`;
                     </button>
                   )}
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* POI Naming Dialog */}
-          <AnimatePresence>
+          
             {namingPOI && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+              <div
                 className={isMobile
                   ? "absolute inset-x-3 bottom-24 z-40 max-h-[calc(100dvh-9rem)]"
                   : "absolute top-1/2 left-1/2 z-40 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
@@ -2720,17 +2715,14 @@ out center 30;`;
                     </button>
                   </div>
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* ── MODEL PLACEMENT DIALOG ── */}
-          <AnimatePresence>
+          
             {pendingPlacement && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+              <div
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-md px-4"
               >
                 <GlassPanel className="p-5">
@@ -2853,17 +2845,14 @@ out center 30;`;
                     </button>
                   </div>
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* ── TILE BRUSH PANEL (Placed Models) ── */}
-          <AnimatePresence>
+          
             {brushPanelOpen && !pendingPlacement && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
+              <div
                 className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
                 <GlassPanel className="p-4">
@@ -2922,17 +2911,14 @@ out center 30;`;
                     </div>
                   )}
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* POI Detail View */}
-          <AnimatePresence>
+          
             {selectedPOI && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
+              <div
                 className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96"
               >
                 <GlassPanel className="p-5">
@@ -3002,22 +2988,18 @@ out center 30;`;
                     Created {new Date(selectedPOI.createdAt).toLocaleString()}
                   </p>
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* Business POI Card Popup */}
-          <AnimatePresence>
+          
             {selectedBusiness && (
-              <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                className={isMobile
+              <div
+                className={`animate-scale-in ${isMobile
                   ? "absolute inset-x-3 bottom-28 z-40"
                   : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
-                }
+                }`}
               >
                 <div className="relative">
                   <button onClick={() => setSelectedBusiness(null)}
@@ -3042,17 +3024,14 @@ out center 30;`;
                     }}
                   />
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
           {/* POI List Panel */}
-          <AnimatePresence>
+          
             {poisPanelOpen && !selectedPOI && !brushPanelOpen && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
+              <div
                 className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
                 <GlassPanel className="p-4">
@@ -3100,16 +3079,13 @@ out center 30;`;
                     </div>
                   )}
                 </GlassPanel>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
 
 
           {/* Bottom HUD — Coordinates & Camera Info */}
-          <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.5 }}
+          <div
             className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4"
           >
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
@@ -3167,7 +3143,7 @@ out center 30;`;
                 </div>
               </GlassPanel>
             </div>
-          </motion.div>
+          </div>
 
           <button
             onClick={() => setHudVisible(false)}
