@@ -1567,6 +1567,17 @@ out center 30;`;
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode]);
 
+  // Listen for model double-click (open transform widget)
+  useEffect(() => {
+    const handleModelDblClick = (e: Event) => {
+      const { id } = (e as CustomEvent).detail;
+      const model = placedModels.find(m => m.id === id);
+      if (model) setEditingModel(model);
+    };
+    window.addEventListener("cesium-model-dblclick", handleModelDblClick);
+    return () => window.removeEventListener("cesium-model-dblclick", handleModelDblClick);
+  }, [placedModels]);
+
   // Listen for model drag events
   useEffect(() => {
     const handleModelMoved = (e: Event) => {
