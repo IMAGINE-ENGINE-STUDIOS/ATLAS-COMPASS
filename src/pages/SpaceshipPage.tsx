@@ -1684,7 +1684,7 @@ out center 30;`;
         setOverpassResults(localBiz.slice(0, 20));
         setNominatimResults([...localPlaces.slice(0, 10), ...globalResults.slice(0, 10)]);
         setSearchLoading(false);
-      }, 400);
+      }, 100);
     } else {
       setNominatimResults([]);
       setOverpassResults([]);
