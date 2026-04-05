@@ -3237,6 +3237,26 @@ out center 30;`;
           Show HUD
         </button>
       )}
+
+      {/* Model Transform Widget */}
+      {editingModel && (
+        <ModelTransformWidget
+          modelName={editingModel.name}
+          initial={{
+            lat: editingModel.lat,
+            lng: editingModel.lng,
+            alt: editingModel.alt || 0,
+            heading: editingModel.heading || 0,
+            pitch: editingModel.pitch || 0,
+            roll: editingModel.roll || 0,
+            scale: editingModel.scale || 1,
+          }}
+          onUpdate={handleTransformUpdate}
+          onApply={handleTransformApply}
+          onClose={() => setEditingModel(null)}
+          onSnapToGround={handleSnapToGround}
+        />
+      )}
     </div>
   );
 }
