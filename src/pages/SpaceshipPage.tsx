@@ -196,22 +196,22 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
   
-  // Measure text
-  ctx.font = `bold ${12 * dpr}px Inter, system-ui, sans-serif`;
+  // Measure text — use SF-style system font
+  ctx.font = `600 ${13 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
   const textWidth = ctx.measureText(name).width;
-  const iconWidth = 18 * dpr;
-  const padding = 10 * dpr;
-  const gap = 4 * dpr;
-  const pointerH = 8 * dpr;
+  const iconWidth = 20 * dpr;
+  const padding = 12 * dpr;
+  const gap = 6 * dpr;
+  const pointerH = 10 * dpr;
   const w = iconWidth + gap + textWidth + padding * 2;
-  const h = 28 * dpr;
+  const h = 32 * dpr;
   const totalH = h + pointerH;
-  const r = 8 * dpr;
+  const r = 14 * dpr;
   
   canvas.width = w;
   canvas.height = totalH;
   
-  // Glassmorphic background
+  // Solid frosted glass background
   ctx.beginPath();
   ctx.moveTo(r, 0);
   ctx.lineTo(w - r, 0);
@@ -219,42 +219,56 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
   ctx.lineTo(w, h - r);
   ctx.quadraticCurveTo(w, h, w - r, h);
   // Pointer triangle
-  ctx.lineTo(w / 2 + 6 * dpr, h);
+  ctx.lineTo(w / 2 + 7 * dpr, h);
   ctx.lineTo(w / 2, totalH);
-  ctx.lineTo(w / 2 - 6 * dpr, h);
+  ctx.lineTo(w / 2 - 7 * dpr, h);
   ctx.lineTo(r, h);
   ctx.quadraticCurveTo(0, h, 0, h - r);
   ctx.lineTo(0, r);
   ctx.quadraticCurveTo(0, 0, r, 0);
   ctx.closePath();
   
-  // Fill with semi-transparent bg
-  ctx.fillStyle = bgColor;
+  // Solid opaque fill (iPhone-style frosted glass)
+  ctx.fillStyle = bgColor.replace(/[\d.]+\)$/, "0.88)");
   ctx.fill();
   
-  // Subtle top highlight
+  // Top-to-bottom sheen
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "rgba(255,255,255,0.18)");
-  grad.addColorStop(0.5, "rgba(255,255,255,0.02)");
-  grad.addColorStop(1, "rgba(0,0,0,0.1)");
+  grad.addColorStop(0, "rgba(255,255,255,0.30)");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.08)");
+  grad.addColorStop(1, "rgba(0,0,0,0.05)");
   ctx.fillStyle = grad;
   ctx.fill();
   
-  // Border
-  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  // Crisp border
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
   ctx.lineWidth = 1.5 * dpr;
   ctx.stroke();
   
+  // Drop shadow effect (inner glow)
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.shadowColor = "rgba(0,0,0,0.3)";
+  ctx.shadowBlur = 6 * dpr;
+  ctx.shadowOffsetY = 3 * dpr;
+  ctx.fillStyle = "transparent";
+  ctx.fill();
+  ctx.restore();
+  
   // Icon emoji
-  ctx.font = `${14 * dpr}px sans-serif`;
+  ctx.font = `${15 * dpr}px -apple-system, BlinkMacSystemFont, sans-serif`;
   ctx.textBaseline = "middle";
   ctx.fillText(icon, padding, h / 2);
   
-  // Name text
-  ctx.font = `bold ${12 * dpr}px Inter, system-ui, sans-serif`;
+  // Name text — crisp white with subtle shadow
+  ctx.font = `600 ${13 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = 2 * dpr;
+  ctx.shadowOffsetY = 1;
   ctx.fillStyle = "white";
   ctx.textBaseline = "middle";
   ctx.fillText(name, padding + iconWidth + gap, h / 2);
+  ctx.shadowBlur = 0;
   
   const dataUrl = canvas.toDataURL("image/png");
   pinCanvasCache.set(key, dataUrl);
