@@ -2293,7 +2293,6 @@ out center 30;`;
                   {/* Route count */}
                   <div className="flex items-center justify-between text-[9px] text-white/30 font-mono mb-3">
                     <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes</span>
-                    <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).reduce((s, r) => s + r.vessels.length, 0)} vessels</span>
                   </div>
 
                   {/* Selected Route Card */}
