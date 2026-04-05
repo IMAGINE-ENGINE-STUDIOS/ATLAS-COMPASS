@@ -1882,9 +1882,10 @@ out center 30;`;
 
   const flyToPOI = useCallback((poi: POI) => {
     if (!viewerRef.current) return;
+    const offsetDeg = 0.01;
     viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 2000),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-35), roll: 0 },
+      destination: Cartesian3.fromDegrees(poi.lng, poi.lat + offsetDeg, 2000),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-45), roll: 0 },
       duration: 2,
     });
   }, []);
