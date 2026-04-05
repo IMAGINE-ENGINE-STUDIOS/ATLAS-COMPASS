@@ -1180,7 +1180,7 @@ out center 30;`;
           const route = ALL_CARGO_ROUTES.find(r => r.id === routeId);
           if (route) {
             setSelectedRoute(route);
-            setSelectedVessel(null);
+          }
           }
         }
         // Check if it's a business entity
