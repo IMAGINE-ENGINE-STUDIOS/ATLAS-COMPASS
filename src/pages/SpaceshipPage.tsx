@@ -16,6 +16,7 @@ import {
 } from "@/lib/model-converter";
 import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
 import POICard, { type POIData } from "@/components/POICard";
+import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
