@@ -905,15 +905,22 @@ out center 30;`;
     });
     brushIndicatorRef.current = brushEntity;
 
-    // Fly to initial view
-    viewer.camera.flyTo({
-      destination: Cartesian3.fromDegrees(-74.006, 40.7128, 2500),
+    // Restore last camera position or default to Times Square
+    let initLng = -74.006, initLat = 40.7128, initAlt = 2500, initHeading = 0, initPitch = -35, initRoll = 0;
+    try {
+      const saved = localStorage.getItem("atlas_camera");
+      if (saved) {
+        const c = JSON.parse(saved);
+        if (c.lng != null) { initLng = c.lng; initLat = c.lat; initAlt = c.alt || 2500; initHeading = c.heading || 0; initPitch = c.pitch || -35; initRoll = c.roll || 0; }
+      }
+    } catch {}
+    viewer.camera.setView({
+      destination: Cartesian3.fromDegrees(initLng, initLat, initAlt),
       orientation: {
-        heading: CesiumMath.toRadians(0),
-        pitch: CesiumMath.toRadians(-35),
-        roll: 0,
+        heading: CesiumMath.toRadians(initHeading),
+        pitch: CesiumMath.toRadians(initPitch),
+        roll: CesiumMath.toRadians(initRoll),
       },
-      duration: 0,
     });
 
     // Mouse move handler for coordinates + brush indicator
