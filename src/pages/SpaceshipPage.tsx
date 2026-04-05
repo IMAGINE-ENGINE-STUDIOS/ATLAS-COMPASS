@@ -259,7 +259,7 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
 }
 
 /* ── Main Spaceship Component ── */
-export default function SpaceshipPage() {
+function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
@@ -797,9 +797,11 @@ out center 30;`;
     viewer.scene.globe.enableLighting = true;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
-    viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
+    viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
+    // Hide globe immediately — photorealistic tiles will be the only visible layer
+    viewer.scene.globe.show = false;
 
     // Force continuous rendering so the globe appears immediately
     viewer.scene.requestRenderMode = false;
@@ -822,14 +824,14 @@ out center 30;`;
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 8;
         (viewer as any)._realisticTileset = tileset;
-        // Hide globe when realistic tiles are active to prevent z-fighting
-        viewer.scene.globe.show = false;
         viewer.scene.requestRender();
       }
     }).catch(() => {
-      // Fallback: if realistic tiles fail, use OSM buildings
+      // Fallback: if realistic tiles fail, show globe + OSM buildings
       if (!viewer.isDestroyed()) {
         console.warn("Realistic tiles unavailable, falling back to OSM");
+        viewer.scene.globe.show = true;
+        viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
         createOsmBuildingsAsync().then((tileset) => {
           if (!viewer.isDestroyed()) {
             viewer.scene.primitives.add(tileset);
@@ -3163,5 +3165,44 @@ out center 30;`;
         </button>
       )}
     </div>
+  );
+}
+
+// ── Error Boundary: prevent crash-reload loops ──
+import { Component, type ReactNode, type ErrorInfo } from "react";
+
+class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
+  state = { hasError: false, error: "" };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[Atlas Error Boundary]", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-screen bg-[#0a0a1a] flex flex-col items-center justify-center text-white gap-4">
+          <div className="text-4xl">🌍</div>
+          <h2 className="text-lg font-semibold">Atlas encountered an issue</h2>
+          <p className="text-sm text-white/50 max-w-sm text-center">{this.state.error || "Something went wrong"}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: "" })}
+            className="mt-2 px-5 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function AtlasPage() {
+  return (
+    <AtlasErrorBoundary>
+      <SpaceshipPage />
+    </AtlasErrorBoundary>
   );
 }
