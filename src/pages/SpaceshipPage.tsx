@@ -2217,10 +2217,10 @@ out center 30;`;
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-emerald-500/20" />
-                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Businesses</span>
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
-                        {overpassResults.map((r, i) => (
+                        {overpassResults.map((r: any, i: number) => (
                           <POICard
                             key={`ov-${i}`}
                             compact
@@ -2232,11 +2232,16 @@ out center 30;`;
                               category: r.type,
                               lat: r.lat,
                               lng: r.lng,
+                              distance: r.distance,
+                              phone: r.phone,
+                              website: r.website,
+                              brand: r.brand,
+                              cuisine: r.cuisine,
                             }}
                             onNavigate={() => {
                               flyTo(r);
                               const emoji = (() => { const t = r.type; if (t.includes("Restaurant") || t.includes("Food")) return "🍽️"; if (t.includes("Cafe")) return "☕"; if (t.includes("Hotel")) return "🏨"; if (t.includes("Shop") || t.includes("Supermarket")) return "🛒"; if (t.includes("Fuel")) return "⛽"; if (t.includes("Health")) return "🏥"; return "📍"; })();
-                              setSelectedBusiness({ name: r.name, emoji, category: r.type, lat: r.lat, lng: r.lng });
+                              setSelectedBusiness({ name: r.name, emoji, category: r.type, lat: r.lat, lng: r.lng, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, distance: r.distance });
                               setSearchOpen(false);
                             }}
                           />
