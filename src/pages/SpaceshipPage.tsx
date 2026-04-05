@@ -592,12 +592,23 @@ function SpaceshipPage() {
         { headers: { "Accept-Language": "en" } }
       );
       const data = await resp.json();
-      const results = data.map((r: any) => ({
-        name: r.display_name.split(",").slice(0, 3).join(","),
-        lat: parseFloat(r.lat),
-        lng: parseFloat(r.lon),
-        type: classifyOsmResult(r),
-      }));
+      const results = data.map((r: any) => {
+        const extra = r.extratags || {};
+        const addrParts = r.address || {};
+        const addr = [addrParts.road, addrParts.house_number, addrParts.city || addrParts.town || addrParts.village, addrParts.state].filter(Boolean).join(", ");
+        return {
+          name: r.display_name.split(",").slice(0, 3).join(","),
+          lat: parseFloat(r.lat),
+          lng: parseFloat(r.lon),
+          type: classifyOsmResult(r),
+          address: addr || undefined,
+          phone: extra.phone || extra["contact:phone"] || undefined,
+          website: extra.website || extra["contact:website"] || undefined,
+          brand: extra.brand || undefined,
+          description: extra.description || undefined,
+          distance: center ? geoHaversine(center.lat, center.lng, parseFloat(r.lat), parseFloat(r.lon)) : undefined,
+        };
+      });
       // Sort by distance if we have a center
       if (center) {
         results.sort((a: SearchResult, b: SearchResult) =>
