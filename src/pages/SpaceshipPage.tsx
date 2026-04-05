@@ -16,6 +16,7 @@ import {
 } from "@/lib/model-converter";
 import { ALL_CARGO_ROUTES, MARITIME_VESSEL_COUNT, AIR_VESSEL_COUNT, CARGO_CATEGORIES, type CargoRoute, type Vessel, type CargoCategory } from "@/lib/cargo-routes";
 import POICard, { type POIData } from "@/components/POICard";
+import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -64,6 +65,8 @@ interface PlacedModel {
   lng: number;
   alt: number;
   heading: number;
+  pitch?: number;
+  roll?: number;
   scale: number;
   createdAt: number;
 }
@@ -300,6 +303,9 @@ function SpaceshipPage() {
   const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
+
+  // Model transform editing state
+  const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
 
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
@@ -966,8 +972,16 @@ out center 30;`;
       }
     }, ScreenSpaceEventType.LEFT_UP);
 
-    // Double-click handler — creates POI or places model depending on mode
+    // Double-click handler — edit model, create POI, or place model depending on mode
     handler.setInputAction((click: any) => {
+      // Check if double-clicked on a model entity
+      const picked = viewer.scene.pick(click.position);
+      if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
+        const modelId = picked.id.id.replace("model-", "");
+        window.dispatchEvent(new CustomEvent("cesium-model-dblclick", { detail: { id: modelId } }));
+        return;
+      }
+
       const ray = viewer.camera.getPickRay(click.position);
       if (!ray) return;
       const cartesian = viewer.scene.pickPosition(click.position)
@@ -1553,6 +1567,17 @@ out center 30;`;
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode]);
 
+  // Listen for model double-click (open transform widget)
+  useEffect(() => {
+    const handleModelDblClick = (e: Event) => {
+      const { id } = (e as CustomEvent).detail;
+      const model = placedModels.find(m => m.id === id);
+      if (model) setEditingModel(model);
+    };
+    window.addEventListener("cesium-model-dblclick", handleModelDblClick);
+    return () => window.removeEventListener("cesium-model-dblclick", handleModelDblClick);
+  }, [placedModels]);
+
   // Listen for model drag events
   useEffect(() => {
     const handleModelMoved = (e: Event) => {
@@ -1802,8 +1827,8 @@ out center 30;`;
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
     if (!viewerRef.current) return;
     // Place at ground level (alt=0) and clamp to terrain/3D tiles
-    const position = Cartesian3.fromDegrees(model.lng, model.lat, 0);
-    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(model.heading), 0, 0);
+    const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0);
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(model.heading), CesiumMath.toRadians(model.pitch || 0), CesiumMath.toRadians(model.roll || 0));
     const orientation = Transforms.headingPitchRollQuaternion(position, hpr);
 
     viewerRef.current.entities.add({
@@ -1827,6 +1852,40 @@ out center 30;`;
       },
     });
   }, []);
+
+  // ── Model Transform: live update entity in Cesium ──
+  const handleTransformUpdate = useCallback((data: TransformData) => {
+    if (!editingModel || !viewerRef.current) return;
+    const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
+    if (!entity) return;
+    const pos = Cartesian3.fromDegrees(data.lng, data.lat, data.alt);
+    entity.position = pos as any;
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(data.heading), CesiumMath.toRadians(data.pitch), CesiumMath.toRadians(data.roll));
+    entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
+    if (entity.model) (entity.model as any).scale = data.scale;
+  }, [editingModel]);
+
+  const handleTransformApply = useCallback((data: TransformData) => {
+    if (!editingModel) return;
+    setPlacedModels(prev => {
+      const updated = prev.map(m => m.id === editingModel.id
+        ? { ...m, lat: data.lat, lng: data.lng, alt: data.alt, heading: data.heading, pitch: data.pitch, roll: data.roll, scale: data.scale }
+        : m
+      );
+      savePlacedModels(updated);
+      return updated;
+    });
+    setEditingModel(null);
+  }, [editingModel]);
+
+  const handleSnapToGround = useCallback(() => {
+    if (!editingModel || !viewerRef.current) return;
+    const entity = viewerRef.current.entities.getById(`model-${editingModel.id}`);
+    if (!entity) return;
+    const pos = Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, 0);
+    entity.position = pos as any;
+    if (entity.model) (entity.model as any).heightReference = 1;
+  }, [editingModel]);
 
   const confirmModelPlacement = useCallback(async () => {
     if (!pendingPlacement || !modelFile || !modelName.trim()) return;
@@ -3177,6 +3236,26 @@ out center 30;`;
         >
           Show HUD
         </button>
+      )}
+
+      {/* Model Transform Widget */}
+      {editingModel && (
+        <ModelTransformWidget
+          modelName={editingModel.name}
+          initial={{
+            lat: editingModel.lat,
+            lng: editingModel.lng,
+            alt: editingModel.alt || 0,
+            heading: editingModel.heading || 0,
+            pitch: editingModel.pitch || 0,
+            roll: editingModel.roll || 0,
+            scale: editingModel.scale || 1,
+          }}
+          onUpdate={handleTransformUpdate}
+          onApply={handleTransformApply}
+          onClose={() => setEditingModel(null)}
+          onSnapToGround={handleSnapToGround}
+        />
       )}
     </div>
   );
