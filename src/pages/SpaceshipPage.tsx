@@ -3209,13 +3209,23 @@ out center 30;`;
 // ── Error Boundary: prevent crash-reload loops ──
 import { Component, type ReactNode, type ErrorInfo } from "react";
 
-class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
-  state = { hasError: false, error: "" };
+class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string; retryCount: number }> {
+  state = { hasError: false, error: "", retryCount: 0 };
+  private autoRetryTimer: ReturnType<typeof setTimeout> | null = null;
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error: error.message };
   }
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[Atlas Error Boundary]", error, info);
+    // Auto-recover after 1.5s if less than 3 retries
+    if (this.state.retryCount < 3) {
+      this.autoRetryTimer = setTimeout(() => {
+        this.setState((s) => ({ hasError: false, error: "", retryCount: s.retryCount + 1 }));
+      }, 1500);
+    }
+  }
+  componentWillUnmount() {
+    if (this.autoRetryTimer) clearTimeout(this.autoRetryTimer);
   }
   render() {
     if (this.state.hasError) {
@@ -3224,8 +3234,9 @@ class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
           <div className="text-4xl">🌍</div>
           <h2 className="text-lg font-semibold">Atlas encountered an issue</h2>
           <p className="text-sm text-white/50 max-w-sm text-center">{this.state.error || "Something went wrong"}</p>
+          {this.state.retryCount < 3 && <p className="text-xs text-white/30">Auto-recovering…</p>}
           <button
-            onClick={() => this.setState({ hasError: false, error: "" })}
+            onClick={() => this.setState({ hasError: false, error: "", retryCount: 0 })}
             className="mt-2 px-5 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition-colors"
           >
             Try Again
