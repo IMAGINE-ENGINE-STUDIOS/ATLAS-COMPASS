@@ -1884,11 +1884,13 @@ out center 20;`;
               </div>
 
               <div className="flex items-center gap-2">
-                <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
-                  <button onClick={() => { const opening = !searchOpen; setSearchOpen(opening); if (opening) { setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geoLocateUser(); } }}>
-                    <Search className="w-5 h-5 text-white/70" />
-                  </button>
-                </GlassPanel>
+                <button
+                  onClick={() => { const opening = !searchOpen; setSearchOpen(opening); if (opening) { setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geoLocateUser(); } }}
+                  className="bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors relative"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent rounded-2xl pointer-events-none" />
+                  <Search className="w-5 h-5 text-white/70 relative z-10" />
+                </button>
 
                 <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
