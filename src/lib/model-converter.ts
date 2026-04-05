@@ -3,7 +3,6 @@
  * Converts various 3D formats to glTF blob URLs for use with CesiumJS
  */
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";

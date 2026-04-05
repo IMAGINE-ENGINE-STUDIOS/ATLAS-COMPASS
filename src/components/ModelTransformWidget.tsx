@@ -20,7 +20,7 @@ interface Props {
   onUpdate: (data: TransformData) => void;
   onApply: (data: TransformData) => void;
   onClose: () => void;
-  onSnapToGround: (callback: (snapped: TransformData) => void) => void;
+  onSnapToGround: (data: TransformData, callback: (snapped: TransformData) => void) => void;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
@@ -161,7 +161,7 @@ export default function ModelTransformWidget({ modelName, initial, onUpdate, onA
               <StepInput label="Lng" value={data.lng} step={0.0001} decimals={6} onChange={v => update({ lng: v })} />
               <StepInput label="Alt" value={data.alt} step={1} decimals={1} onChange={v => update({ alt: v })} />
               <button
-                onClick={() => onSnapToGround((snapped) => {
+                onClick={() => onSnapToGround(data, (snapped) => {
                   setData(snapped);
                   onUpdate(snapped);
                 })}
