@@ -3038,8 +3038,12 @@ out center 30;`;
                         </div>
                         {overpassResults.map((r, idx) => (
                           <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
-                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, lat: r.lat, lng: r.lng }}
-                            onNavigate={() => { flyTo(r); setSearchOpen(false); }}
+                            poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine }}
+                            onNavigate={() => {
+                              flyTo(r);
+                              setSelectedBusiness({ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine });
+                              setSearchOpen(false);
+                            }}
                           />
                         ))}
                       </>
