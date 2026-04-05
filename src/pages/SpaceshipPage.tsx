@@ -2182,7 +2182,7 @@ out center 30;`;
                 }}
               >
                 <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-                <GlassPanel className="flex flex-col max-h-[60vh] overflow-hidden p-0 backdrop-blur-2xl bg-black/50 border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+                <div className="flex flex-col max-h-[60vh] overflow-hidden rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                 >
                   {/* Controls row — no duplicate search bar */}
