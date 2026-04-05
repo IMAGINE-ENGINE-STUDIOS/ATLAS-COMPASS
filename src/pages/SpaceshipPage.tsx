@@ -1314,6 +1314,19 @@ out center 30;`;
     const removeListener = viewer.camera.moveEnd.addEventListener(() => {
       if (bizLoadTimerRef.current) clearTimeout(bizLoadTimerRef.current);
       bizLoadTimerRef.current = setTimeout(loadBusinesses, 800);
+      // Persist camera state so next load resumes here
+      try {
+        const cam = viewer.camera;
+        const pos = cam.positionCartographic;
+        localStorage.setItem("atlas_camera", JSON.stringify({
+          lng: CesiumMath.toDegrees(pos.longitude),
+          lat: CesiumMath.toDegrees(pos.latitude),
+          alt: pos.height,
+          heading: CesiumMath.toDegrees(cam.heading),
+          pitch: CesiumMath.toDegrees(cam.pitch),
+          roll: CesiumMath.toDegrees(cam.roll),
+        }));
+      } catch {}
     });
 
     return () => {
