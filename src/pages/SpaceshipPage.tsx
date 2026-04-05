@@ -1161,20 +1161,20 @@ out center 30;`;
 
       const bbox = `${(lat - radius).toFixed(5)},${(lng - radius).toFixed(5)},${(lat + radius).toFixed(5)},${(lng + radius).toFixed(5)}`;
 
-      // Apply category filter to globe pins query
+      // Apply category filter to globe pins query — use nwr for full store coverage
       let filter = "";
       switch (geoCategory) {
-        case "restaurant": filter = `node["amenity"~"restaurant|fast_food"](${bbox});`; break;
-        case "cafe": filter = `node["amenity"="cafe"](${bbox});`; break;
-        case "hotel": filter = `node["tourism"~"hotel|motel|hostel"](${bbox});`; break;
-        case "fuel": filter = `node["amenity"="fuel"](${bbox});`; break;
-        case "health": filter = `node["amenity"~"hospital|pharmacy|clinic"](${bbox});`; break;
-        case "supermarket": filter = `node["shop"~"supermarket|convenience|grocery"](${bbox});`; break;
-        case "shop": filter = `node["shop"](${bbox});`; break;
-        default: filter = `node["shop"](${bbox});node["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital"](${bbox});node["tourism"~"hotel|motel"](${bbox});`;
+        case "restaurant": filter = `nwr["amenity"~"restaurant|fast_food"](${bbox});`; break;
+        case "cafe": filter = `nwr["amenity"="cafe"](${bbox});`; break;
+        case "hotel": filter = `nwr["tourism"~"hotel|motel|hostel|guest_house"](${bbox});`; break;
+        case "fuel": filter = `nwr["amenity"~"fuel|charging_station"](${bbox});`; break;
+        case "health": filter = `nwr["amenity"~"hospital|pharmacy|clinic|doctors|dentist"](${bbox});nwr["healthcare"](${bbox});`; break;
+        case "supermarket": filter = `nwr["shop"~"supermarket|convenience|grocery|department_store|general"](${bbox});`; break;
+        case "shop": filter = `nwr["shop"](${bbox});`; break;
+        default: filter = `nwr["shop"](${bbox});nwr["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|clinic|doctors"](${bbox});nwr["tourism"~"hotel|motel"](${bbox});nwr["healthcare"](${bbox});`;
       }
 
-      const query = `[out:json][timeout:8];(${filter});out ${limit};`;
+      const query = `[out:json][timeout:10];(${filter});out center ${limit};`;
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
