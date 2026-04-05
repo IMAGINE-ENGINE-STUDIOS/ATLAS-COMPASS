@@ -1353,15 +1353,16 @@ out center 30;`;
           const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
           const entity = viewer.entities.add({
             id: entityId,
-            position: Cartesian3.fromDegrees(_lng, _lat, 2),
+            position: Cartesian3.fromDegrees(_lng, _lat, 0),
             billboard: {
               image: createPinCanvas(icon, truncName, bgColor),
               verticalOrigin: 1, // BOTTOM
-              pixelOffset: new Cartesian2(0, -4),
+              pixelOffset: new Cartesian2(0, 0),
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 100, nearValue: 0.9, far: 15000, farValue: 0.25 } as any,
+              scaleByDistance: { near: 200, nearValue: 0.8, far: 15000, farValue: 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
-              heightReference: 1,
+              heightReference: 1, // CLAMP_TO_GROUND
+              alignedAxis: Cartesian3.ZERO, // Always face camera
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
           });
@@ -2896,8 +2897,24 @@ out center 30;`;
                         viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 }, duration: 1 });
                       }
                     }}
+                    onDirections={(poi) => {
+                      // Get user's current camera position as origin
+                      const viewer = viewerRef.current;
+                      if (!viewer || viewer.isDestroyed()) return;
+                      const cam = viewer.camera.positionCartographic;
+                      const userLat = CesiumMath.toDegrees(cam.latitude);
+                      const userLng = CesiumMath.toDegrees(cam.longitude);
+                      const origin: SearchResult = { name: "My Location", lat: userLat, lng: userLng, type: "Location" };
+                      const dest: SearchResult = { name: poi.name, lat: poi.lat, lng: poi.lng, type: poi.category || "Business" };
+                      setOriginPoint(origin);
+                      setDestPoint(dest);
+                      setOriginQuery(origin.name);
+                      setDestQuery(dest.name);
+                      setDirectionsOpen(true);
+                      setSelectedBusiness(null);
+                      fetchRoute(origin, dest);
+                    }}
                     onSelect={(poi) => {
-                      // Open in search for delivery address use
                       setSearchOpen(true);
                       setSearchQuery(poi.name);
                       handleSearch(poi.name);

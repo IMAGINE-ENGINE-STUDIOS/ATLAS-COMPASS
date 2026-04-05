@@ -1,4 +1,4 @@
-import { Navigation, MapPin, Phone, Globe, Truck, Copy, Check, ShoppingBag } from "lucide-react";
+import { Navigation, MapPin, Phone, Globe, Truck, Copy, Check, ShoppingBag, Route } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -24,6 +24,7 @@ interface POICardProps {
   poi: POIData;
   onNavigate?: (poi: POIData) => void;
   onSelect?: (poi: POIData) => void;
+  onDirections?: (poi: POIData) => void;
   compact?: boolean;
   variant?: "glass" | "solid";
   index?: number;
@@ -34,7 +35,7 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)}km`;
 }
 
-export default function POICard({ poi, onNavigate, onSelect, compact = false, variant = "glass", index = 0 }: POICardProps) {
+export default function POICard({ poi, onNavigate, onSelect, onDirections, compact = false, variant = "glass", index = 0 }: POICardProps) {
   const isGlass = variant === "glass";
   const [copied, setCopied] = useState(false);
   let navigate: ReturnType<typeof useNavigate> | null = null;
@@ -215,6 +216,18 @@ export default function POICard({ poi, onNavigate, onSelect, compact = false, va
               }`}
             >
               <Navigation className="w-3.5 h-3.5 shrink-0" /> Navigate
+            </button>
+          )}
+          {onDirections && (
+            <button
+              onClick={() => onDirections(poi)}
+              className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
+                isGlass
+                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25"
+                  : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+              }`}
+            >
+              <Route className="w-3.5 h-3.5 shrink-0" /> Directions
             </button>
           )}
           {poi.address && navigate && (
