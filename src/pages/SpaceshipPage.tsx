@@ -341,6 +341,11 @@ function SpaceshipPage() {
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
   const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
+  // Marketplace pins state
+  const [showMarketplacePins, setShowMarketplacePins] = useState(false);
+  const [selectedMarketplaceProduct, setSelectedMarketplaceProduct] = useState<MarketplaceProduct | null>(null);
+  const marketplaceEntitiesRef = useRef<any[]>([]);
+
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [originQuery, setOriginQuery] = useState("");
