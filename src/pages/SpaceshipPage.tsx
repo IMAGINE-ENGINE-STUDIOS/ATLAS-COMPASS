@@ -8,7 +8,7 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck
 } from "lucide-react";
 import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
@@ -22,6 +22,7 @@ import {
 import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type CargoCategory } from "@/lib/cargo-routes";
 import POICard, { type POIData } from "@/components/POICard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
+import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -333,6 +334,9 @@ function SpaceshipPage() {
 
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
+
+  // Uber Direct Delivery panel state
+  const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
 
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
@@ -2344,7 +2348,15 @@ out center 30;`;
                     className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"}`}
                     title="Trade Routes"
                   >
-                    <Ship className="w-4 h-4" />
+                   <Ship className="w-4 h-4" />
+                  </button>
+                  {/* Uber Direct Delivery */}
+                  <button
+                    onClick={() => setDeliveryPanelOpen(!deliveryPanelOpen)}
+                    className={`p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
+                    title="Uber Direct Delivery"
+                  >
+                    <Truck className="w-4 h-4" />
                   </button>
                   <button
                     onClick={toggleFullscreen}
@@ -2630,6 +2642,15 @@ out center 30;`;
               </div>
             )}
           
+
+          {/* ── UBER DIRECT DELIVERY PANEL ── */}
+          {deliveryPanelOpen && (
+            <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96">
+              <GlassPanel className="p-4">
+                <AtlasDeliveryPanel onClose={() => setDeliveryPanelOpen(false)} />
+              </GlassPanel>
+            </div>
+          )}
 
           {/* POI Naming Dialog */}
           
