@@ -30,7 +30,7 @@ const btnPrimary = "w-full flex items-center justify-center gap-2 px-4 py-2.5 bg
 const btnSecondary = "px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors";
 
 export default function AtlasDeliveryPanel({ onClose, initialPickup, initialDropoff }: Props) {
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>(initialPickup ? "new" : "home");
 
   return (
     <div className="space-y-0 max-h-[calc(100dvh-10rem)] overflow-y-auto">
