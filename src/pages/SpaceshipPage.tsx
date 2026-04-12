@@ -2643,6 +2643,15 @@ out center 30;`;
             )}
           
 
+          {/* ── UBER DIRECT DELIVERY PANEL ── */}
+          {deliveryPanelOpen && (
+            <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96">
+              <GlassPanel className="p-4">
+                <AtlasDeliveryPanel onClose={() => setDeliveryPanelOpen(false)} />
+              </GlassPanel>
+            </div>
+          )}
+
           {/* POI Naming Dialog */}
           
             {namingPOI && (
