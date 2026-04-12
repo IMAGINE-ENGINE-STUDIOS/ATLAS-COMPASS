@@ -3,12 +3,12 @@ import {
   Truck, X, MapPin, Package, Loader2, CheckCircle2, Clock,
   DollarSign, Navigation, Shield, FileSignature, Zap,
   AlertCircle, ArrowRight, ArrowLeft, ChevronDown, ChevronUp,
-  Phone, User, Eye, Copy, Ban, Edit3
+  Phone, User, Eye, Ban
 } from "lucide-react";
 import {
   getDeliveryQuote, getDeliveryEstimate, createDelivery,
-  getDeliveryStatus, cancelDelivery, updateTip, listDeliveries,
-  getProofOfDelivery, haversineDistance, getDeliveryZone, zoneInfo,
+  getDeliveryStatus, cancelDelivery, listDeliveries,
+  getProofOfDelivery,
 } from "@/lib/delivery-service";
 import AddressAutocomplete from "./AddressAutocomplete";
 
