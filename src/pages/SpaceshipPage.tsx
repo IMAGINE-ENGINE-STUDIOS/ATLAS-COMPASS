@@ -8,7 +8,7 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag
 } from "lucide-react";
 import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
@@ -23,6 +23,8 @@ import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type CargoCategory
 import POICard, { type POIData } from "@/components/POICard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
+import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
+import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
