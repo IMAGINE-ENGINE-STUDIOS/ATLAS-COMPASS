@@ -3097,6 +3097,48 @@ out center 30;`;
               </div>
             )}
           
+          {/* Marketplace Product Card Popup */}
+          {selectedMarketplaceProduct && (
+            <div
+              className={`animate-scale-in ${isMobile
+                ? "absolute inset-x-3 bottom-28 z-40"
+                : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
+              }`}
+            >
+              <MarketplaceProductCard
+                product={selectedMarketplaceProduct}
+                onClose={() => setSelectedMarketplaceProduct(null)}
+                onDelivery={(product) => {
+                  const addr = product.sellerAddress ? `${product.seller}, ${product.sellerAddress}` : product.seller;
+                  setDeliveryPickupPrefill({ address: addr, lat: product.sellerLat, lng: product.sellerLng });
+                  setDeliveryPanelOpen(true);
+                  setSelectedMarketplaceProduct(null);
+                }}
+                onDirections={(product) => {
+                  const viewer = viewerRef.current;
+                  if (!viewer || viewer.isDestroyed()) return;
+                  const cam = viewer.camera.positionCartographic;
+                  const userLat = CesiumMath.toDegrees(cam.latitude);
+                  const userLng = CesiumMath.toDegrees(cam.longitude);
+                  const origin: SearchResult = { name: "My Location", lat: userLat, lng: userLng, type: "Location" };
+                  const dest: SearchResult = { name: product.seller, lat: product.sellerLat, lng: product.sellerLng, type: "Store" };
+                  setOriginPoint(origin);
+                  setDestPoint(dest);
+                  setOriginQuery(origin.name);
+                  setDestQuery(dest.name);
+                  setDirectionsOpen(true);
+                  setSelectedMarketplaceProduct(null);
+                  fetchRoute(origin, dest);
+                }}
+                onBuy={(product, quantity, options) => {
+                  // Stripe integration placeholder — will be wired later
+                  console.log("Buy:", product.name, quantity, options);
+                  alert(`Purchase: ${quantity}x ${product.name} — $${(product.price * quantity).toFixed(2)}\n\nStripe checkout will be integrated soon.`);
+                }}
+              />
+            </div>
+          )}
+
 
           {/* POI List Panel */}
           
