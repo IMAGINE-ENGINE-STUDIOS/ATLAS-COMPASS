@@ -2413,6 +2413,14 @@ out center 30;`;
                   >
                     <Truck className="w-4 h-4" />
                   </button>
+                  {/* Marketplace Pins Toggle */}
+                  <button
+                    onClick={() => setShowMarketplacePins(!showMarketplacePins)}
+                    className={`p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Marketplace Products"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
