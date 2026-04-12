@@ -2348,7 +2348,15 @@ out center 30;`;
                     className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"}`}
                     title="Trade Routes"
                   >
-                    <Ship className="w-4 h-4" />
+                   <Ship className="w-4 h-4" />
+                  </button>
+                  {/* Uber Direct Delivery */}
+                  <button
+                    onClick={() => setDeliveryPanelOpen(!deliveryPanelOpen)}
+                    className={`p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
+                    title="Uber Direct Delivery"
+                  >
+                    <Truck className="w-4 h-4" />
                   </button>
                   <button
                     onClick={toggleFullscreen}
