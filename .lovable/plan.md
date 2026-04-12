@@ -1,49 +1,73 @@
 
 
-## 3D Model Transform Widget (Double-Click to Edit)
+# Atlas Marketplace Pins + Product Commerce Pipeline
 
-### What it does
-When a user double-clicks on a placed 3D model in the Atlas, a transform widget appears allowing them to adjust position (XYZ), rotation (heading/pitch/roll), and scale, plus a snap-to-ground button. Currently, single-click-drag moves models, but there is no way to rotate, scale, or precisely position them after placement.
+## Overview
+Add marketplace product pins to the Atlas 3D globe with glassmorphic product cards (inspired by the uploaded reference image), expandable detail views with 3D model viewer, photo gallery, purchase pipeline via Stripe, Uber Direct delivery integration, and directions/routing.
 
-### Current behavior
-- **LEFT_DOWN** on a model starts drag mode (repositioning only)
-- **LEFT_DOUBLE_CLICK** dispatches `cesium-dblclick` which either creates a POI or opens model placement dialog -- it does NOT detect if a model was double-clicked
-- `PlacedModel` stores: id, name, fileName, lat, lng, alt, heading, scale, createdAt
-- Models are placed with `heightReference: CLAMP_TO_GROUND` and orientation via `HeadingPitchRollQuaternion`
+## Architecture
 
-### Plan
+```text
+Atlas Globe (SpaceshipPage.tsx)
+  ├── Business POI pins (existing)
+  ├── NEW: Marketplace product pins (ShoppingBag icon, distinct color)
+  │     └── Click → MarketplaceProductCard (glassmorphic overlay)
+  │           ├── Collapsed: image, price, short description
+  │           └── Expanded:
+  │               ├── 3D Model viewer (if available)
+  │               ├── Photo gallery carousel
+  │               ├── Price, options, quantity selector
+  │               ├── "Buy Now" → Stripe checkout
+  │               ├── "Deliver" → AtlasDeliveryPanel (prefilled)
+  │               └── "Directions" → route polyline on globe
+  └── Toolbar: new Marketplace toggle button
+```
 
-#### 1. Add state for selected model editing
-- New state: `editingModel: PlacedModel | null` -- when set, shows the transform widget
-- New state: `editRotation: {heading, pitch, roll}`, `editScale: number`, `editPosition: {lat, lng, alt}`
+## Steps
 
-#### 2. Detect double-click on model entities
-In the existing `LEFT_DOUBLE_CLICK` handler (line ~970), before dispatching `cesium-dblclick`, check if the clicked entity is a model (id starts with `model-`). If so, populate `editingModel` state with that model's data and skip the POI/brush flow.
+### 1. Create `src/components/atlas/MarketplaceProductCard.tsx`
+- Glassmorphic card matching the uploaded reference style: `backdrop-blur-2xl`, `bg-white/[0.06]`, `border border-white/[0.1]`, rounded-2xl, subtle gradient overlays
+- **Collapsed state**: product image/emoji, name, price, short description, distance
+- **Expanded state** (click to expand):
+  - Photo gallery with horizontal scroll/carousel
+  - 3D model viewer embed (using `<model-viewer>` web component or Three.js inline) when a `modelUrl` is available
+  - Options selector (size, color, variant as tags)
+  - Quantity stepper
+  - "Buy Now" button → triggers Stripe checkout
+  - "Deliver Here" button → opens AtlasDeliveryPanel with seller address prefilled
+  - "Directions" button → draws route from camera to product location
+- Seller info, rating, stock status
 
-#### 3. Build the Transform Widget UI
-A glassmorphic floating panel (anchored bottom-center on mobile, side panel on desktop) with:
+### 2. Create `src/lib/marketplace-products.ts`
+- Define `MarketplaceProduct` interface: `id, name, description, images[], modelUrl?, price, currency, unit, options[], seller, sellerLat, sellerLng, category, stock, rating`
+- Function `fetchMarketplaceProducts(bbox)` — initially returns curated real-world product data from the existing marketplace products array, mapped with real coordinates
+- Export product data with real store coordinates (reuse existing marketplace data + extend)
 
-- **Position (XYZ)**: Three number inputs for lat, lng, altitude with +/- step buttons (0.0001 for lat/lng, 1m for altitude)
-- **Rotation**: Three sliders for heading (0-360), pitch (-90 to 90), roll (-180 to 180) with degree readouts
-- **Scale**: Slider from 0.01 to 100 with logarithmic feel (fine control at small values)
-- **Snap to Ground**: Button that sets altitude to 0 and re-applies `CLAMP_TO_GROUND`, ensuring the model sits flush on the surface
-- **Apply / Close** buttons
+### 3. Enable Stripe integration
+- Use `stripe--enable_stripe` tool to set up Stripe
+- Create edge function `stripe-checkout` that creates a Checkout Session for a given product
+- Wire "Buy Now" in the card to call the edge function and redirect to Stripe
 
-#### 4. Live preview of changes
-As the user adjusts sliders/inputs, update the Cesium entity in real-time:
-- Recompute `Cartesian3.fromDegrees(lng, lat, alt)` for position
-- Recompute `HeadingPitchRollQuaternion` for orientation
-- Update `entity.model.scale` for scale
+### 4. Update `SpaceshipPage.tsx` — Add marketplace pin layer
+- New toolbar toggle button (ShoppingBag icon) to show/hide marketplace pins
+- When enabled, place billboard entities for each marketplace product (distinct purple/violet pin color, ShoppingBag icon)
+- On click, show `MarketplaceProductCard` overlay positioned near the pin
+- Wire delivery button → open `AtlasDeliveryPanel` with seller address prefilled
+- Wire directions button → `fetchRoute()` from camera position to product location, draw polyline
+- Wire buy button → Stripe checkout edge function
 
-#### 5. Persist on apply
-When "Apply" is clicked, update the `placedModels` array and save to localStorage with the new heading, pitch, roll, and scale values. The `PlacedModel` type gets two new optional fields: `pitch` and `roll` (both default to 0).
+### 5. Update `AtlasDeliveryPanel.tsx`
+- Accept optional `productInfo` prop (name, weight, dimensions) to pre-populate item details in the delivery wizard step
 
-### Files to modify
-- **`src/pages/SpaceshipPage.tsx`**
-  - Extend `PlacedModel` interface with `pitch?: number`, `roll?: number`
-  - Add double-click-on-model detection in the event handler
-  - Add editing state variables
-  - Add transform widget UI (glassmorphic panel with sliders/inputs)
-  - Add live entity update logic
-  - Update `placeModelOnGlobe` to use pitch/roll
+### 6. Database table for products (optional, for persistence)
+- Create `marketplace_products` table for real product listings
+- For MVP, use client-side data; migrate to DB later
+
+## Technical Details
+
+- **Glassmorphic styling**: Match reference image — outer container with `bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1]`, inner sections with `bg-white/[0.04]` cards, subtle `bg-gradient-to-br from-white/[0.08] to-transparent` overlays
+- **3D model viewer**: Use `@google/model-viewer` web component (`<model-viewer>` tag) for inline GLB/glTF preview — lightweight, no extra Cesium entity needed
+- **Stripe flow**: Edge function creates checkout session → redirect to Stripe hosted page → return to Atlas on success
+- **Pin differentiation**: Business pins = emerald, Marketplace pins = violet/purple with ShoppingBag SVG billboard
+- **Route visualization**: Reuse existing OSRM `fetchRoute` logic already in SpaceshipPage
 
