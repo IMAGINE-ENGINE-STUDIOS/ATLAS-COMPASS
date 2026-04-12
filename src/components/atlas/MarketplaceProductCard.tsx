@@ -1,0 +1,222 @@
+import { useState } from "react";
+import {
+  X, ShoppingBag, Truck, Navigation, Route, Star,
+  Plus, Minus, ChevronDown, ChevronUp, Package, Box
+} from "lucide-react";
+import type { MarketplaceProduct } from "@/lib/marketplace-products";
+
+interface Props {
+  product: MarketplaceProduct;
+  onClose: () => void;
+  onDelivery?: (product: MarketplaceProduct) => void;
+  onDirections?: (product: MarketplaceProduct) => void;
+  onBuy?: (product: MarketplaceProduct, quantity: number, options: Record<string, string>) => void;
+}
+
+export default function MarketplaceProductCard({ product, onClose, onDelivery, onDirections, onBuy }: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
+    const defaults: Record<string, string> = {};
+    product.options?.forEach(o => { defaults[o.label] = o.values[0]; });
+    return defaults;
+  });
+
+  const total = (product.price * quantity).toFixed(2);
+
+  return (
+    <div className="w-full max-w-sm animate-scale-in">
+      {/* Glassmorphic outer shell */}
+      <div className="relative backdrop-blur-2xl bg-white/[0.06] border border-white/[0.1] rounded-2xl overflow-hidden shadow-[0_16px_60px_rgba(0,0,0,0.5)]">
+        {/* Gradient sheen overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-transparent pointer-events-none rounded-2xl" />
+
+        {/* Top accent strip */}
+        <div className="h-1 w-full bg-gradient-to-r from-violet-500/50 via-fuchsia-500/40 to-transparent" />
+
+        <div className="relative z-10 p-4">
+          {/* Header */}
+          <div className="flex items-start gap-3 mb-3">
+            {/* Product icon */}
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/10 border border-white/[0.1] flex items-center justify-center text-2xl shrink-0">
+              {product.emoji || "🛍️"}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-bold text-white leading-tight line-clamp-2">{product.name}</h4>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-300 border border-violet-500/20">
+                  {product.category}
+                </span>
+                {product.stock > 0 ? (
+                  <span className="text-[10px] text-emerald-400/70 flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> In Stock
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-red-400/70">Out of Stock</span>
+                )}
+              </div>
+            </div>
+
+            <button onClick={onClose} className="p-1 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-colors shrink-0">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Price + Rating */}
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <p className="text-2xl font-black text-white font-mono">${product.price.toFixed(2)}</p>
+              {product.unit && <p className="text-[10px] text-white/30 -mt-0.5">per {product.unit}</p>}
+            </div>
+            <div className="flex items-center gap-1 text-amber-400/80">
+              <Star className="w-3.5 h-3.5 fill-amber-400/80" />
+              <span className="text-xs font-mono font-bold">{product.rating.toFixed(1)}</span>
+            </div>
+          </div>
+
+          {/* Short description */}
+          <p className="text-[11px] text-white/40 leading-relaxed mb-3 line-clamp-2">
+            {product.description}
+          </p>
+
+          {/* Seller info */}
+          <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.06] rounded-xl px-3 py-2 mb-3">
+            <Package className="w-3.5 h-3.5 text-violet-400/60 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold text-white/60 truncate">{product.seller}</p>
+              {product.sellerAddress && (
+                <p className="text-[9px] text-white/25 truncate">{product.sellerAddress}</p>
+              )}
+            </div>
+            <span className="text-[9px] font-mono text-white/15 shrink-0">
+              {product.sellerLat.toFixed(2)}, {product.sellerLng.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Expand toggle */}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] text-white/30 hover:text-white/60 transition-colors"
+          >
+            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {expanded ? "Show less" : "Options, 3D & Purchase"}
+          </button>
+
+          {/* Expanded section */}
+          {expanded && (
+            <div className="mt-2 space-y-3 animate-in slide-in-from-top-2 duration-200">
+              {/* 3D Model placeholder */}
+              {product.modelUrl && (
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 flex items-center gap-3">
+                  <Box className="w-5 h-5 text-violet-400/60" />
+                  <div>
+                    <p className="text-[10px] text-white/50 font-semibold">3D Model Available</p>
+                    <p className="text-[9px] text-white/25">Interactive preview coming soon</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Options */}
+              {product.options && product.options.length > 0 && (
+                <div className="space-y-2">
+                  {product.options.map(opt => (
+                    <div key={opt.label}>
+                      <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider mb-1">{opt.label}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {opt.values.map(v => (
+                          <button
+                            key={v}
+                            onClick={() => setSelectedOptions(prev => ({ ...prev, [opt.label]: v }))}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                              selectedOptions[opt.label] === v
+                                ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+                                : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08]"
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Quantity */}
+              <div>
+                <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider mb-1">Quantity</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.08] transition-colors"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-sm font-mono font-bold text-white w-8 text-center">{quantity}</span>
+                  <button
+                    onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                    className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.08] transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] text-white/20 ml-auto">{product.stock} available</span>
+                </div>
+              </div>
+
+              {/* Total */}
+              <div className="flex items-end justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2">
+                <span className="text-[10px] text-white/30 uppercase tracking-wider">Total</span>
+                <span className="text-lg font-black font-mono text-white">${total}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="grid grid-cols-2 gap-1.5 mt-3">
+            <button
+              onClick={() => onBuy?.(product, quantity, selectedOptions)}
+              className="flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold bg-violet-500/15 text-violet-300 border border-violet-500/20 hover:bg-violet-500/25 transition-all truncate px-2"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 shrink-0" /> Buy Now
+            </button>
+            {onDirections && (
+              <button
+                onClick={() => onDirections(product)}
+                className="flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 transition-all truncate px-2"
+              >
+                <Route className="w-3.5 h-3.5 shrink-0" /> Directions
+              </button>
+            )}
+            {onDelivery && (
+              <button
+                onClick={() => onDelivery(product)}
+                className="flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 transition-all truncate px-2"
+              >
+                <Truck className="w-3.5 h-3.5 shrink-0" /> Deliver
+              </button>
+            )}
+            <button
+              onClick={() => {
+                const viewer = (window as any).__cesiumViewer;
+                if (viewer && !viewer.isDestroyed()) {
+                  const { Cartesian3, Math: CesiumMath } = (window as any).Cesium || {};
+                  if (Cartesian3) {
+                    viewer.camera.flyTo({
+                      destination: Cartesian3.fromDegrees(product.sellerLng, product.sellerLat, 500),
+                      orientation: { heading: CesiumMath?.toRadians?.(0) ?? 0, pitch: CesiumMath?.toRadians?.(-50) ?? -0.87, roll: 0 },
+                      duration: 1.5,
+                    });
+                  }
+                }
+              }}
+              className="flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold bg-white/[0.06] text-white/50 border border-white/[0.08] hover:bg-white/[0.1] transition-all truncate px-2"
+            >
+              <Navigation className="w-3.5 h-3.5 shrink-0" /> Fly To
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
