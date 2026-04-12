@@ -25,6 +25,7 @@ interface POICardProps {
   onNavigate?: (poi: POIData) => void;
   onSelect?: (poi: POIData) => void;
   onDirections?: (poi: POIData) => void;
+  onDelivery?: (poi: POIData) => void;
   compact?: boolean;
   variant?: "glass" | "solid";
   index?: number;
@@ -35,7 +36,7 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)}km`;
 }
 
-export default function POICard({ poi, onNavigate, onSelect, onDirections, compact = false, variant = "glass", index = 0 }: POICardProps) {
+export default function POICard({ poi, onNavigate, onSelect, onDirections, onDelivery, compact = false, variant = "glass", index = 0 }: POICardProps) {
   const isGlass = variant === "glass";
   const [copied, setCopied] = useState(false);
   let navigate: ReturnType<typeof useNavigate> | null = null;
@@ -230,9 +231,9 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, compa
               <Route className="w-3.5 h-3.5 shrink-0" /> Directions
             </button>
           )}
-          {poi.address && navigate && (
+          {poi.address && (onDelivery || navigate) && (
             <button
-              onClick={() => navigate!(`/delivery?address=${encodeURIComponent(poi.address || poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
+              onClick={() => onDelivery ? onDelivery(poi) : navigate!(`/delivery?address=${encodeURIComponent(poi.address || poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
               className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
                 isGlass
                   ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20"

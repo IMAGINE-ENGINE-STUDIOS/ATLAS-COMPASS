@@ -337,6 +337,7 @@ function SpaceshipPage() {
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
+  const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
@@ -2647,7 +2648,10 @@ out center 30;`;
           {deliveryPanelOpen && (
             <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96">
               <GlassPanel className="p-4">
-                <AtlasDeliveryPanel onClose={() => setDeliveryPanelOpen(false)} />
+                <AtlasDeliveryPanel
+                  onClose={() => { setDeliveryPanelOpen(false); setDeliveryPickupPrefill(undefined); }}
+                  initialPickup={deliveryPickupPrefill}
+                />
               </GlassPanel>
             </div>
           )}
@@ -3013,6 +3017,12 @@ out center 30;`;
                       setDirectionsOpen(true);
                       setSelectedBusiness(null);
                       fetchRoute(origin, dest);
+                    }}
+                    onDelivery={(poi) => {
+                      const addr = poi.address ? `${poi.name}, ${poi.address}` : poi.name;
+                      setDeliveryPickupPrefill({ address: addr, lat: poi.lat, lng: poi.lng });
+                      setDeliveryPanelOpen(true);
+                      setSelectedBusiness(null);
                     }}
                     onSelect={(poi) => {
                       setSearchOpen(true);
