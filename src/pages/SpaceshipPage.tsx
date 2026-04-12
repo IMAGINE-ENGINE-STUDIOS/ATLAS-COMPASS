@@ -3015,6 +3015,12 @@ out center 30;`;
                       setSelectedBusiness(null);
                       fetchRoute(origin, dest);
                     }}
+                    onDelivery={(poi) => {
+                      const addr = poi.address ? `${poi.name}, ${poi.address}` : poi.name;
+                      setDeliveryPickupPrefill({ address: addr, lat: poi.lat, lng: poi.lng });
+                      setDeliveryPanelOpen(true);
+                      setSelectedBusiness(null);
+                    }}
                     onSelect={(poi) => {
                       setSearchOpen(true);
                       setSearchQuery(poi.name);
