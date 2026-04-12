@@ -8,7 +8,7 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag
 } from "lucide-react";
 import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
@@ -23,6 +23,8 @@ import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type CargoCategory
 import POICard, { type POIData } from "@/components/POICard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
+import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
+import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -338,6 +340,11 @@ function SpaceshipPage() {
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
   const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
+
+  // Marketplace pins state
+  const [showMarketplacePins, setShowMarketplacePins] = useState(false);
+  const [selectedMarketplaceProduct, setSelectedMarketplaceProduct] = useState<MarketplaceProduct | null>(null);
+  const marketplaceEntitiesRef = useRef<any[]>([]);
 
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
@@ -1746,6 +1753,53 @@ out center 30;`;
     }
   }, [brushMode]);
 
+  // Marketplace pins — add/remove product billboard entities
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Remove existing marketplace entities
+    marketplaceEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    marketplaceEntitiesRef.current = [];
+
+    if (!showMarketplacePins) return;
+
+    const products = fetchMarketplaceProducts();
+    products.forEach(p => {
+      const pinImg = createPinCanvas(p.emoji || "🛍️", p.name.length > 18 ? p.name.slice(0, 16) + "…" : p.name, "rgba(139,92,246,");
+      const entity = viewer.entities.add({
+        id: `marketplace-${p.id}`,
+        position: Cartesian3.fromDegrees(p.sellerLng, p.sellerLat, 0),
+        billboard: {
+          image: pinImg,
+          verticalOrigin: 1, // BOTTOM
+          scale: 0.5,
+          scaleByDistance: { near: 100, nearValue: 1.0, far: 50000, farValue: 0.3 } as any,
+          translucencyByDistance: { near: 0, nearValue: 1.0, far: 80000, farValue: 0.4 } as any,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          heightReference: 1, // CLAMP_TO_GROUND
+        },
+        properties: { type: "marketplace", productId: p.id } as any,
+      });
+      marketplaceEntitiesRef.current.push(entity);
+    });
+
+    // Click handler for marketplace pins
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((click: { position: Cartesian2 }) => {
+      const picked = viewer.scene.pick(click.position);
+      if (defined(picked) && picked.id?.id?.startsWith("marketplace-")) {
+        const pId = picked.id.properties?.productId?.getValue?.(viewer.clock.currentTime) || picked.id.id.replace("marketplace-", "");
+        const product = products.find(p => p.id === pId);
+        if (product) setSelectedMarketplaceProduct(product);
+      }
+    }, ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => handler.destroy();
+  }, [showMarketplacePins, isLoaded]);
+
   /* ── Search (local presets + Nominatim + Overpass businesses) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
@@ -2358,6 +2412,14 @@ out center 30;`;
                     title="Uber Direct Delivery"
                   >
                     <Truck className="w-4 h-4" />
+                  </button>
+                  {/* Marketplace Pins Toggle */}
+                  <button
+                    onClick={() => setShowMarketplacePins(!showMarketplacePins)}
+                    className={`p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/40 hover:text-white/70"}`}
+                    title="Marketplace Products"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
                   </button>
                   <button
                     onClick={toggleFullscreen}
@@ -3035,6 +3097,48 @@ out center 30;`;
               </div>
             )}
           
+          {/* Marketplace Product Card Popup */}
+          {selectedMarketplaceProduct && (
+            <div
+              className={`animate-scale-in ${isMobile
+                ? "absolute inset-x-3 bottom-28 z-40"
+                : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
+              }`}
+            >
+              <MarketplaceProductCard
+                product={selectedMarketplaceProduct}
+                onClose={() => setSelectedMarketplaceProduct(null)}
+                onDelivery={(product) => {
+                  const addr = product.sellerAddress ? `${product.seller}, ${product.sellerAddress}` : product.seller;
+                  setDeliveryPickupPrefill({ address: addr, lat: product.sellerLat, lng: product.sellerLng });
+                  setDeliveryPanelOpen(true);
+                  setSelectedMarketplaceProduct(null);
+                }}
+                onDirections={(product) => {
+                  const viewer = viewerRef.current;
+                  if (!viewer || viewer.isDestroyed()) return;
+                  const cam = viewer.camera.positionCartographic;
+                  const userLat = CesiumMath.toDegrees(cam.latitude);
+                  const userLng = CesiumMath.toDegrees(cam.longitude);
+                  const origin: SearchResult = { name: "My Location", lat: userLat, lng: userLng, type: "Location" };
+                  const dest: SearchResult = { name: product.seller, lat: product.sellerLat, lng: product.sellerLng, type: "Store" };
+                  setOriginPoint(origin);
+                  setDestPoint(dest);
+                  setOriginQuery(origin.name);
+                  setDestQuery(dest.name);
+                  setDirectionsOpen(true);
+                  setSelectedMarketplaceProduct(null);
+                  fetchRoute(origin, dest);
+                }}
+                onBuy={(product, quantity, options) => {
+                  // Stripe integration placeholder — will be wired later
+                  console.log("Buy:", product.name, quantity, options);
+                  alert(`Purchase: ${quantity}x ${product.name} — $${(product.price * quantity).toFixed(2)}\n\nStripe checkout will be integrated soon.`);
+                }}
+              />
+            </div>
+          )}
+
 
           {/* POI List Panel */}
           
