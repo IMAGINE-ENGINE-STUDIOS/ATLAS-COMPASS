@@ -25,6 +25,7 @@ interface POICardProps {
   onNavigate?: (poi: POIData) => void;
   onSelect?: (poi: POIData) => void;
   onDirections?: (poi: POIData) => void;
+  onDelivery?: (poi: POIData) => void;
   compact?: boolean;
   variant?: "glass" | "solid";
   index?: number;
@@ -35,7 +36,7 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)}km`;
 }
 
-export default function POICard({ poi, onNavigate, onSelect, onDirections, compact = false, variant = "glass", index = 0 }: POICardProps) {
+export default function POICard({ poi, onNavigate, onSelect, onDirections, onDelivery, compact = false, variant = "glass", index = 0 }: POICardProps) {
   const isGlass = variant === "glass";
   const [copied, setCopied] = useState(false);
   let navigate: ReturnType<typeof useNavigate> | null = null;
