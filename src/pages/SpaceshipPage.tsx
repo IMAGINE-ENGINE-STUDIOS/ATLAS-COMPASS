@@ -335,6 +335,9 @@ function SpaceshipPage() {
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
 
+  // Uber Direct Delivery panel state
+  const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
+
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [originQuery, setOriginQuery] = useState("");
