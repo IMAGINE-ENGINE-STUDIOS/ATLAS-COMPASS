@@ -1753,6 +1753,53 @@ out center 30;`;
     }
   }, [brushMode]);
 
+  // Marketplace pins — add/remove product billboard entities
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Remove existing marketplace entities
+    marketplaceEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    marketplaceEntitiesRef.current = [];
+
+    if (!showMarketplacePins) return;
+
+    const products = fetchMarketplaceProducts();
+    products.forEach(p => {
+      const pinImg = createPinCanvas(p.emoji || "🛍️", p.name.length > 18 ? p.name.slice(0, 16) + "…" : p.name, "rgba(139,92,246,");
+      const entity = viewer.entities.add({
+        id: `marketplace-${p.id}`,
+        position: Cartesian3.fromDegrees(p.sellerLng, p.sellerLat, 0),
+        billboard: {
+          image: pinImg,
+          verticalOrigin: 1, // BOTTOM
+          scale: 0.5,
+          scaleByDistance: { near: 100, nearValue: 1.0, far: 50000, farValue: 0.3 } as any,
+          translucencyByDistance: { near: 0, nearValue: 1.0, far: 80000, farValue: 0.4 } as any,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          heightReference: 1, // CLAMP_TO_GROUND
+        },
+        properties: { type: "marketplace", productId: p.id } as any,
+      });
+      marketplaceEntitiesRef.current.push(entity);
+    });
+
+    // Click handler for marketplace pins
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((click: { position: Cartesian2 }) => {
+      const picked = viewer.scene.pick(click.position);
+      if (defined(picked) && picked.id?.id?.startsWith("marketplace-")) {
+        const pId = picked.id.properties?.productId?.getValue?.(viewer.clock.currentTime) || picked.id.id.replace("marketplace-", "");
+        const product = products.find(p => p.id === pId);
+        if (product) setSelectedMarketplaceProduct(product);
+      }
+    }, ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => handler.destroy();
+  }, [showMarketplacePins, isLoaded]);
+
   /* ── Search (local presets + Nominatim + Overpass businesses) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
