@@ -337,6 +337,7 @@ function SpaceshipPage() {
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
+  const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
