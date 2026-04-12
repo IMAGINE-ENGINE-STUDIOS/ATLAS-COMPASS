@@ -22,6 +22,7 @@ import {
 import { ALL_CARGO_ROUTES, CARGO_CATEGORIES, type CargoRoute, type CargoCategory } from "@/lib/cargo-routes";
 import POICard, { type POIData } from "@/components/POICard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
+import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
