@@ -8,7 +8,7 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck
 } from "lucide-react";
 import { Radius, ChevronDown, Layers } from "lucide-react";
 import {
