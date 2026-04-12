@@ -231,9 +231,9 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
               <Route className="w-3.5 h-3.5 shrink-0" /> Directions
             </button>
           )}
-          {poi.address && navigate && (
+          {poi.address && (onDelivery || navigate) && (
             <button
-              onClick={() => navigate!(`/delivery?address=${encodeURIComponent(poi.address || poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
+              onClick={() => onDelivery ? onDelivery(poi) : navigate!(`/delivery?address=${encodeURIComponent(poi.address || poi.name)}&lat=${poi.lat}&lng=${poi.lng}`)}
               className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
                 isGlass
                   ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20"
