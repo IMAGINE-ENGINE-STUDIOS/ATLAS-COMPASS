@@ -1804,6 +1804,7 @@ out center 30;`;
   /* ── Search (local presets + Nominatim + Overpass businesses) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
+    setShowFarther(false);
     if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); setOverpassResults([]); return; }
     const q = query.toLowerCase();
     const filtered = PRESETS.filter(
