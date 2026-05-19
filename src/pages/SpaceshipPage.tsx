@@ -672,22 +672,35 @@ function SpaceshipPage() {
     center: { lat: number; lng: number },
     radiusKm: number,
     signal: AbortSignal,
+    categoryFilter?: string,
   ): Promise<SearchResult[]> => {
     const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '').trim();
     const radiusM = Math.round(radiusKm * 1000);
     const around = `around:${radiusM},${center.lat},${center.lng}`;
-    // If empty query, just discover everything around. Otherwise filter by name/brand/operator.
+    // Optional category prefilter (e.g., from chips). Otherwise scan all common biz categories.
+    const catBlocks = (() => {
+      switch (categoryFilter) {
+        case "restaurant": return [`nwr["amenity"~"restaurant|fast_food|food_court"](${around});`];
+        case "cafe":       return [`nwr["amenity"="cafe"](${around});`];
+        case "supermarket":return [`nwr["shop"~"supermarket|convenience|grocery|greengrocer|bakery|department_store|general"](${around});`];
+        case "shop":       return [`nwr["shop"](${around});`];
+        case "hotel":      return [`nwr["tourism"~"hotel|motel|hostel|guest_house"](${around});`];
+        case "fuel":       return [`nwr["amenity"~"fuel|charging_station"](${around});`];
+        case "health":     return [`nwr["amenity"~"hospital|pharmacy|clinic|doctors|dentist"](${around});`,`nwr["healthcare"](${around});`];
+        default:           return ["shop","amenity","tourism","leisure","office","healthcare","craft","historic"].map(k => `nwr["${k}"](${around});`);
+      }
+    })();
     const nameFilter = sanitized ? `["name"~"${sanitized}",i]` : "";
     const brandFilter = sanitized ? `["brand"~"${sanitized}",i]` : "";
     const operatorFilter = sanitized ? `["operator"~"${sanitized}",i]` : "";
-    const categoryKeys = ["shop", "amenity", "tourism", "leisure", "office", "healthcare", "craft", "historic"];
+    // If a name is present, intersect it with the category set
     const blocks = sanitized
       ? [
-          ...categoryKeys.map(k => `nwr${nameFilter}["${k}"](${around});`),
+          ...catBlocks.map(b => b.replace(/^nwr/, `nwr${nameFilter}`)),
           `nwr${brandFilter}(${around});`,
           `nwr${operatorFilter}(${around});`,
         ]
-      : categoryKeys.map(k => `nwr["${k}"](${around});`);
+      : catBlocks;
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
     const endpoints = [
       "https://overpass-api.de/api/interpreter",
@@ -695,22 +708,22 @@ function SpaceshipPage() {
       "https://overpass.private.coffee/api/interpreter",
       "https://overpass.osm.ch/api/interpreter",
     ];
+    // Race all mirrors in parallel — first to respond wins. Massive latency win.
+    const mirrorPromises = endpoints.map(url => (async () => {
+      const resp = await fetch(url, {
+        method: "POST",
+        body: `data=${encodeURIComponent(q)}`,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal,
+      });
+      if (!resp.ok) throw new Error("mirror " + resp.status);
+      return resp.json();
+    })());
     let data: any = null;
-    for (const url of endpoints) {
-      try {
-        const resp = await fetch(url, {
-          method: "POST",
-          body: `data=${encodeURIComponent(q)}`,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          signal,
-        });
-        if (!resp.ok) continue;
-        data = await resp.json();
-        break;
-      } catch (e: any) {
-        if (signal.aborted) return [];
-        continue;
-      }
+    try {
+      data = await Promise.any(mirrorPromises);
+    } catch {
+      return [];
     }
     if (!data) return [];
     const seen = new Set<string>();
