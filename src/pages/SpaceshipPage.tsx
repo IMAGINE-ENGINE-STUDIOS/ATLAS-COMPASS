@@ -1987,11 +1987,11 @@ function SpaceshipPage() {
     // Debounce 350ms, fire for any input (empty → discover-nearby)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (trimmed.length === 0 || trimmed.length >= 2) {
-      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed); }, 350);
+      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed, activeSearchCategory || undefined); }, 350);
     } else {
       setUnifiedResults([]);
     }
-  }, [runUnifiedSearch, geoCenter, geoLocateUser]);
+  }, [runUnifiedSearch, geoCenter, geoLocateUser, activeSearchCategory]);
 
   /* ── Directions search helpers ── */
   const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
