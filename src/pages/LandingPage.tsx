@@ -46,7 +46,7 @@ function Navbar() {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5">
           <Globe className="w-7 h-7 text-primary" />
-          <span className="text-xl font-bold text-gradient tracking-tight">NEXUS</span>
+          <span className="text-xl font-bold text-gradient tracking-tight">ATLAS</span>
         </Link>
         <div className="hidden md:flex items-center gap-8">
           {["Platform", "Marketplace", "Enterprise", "Logistics", "Payments"].map((item) => (
@@ -89,7 +89,7 @@ function HeroSection() {
   return (
     <section ref={ref} className="relative h-screen overflow-hidden">
       <div className="absolute inset-0">
-        <img src={heroBg} alt="NEXUS Command Center" className="w-full h-full object-cover object-center" />
+        <img src={heroBg} alt="ATLAS Command Center" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-b from-[hsl(240,20%,4%)]/70 via-transparent to-[hsl(240,20%,4%)]/95" />
       </div>
 
@@ -268,7 +268,7 @@ function SectorsSection() {
               From Raw Earth<br /><span className="text-gradient">To Final Product.</span>
             </h2>
             <p className="text-lg text-white/50 mt-6 leading-relaxed">
-              NEXUS connects every node in the global supply chain — from primary extraction to industrial processing to consumer delivery.
+              ATLAS connects every node in the global supply chain — from primary extraction to industrial processing to consumer delivery.
             </p>
             <div className="mt-8">
               <Link to="/dashboard/marketplace">
@@ -434,7 +434,7 @@ function CTASection() {
               <button
                 className="px-10 py-4 bg-white/10 backdrop-blur-xl border border-white/20 text-white rounded-full text-base font-semibold flex items-center gap-2 hover:bg-white/15 shadow-[0_0_40px_rgba(0,200,255,0.1)] transition-all"
               >
-                Enter NEXUS <ArrowRight className="w-5 h-5" />
+                Enter ATLAS <ArrowRight className="w-5 h-5" />
               </button>
             </Link>
           </div>
@@ -469,9 +469,9 @@ function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between pt-8 border-t border-white/[0.06]">
           <div className="flex items-center gap-2.5">
             <Globe className="w-5 h-5 text-primary" />
-            <span className="text-sm font-bold text-gradient">NEXUS</span>
+            <span className="text-sm font-bold text-gradient">ATLAS</span>
           </div>
-          <p className="text-xs text-white/30 mt-4 md:mt-0">© 2026 NEXUS Global Commerce Platform. Powered by StartupFactoryHub.</p>
+          <p className="text-xs text-white/30 mt-4 md:mt-0">© 2026 ATLAS Global Commerce Platform. Powered by StartupFactoryHub.</p>
         </div>
       </div>
     </footer>

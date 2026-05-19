@@ -489,7 +489,7 @@ export default function SpaceExperience() {
           style={{ background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.8) 100%)" }}
         >
           <Link to="/" className="absolute top-6 left-6 flex items-center gap-2 text-sm" style={{ color: "#00d4ff" }}>
-            <ArrowLeft className="w-4 h-4" /> Back to NEXUS
+            <ArrowLeft className="w-4 h-4" /> Back to ATLAS
           </Link>
 
           <motion.h1

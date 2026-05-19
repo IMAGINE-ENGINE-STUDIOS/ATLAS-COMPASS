@@ -2350,7 +2350,7 @@ out center 30;`;
                 </Link>
                 <GlassPanel className="px-4 py-2.5 flex items-center gap-2">
                   <Globe className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-bold text-white">NEXUS</span>
+                  <span className="text-sm font-bold text-white">ATLAS</span>
                   <span className="text-xs text-white/30 font-mono">ATLAS</span>
                 </GlassPanel>
               </div>

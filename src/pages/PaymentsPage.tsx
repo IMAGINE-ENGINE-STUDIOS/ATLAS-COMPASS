@@ -11,7 +11,7 @@ const paymentStats = [
 ];
 
 const transactions = [
-  { id: "TXN-847291", parties: "Aramco → NEXUS Escrow", amount: "$24,500,000", type: "Wire Transfer", status: "Completed", variant: "success" as const, time: "2 min ago" },
+  { id: "TXN-847291", parties: "Aramco → ATLAS Escrow", amount: "$24,500,000", type: "Wire Transfer", status: "Completed", variant: "success" as const, time: "2 min ago" },
   { id: "TXN-847290", parties: "Maersk → Fleet Ops", amount: "$8,240,000", type: "SWIFT", status: "Processing", variant: "warning" as const, time: "15 min ago" },
   { id: "TXN-847289", parties: "Card Issuance Batch", amount: "$124,000", type: "Card Program", status: "Issued", variant: "success" as const, time: "1 hr ago" },
   { id: "TXN-847288", parties: "Singapore Govt.", amount: "$142,000,000", type: "Sovereign Wire", status: "Under Review", variant: "warning" as const, time: "3 hrs ago" },
