@@ -1962,6 +1962,62 @@ function SpaceshipPage() {
     return () => handler.destroy();
   }, [showMarketplacePins, isLoaded]);
 
+  /* ── Search-result pins on the globe (every dropdown item = a pin) ── */
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Clear previous search pins
+    searchResultEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    searchResultEntitiesRef.current = [];
+
+    if (!searchOpen || unifiedResults.length === 0) return;
+
+    const colorByType: Record<string, string> = {
+      Restaurant: "rgba(245,158,11,",
+      Cafe: "rgba(168,85,247,",
+      Supermarket: "rgba(16,185,129,",
+      Shop: "rgba(59,130,246,",
+      Hotel: "rgba(236,72,153,",
+      Fuel: "rgba(239,68,68,",
+      Health: "rgba(239,68,68,",
+      Bank: "rgba(34,197,94,",
+      Education: "rgba(99,102,241,",
+      Park: "rgba(34,197,94,",
+      Office: "rgba(148,163,184,",
+      Leisure: "rgba(56,189,248,",
+    };
+    const iconByType: Record<string, string> = {
+      Restaurant: "🍽️", Cafe: "☕", Supermarket: "🛒", Shop: "🏪",
+      Hotel: "🏨", Fuel: "⛽", Health: "🏥", Bank: "🏦",
+      Education: "🎓", Park: "🌳", Office: "🏢", Leisure: "🎯",
+      Attraction: "🎡", Craft: "🛠️", Historic: "🏛️", Place: "📍",
+    };
+
+    unifiedResults.slice(0, 80).forEach((r, idx) => {
+      const bg = (colorByType[r.type] || "rgba(0,212,255,") + "0.88)";
+      const icon = iconByType[r.type] || "📍";
+      const truncName = r.name.length > 22 ? r.name.slice(0, 20) + "…" : r.name;
+      const entity = viewer.entities.add({
+        id: `search-${idx}-${r.lat.toFixed(5)}-${r.lng.toFixed(5)}`,
+        position: Cartesian3.fromDegrees(r.lng, r.lat, 0),
+        billboard: {
+          image: createPinCanvas(icon, truncName, bg),
+          verticalOrigin: 1,
+          scale: hoveredResultIdx === idx ? 1.25 : 1.0,
+          scaleByDistance: { near: 200, nearValue: 1.0, far: 25000, farValue: 0.3 } as any,
+          translucencyByDistance: { near: 100, nearValue: 1.0, far: 30000, farValue: 0.0 } as any,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          heightReference: 1,
+        },
+        properties: { type: "search-result", idx } as any,
+      });
+      searchResultEntitiesRef.current.push(entity);
+    });
+  }, [unifiedResults, searchOpen, hoveredResultIdx, isLoaded]);
+
   /* ── Search input handler: presets + unified OSM search ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
