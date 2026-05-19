@@ -696,12 +696,15 @@ function SpaceshipPage() {
     const nameFilter = sanitized ? `["name"~"${sanitized}",i]` : "";
     const brandFilter = sanitized ? `["brand"~"${sanitized}",i]` : "";
     const operatorFilter = sanitized ? `["operator"~"${sanitized}",i]` : "";
-    // If a name is present, intersect it with the category set
+    // If a name is present, search name/brand/operator AND also include the raw
+    // category set so generic terms like "restaurant" still surface POIs whose
+    // actual names don't contain the typed word.
     const blocks = sanitized
       ? [
           ...catBlocks.map(b => b.replace(/^nwr/, `nwr${nameFilter}`)),
           `nwr${brandFilter}(${around});`,
           `nwr${operatorFilter}(${around});`,
+          ...catBlocks,
         ]
       : catBlocks;
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
