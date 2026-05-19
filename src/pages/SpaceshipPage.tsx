@@ -794,17 +794,21 @@ function SpaceshipPage() {
 
     setSearchLoading(true);
     try {
-      // Expanding radius until we have ≥20 hits
+      // Expanding radius until we have ≥20 hits. Tolerate Overpass failures.
       const radii = [2, 5, 15, 50, 150];
       let overpassHits: SearchResult[] = [];
       let finalR = radii[radii.length - 1];
       for (const r of radii) {
         if (controller.signal.aborted) return;
-        const hits = await runOverpassAround(query, center, r, controller.signal);
-        if (controller.signal.aborted) return;
-        overpassHits = hits;
-        finalR = r;
-        if (hits.length >= 20) break;
+        try {
+          const hits = await runOverpassAround(query, center, r, controller.signal);
+          if (controller.signal.aborted) return;
+          if (hits.length > overpassHits.length) overpassHits = hits;
+          finalR = r;
+          if (hits.length >= 20) break;
+        } catch {
+          if (controller.signal.aborted) return;
+        }
       }
       // In parallel: bounded Nominatim (near) and unbounded (global), only for textual queries
       const [nomNear, nomGlobal] = query.trim().length >= 2
