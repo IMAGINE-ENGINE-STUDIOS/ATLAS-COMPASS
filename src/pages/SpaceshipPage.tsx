@@ -795,7 +795,7 @@ function SpaceshipPage() {
     } catch { return []; }
   }, [classifyOsmResult]);
 
-  const runUnifiedSearch = useCallback(async (query: string) => {
+  const runUnifiedSearch = useCallback(async (query: string, categoryFilter?: string) => {
     // Abort any in-flight previous search
     if (searchAbortRef.current) searchAbortRef.current.abort();
     const controller = new AbortController();
@@ -813,13 +813,14 @@ function SpaceshipPage() {
     setSearchLoading(true);
     try {
       // Expanding radius until we have ≥20 hits. Tolerate Overpass failures.
-      const radii = [2, 5, 15, 50, 150];
+      // Tighter near radii for precision; broader rings only as fallback.
+      const radii = categoryFilter ? [1, 3, 10, 30] : [2, 5, 15, 50, 150];
       let overpassHits: SearchResult[] = [];
       let finalR = radii[radii.length - 1];
       for (const r of radii) {
         if (controller.signal.aborted) return;
         try {
-          const hits = await runOverpassAround(query, center, r, controller.signal);
+          const hits = await runOverpassAround(query, center, r, controller.signal, categoryFilter);
           if (controller.signal.aborted) return;
           if (hits.length > overpassHits.length) overpassHits = hits;
           finalR = r;
@@ -829,14 +830,15 @@ function SpaceshipPage() {
         }
       }
       // In parallel: bounded Nominatim (near) and unbounded (global), only for textual queries
-      const [nomNear, nomGlobal] = query.trim().length >= 2
+      // (skip when category-only browsing — Overpass nearby is more precise)
+      const [nomNear, nomGlobal] = query.trim().length >= 2 && !categoryFilter
         ? await Promise.all([
             runNominatimBounded(query, center, Math.max(finalR, 50), true, controller.signal),
             runNominatimBounded(query, center, Math.max(finalR, 50), false, controller.signal),
           ])
         : [[], []];
       if (controller.signal.aborted) return;
-      // Merge, dedupe by name+coords proximity, sort by distance
+      // Merge, dedupe by name+coords proximity
       const merged: SearchResult[] = [];
       const seen = new Set<string>();
       for (const r of [...overpassHits, ...nomNear, ...nomGlobal]) {
@@ -845,7 +847,22 @@ function SpaceshipPage() {
         seen.add(key);
         merged.push(r);
       }
-      merged.sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
+      // Precision-aware ranking: exact > prefix > contains > fuzzy; tiebreak by distance.
+      const q = query.trim().toLowerCase();
+      const matchTier = (name: string): number => {
+        if (!q) return 0;
+        const n = (name || "").toLowerCase();
+        if (n === q) return 4;
+        if (n.startsWith(q)) return 3;
+        if (n.split(/\s+/).some(w => w.startsWith(q))) return 2;
+        if (n.includes(q)) return 1;
+        return 0;
+      };
+      merged.sort((a, b) => {
+        const ta = matchTier(a.name), tb = matchTier(b.name);
+        if (ta !== tb) return tb - ta;
+        return (a.distance ?? 9e9) - (b.distance ?? 9e9);
+      });
       setUnifiedResults(merged);
     } catch { /* aborted or network */ }
     finally {
