@@ -689,14 +689,30 @@ function SpaceshipPage() {
         ]
       : categoryKeys.map(k => `nwr["${k}"](${around});`);
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
-    const resp = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      body: `data=${encodeURIComponent(q)}`,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      signal,
-    });
-    if (!resp.ok) return [];
-    const data = await resp.json();
+    const endpoints = [
+      "https://overpass-api.de/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter",
+      "https://overpass.private.coffee/api/interpreter",
+      "https://overpass.osm.ch/api/interpreter",
+    ];
+    let data: any = null;
+    for (const url of endpoints) {
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          body: `data=${encodeURIComponent(q)}`,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          signal,
+        });
+        if (!resp.ok) continue;
+        data = await resp.json();
+        break;
+      } catch (e: any) {
+        if (signal.aborted) return [];
+        continue;
+      }
+    }
+    if (!data) return [];
     const seen = new Set<string>();
     return (data.elements || [])
       .map((el: any) => {
