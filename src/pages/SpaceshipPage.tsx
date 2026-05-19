@@ -1904,16 +1904,15 @@ function SpaceshipPage() {
     return () => handler.destroy();
   }, [showMarketplacePins, isLoaded]);
 
-  /* ── Search (local presets + Nominatim + Overpass businesses) ── */
+  /* ── Search input handler: presets + unified OSM search ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setShowFarther(false);
-    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); setOverpassResults([]); return; }
-    const q = query.toLowerCase();
+    const trimmed = query.trim();
+    const q = trimmed.toLowerCase();
     const filtered = PRESETS.filter(
       (p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
     );
-    const coordMatch = query.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+    const coordMatch = trimmed.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
     if (coordMatch) {
       filtered.unshift({
         name: `Coordinates ${coordMatch[1]}, ${coordMatch[2]}`,
@@ -1922,55 +1921,19 @@ function SpaceshipPage() {
         type: "Coordinate",
       });
     }
-    setSearchResults(filtered);
+    setSearchResults(trimmed ? filtered : PRESETS);
 
-    // Auto-geolocate if no center when user starts searching
-    if (query.trim().length >= 3 && !geoCenter) geoLocateUser();
+    // Auto-geolocate so the very first search has a center
+    if (!geoCenter) geoLocateUser();
 
-    // Debounced parallel search: Nominatim + Overpass — prioritize local businesses
+    // Debounce 350ms, fire for any input (empty → discover-nearby)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    if (query.trim().length >= 3) {
-      setSearchLoading(true);
-      searchTimerRef.current = setTimeout(async () => {
-        const [nomResults, ovResults] = await Promise.all([
-          searchNominatim(query),
-          searchOverpassBusinesses(query),
-        ]);
-        // Deduplicate overpass results that are already in nominatim (by proximity)
-        const deduped = ovResults.filter(ov =>
-          !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
-        );
-        // Smart ranking: local businesses first, then local places, then global
-        const businessTypes = new Set(["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"]);
-        const nearbyThreshold = geoRadiusKm || 10; // km
-        const center = geoCenter || (viewerRef.current && !viewerRef.current.isDestroyed() ? (() => {
-          const cam = viewerRef.current!.camera.positionCartographic;
-          return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
-        })() : null);
-
-        const allResults = [...deduped, ...nomResults];
-        // Compute distance for all
-        const withDist = allResults.map(r => ({
-          ...r,
-          _dist: center ? geoHaversine(center.lat, center.lng, r.lat, r.lng) : 9999,
-          _isBiz: businessTypes.has(r.type),
-        }));
-        // Local businesses (within radius)
-        const localBiz = withDist.filter(r => r._isBiz && r._dist <= nearbyThreshold).sort((a, b) => a._dist - b._dist);
-        // Local non-business places
-        const localPlaces = withDist.filter(r => !r._isBiz && r._dist <= nearbyThreshold * 3).sort((a, b) => a._dist - b._dist);
-        // Global results (everything else)
-        const globalResults = withDist.filter(r => !localBiz.includes(r) && !localPlaces.includes(r)).sort((a, b) => a._dist - b._dist);
-
-        setOverpassResults(localBiz.slice(0, 20));
-        setNominatimResults([...localPlaces.slice(0, 10), ...globalResults.slice(0, 10)]);
-        setSearchLoading(false);
-      }, 100);
+    if (trimmed.length === 0 || trimmed.length >= 2) {
+      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed); }, 350);
     } else {
-      setNominatimResults([]);
-      setOverpassResults([]);
+      setUnifiedResults([]);
     }
-  }, [searchNominatim, searchOverpassBusinesses]);
+  }, [runUnifiedSearch, geoCenter, geoLocateUser]);
 
   /* ── Directions search helpers ── */
   const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
