@@ -3465,8 +3465,16 @@ function SpaceshipPage() {
                               const catKey = idx === 0 ? "all" : GEO_CATEGORIES[idx].key;
                               const catIcon = idx === 0 ? <Layers className="w-3 h-3" /> : GEO_CATEGORIES[idx].icon;
                               return (
-                                <button key={t} onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; if (!showBusinessIcons) setShowBusinessIcons(true); geofenceFromCamera(); }}
-                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${geoCategory === catKey ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-black/65 text-white/75 border border-white/[0.06] hover:bg-black/75"}`}>
+                                <button key={t} onClick={() => {
+                                    setGeoCategory(catKey);
+                                    businessLoadedAreaRef.current = "";
+                                    if (!showBusinessIcons) setShowBusinessIcons(true);
+                                    geofenceFromCamera();
+                                    const next = catKey === "all" ? "" : catKey;
+                                    setActiveSearchCategory(next);
+                                    runUnifiedSearch(searchQuery.trim(), next || undefined);
+                                  }}
+                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${activeSearchCategory === (catKey === "all" ? "" : catKey) || (catKey === "all" && !activeSearchCategory) ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-black/65 text-white/75 border border-white/[0.06] hover:bg-black/75"}`}>
                                   {catIcon} {t}
                                 </button>
                               );
