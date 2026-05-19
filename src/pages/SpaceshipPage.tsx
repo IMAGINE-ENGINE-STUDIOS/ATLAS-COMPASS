@@ -2183,13 +2183,32 @@ out center 30;`;
       const modelId = crypto.randomUUID();
       await saveAtlasModelBlob(modelId, gltfBlob, modelFile.name);
       const blobUrl = URL.createObjectURL(gltfBlob);
+
+      // Sample the actual tile surface height so the model sits ON the tile
+      // rather than floating at the pickPosition height (which can be off
+      // for photoreal 3D tiles before the tile fully resolves).
+      let surfaceAlt = pendingPlacement.alt;
+      try {
+        const viewer = viewerRef.current;
+        if (viewer) {
+          const carto = Cartographic.fromDegrees(pendingPlacement.lng, pendingPlacement.lat);
+          const sampled = viewer.scene.sampleHeight(carto);
+          if (typeof sampled === "number" && !isNaN(sampled)) {
+            surfaceAlt = sampled;
+          } else {
+            const terrainH = viewer.scene.globe.getHeight(carto);
+            if (typeof terrainH === "number" && !isNaN(terrainH)) surfaceAlt = terrainH;
+          }
+        }
+      } catch {}
+
       const newModel: PlacedModel = {
         id: modelId,
         name: modelName.trim(),
         fileName: modelFile.name,
         lat: pendingPlacement.lat,
         lng: pendingPlacement.lng,
-        alt: pendingPlacement.alt,
+        alt: surfaceAlt,
         heading: modelHeading,
         pitch: 0,
         roll: 0,
