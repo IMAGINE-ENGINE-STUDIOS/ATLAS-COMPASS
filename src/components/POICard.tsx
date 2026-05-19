@@ -84,12 +84,12 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
         onClick={() => (onSelect || onNavigate)?.(poi)}
         className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all group min-h-[44px] ${
           isGlass
-            ? "bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] hover:border-emerald-500/20"
+            ? "bg-black/65 border border-white/[0.06] hover:bg-black/80 hover:border-emerald-500/20"
             : "bg-secondary/20 border border-border/20 hover:bg-primary/10 hover:border-primary/20"
         }`}
       >
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${
-          isGlass ? "bg-white/[0.06] border border-white/[0.06]" : "bg-primary/10"
+          isGlass ? "bg-black/75 border border-white/[0.06]" : "bg-primary/10"
         }`}>
           {logo ? (
             <img
@@ -109,7 +109,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
               isGlass ? "bg-emerald-500/15 text-emerald-300" : "bg-primary/15 text-primary"
             }`}>{service}</span>
             {poi.address && (
-              <span className={`text-[10px] truncate ${isGlass ? "text-white/30" : "text-muted-foreground"}`}>{poi.address}</span>
+              <span className={`text-[10px] truncate ${isGlass ? "text-white/70" : "text-muted-foreground"}`}>{poi.address}</span>
             )}
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
           <span className={`w-2 h-2 rounded-full shrink-0 ${poi.openNow ? "bg-emerald-400 animate-pulse" : "bg-red-400/60"}`} />
         )}
         {poi.distance != null && (
-          <span className={`text-[9px] font-mono shrink-0 ${isGlass ? "text-white/20" : "text-muted-foreground"}`}>
+          <span className={`text-[9px] font-mono shrink-0 ${isGlass ? "text-white/85" : "text-muted-foreground"}`}>
             {formatDistance(poi.distance)}
           </span>
         )}
@@ -137,8 +137,8 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
     <div
       className={`rounded-2xl overflow-hidden transition-all group max-w-sm w-full ${
         isGlass
-          ? "bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] hover:border-emerald-500/30 hover:bg-white/[0.07]"
-          : "bg-card/60 backdrop-blur-xl border border-border/30 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+          ? "bg-black/70 backdrop-blur-2xl border border-white/[0.08] hover:border-emerald-500/30 hover:bg-white/[0.12]"
+          : "bg-black/80 backdrop-blur-xl border border-border/30 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
       }`}
     >
       {/* Header gradient strip */}
@@ -165,7 +165,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   {poi.category && (
                     <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md inline-block ${
-                      isGlass ? "bg-white/[0.06] text-white/40" : "bg-secondary/40 text-muted-foreground"
+                      isGlass ? "bg-black/75 text-white/75" : "bg-secondary/40 text-muted-foreground"
                     }`}>
                       {poi.category}
                     </span>
@@ -185,7 +185,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
               {poi.distance != null && (
                 <div className={`text-right shrink-0 ${isGlass ? "text-emerald-400/70" : "text-primary/70"}`}>
                   <p className="text-sm font-mono font-bold">{formatDistance(poi.distance)}</p>
-                  <p className={`text-[8px] uppercase tracking-wider ${isGlass ? "text-white/20" : "text-muted-foreground/60"}`}>away</p>
+                  <p className={`text-[8px] uppercase tracking-wider ${isGlass ? "text-white/85" : "text-muted-foreground/60"}`}>away</p>
                 </div>
               )}
             </div>
@@ -201,7 +201,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
             {/* Address with copy */}
             {poi.address && (
               <button onClick={copyAddress}
-                className={`text-[11px] mt-1.5 flex items-start gap-1 group/addr max-w-full ${isGlass ? "text-white/30 hover:text-white/50" : "text-muted-foreground hover:text-foreground"} transition-colors`}>
+                className={`text-[11px] mt-1.5 flex items-start gap-1 group/addr max-w-full ${isGlass ? "text-white/70 hover:text-white/80" : "text-muted-foreground hover:text-foreground"} transition-colors`}>
                 <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
                 <span className="truncate text-left">{poi.address}</span>
                 {copied
@@ -303,7 +303,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
               onClick={() => onSelect(poi)}
               className={`flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition-all truncate px-2 ${
                 isGlass
-                  ? "bg-white/[0.06] text-white/60 border border-white/[0.08] hover:bg-white/[0.1]"
+                  ? "bg-black/75 text-white/85 border border-white/[0.08] hover:bg-white/[0.1]"
                   : "bg-secondary/30 text-foreground border border-border/20 hover:bg-secondary/50"
               }`}
             >
