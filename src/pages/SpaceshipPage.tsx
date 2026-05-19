@@ -3211,19 +3211,7 @@ out center 30;`;
                   <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
                     <button onClick={geoLocateUser} title="Use my location" className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0"><Crosshair className="w-3.5 h-3.5" /></button>
                     <button onClick={geofenceFromCamera} title="Scan camera area" className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0"><Globe className="w-3.5 h-3.5" /></button>
-                    <div className="relative shrink-0">
-                      <button onClick={() => setGeoShowRadius(!geoShowRadius)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
-                        <Radius className="w-3 h-3" /> {geoRadiusKm}km <ChevronDown className="w-2.5 h-2.5" />
-                      </button>
-                      {geoShowRadius && (
-                        <div className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-xl p-1 z-50 min-w-[80px]">
-                          {GEO_RADIUS_OPTIONS.map(r => (
-                            <button key={r} onClick={() => { setGeoRadiusKm(r); setGeoShowRadius(false); }}
-                              className={`w-full text-left px-3 py-1 rounded-lg text-xs transition-colors ${r === geoRadiusKm ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-white/5 text-white/60"}`}>{r} km</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <span className="text-[10px] font-mono text-white/40 ml-1">Nearby first</span>
                   </div>
                   {/* Category pills */}
                   <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
