@@ -635,82 +635,185 @@ function SpaceshipPage() {
     } catch { return []; }
   }, [classifyOsmResult, geoCenter, geoRadiusKm]);
 
-  /* ── Overpass API for nearby businesses/POIs (geofenced to user location) ── */
-  const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
-    try {
-      const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '');
-      if (!sanitized) return [];
-      // Use user location first, then camera — NO hardcoded fallback
-      let lat: number | null = null, lng: number | null = null;
-      if (geoCenter) {
-        lat = geoCenter.lat;
-        lng = geoCenter.lng;
-      } else {
-        const viewer = viewerRef.current;
-        if (viewer && !viewer.isDestroyed()) {
-          const cam = viewer.camera.positionCartographic;
-          lat = CesiumMath.toDegrees(cam.latitude);
-          lng = CesiumMath.toDegrees(cam.longitude);
-        }
-      }
-      if (lat === null || lng === null) return []; // No location available, defer
-      const degR = geoRadiusKm / 111; // Use user-configurable radius
-      const bbox = `${(lat - degR).toFixed(4)},${(lng - degR).toFixed(4)},${(lat + degR).toFixed(4)},${(lng + degR).toFixed(4)}`;
-      const overpassQuery = `
-[out:json][timeout:10];
-(
-  node["name"~"${sanitized}",i]["shop"](${bbox});
-  node["name"~"${sanitized}",i]["amenity"](${bbox});
-  node["name"~"${sanitized}",i]["tourism"](${bbox});
-  node["name"~"${sanitized}",i]["office"](${bbox});
-  node["name"~"${sanitized}",i]["leisure"](${bbox});
-  node["brand"~"${sanitized}",i](${bbox});
-);
-out center 30;`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const resp = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        body: `data=${encodeURIComponent(overpassQuery)}`,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const data = await resp.json();
-      if (!data.elements) return [];
-      const searchLat = lat, searchLng = lng;
-      return data.elements.slice(0, 30).map((el: any) => {
+  /* ── Unified Nearby-first OSM Search (Overpass + Nominatim, expanding radius, unlimited) ── */
+  const resolveSearchCenter = useCallback((): { lat: number; lng: number } | null => {
+    if (geoCenter) return geoCenter;
+    const viewer = viewerRef.current;
+    if (viewer && !viewer.isDestroyed()) {
+      const cam = viewer.camera.positionCartographic;
+      return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+    }
+    return null;
+  }, [geoCenter]);
+
+  const classifyOverpassTag = (tags: Record<string, string>): string => {
+    const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "", l = tags.leisure || "", h = tags.healthcare || "", o = tags.office || "";
+    if (a === "restaurant" || a === "fast_food" || a === "food_court") return "Restaurant";
+    if (a === "cafe") return "Cafe";
+    if (a === "bar" || a === "pub" || a === "nightclub") return "Bar";
+    if (a === "fuel" || a === "charging_station") return "Fuel";
+    if (a === "pharmacy" || a === "hospital" || a === "clinic" || a === "doctors" || a === "dentist" || h) return "Health";
+    if (a === "bank" || a === "atm") return "Bank";
+    if (a === "school" || a === "university" || a === "college" || a === "kindergarten") return "Education";
+    if (t === "hotel" || t === "motel" || t === "hostel" || t === "guest_house") return "Hotel";
+    if (t === "museum" || t === "gallery" || t === "attraction" || t === "viewpoint") return "Attraction";
+    if (l === "park" || l === "garden") return "Park";
+    if (l) return "Leisure";
+    if (s === "supermarket" || s === "convenience" || s === "grocery") return "Supermarket";
+    if (s) return "Shop";
+    if (o) return "Office";
+    if (tags.craft) return "Craft";
+    if (tags.historic) return "Historic";
+    return "Place";
+  };
+
+  const runOverpassAround = useCallback(async (
+    query: string,
+    center: { lat: number; lng: number },
+    radiusKm: number,
+    signal: AbortSignal,
+  ): Promise<SearchResult[]> => {
+    const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '').trim();
+    const radiusM = Math.round(radiusKm * 1000);
+    const around = `around:${radiusM},${center.lat},${center.lng}`;
+    // If empty query, just discover everything around. Otherwise filter by name/brand/operator.
+    const nameFilter = sanitized ? `["name"~"${sanitized}",i]` : "";
+    const brandFilter = sanitized ? `["brand"~"${sanitized}",i]` : "";
+    const operatorFilter = sanitized ? `["operator"~"${sanitized}",i]` : "";
+    const categoryKeys = ["shop", "amenity", "tourism", "leisure", "office", "healthcare", "craft", "historic"];
+    const blocks = sanitized
+      ? [
+          ...categoryKeys.map(k => `nwr${nameFilter}["${k}"](${around});`),
+          `nwr${brandFilter}(${around});`,
+          `nwr${operatorFilter}(${around});`,
+        ]
+      : categoryKeys.map(k => `nwr["${k}"](${around});`);
+    const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
+    const resp = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: `data=${encodeURIComponent(q)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      signal,
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const seen = new Set<string>();
+    return (data.elements || [])
+      .map((el: any) => {
         const tags = el.tags || {};
-        const elLat = el.lat || el.center?.lat;
-        const elLng = el.lon || el.center?.lon;
-        let type = "Business";
-        if (tags.amenity === "restaurant" || tags.amenity === "fast_food") type = "Restaurant";
-        else if (tags.amenity === "cafe") type = "Cafe";
-        else if (tags.tourism === "hotel" || tags.tourism === "motel") type = "Hotel";
-        else if (tags.shop === "supermarket" || tags.shop === "convenience") type = "Supermarket";
-        else if (tags.shop) type = "Shop";
-        else if (tags.amenity === "fuel") type = "Fuel";
-        else if (tags.amenity === "hospital" || tags.amenity === "pharmacy") type = "Health";
-        else if (tags.amenity === "school" || tags.amenity === "university") type = "Education";
-        const addr = [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
+        const name = tags.name || tags.brand || tags.operator;
+        const lat = el.lat ?? el.center?.lat;
+        const lng = el.lon ?? el.center?.lon;
+        if (!name || !lat || !lng) return null;
+        const key = `${name}|${lat.toFixed(5)}|${lng.toFixed(5)}`;
+        if (seen.has(key)) return null;
+        seen.add(key);
+        const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(" ");
         return {
-          name: tags.name,
-          lat: elLat,
-          lng: elLng,
-          type,
+          name,
+          lat,
+          lng,
+          type: classifyOverpassTag(tags),
           address: addr || undefined,
-          distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
           phone: tags.phone || tags["contact:phone"] || undefined,
           website: tags.website || tags["contact:website"] || undefined,
           brand: tags.brand || undefined,
           cuisine: tags.cuisine || undefined,
           description: tags.description || undefined,
-        };
+          distance: geoHaversine(center.lat, center.lng, lat, lng),
+        } as SearchResult;
       })
-      .filter((r: any) => r.lat && r.lng)
-      .sort((a: any, b: any) => (a.distance ?? 9999) - (b.distance ?? 9999));
+      .filter(Boolean) as SearchResult[];
+  }, []);
+
+  const runNominatimBounded = useCallback(async (
+    query: string,
+    center: { lat: number; lng: number },
+    radiusKm: number,
+    bounded: boolean,
+    signal: AbortSignal,
+  ): Promise<SearchResult[]> => {
+    if (!query.trim()) return [];
+    const degR = radiusKm / 111;
+    const viewbox = `${(center.lng - degR).toFixed(4)},${(center.lat + degR).toFixed(4)},${(center.lng + degR).toFixed(4)},${(center.lat - degR).toFixed(4)}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=20&addressdetails=1&extratags=1&viewbox=${viewbox}&bounded=${bounded ? 1 : 0}`;
+    try {
+      const resp = await fetch(url, { headers: { "Accept-Language": "en" }, signal });
+      const data = await resp.json();
+      return (data || []).map((r: any) => {
+        const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+        const extra = r.extratags || {};
+        const a = r.address || {};
+        const addr = [a.road, a.house_number, a.city || a.town || a.village, a.state].filter(Boolean).join(", ");
+        return {
+          name: r.display_name.split(",").slice(0, 3).join(","),
+          lat,
+          lng,
+          type: classifyOsmResult(r),
+          address: addr || undefined,
+          phone: extra.phone || extra["contact:phone"] || undefined,
+          website: extra.website || extra["contact:website"] || undefined,
+          brand: extra.brand || undefined,
+          description: extra.description || undefined,
+          distance: geoHaversine(center.lat, center.lng, lat, lng),
+        } as SearchResult;
+      });
     } catch { return []; }
-  }, [geoCenter, geoRadiusKm]);
+  }, [classifyOsmResult]);
+
+  const runUnifiedSearch = useCallback(async (query: string) => {
+    // Abort any in-flight previous search
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
+    let center = resolveSearchCenter();
+    if (!center) {
+      geoLocateUser();
+      // Wait a tick for camera; otherwise we'd bail
+      await new Promise(r => setTimeout(r, 400));
+      center = resolveSearchCenter();
+      if (!center) { setUnifiedResults([]); return; }
+    }
+
+    setSearchLoading(true);
+    try {
+      // Expanding radius until we have ≥20 hits
+      const radii = [2, 5, 15, 50, 150];
+      let overpassHits: SearchResult[] = [];
+      let finalR = radii[radii.length - 1];
+      for (const r of radii) {
+        if (controller.signal.aborted) return;
+        const hits = await runOverpassAround(query, center, r, controller.signal);
+        if (controller.signal.aborted) return;
+        overpassHits = hits;
+        finalR = r;
+        if (hits.length >= 20) break;
+      }
+      // In parallel: bounded Nominatim (near) and unbounded (global), only for textual queries
+      const [nomNear, nomGlobal] = query.trim().length >= 2
+        ? await Promise.all([
+            runNominatimBounded(query, center, Math.max(finalR, 50), true, controller.signal),
+            runNominatimBounded(query, center, Math.max(finalR, 50), false, controller.signal),
+          ])
+        : [[], []];
+      if (controller.signal.aborted) return;
+      // Merge, dedupe by name+coords proximity, sort by distance
+      const merged: SearchResult[] = [];
+      const seen = new Set<string>();
+      for (const r of [...overpassHits, ...nomNear, ...nomGlobal]) {
+        const key = `${(r.name || "").toLowerCase().trim()}|${r.lat.toFixed(3)}|${r.lng.toFixed(3)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(r);
+      }
+      merged.sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
+      setUnifiedResults(merged);
+    } catch { /* aborted or network */ }
+    finally {
+      if (!controller.signal.aborted) setSearchLoading(false);
+    }
+  }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser]);
 
   /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
