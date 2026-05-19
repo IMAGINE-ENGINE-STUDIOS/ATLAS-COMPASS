@@ -536,10 +536,11 @@ function SpaceshipPage() {
     fetchGeofencedBusinesses(loc);
   }, [fetchGeofencedBusinesses]);
 
-  // Re-fetch when category or radius changes and panel is open
+  // Re-fetch geofence panel data ONLY when the geofence panel is open.
+  // The search dropdown drives its own results via runUnifiedSearch.
   useEffect(() => {
-    if ((geofencingOpen || searchOpen) && geoCenter) fetchGeofencedBusinesses(geoCenter);
-  }, [geoRadiusKm, geoCategory, geofencingOpen, searchOpen]);
+    if (geofencingOpen && geoCenter) fetchGeofencedBusinesses(geoCenter);
+  }, [geoRadiusKm, geoCategory, geofencingOpen]);
 
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
