@@ -3248,13 +3248,14 @@ out center 30;`;
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-emerald-500/20" />
-                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby · {geoRadiusKm}km</span>
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby</span>
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
                         {(() => {
                           const q = searchQuery.toLowerCase();
                           const filtered = q ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q)) : geoBusinesses;
-                          return filtered.map((b: any, idx: number) => (
+                          const shown = showFarther ? filtered : filtered.slice(0, 20);
+                          return shown.map((b: any, idx: number) => (
                             <POICard key={b.id} compact variant="glass" index={idx}
                               poi={{ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance }}
                               onNavigate={() => {
@@ -3274,7 +3275,7 @@ out center 30;`;
                           <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
-                        {overpassResults.map((r, idx) => (
+                        {(showFarther ? overpassResults : overpassResults.slice(0, 20)).map((r, idx) => (
                           <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
                             poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine }}
                             onNavigate={() => {
@@ -3286,11 +3287,19 @@ out center 30;`;
                         ))}
                       </>
                     )}
-                    {nominatimResults.length > 0 && searchQuery && (
+                    {!showFarther && searchQuery && (nominatimResults.length > 0 || geoBusinesses.length > 20 || overpassResults.length > 20) && (
+                      <button
+                        onClick={() => setShowFarther(true)}
+                        className="w-full mt-2 py-2 rounded-xl text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                      >
+                        Show farther results →
+                      </button>
+                    )}
+                    {showFarther && nominatimResults.length > 0 && searchQuery && (
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-white/10" />
-                          <span className="text-[9px] text-white/40 font-mono uppercase">🌍 Places</span>
+                          <span className="text-[9px] text-white/40 font-mono uppercase">🌍 Farther Places</span>
                           <div className="flex-1 h-px bg-white/10" />
                         </div>
                         {nominatimResults.map((r, idx) => (
