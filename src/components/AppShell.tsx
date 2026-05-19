@@ -26,7 +26,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
         {!collapsed && (
           <Link to="/" className="flex items-center gap-2">
             <Globe className="w-7 h-7 text-primary" />
-            <span className="text-lg font-bold text-gradient tracking-tight">NEXUS</span>
+            <span className="text-lg font-bold text-gradient tracking-tight">ATLAS</span>
           </Link>
         )}
         {collapsed && <Link to="/"><Globe className="w-7 h-7 text-primary mx-auto" /></Link>}
@@ -99,7 +99,7 @@ export function AppHeader() {
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
         </button>
         <div className="text-xs font-mono text-muted-foreground">
-          NEXUS v1.0
+          ATLAS v1.0
         </div>
       </div>
     </header>

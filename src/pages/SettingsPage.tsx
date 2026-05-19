@@ -16,7 +16,7 @@ export default function SettingsPage() {
       <HeroHeader
         accent="Settings"
         title="Platform Configuration"
-        subtitle="Manage security, integrations, notifications and system preferences for your NEXUS environment"
+        subtitle="Manage security, integrations, notifications and system preferences for your ATLAS environment"
       />
 
       <EditorialDivider label="Modules" />
