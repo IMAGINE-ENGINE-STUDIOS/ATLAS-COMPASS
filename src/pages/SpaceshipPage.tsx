@@ -374,6 +374,7 @@ function SpaceshipPage() {
   const [overpassResults, setOverpassResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showFarther, setShowFarther] = useState(false);
 
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
