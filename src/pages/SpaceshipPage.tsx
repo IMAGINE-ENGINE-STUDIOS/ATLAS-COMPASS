@@ -171,7 +171,7 @@ const PRESETS: SearchResult[] = [
 /* ── HUD Panel Glass ── */
 function GlassPanel({ children, className = "", onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
   return (
-    <div onClick={onClick} className={`bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] ${className}`}>
+    <div onClick={onClick} className={`bg-black/75 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] ${className}`}>
       <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent rounded-2xl pointer-events-none" />
       <div className="relative z-10">{children}</div>
     </div>
@@ -2320,7 +2320,7 @@ out center 30;`;
             <div
               className="w-16 h-16 rounded-full border-2 border-white/10 border-t-primary animate-spin"
             />
-            <p className="mt-6 text-white/50 text-sm font-mono">INITIALIZING EARTH SYSTEMS...</p>
+            <p className="mt-6 text-white/80 text-sm font-mono">INITIALIZING EARTH SYSTEMS...</p>
           </div>
         )}
       
@@ -2365,35 +2365,35 @@ out center 30;`;
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-3">
                 <Link to="/">
-                  <GlassPanel className="p-2.5 cursor-pointer hover:bg-white/[0.06] transition-colors">
+                  <GlassPanel className="p-2.5 cursor-pointer hover:bg-black/75 transition-colors">
                     <ArrowLeft className="w-5 h-5 text-white/70" />
                   </GlassPanel>
                 </Link>
                 <GlassPanel className="px-4 py-2.5 flex items-center gap-2">
                   <Globe className="w-4 h-4 text-primary" />
                   <span className="text-sm font-bold text-white">ATLAS</span>
-                  <span className="text-xs text-white/30 font-mono">ATLAS</span>
+                  <span className="text-xs text-white/70 font-mono">ATLAS</span>
                 </GlassPanel>
               </div>
 
               <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
                     onClick={toggleBuildings}
-                    className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
+                    className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Toggle Buildings On/Off"
                   >
                     <Eye className="w-4 h-4" />
                   </button>
                   <button
                     onClick={resetView}
-                    className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
+                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
                     title="Global View"
                   >
                     <Globe className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setPoisPanelOpen(!poisPanelOpen)}
-                    className={`p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/40 hover:text-white/70"}`}
+                    className={`p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
                     title="Interest Points"
                   >
                     <MapPin className="w-4 h-4" />
@@ -2401,7 +2401,7 @@ out center 30;`;
                   {/* Tile Brush Toggle */}
                   <button
                     onClick={() => { setBrushMode(!brushMode); setBrushPanelOpen(!brushMode); }}
-                    className={`p-1.5 rounded-lg transition-colors ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/40 hover:text-white/70"}`}
+                    className={`p-1.5 rounded-lg transition-colors ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
                     title="Tile Brush — Place 3D Models"
                   >
                     <Paintbrush className="w-4 h-4" />
@@ -2409,7 +2409,7 @@ out center 30;`;
                   {/* Directions Toggle */}
                   <button
                     onClick={() => setDirectionsOpen(!directionsOpen)}
-                    className={`p-1.5 rounded-lg transition-colors ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/40 hover:text-white/70"}`}
+                    className={`p-1.5 rounded-lg transition-colors ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
                     title="Directions & Routes"
                   >
                     <Route className="w-4 h-4" />
@@ -2421,7 +2421,7 @@ out center 30;`;
                       setShowCargoRoutes(next);
                       setShowLiveTraffic(next);
                     }}
-                    className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"}`}
+                    className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
                     title="Trade Routes"
                   >
                    <Ship className="w-4 h-4" />
@@ -2429,7 +2429,7 @@ out center 30;`;
                   {/* Uber Direct Delivery */}
                   <button
                     onClick={() => setDeliveryPanelOpen(!deliveryPanelOpen)}
-                    className={`p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/40 hover:text-white/70"}`}
+                    className={`p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Uber Direct Delivery"
                   >
                     <Truck className="w-4 h-4" />
@@ -2437,14 +2437,14 @@ out center 30;`;
                   {/* Marketplace Pins Toggle */}
                   <button
                     onClick={() => setShowMarketplacePins(!showMarketplacePins)}
-                    className={`p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/40 hover:text-white/70"}`}
+                    className={`p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
                     title="Marketplace Products"
                   >
                     <ShoppingBag className="w-4 h-4" />
                   </button>
                   <button
                     onClick={toggleFullscreen}
-                    className="p-1.5 rounded-lg text-white/40 hover:text-white/70 transition-colors"
+                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
                     title="Fullscreen"
                   >
                     {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -2467,7 +2467,7 @@ out center 30;`;
                     <Ship className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-bold text-white">Trade Routes</span>
                     <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); }} className="ml-auto">
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                      <X className="w-4 h-4 text-white/75 hover:text-white" />
                     </button>
                   </div>
 
@@ -2482,7 +2482,7 @@ out center 30;`;
                       <div className="text-[9px] text-cyan-400/60 uppercase">🚢 Live Vessels</div>
                     </div>
                   </div>
-                  <div className="text-[9px] text-white/30 font-mono text-center mb-3">
+                  <div className="text-[9px] text-white/70 font-mono text-center mb-3">
                     Aircraft: OpenSky · 10s | Ships: AISStream · Real-time WS
                   </div>
 
@@ -2495,46 +2495,46 @@ out center 30;`;
                             ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
                             : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
                             : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                            : "bg-white/[0.04] text-white/30 border border-white/[0.06] hover:text-white/60"
+                            : "bg-black/70 text-white/70 border border-white/[0.06] hover:text-white/85"
                         }`}>{f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}</button>
                     ))}
                   </div>
                   <div className="flex flex-wrap gap-1 mb-3">
                     {[{id:"all" as const,label:"All",icon:"🌐"}, ...CARGO_CATEGORIES.filter(c => cargoFilter === "all" || (cargoFilter === "maritime" ? !c.id.startsWith("air-") : c.id.startsWith("air-")))].map(c => (
                       <button key={c.id} onClick={() => setCargoTypeFilter(c.id as any)}
-                        className={`px-2 py-1 rounded-lg text-[9px] font-mono transition-all ${cargoTypeFilter === c.id ? "bg-white/10 text-white border border-white/20" : "bg-white/[0.03] text-white/25 border border-white/[0.05] hover:text-white/50"}`}>
+                        className={`px-2 py-1 rounded-lg text-[9px] font-mono transition-all ${cargoTypeFilter === c.id ? "bg-white/10 text-white border border-white/20" : "bg-black/65 text-white/25 border border-white/[0.05] hover:text-white/80"}`}>
                         {c.icon} {c.label}
                       </button>
                     ))}
                   </div>
 
                   {/* Route count */}
-                  <div className="flex items-center justify-between text-[9px] text-white/30 font-mono mb-3">
+                  <div className="flex items-center justify-between text-[9px] text-white/70 font-mono mb-3">
                     <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes</span>
                   </div>
 
                   {/* Selected Route Card */}
                   {selectedRoute && (
-                    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 mb-2">
+                    <div className="bg-black/70 border border-white/[0.08] rounded-xl p-3 mb-2">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-white">{selectedRoute.name}</span>
-                        <button onClick={() => setSelectedRoute(null)}><X className="w-3 h-3 text-white/30" /></button>
+                        <button onClick={() => setSelectedRoute(null)}><X className="w-3 h-3 text-white/70" /></button>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        <div><span className="text-white/30">Type</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.label}</span></div>
-                        <div><span className="text-white/30">Distance</span><br/><span className="text-white font-mono">{selectedRoute.distance}</span></div>
-                        <div><span className="text-white/30">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
-                        <div><span className="text-white/30">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
+                        <div><span className="text-white/70">Type</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.label}</span></div>
+                        <div><span className="text-white/70">Distance</span><br/><span className="text-white font-mono">{selectedRoute.distance}</span></div>
+                        <div><span className="text-white/70">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
+                        <div><span className="text-white/70">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
                       </div>
                     </div>
                   )}
 
                   {/* Route Category Legend */}
                   <div className="mt-3 space-y-1 border-t border-white/[0.06] pt-2">
-                    <div className="text-[9px] text-white/30 uppercase tracking-wider mb-1">Route Categories</div>
+                    <div className="text-[9px] text-white/70 uppercase tracking-wider mb-1">Route Categories</div>
                     <div className="flex flex-wrap gap-1">
                       {CARGO_CATEGORIES.slice(0, 7).map(c => (
-                        <span key={c.id} className="text-[9px] text-white/40">{c.icon} {c.label}</span>
+                        <span key={c.id} className="text-[9px] text-white/75">{c.icon} {c.label}</span>
                       ))}
                     </div>
                   </div>
@@ -2559,7 +2559,7 @@ out center 30;`;
                       <span className="text-sm font-bold text-white">Directions</span>
                     </div>
                     <button onClick={() => setDirectionsOpen(false)}>
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                      <X className="w-4 h-4 text-white/75 hover:text-white" />
                     </button>
                   </div>
 
@@ -2567,7 +2567,7 @@ out center 30;`;
                   <div className="relative mb-3">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider">From</span>
+                      <span className="text-[10px] text-white/75 uppercase tracking-wider">From</span>
                     </div>
                     <input
                       type="text"
@@ -2581,13 +2581,13 @@ out center 30;`;
                         }
                       }}
                       placeholder="Search origin address..."
-                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/20 transition-colors"
+                      className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/85 transition-colors"
                     />
                     {showOriginResults && originResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-xl">
                         {originResults.map((r, i) => (
                           <button key={i} onClick={() => selectRoutePoint(r, "origin")}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.06] text-sm text-white/80 truncate">
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-black/75 text-sm text-white/80 truncate">
                             {getTypeIcon(r.type)}
                             <span className="truncate">{r.name}</span>
                           </button>
@@ -2600,7 +2600,7 @@ out center 30;`;
                   <div className="relative mb-4">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider">To</span>
+                      <span className="text-[10px] text-white/75 uppercase tracking-wider">To</span>
                     </div>
                     <input
                       type="text"
@@ -2614,13 +2614,13 @@ out center 30;`;
                         }
                       }}
                       placeholder="Search destination address..."
-                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/20 transition-colors"
+                      className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/85 transition-colors"
                     />
                     {showDestResults && destResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-xl">
                         {destResults.map((r, i) => (
                           <button key={i} onClick={() => selectRoutePoint(r, "dest")}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.06] text-sm text-white/80 truncate">
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-black/75 text-sm text-white/80 truncate">
                             {getTypeIcon(r.type)}
                             <span className="truncate">{r.name}</span>
                           </button>
@@ -2652,13 +2652,13 @@ out center 30;`;
 
                   {/* Route Info */}
                   {routeInfo && (
-                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
-                      <p className="text-[9px] text-white/40 uppercase tracking-wider mb-2">Route Summary</p>
+                    <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
+                      <p className="text-[9px] text-white/75 uppercase tracking-wider mb-2">Route Summary</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="flex items-center gap-2">
                           <Ruler className="w-4 h-4 text-blue-400" />
                           <div>
-                            <p className="text-[9px] text-white/30">Distance</p>
+                            <p className="text-[9px] text-white/70">Distance</p>
                             <p className="text-sm font-mono text-white">
                               {routeInfo.distance > 1000
                                 ? `${(routeInfo.distance / 1000).toFixed(1)} km`
@@ -2669,7 +2669,7 @@ out center 30;`;
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-blue-400" />
                           <div>
-                            <p className="text-[9px] text-white/30">Duration</p>
+                            <p className="text-[9px] text-white/70">Duration</p>
                             <p className="text-sm font-mono text-white">
                               {routeInfo.duration > 3600
                                 ? `${Math.floor(routeInfo.duration / 3600)}h ${Math.floor((routeInfo.duration % 3600) / 60)}m`
@@ -2695,10 +2695,10 @@ out center 30;`;
                   {journeyActive && (
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] text-white/40 uppercase tracking-wider">Navigating...</span>
+                        <span className="text-[10px] text-white/75 uppercase tracking-wider">Navigating...</span>
                         <span className="text-xs font-mono text-blue-400">{journeyProgress}%</span>
                       </div>
-                      <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden mb-3">
+                      <div className="w-full h-1.5 bg-black/75 rounded-full overflow-hidden mb-3">
                         <div
                           className="h-full bg-gradient-to-r from-green-500 to-blue-500 rounded-full transition-all duration-100"
                           style={{ width: `${journeyProgress}%` }}
@@ -2717,7 +2717,7 @@ out center 30;`;
                   {(routeInfo || originPoint || destPoint) && (
                     <button
                       onClick={clearRoute}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Clear Route
                     </button>
@@ -2753,12 +2753,12 @@ out center 30;`;
                     <MapPin className="mt-0.5 w-5 h-5 text-yellow-400 shrink-0" />
                     <h3 className="min-w-0 text-sm font-bold text-white">Create Point of Interest</h3>
                   </div>
-                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-4">
-                    <p className="text-[9px] text-white/40 uppercase tracking-wider mb-1">Exact Coordinates</p>
+                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-4">
+                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1">Exact Coordinates</p>
                     <div className="grid grid-cols-1 gap-2 text-xs font-mono text-white/70 xs:grid-cols-3">
-                      <div><span className="text-[8px] text-white/30">LAT</span><p>{namingPOI.lat.toFixed(6)}°</p></div>
-                      <div><span className="text-[8px] text-white/30">LNG</span><p>{namingPOI.lng.toFixed(6)}°</p></div>
-                      <div><span className="text-[8px] text-white/30">ALT</span><p>{formatAlt(namingPOI.alt)}</p></div>
+                      <div><span className="text-[8px] text-white/70">LAT</span><p>{namingPOI.lat.toFixed(6)}°</p></div>
+                      <div><span className="text-[8px] text-white/70">LNG</span><p>{namingPOI.lng.toFixed(6)}°</p></div>
+                      <div><span className="text-[8px] text-white/70">ALT</span><p>{formatAlt(namingPOI.alt)}</p></div>
                     </div>
                   </div>
                   <input
@@ -2766,12 +2766,12 @@ out center 30;`;
                     onChange={(e) => setPoiName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && poiName.trim()) confirmPOI(); if (e.key === "Escape") setNamingPOI(null); }}
                     placeholder="Name this point..."
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/20 transition-colors mb-3"
+                    className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/85 transition-colors mb-3"
                   />
                   <textarea
                     value={poiDescription} onChange={(e) => setPoiDescription(e.target.value)}
                     placeholder="Description (optional)..." rows={3}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/20 transition-colors resize-none"
+                    className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/85 transition-colors resize-none"
                   />
                   <div className={isMobile ? "mt-4 flex flex-col-reverse gap-2" : "mt-4 flex gap-2"}>
                     <button onClick={confirmPOI} disabled={!poiName.trim()}
@@ -2779,7 +2779,7 @@ out center 30;`;
                       <Check className="w-4 h-4" /> Save Point
                     </button>
                     <button onClick={() => setNamingPOI(null)}
-                      className="px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors">
+                      className="px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors">
                       Cancel
                     </button>
                   </div>
@@ -2801,12 +2801,12 @@ out center 30;`;
                   </div>
 
                   {/* Coordinates */}
-                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-4">
-                    <p className="text-[9px] text-white/40 uppercase tracking-wider mb-1">Placement Location</p>
+                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-4">
+                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1">Placement Location</p>
                     <div className="grid grid-cols-3 gap-2 text-xs font-mono text-white/70">
-                      <div><span className="text-[8px] text-white/30">LAT</span><p>{pendingPlacement.lat.toFixed(6)}°</p></div>
-                      <div><span className="text-[8px] text-white/30">LNG</span><p>{pendingPlacement.lng.toFixed(6)}°</p></div>
-                      <div><span className="text-[8px] text-white/30">ALT</span><p>{formatAlt(pendingPlacement.alt)}</p></div>
+                      <div><span className="text-[8px] text-white/70">LAT</span><p>{pendingPlacement.lat.toFixed(6)}°</p></div>
+                      <div><span className="text-[8px] text-white/70">LNG</span><p>{pendingPlacement.lng.toFixed(6)}°</p></div>
+                      <div><span className="text-[8px] text-white/70">ALT</span><p>{formatAlt(pendingPlacement.alt)}</p></div>
                     </div>
                   </div>
 
@@ -2816,7 +2816,7 @@ out center 30;`;
                     className={`w-full border-2 border-dashed rounded-xl p-4 mb-4 cursor-pointer transition-colors text-center ${
                       modelFile
                         ? "border-emerald-500/40 bg-emerald-500/5"
-                        : "border-white/[0.1] bg-white/[0.02] hover:border-emerald-500/30"
+                        : "border-white/[0.1] bg-black/60 hover:border-emerald-500/30"
                     }`}
                   >
                     {modelFile ? (
@@ -2825,7 +2825,7 @@ out center 30;`;
                         <div className="text-left">
                           <p className="text-sm text-white font-medium truncate max-w-[200px]">{modelFile.name}</p>
                           <div className="flex items-center gap-2">
-                            <p className="text-[10px] text-white/30">{(modelFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <p className="text-[10px] text-white/70">{(modelFile.size / 1024 / 1024).toFixed(2)} MB</p>
                             <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
                               getFormatCategory(modelFile.name) === "native" ? "bg-emerald-500/20 text-emerald-400" :
                               getFormatCategory(modelFile.name) === "convertible" ? "bg-amber-500/20 text-amber-400" :
@@ -2840,9 +2840,9 @@ out center 30;`;
                       </div>
                     ) : (
                       <>
-                        <Upload className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                        <p className="text-sm text-white/40">Upload 3D Model</p>
-                        <p className="text-[10px] text-white/20 mt-1 leading-relaxed">
+                        <Upload className="w-8 h-8 text-white/85 mx-auto mb-2" />
+                        <p className="text-sm text-white/75">Upload 3D Model</p>
+                        <p className="text-[10px] text-white/85 mt-1 leading-relaxed">
                           glTF · OBJ · FBX · STL · PLY · DAE · AutoCAD · SketchUp · Blender · Unreal & more
                         </p>
                       </>
@@ -2860,15 +2860,15 @@ out center 30;`;
                     type="text" value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
                     placeholder="Model name..."
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-400/40 placeholder:text-white/20 transition-colors mb-3"
+                    className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-400/40 placeholder:text-white/85 transition-colors mb-3"
                   />
 
                   {/* Scale & Heading Controls */}
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div>
                       <div className="flex items-center gap-1 mb-1">
-                        <Scale className="w-3 h-3 text-white/40" />
-                        <p className="text-[9px] text-white/40 uppercase tracking-wider">Scale</p>
+                        <Scale className="w-3 h-3 text-white/75" />
+                        <p className="text-[9px] text-white/75 uppercase tracking-wider">Scale</p>
                       </div>
                       <input
                         type="range" min="0.1" max="100" step="0.1"
@@ -2876,12 +2876,12 @@ out center 30;`;
                         onChange={(e) => setModelScale(parseFloat(e.target.value))}
                         className="w-full accent-emerald-400"
                       />
-                      <p className="text-[10px] text-white/50 font-mono text-center">{modelScale}x</p>
+                      <p className="text-[10px] text-white/80 font-mono text-center">{modelScale}x</p>
                     </div>
                     <div>
                       <div className="flex items-center gap-1 mb-1">
-                        <RotateCcw className="w-3 h-3 text-white/40" />
-                        <p className="text-[9px] text-white/40 uppercase tracking-wider">Heading</p>
+                        <RotateCcw className="w-3 h-3 text-white/75" />
+                        <p className="text-[9px] text-white/75 uppercase tracking-wider">Heading</p>
                       </div>
                       <input
                         type="range" min="0" max="360" step="1"
@@ -2889,7 +2889,7 @@ out center 30;`;
                         onChange={(e) => setModelHeading(parseInt(e.target.value))}
                         className="w-full accent-emerald-400"
                       />
-                      <p className="text-[10px] text-white/50 font-mono text-center">{modelHeading}°</p>
+                      <p className="text-[10px] text-white/80 font-mono text-center">{modelHeading}°</p>
                     </div>
                   </div>
 
@@ -2908,7 +2908,7 @@ out center 30;`;
                     </button>
                     <button
                       onClick={() => { setPendingPlacement(null); setModelFile(null); setModelName(""); }}
-                      className="px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors"
+                      className="px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors"
                     >
                       Cancel
                     </button>
@@ -2929,10 +2929,10 @@ out center 30;`;
                     <div className="flex items-center gap-2">
                       <Paintbrush className="w-4 h-4 text-emerald-400" />
                       <span className="text-sm font-bold text-white">Tile Brush</span>
-                      <span className="text-[10px] text-white/30 font-mono">({placedModels.length})</span>
+                      <span className="text-[10px] text-white/70 font-mono">({placedModels.length})</span>
                     </div>
                     <button onClick={() => { setBrushPanelOpen(false); setBrushMode(false); }}>
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                      <X className="w-4 h-4 text-white/75 hover:text-white" />
                     </button>
                   </div>
 
@@ -2945,31 +2945,31 @@ out center 30;`;
                   {placedModels.length === 0 ? (
                     <div className="text-center py-6">
                       <Box className="w-8 h-8 text-white/10 mx-auto mb-2" />
-                      <p className="text-xs text-white/30">No models placed yet</p>
+                      <p className="text-xs text-white/70">No models placed yet</p>
                     </div>
                   ) : (
                     <div className="max-h-60 overflow-y-auto space-y-1">
                       {placedModels.map((model) => (
-                        <div key={model.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] group transition-colors">
+                        <div key={model.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-black/70 group transition-colors">
                           <Box className="w-4 h-4 text-emerald-400 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-white truncate">{model.name}</p>
-                            <p className="text-[10px] text-white/30 font-mono">
+                            <p className="text-[10px] text-white/70 font-mono">
                               {model.lat.toFixed(4)}, {model.lng.toFixed(4)} · {model.scale}x
                             </p>
-                            <p className="text-[10px] text-white/20 truncate">{model.fileName}</p>
+                            <p className="text-[10px] text-white/85 truncate">{model.fileName}</p>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button
                               onClick={() => flyToModel(model)}
-                              className="p-1 rounded-lg text-white/20 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                              className="p-1 rounded-lg text-white/85 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
                               title="Fly to"
                             >
                               <Move className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => deleteModel(model.id)}
-                              className="p-1 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="p-1 rounded-lg text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all"
                               title="Delete"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2997,26 +2997,26 @@ out center 30;`;
                       <h3 className="text-sm font-bold text-white">{selectedPOI.name}</h3>
                     </div>
                     <button onClick={() => { setSelectedPOI(null); setEditingNotes(false); }}>
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                      <X className="w-4 h-4 text-white/75 hover:text-white" />
                     </button>
                   </div>
-                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
-                    <p className="text-[9px] text-white/40 uppercase tracking-wider mb-2">Coordinates</p>
+                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
+                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-2">Coordinates</p>
                     <div className="grid grid-cols-3 gap-3 text-xs font-mono text-white/80">
-                      <div><span className="text-[8px] text-white/30 block">LATITUDE</span>{formatCoord(selectedPOI.lat, true)}</div>
-                      <div><span className="text-[8px] text-white/30 block">LONGITUDE</span>{formatCoord(selectedPOI.lng, false)}</div>
-                      <div><span className="text-[8px] text-white/30 block">ELEVATION</span>{formatAlt(selectedPOI.alt)}</div>
+                      <div><span className="text-[8px] text-white/70 block">LATITUDE</span>{formatCoord(selectedPOI.lat, true)}</div>
+                      <div><span className="text-[8px] text-white/70 block">LONGITUDE</span>{formatCoord(selectedPOI.lng, false)}</div>
+                      <div><span className="text-[8px] text-white/70 block">ELEVATION</span>{formatAlt(selectedPOI.alt)}</div>
                     </div>
                   </div>
                   {selectedPOI.description && (
-                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
-                      <p className="text-[9px] text-white/40 uppercase tracking-wider mb-1">Description</p>
+                    <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
+                      <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1">Description</p>
                       <p className="text-xs text-white/70 leading-relaxed">{selectedPOI.description}</p>
                     </div>
                   )}
-                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
+                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-[9px] text-white/40 uppercase tracking-wider flex items-center gap-1">
+                      <p className="text-[9px] text-white/75 uppercase tracking-wider flex items-center gap-1">
                         <FileText className="w-3 h-3" /> Notes
                       </p>
                       {!editingNotes ? (
@@ -3036,11 +3036,11 @@ out center 30;`;
                         onChange={(e) => setEditNotesValue(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Escape") setEditingNotes(false); }}
                         rows={4}
-                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-yellow-400/30 placeholder:text-white/20 transition-colors resize-none"
+                        className="w-full bg-black/70 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-yellow-400/30 placeholder:text-white/85 transition-colors resize-none"
                         placeholder="Add notes..."
                       />
                     ) : (
-                      <p className="text-xs text-white/50 leading-relaxed">{selectedPOI.notes || "No notes yet."}</p>
+                      <p className="text-xs text-white/80 leading-relaxed">{selectedPOI.notes || "No notes yet."}</p>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -3053,7 +3053,7 @@ out center 30;`;
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <p className="text-[9px] text-white/20 font-mono mt-3 text-center">
+                  <p className="text-[9px] text-white/85 font-mono mt-3 text-center">
                     Created {new Date(selectedPOI.createdAt).toLocaleString()}
                   </p>
                 </GlassPanel>
@@ -3072,7 +3072,7 @@ out center 30;`;
               >
                 <div className="relative">
                   <button onClick={() => setSelectedBusiness(null)}
-                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors">
+                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-colors">
                     <X className="w-3.5 h-3.5" />
                   </button>
                   <POICard
@@ -3172,38 +3172,38 @@ out center 30;`;
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-yellow-400" />
                       <span className="text-sm font-bold text-white">Interest Points</span>
-                      <span className="text-[10px] text-white/30 font-mono">({pois.length})</span>
+                      <span className="text-[10px] text-white/70 font-mono">({pois.length})</span>
                     </div>
                     <button onClick={() => setPoisPanelOpen(false)}>
-                      <X className="w-4 h-4 text-white/40 hover:text-white" />
+                      <X className="w-4 h-4 text-white/75 hover:text-white" />
                     </button>
                   </div>
-                  <p className="text-[10px] text-white/30 mb-3">Double-click anywhere to add a point.</p>
+                  <p className="text-[10px] text-white/70 mb-3">Double-click anywhere to add a point.</p>
                   {pois.length === 0 ? (
                     <div className="text-center py-8">
                       <Plus className="w-8 h-8 text-white/10 mx-auto mb-2" />
-                      <p className="text-xs text-white/30">No points yet</p>
+                      <p className="text-xs text-white/70">No points yet</p>
                     </div>
                   ) : (
                     <div className="max-h-72 overflow-y-auto space-y-1">
                       {pois.map((poi) => (
-                        <div key={poi.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] group transition-colors">
+                        <div key={poi.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-black/70 group transition-colors">
                           <button onClick={() => { setSelectedPOI(poi); setEditingNotes(false); }}
                             className="flex-1 flex items-center gap-3 text-left min-w-0">
                             <MapPin className="w-4 h-4 text-yellow-400 shrink-0" />
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-white truncate">{poi.name}</p>
-                              <p className="text-[10px] text-white/30 font-mono">{poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}</p>
-                              {poi.description && <p className="text-[10px] text-white/20 truncate">{poi.description}</p>}
+                              <p className="text-[10px] text-white/70 font-mono">{poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}</p>
+                              {poi.description && <p className="text-[10px] text-white/85 truncate">{poi.description}</p>}
                             </div>
                           </button>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button onClick={() => flyToPOI(poi)}
-                              className="p-1 rounded-lg text-white/20 hover:text-primary hover:bg-primary/10 transition-all" title="Fly to">
+                              className="p-1 rounded-lg text-white/85 hover:text-primary hover:bg-primary/10 transition-all" title="Fly to">
                               <Navigation className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={() => deletePOI(poi.id)}
-                              className="p-1 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete">
+                              className="p-1 rounded-lg text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -3223,26 +3223,26 @@ out center 30;`;
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
               <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 flex-1 min-w-0">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <Crosshair className="w-3.5 h-3.5 text-white/40 shrink-0" />
+                  <Crosshair className="w-3.5 h-3.5 text-white/75 shrink-0" />
                   {cursorInfo ? (
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className="min-w-0">
-                        <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Lat</p>
+                        <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Lat</p>
                         <p className="text-xs sm:text-sm font-mono text-white truncate">{formatCoord(cursorInfo.lat, true)}</p>
                       </div>
                       <div className="w-px h-6 sm:h-8 bg-white/10 hidden sm:block" />
                       <div className="min-w-0">
-                        <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Lng</p>
+                        <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Lng</p>
                         <p className="text-xs sm:text-sm font-mono text-white truncate">{formatCoord(cursorInfo.lng, false)}</p>
                       </div>
                       <div className="w-px h-6 sm:h-8 bg-white/10 hidden sm:block" />
                       <div className="min-w-0">
-                        <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Alt</p>
+                        <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
                         <p className="text-xs sm:text-sm font-mono text-white">{formatAlt(cursorInfo.alt)}</p>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-[10px] sm:text-xs text-white/30">Hover for coordinates</p>
+                    <p className="text-[10px] sm:text-xs text-white/70">Hover for coordinates</p>
                   )}
                   <div className="w-px h-6 sm:h-8 bg-white/10 ml-auto" />
                   <div className="relative flex items-center gap-1.5 cursor-text flex-1 min-w-0"
@@ -3250,17 +3250,17 @@ out center 30;`;
                     <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
                     {searchOpen ? (
                       <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search stores, addresses…"
-                        className="flex-1 bg-transparent text-white text-xs sm:text-sm outline-none placeholder:text-white/30 min-w-0"
+                        className="flex-1 bg-transparent text-white text-xs sm:text-sm outline-none placeholder:text-white/70 min-w-0"
                         style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}
                         onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }} />
                     ) : (
-                      <span className="text-[10px] sm:text-xs text-white/30 truncate" style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>Search stores, addresses…</span>
+                      <span className="text-[10px] sm:text-xs text-white/70 truncate" style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>Search stores, addresses…</span>
                     )}
                     {searchOpen && searchQuery && (
-                      <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0"><X className="w-3 h-3 text-white/30 hover:text-white/60" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0"><X className="w-3 h-3 text-white/70 hover:text-white/85" /></button>
                     )}
                     {searchOpen && (
-                      <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0"><X className="w-3.5 h-3.5 text-white/40" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0"><X className="w-3.5 h-3.5 text-white/75" /></button>
                     )}
 
                     {/* Integrated results dropdown — anchored to search input */}
@@ -3271,13 +3271,13 @@ out center 30;`;
                         style={{ bottom: 'calc(100% + 14px)', animation: 'slideUp 0.2s cubic-bezier(0.22,1,0.36,1)' }}
                       >
                         <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-                        <div className="flex flex-col max-h-[60vh] overflow-hidden rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+                        <div className="flex flex-col max-h-[60vh] overflow-hidden rounded-2xl bg-black/80 backdrop-blur-2xl border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
                           style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>
                           {/* Controls */}
                           <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
                             <button onClick={geoLocateUser} title="Use my location" className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0"><Crosshair className="w-3.5 h-3.5" /></button>
-                            <button onClick={geofenceFromCamera} title="Scan camera area" className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0"><Globe className="w-3.5 h-3.5" /></button>
-                            <span className="text-[10px] font-mono text-white/40 ml-1">Nearby first</span>
+                            <button onClick={geofenceFromCamera} title="Scan camera area" className="p-1.5 rounded-lg bg-black/70 text-white/75 hover:text-white transition-colors shrink-0"><Globe className="w-3.5 h-3.5" /></button>
+                            <span className="text-[10px] font-mono text-white/75 ml-1">Nearby first</span>
                           </div>
                           {/* Category pills */}
                           <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
@@ -3286,7 +3286,7 @@ out center 30;`;
                               const catIcon = idx === 0 ? <Layers className="w-3 h-3" /> : GEO_CATEGORIES[idx].icon;
                               return (
                                 <button key={t} onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; if (!showBusinessIcons) setShowBusinessIcons(true); geofenceFromCamera(); }}
-                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${geoCategory === catKey ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-white/[0.03] text-white/40 border border-white/[0.06] hover:bg-white/[0.06]"}`}>
+                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${geoCategory === catKey ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-black/65 text-white/75 border border-white/[0.06] hover:bg-black/75"}`}>
                                   {catIcon} {t}
                                 </button>
                               );
@@ -3296,7 +3296,7 @@ out center 30;`;
                           {geoCenter && (
                             <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center gap-2">
                               <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                              <span className="text-[10px] text-white/30 truncate">{geoLocationName}</span>
+                              <span className="text-[10px] text-white/70 truncate">{geoLocationName}</span>
                               {geoBusinesses.length > 0 && <span className="text-[9px] font-mono text-emerald-400/50 shrink-0">{geoBusinesses.length} nearby</span>}
                             </div>
                           )}
@@ -3305,7 +3305,7 @@ out center 30;`;
                             {(searchLoading || geoLoading) && (
                               <div className="flex items-center justify-center gap-2 py-3">
                                 <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                                <span className="text-xs text-white/30">Searching…</span>
+                                <span className="text-xs text-white/70">Searching…</span>
                               </div>
                             )}
                             {geoBusinesses.length > 0 && (
@@ -3363,7 +3363,7 @@ out center 30;`;
                               <>
                                 <div className="flex items-center gap-2 px-2 py-1">
                                   <div className="flex-1 h-px bg-white/10" />
-                                  <span className="text-[9px] text-white/40 font-mono uppercase">🌍 Farther Places</span>
+                                  <span className="text-[9px] text-white/75 font-mono uppercase">🌍 Farther Places</span>
                                   <div className="flex-1 h-px bg-white/10" />
                                 </div>
                                 {nominatimResults.map((r, idx) => (
@@ -3379,7 +3379,7 @@ out center 30;`;
                               </>
                             )}
                             {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && geoBusinesses.length === 0 && !searchLoading && !geoLoading && searchQuery && (
-                              <p className="text-sm text-white/30 text-center py-4">No results found.</p>
+                              <p className="text-sm text-white/70 text-center py-4">No results found.</p>
                             )}
                           </div>
                         </div>
@@ -3393,19 +3393,19 @@ out center 30;`;
                 <div className="flex items-center gap-2 sm:gap-3">
                   <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
                   <div>
-                    <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider">Alt</p>
+                    <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
                     <p className="text-xs sm:text-sm font-mono text-white">{formatAlt(cameraAlt)}</p>
                   </div>
                   <div className="w-px h-6 sm:h-8 bg-white/10" />
                   <div>
-                    <p className="text-[8px] sm:text-[9px] text-white/30 uppercase tracking-wider mb-0.5">Mode</p>
+                    <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">Mode</p>
                     <div className="flex items-center gap-1">
                       <button onClick={() => switchViewMode("realistic")}
-                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}>
+                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Satellite className="w-3 h-3" /> <span className="hidden sm:inline">Realistic</span><span className="sm:hidden">3D</span></span>
                       </button>
                       <button onClick={() => switchViewMode("osm")}
-                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/30 hover:text-white/60 border border-transparent"}`}>
+                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-mono transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> OSM</span>
                       </button>
                     </div>
@@ -3417,7 +3417,7 @@ out center 30;`;
 
           <button
             onClick={() => setHudVisible(false)}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-white/20 hover:text-white/50 transition-colors text-[10px] font-mono uppercase tracking-wider"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-white/85 hover:text-white/80 transition-colors text-[10px] font-mono uppercase tracking-wider"
           >
             Hide HUD
           </button>
@@ -3427,7 +3427,7 @@ out center 30;`;
       {isLoaded && !hudVisible && (
         <button
           onClick={() => setHudVisible(true)}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-full px-4 py-2 text-white/40 hover:text-white/70 transition-colors text-xs font-mono"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-black/75 backdrop-blur-xl border border-white/[0.08] rounded-full px-4 py-2 text-white/75 hover:text-white transition-colors text-xs font-mono"
         >
           Show HUD
         </button>
@@ -3483,8 +3483,8 @@ class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
         <div className="w-full h-screen bg-[#0a0a1a] flex flex-col items-center justify-center text-white gap-4">
           <div className="text-4xl">🌍</div>
           <h2 className="text-lg font-semibold">Atlas encountered an issue</h2>
-          <p className="text-sm text-white/50 max-w-sm text-center">{this.state.error || "Something went wrong"}</p>
-          {this.state.retryCount < 3 && <p className="text-xs text-white/30">Auto-recovering…</p>}
+          <p className="text-sm text-white/80 max-w-sm text-center">{this.state.error || "Something went wrong"}</p>
+          {this.state.retryCount < 3 && <p className="text-xs text-white/70">Auto-recovering…</p>}
           <button
             onClick={() => this.setState({ hasError: false, error: "", retryCount: 0 })}
             className="mt-2 px-5 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition-colors"

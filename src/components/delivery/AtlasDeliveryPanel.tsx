@@ -23,11 +23,11 @@ interface Props {
 }
 
 /* ── Shared style helpers ── */
-const glass = "bg-white/[0.04] border border-white/[0.08] rounded-xl";
-const inputCls = `w-full ${glass} px-4 py-2.5 text-sm text-white outline-none focus:border-primary/40 placeholder:text-white/20 transition-colors`;
-const labelCls = "text-[9px] font-mono text-white/40 uppercase tracking-wider mb-1.5 block";
+const glass = "bg-black/70 border border-white/[0.08] rounded-xl";
+const inputCls = `w-full ${glass} px-4 py-2.5 text-sm text-white outline-none focus:border-primary/40 placeholder:text-white/85 transition-colors`;
+const labelCls = "text-[9px] font-mono text-white/75 uppercase tracking-wider mb-1.5 block";
 const btnPrimary = "w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary/20 border border-primary/30 rounded-xl text-sm font-medium text-primary hover:bg-primary/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed";
-const btnSecondary = "px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white/50 hover:text-white/70 transition-colors";
+const btnSecondary = "px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors";
 
 export default function AtlasDeliveryPanel({ onClose, initialPickup, initialDropoff }: Props) {
   const [view, setView] = useState<View>(initialPickup ? "new" : "home");
@@ -38,14 +38,14 @@ export default function AtlasDeliveryPanel({ onClose, initialPickup, initialDrop
       <div className="flex items-center justify-between mb-4 sticky top-0 z-10">
         <div className="flex items-center gap-2">
           {view !== "home" && (
-            <button onClick={() => setView("home")} className="p-1 rounded-lg text-white/40 hover:text-white transition-colors">
+            <button onClick={() => setView("home")} className="p-1 rounded-lg text-white/75 hover:text-white transition-colors">
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
           <Truck className="w-5 h-5 text-primary" />
           <span className="text-sm font-bold text-white">Uber Direct</span>
         </div>
-        <button onClick={onClose}><X className="w-4 h-4 text-white/40 hover:text-white" /></button>
+        <button onClick={onClose}><X className="w-4 h-4 text-white/75 hover:text-white" /></button>
       </div>
 
       {view === "home" && <HomeView onNavigate={setView} />}
@@ -81,12 +81,12 @@ function HomeView({ onNavigate }: { onNavigate: (v: View) => void }) {
           <div className={a.color}>{a.icon}</div>
           <div className="flex-1 min-w-0">
             <p className={`text-sm font-semibold ${a.color}`}>{a.label}</p>
-            <p className="text-[10px] text-white/30">{a.desc}</p>
+            <p className="text-[10px] text-white/70">{a.desc}</p>
           </div>
-          <ArrowRight className="w-4 h-4 text-white/20" />
+          <ArrowRight className="w-4 h-4 text-white/85" />
         </button>
       ))}
-      <div className="text-[9px] text-white/20 text-center pt-2 font-mono">
+      <div className="text-[9px] text-white/85 text-center pt-2 font-mono">
         Powered by Uber Direct API · Global Coverage
       </div>
     </div>
@@ -114,7 +114,7 @@ function EstimateView() {
 
   return (
     <div className="space-y-3">
-      <p className="text-[10px] text-white/30">Instant fee estimate without creating a binding quote.</p>
+      <p className="text-[10px] text-white/70">Instant fee estimate without creating a binding quote.</p>
       <div>
         <label className={labelCls}>Pickup</label>
         <AddressAutocomplete value={pickup} onChange={addr => setPickup(addr)} placeholder="Pickup address" icon="pickup" compact />
@@ -130,9 +130,9 @@ function EstimateView() {
       {estimate && !estimate.error && (
         <div className={`${glass} p-4`}>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <div><DollarSign className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/30">Fee</p><p className="text-lg font-mono font-bold text-white">${((estimate.fee || 0) / 100).toFixed(2)}</p></div>
-            <div><Clock className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/30">ETA</p><p className="text-lg font-mono font-bold text-white">{estimate.eta || "~30"}m</p></div>
-            <div><Truck className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/30">Currency</p><p className="text-sm font-bold text-white">{estimate.currency || "USD"}</p></div>
+            <div><DollarSign className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/70">Fee</p><p className="text-lg font-mono font-bold text-white">${((estimate.fee || 0) / 100).toFixed(2)}</p></div>
+            <div><Clock className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/70">ETA</p><p className="text-lg font-mono font-bold text-white">{estimate.eta || "~30"}m</p></div>
+            <div><Truck className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/70">Currency</p><p className="text-sm font-bold text-white">{estimate.currency || "USD"}</p></div>
           </div>
         </div>
       )}
@@ -208,9 +208,9 @@ function NewDeliveryView({ initialPickup, initialDropoff, onDone }: { initialPic
         {steps.map((s, i) => (
           <div key={s} className="flex items-center gap-1">
             <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold ${
-              i === stepIdx ? "bg-primary text-primary-foreground" : i < stepIdx ? "bg-primary/30 text-primary" : "bg-white/[0.06] text-white/20"
+              i === stepIdx ? "bg-primary text-primary-foreground" : i < stepIdx ? "bg-primary/30 text-primary" : "bg-black/75 text-white/85"
             }`}>{i + 1}</div>
-            {i < 4 && <div className="w-4 h-0.5 bg-white/[0.06]" />}
+            {i < 4 && <div className="w-4 h-0.5 bg-black/75" />}
           </div>
         ))}
       </div>
@@ -244,12 +244,12 @@ function NewDeliveryView({ initialPickup, initialDropoff, onDone }: { initialPic
           <div className="grid grid-cols-2 gap-2">
             <label className={`flex items-center gap-2 p-2.5 rounded-xl ${glass} cursor-pointer`}>
               <input type="checkbox" checked={requireSig} onChange={e => setRequireSig(e.target.checked)} className="accent-primary" />
-              <FileSignature className="w-3.5 h-3.5 text-white/40" />
+              <FileSignature className="w-3.5 h-3.5 text-white/75" />
               <span className="text-[10px] text-white">Signature</span>
             </label>
             <label className={`flex items-center gap-2 p-2.5 rounded-xl ${glass} cursor-pointer`}>
               <input type="checkbox" checked={requireId} onChange={e => setRequireId(e.target.checked)} className="accent-primary" />
-              <Shield className="w-3.5 h-3.5 text-white/40" />
+              <Shield className="w-3.5 h-3.5 text-white/75" />
               <span className="text-[10px] text-white">ID Check</span>
             </label>
           </div>
@@ -258,14 +258,14 @@ function NewDeliveryView({ initialPickup, initialDropoff, onDone }: { initialPic
             <label className={labelCls}>Courier Tip</label>
             <div className="flex gap-1.5">
               {[0, 2, 5, 10].map(t => (
-                <button key={t} onClick={() => setTip(t)} className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold ${tip === t ? "bg-primary/20 text-primary border border-primary/30" : `${glass} text-white/40`}`}>
+                <button key={t} onClick={() => setTip(t)} className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold ${tip === t ? "bg-primary/20 text-primary border border-primary/30" : `${glass} text-white/75`}`}>
                   {t === 0 ? "None" : `$${t}`}
                 </button>
               ))}
             </div>
           </div>
           {/* Advanced */}
-          <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/60">
+          <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1 text-[10px] text-white/70 hover:text-white/85">
             {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} Advanced
           </button>
           {showAdvanced && (
@@ -291,17 +291,17 @@ function NewDeliveryView({ initialPickup, initialDropoff, onDone }: { initialPic
         <div className="space-y-3">
           <div className={`${glass} p-4`}>
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div><DollarSign className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/30">Fee</p><p className="text-lg font-mono font-bold text-white">${((quote.fee || 0) / 100).toFixed(2)}</p></div>
-              <div><Clock className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/30">ETA</p><p className="text-lg font-mono font-bold text-white">{quote.duration || "~30"}m</p></div>
-              <div><Truck className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/30">Type</p><p className="text-sm font-bold text-white">{quote.kind || "Standard"}</p></div>
+              <div><DollarSign className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/70">Fee</p><p className="text-lg font-mono font-bold text-white">${((quote.fee || 0) / 100).toFixed(2)}</p></div>
+              <div><Clock className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/70">ETA</p><p className="text-lg font-mono font-bold text-white">{quote.duration || "~30"}m</p></div>
+              <div><Truck className="w-4 h-4 text-primary mx-auto mb-1" /><p className="text-[9px] text-white/70">Type</p><p className="text-sm font-bold text-white">{quote.kind || "Standard"}</p></div>
             </div>
-            {quote.expires && <p className="text-[9px] text-center text-white/20 mt-2">Expires: {new Date(quote.expires).toLocaleString()}</p>}
+            {quote.expires && <p className="text-[9px] text-center text-white/85 mt-2">Expires: {new Date(quote.expires).toLocaleString()}</p>}
           </div>
           <div className={`${glass} p-3 space-y-2`}>
-            <div className="flex items-start gap-2"><div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" /><div><p className="text-[9px] text-white/30 font-mono">FROM</p><p className="text-[11px] text-white">{pickupAddr}</p></div></div>
-            <div className="flex items-start gap-2"><Navigation className="w-2 h-2 text-primary mt-1.5 shrink-0" /><div><p className="text-[9px] text-white/30 font-mono">TO</p><p className="text-[11px] text-white">{dropoffAddr}</p></div></div>
+            <div className="flex items-start gap-2"><div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" /><div><p className="text-[9px] text-white/70 font-mono">FROM</p><p className="text-[11px] text-white">{pickupAddr}</p></div></div>
+            <div className="flex items-start gap-2"><Navigation className="w-2 h-2 text-primary mt-1.5 shrink-0" /><div><p className="text-[9px] text-white/70 font-mono">TO</p><p className="text-[11px] text-white">{dropoffAddr}</p></div></div>
           </div>
-          {tip > 0 && <div className="flex items-center justify-between p-2 rounded-xl bg-green-500/5 border border-green-500/20"><span className="text-[10px] text-white/40">Tip</span><span className="text-sm font-bold text-green-400">${tip}</span></div>}
+          {tip > 0 && <div className="flex items-center justify-between p-2 rounded-xl bg-green-500/5 border border-green-500/20"><span className="text-[10px] text-white/75">Tip</span><span className="text-sm font-bold text-green-400">${tip}</span></div>}
           <div className="flex gap-2">
             <button onClick={() => setStep("details")} className={btnSecondary}>Back</button>
             <button onClick={() => setStep("confirm")} className={`flex-1 ${btnPrimary}`}>Confirm & Create <ArrowRight className="w-4 h-4" /></button>
@@ -313,14 +313,14 @@ function NewDeliveryView({ initialPickup, initialDropoff, onDone }: { initialPic
       {step === "confirm" && (
         <div className="space-y-3">
           <div className={`${glass} p-3`}>
-            <p className="text-[9px] text-white/40 uppercase mb-2">Order Summary</p>
+            <p className="text-[9px] text-white/75 uppercase mb-2">Order Summary</p>
             <div className="space-y-1.5 text-[11px]">
-              <div className="flex justify-between"><span className="text-white/40">Item</span><span className="text-white">{itemDesc} × {itemQty}</span></div>
-              <div className="flex justify-between"><span className="text-white/40">Size</span><span className="text-white capitalize">{itemSize}</span></div>
-              <div className="flex justify-between"><span className="text-white/40">Fee</span><span className="text-white font-mono">${((quote?.fee || 0) / 100).toFixed(2)}</span></div>
-              {tip > 0 && <div className="flex justify-between"><span className="text-white/40">Tip</span><span className="text-green-400">${tip}</span></div>}
-              {requireSig && <div className="flex justify-between"><span className="text-white/40">Signature</span><span className="text-amber-400">Required</span></div>}
-              {requireId && <div className="flex justify-between"><span className="text-white/40">ID Verification</span><span className="text-amber-400">Required</span></div>}
+              <div className="flex justify-between"><span className="text-white/75">Item</span><span className="text-white">{itemDesc} × {itemQty}</span></div>
+              <div className="flex justify-between"><span className="text-white/75">Size</span><span className="text-white capitalize">{itemSize}</span></div>
+              <div className="flex justify-between"><span className="text-white/75">Fee</span><span className="text-white font-mono">${((quote?.fee || 0) / 100).toFixed(2)}</span></div>
+              {tip > 0 && <div className="flex justify-between"><span className="text-white/75">Tip</span><span className="text-green-400">${tip}</span></div>}
+              {requireSig && <div className="flex justify-between"><span className="text-white/75">Signature</span><span className="text-amber-400">Required</span></div>}
+              {requireId && <div className="flex justify-between"><span className="text-white/75">ID Verification</span><span className="text-amber-400">Required</span></div>}
             </div>
           </div>
           <button onClick={handleCreate} disabled={loading} className={btnPrimary}>
@@ -336,7 +336,7 @@ function NewDeliveryView({ initialPickup, initialDropoff, onDone }: { initialPic
           <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto" />
           <p className="text-sm font-bold text-white">Delivery Created!</p>
           <div className={`${glass} p-3`}>
-            <p className="text-[9px] text-white/30 mb-1">Delivery ID</p>
+            <p className="text-[9px] text-white/70 mb-1">Delivery ID</p>
             <p className="text-xs font-mono text-white break-all">{delivery.id}</p>
           </div>
           <button onClick={() => onDone(delivery.id)} className={btnPrimary}><Navigation className="w-4 h-4" /> Track Delivery</button>
@@ -413,12 +413,12 @@ function TrackingView() {
               return (
                 <div key={s.key} className="flex items-start gap-3">
                   <div className="flex flex-col items-center">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${done || active ? "bg-primary" : "bg-white/[0.06]"}`}>
-                      <Icon className={`w-3 h-3 ${done || active ? "text-primary-foreground" : "text-white/20"}`} />
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${done || active ? "bg-primary" : "bg-black/75"}`}>
+                      <Icon className={`w-3 h-3 ${done || active ? "text-primary-foreground" : "text-white/85"}`} />
                     </div>
-                    {i < 4 && <div className={`w-0.5 h-4 ${done ? "bg-primary" : "bg-white/[0.06]"}`} />}
+                    {i < 4 && <div className={`w-0.5 h-4 ${done ? "bg-primary" : "bg-black/75"}`} />}
                   </div>
-                  <p className={`text-[11px] pt-1 ${active ? "text-primary font-semibold" : done ? "text-white" : "text-white/20"}`}>{s.label}</p>
+                  <p className={`text-[11px] pt-1 ${active ? "text-primary font-semibold" : done ? "text-white" : "text-white/85"}`}>{s.label}</p>
                 </div>
               );
             })}
@@ -430,7 +430,7 @@ function TrackingView() {
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><User className="w-4 h-4 text-primary" /></div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white">{status.courier.name}</p>
-                <p className="text-[10px] text-white/30">{status.courier.vehicle_type}</p>
+                <p className="text-[10px] text-white/70">{status.courier.vehicle_type}</p>
               </div>
               {status.courier.phone_number && (
                 <a href={`tel:${status.courier.phone_number}`} className="p-1.5 rounded-lg bg-primary/10 text-primary"><Phone className="w-3.5 h-3.5" /></a>
@@ -462,11 +462,11 @@ function TrackingView() {
           {/* Proof of Delivery */}
           {pod && (
             <div className={`${glass} p-3`}>
-              <p className="text-[9px] text-white/40 uppercase mb-2">Proof of Delivery</p>
+              <p className="text-[9px] text-white/75 uppercase mb-2">Proof of Delivery</p>
               {pod.photo && <img src={pod.photo} alt="POD" className="w-full rounded-lg mb-2" />}
-              {pod.signature && <p className="text-[10px] text-white/40">Signature: ✓ Collected</p>}
-              {pod.pin_code_verified && <p className="text-[10px] text-white/40">PIN: ✓ Verified</p>}
-              {pod.complete_dt && <p className="text-[10px] text-white/30">Completed: {new Date(pod.complete_dt).toLocaleString()}</p>}
+              {pod.signature && <p className="text-[10px] text-white/75">Signature: ✓ Collected</p>}
+              {pod.pin_code_verified && <p className="text-[10px] text-white/75">PIN: ✓ Verified</p>}
+              {pod.complete_dt && <p className="text-[10px] text-white/70">Completed: {new Date(pod.complete_dt).toLocaleString()}</p>}
             </div>
           )}
         </>
@@ -501,19 +501,19 @@ function DeliveryListView({ onTrack }: { onTrack: (id: string) => void }) {
         <div className="space-y-1.5 max-h-64 overflow-y-auto">
           {deliveries.map((d: any, i: number) => (
             <button key={d.id || i} onClick={() => onTrack(d.id)}
-              className={`w-full flex items-center gap-3 p-2.5 rounded-xl ${glass} hover:bg-white/[0.06] text-left transition-colors`}>
+              className={`w-full flex items-center gap-3 p-2.5 rounded-xl ${glass} hover:bg-black/75 text-left transition-colors`}>
               <Truck className={`w-4 h-4 shrink-0 ${d.status === "delivered" ? "text-green-400" : d.status === "canceled" ? "text-red-400" : "text-primary"}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-white font-mono truncate">{d.id?.slice(0, 16)}...</p>
-                <p className="text-[9px] text-white/30 capitalize">{d.status || "unknown"}</p>
+                <p className="text-[9px] text-white/70 capitalize">{d.status || "unknown"}</p>
               </div>
-              <ArrowRight className="w-3 h-3 text-white/20" />
+              <ArrowRight className="w-3 h-3 text-white/85" />
             </button>
           ))}
         </div>
       )}
       {deliveries.length === 0 && !loading && !error && (
-        <div className="text-center py-6"><Truck className="w-8 h-8 text-white/10 mx-auto mb-2" /><p className="text-[11px] text-white/30">Click to load your deliveries</p></div>
+        <div className="text-center py-6"><Truck className="w-8 h-8 text-white/10 mx-auto mb-2" /><p className="text-[11px] text-white/70">Click to load your deliveries</p></div>
       )}
     </div>
   );
