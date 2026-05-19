@@ -3367,85 +3367,62 @@ function SpaceshipPage() {
                             </div>
                           )}
                           {/* Results */}
-                          <div className="flex-1 overflow-y-auto min-h-0 max-h-72 p-2 space-y-0.5">
-                            {(searchLoading || geoLoading) && (
+                          <div className="flex-1 overflow-y-auto min-h-0 max-h-[60vh] p-2 space-y-0.5">
+                            {searchLoading && (
                               <div className="flex items-center justify-center gap-2 py-3">
                                 <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                                <span className="text-xs text-white/70">Searching…</span>
+                                <span className="text-xs text-white/70">Searching nearby…</span>
                               </div>
                             )}
-                            {geoBusinesses.length > 0 && (
-                              <>
-                                <div className="flex items-center gap-2 px-2 py-1">
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                  <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby</span>
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                </div>
-                                {(() => {
-                                  const q = searchQuery.toLowerCase();
-                                  const filtered = q ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q)) : geoBusinesses;
-                                  const shown = showFarther ? filtered : filtered.slice(0, 20);
-                                  return shown.map((b: any, idx: number) => (
-                                    <POICard key={b.id} compact variant="glass" index={idx}
-                                      poi={{ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance }}
-                                      onNavigate={() => {
-                                        flyToBusiness(b);
-                                        setSelectedBusiness({ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance, phone: b.phone || undefined, website: b.website || undefined, brand: b.brand || undefined, cuisine: b.cuisine || undefined, openNow: b.openNow });
-                                        setSearchOpen(false);
-                                      }}
-                                    />
-                                  ));
-                                })()}
-                              </>
-                            )}
-                            {overpassResults.length > 0 && searchQuery && (
-                              <>
-                                <div className="flex items-center gap-2 px-2 py-1">
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                  <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                </div>
-                                {(showFarther ? overpassResults : overpassResults.slice(0, 20)).map((r, idx) => (
-                                  <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
-                                    poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine }}
+                            {(() => {
+                              // Single ranked nearest-first list with distance-bucket dividers
+                              const buckets = [
+                                { max: 1, label: "📍 Within 1 km" },
+                                { max: 5, label: "🚶 Within 5 km" },
+                                { max: 25, label: "🚗 Within 25 km" },
+                                { max: Infinity, label: "🌍 Farther away" },
+                              ];
+                              let bucketIdx = -1;
+                              const out: any[] = [];
+                              unifiedResults.forEach((r, idx) => {
+                                const d = r.distance ?? Infinity;
+                                const bi = buckets.findIndex(b => d <= b.max);
+                                if (bi !== bucketIdx) {
+                                  bucketIdx = bi;
+                                  out.push(
+                                    <div key={`div-${bi}-${idx}`} className="flex items-center gap-2 px-2 py-1.5">
+                                      <div className="flex-1 h-px bg-emerald-500/20" />
+                                      <span className="text-[9px] text-emerald-400/70 font-mono uppercase tracking-wider">{buckets[bi].label}</span>
+                                      <div className="flex-1 h-px bg-emerald-500/20" />
+                                    </div>
+                                  );
+                                }
+                                const id = `uni-${idx}`;
+                                out.push(
+                                  <POICard key={id} compact variant="glass" index={idx}
+                                    poi={{ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description }}
                                     onNavigate={() => {
                                       flyTo(r);
-                                      setSelectedBusiness({ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine });
+                                      setSelectedBusiness({ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description });
                                       setSearchOpen(false);
                                     }}
                                   />
-                                ))}
-                              </>
+                                );
+                              });
+                              return out;
+                            })()}
+                            {!searchLoading && unifiedResults.length === 0 && searchQuery && (
+                              <p className="text-sm text-white/70 text-center py-4">No nearby results. Try a broader term.</p>
                             )}
-                            {!showFarther && searchQuery && (nominatimResults.length > 0 || geoBusinesses.length > 20 || overpassResults.length > 20) && (
-                              <button
-                                onClick={() => setShowFarther(true)}
-                                className="w-full mt-2 py-2 rounded-xl text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
-                              >
-                                Show farther results →
-                              </button>
-                            )}
-                            {showFarther && nominatimResults.length > 0 && searchQuery && (
-                              <>
-                                <div className="flex items-center gap-2 px-2 py-1">
-                                  <div className="flex-1 h-px bg-white/10" />
-                                  <span className="text-[9px] text-white/75 font-mono uppercase">🌍 Farther Places</span>
-                                  <div className="flex-1 h-px bg-white/10" />
-                                </div>
-                                {nominatimResults.map((r, idx) => (
-                                  <POICard key={`nom-${idx}`} compact variant="glass" index={idx}
-                                    poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, description: r.description }}
-                                    onNavigate={() => {
-                                      flyTo(r);
-                                      setSelectedBusiness({ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, description: r.description });
-                                      setSearchOpen(false);
-                                    }}
+                            {!searchLoading && unifiedResults.length === 0 && !searchQuery && searchResults.length > 0 && (
+                              <div className="space-y-0.5">
+                                {searchResults.map((r, idx) => (
+                                  <POICard key={`preset-${idx}`} compact variant="glass" index={idx}
+                                    poi={{ id: `preset-${idx}`, name: r.name, emoji: "⭐", category: r.type, lat: r.lat, lng: r.lng }}
+                                    onNavigate={() => { flyTo(r); setSearchOpen(false); }}
                                   />
                                 ))}
-                              </>
-                            )}
-                            {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && geoBusinesses.length === 0 && !searchLoading && !geoLoading && searchQuery && (
-                              <p className="text-sm text-white/70 text-center py-4">No results found.</p>
+                              </div>
                             )}
                           </div>
                         </div>
