@@ -369,12 +369,11 @@ function SpaceshipPage() {
   const routeCoordsRef = useRef<[number, number][]>([]);
   const journeyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Global search with Nominatim + Overpass
-  const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
-  const [overpassResults, setOverpassResults] = useState<SearchResult[]>([]);
+  // Unified search (nearest-first, OSM Overpass + Nominatim, unlimited)
+  const [unifiedResults, setUnifiedResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showFarther, setShowFarther] = useState(false);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
@@ -537,10 +536,11 @@ function SpaceshipPage() {
     fetchGeofencedBusinesses(loc);
   }, [fetchGeofencedBusinesses]);
 
-  // Re-fetch when category or radius changes and panel is open
+  // Re-fetch geofence panel data ONLY when the geofence panel is open.
+  // The search dropdown drives its own results via runUnifiedSearch.
   useEffect(() => {
-    if ((geofencingOpen || searchOpen) && geoCenter) fetchGeofencedBusinesses(geoCenter);
-  }, [geoRadiusKm, geoCategory, geofencingOpen, searchOpen]);
+    if (geofencingOpen && geoCenter) fetchGeofencedBusinesses(geoCenter);
+  }, [geoRadiusKm, geoCategory, geofencingOpen]);
 
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
@@ -635,82 +635,185 @@ function SpaceshipPage() {
     } catch { return []; }
   }, [classifyOsmResult, geoCenter, geoRadiusKm]);
 
-  /* ── Overpass API for nearby businesses/POIs (geofenced to user location) ── */
-  const searchOverpassBusinesses = useCallback(async (query: string): Promise<SearchResult[]> => {
-    try {
-      const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '');
-      if (!sanitized) return [];
-      // Use user location first, then camera — NO hardcoded fallback
-      let lat: number | null = null, lng: number | null = null;
-      if (geoCenter) {
-        lat = geoCenter.lat;
-        lng = geoCenter.lng;
-      } else {
-        const viewer = viewerRef.current;
-        if (viewer && !viewer.isDestroyed()) {
-          const cam = viewer.camera.positionCartographic;
-          lat = CesiumMath.toDegrees(cam.latitude);
-          lng = CesiumMath.toDegrees(cam.longitude);
-        }
-      }
-      if (lat === null || lng === null) return []; // No location available, defer
-      const degR = geoRadiusKm / 111; // Use user-configurable radius
-      const bbox = `${(lat - degR).toFixed(4)},${(lng - degR).toFixed(4)},${(lat + degR).toFixed(4)},${(lng + degR).toFixed(4)}`;
-      const overpassQuery = `
-[out:json][timeout:10];
-(
-  node["name"~"${sanitized}",i]["shop"](${bbox});
-  node["name"~"${sanitized}",i]["amenity"](${bbox});
-  node["name"~"${sanitized}",i]["tourism"](${bbox});
-  node["name"~"${sanitized}",i]["office"](${bbox});
-  node["name"~"${sanitized}",i]["leisure"](${bbox});
-  node["brand"~"${sanitized}",i](${bbox});
-);
-out center 30;`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const resp = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        body: `data=${encodeURIComponent(overpassQuery)}`,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const data = await resp.json();
-      if (!data.elements) return [];
-      const searchLat = lat, searchLng = lng;
-      return data.elements.slice(0, 30).map((el: any) => {
+  /* ── Unified Nearby-first OSM Search (Overpass + Nominatim, expanding radius, unlimited) ── */
+  const resolveSearchCenter = useCallback((): { lat: number; lng: number } | null => {
+    if (geoCenter) return geoCenter;
+    const viewer = viewerRef.current;
+    if (viewer && !viewer.isDestroyed()) {
+      const cam = viewer.camera.positionCartographic;
+      return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+    }
+    return null;
+  }, [geoCenter]);
+
+  const classifyOverpassTag = (tags: Record<string, string>): string => {
+    const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "", l = tags.leisure || "", h = tags.healthcare || "", o = tags.office || "";
+    if (a === "restaurant" || a === "fast_food" || a === "food_court") return "Restaurant";
+    if (a === "cafe") return "Cafe";
+    if (a === "bar" || a === "pub" || a === "nightclub") return "Bar";
+    if (a === "fuel" || a === "charging_station") return "Fuel";
+    if (a === "pharmacy" || a === "hospital" || a === "clinic" || a === "doctors" || a === "dentist" || h) return "Health";
+    if (a === "bank" || a === "atm") return "Bank";
+    if (a === "school" || a === "university" || a === "college" || a === "kindergarten") return "Education";
+    if (t === "hotel" || t === "motel" || t === "hostel" || t === "guest_house") return "Hotel";
+    if (t === "museum" || t === "gallery" || t === "attraction" || t === "viewpoint") return "Attraction";
+    if (l === "park" || l === "garden") return "Park";
+    if (l) return "Leisure";
+    if (s === "supermarket" || s === "convenience" || s === "grocery") return "Supermarket";
+    if (s) return "Shop";
+    if (o) return "Office";
+    if (tags.craft) return "Craft";
+    if (tags.historic) return "Historic";
+    return "Place";
+  };
+
+  const runOverpassAround = useCallback(async (
+    query: string,
+    center: { lat: number; lng: number },
+    radiusKm: number,
+    signal: AbortSignal,
+  ): Promise<SearchResult[]> => {
+    const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '').trim();
+    const radiusM = Math.round(radiusKm * 1000);
+    const around = `around:${radiusM},${center.lat},${center.lng}`;
+    // If empty query, just discover everything around. Otherwise filter by name/brand/operator.
+    const nameFilter = sanitized ? `["name"~"${sanitized}",i]` : "";
+    const brandFilter = sanitized ? `["brand"~"${sanitized}",i]` : "";
+    const operatorFilter = sanitized ? `["operator"~"${sanitized}",i]` : "";
+    const categoryKeys = ["shop", "amenity", "tourism", "leisure", "office", "healthcare", "craft", "historic"];
+    const blocks = sanitized
+      ? [
+          ...categoryKeys.map(k => `nwr${nameFilter}["${k}"](${around});`),
+          `nwr${brandFilter}(${around});`,
+          `nwr${operatorFilter}(${around});`,
+        ]
+      : categoryKeys.map(k => `nwr["${k}"](${around});`);
+    const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
+    const resp = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: `data=${encodeURIComponent(q)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      signal,
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const seen = new Set<string>();
+    return (data.elements || [])
+      .map((el: any) => {
         const tags = el.tags || {};
-        const elLat = el.lat || el.center?.lat;
-        const elLng = el.lon || el.center?.lon;
-        let type = "Business";
-        if (tags.amenity === "restaurant" || tags.amenity === "fast_food") type = "Restaurant";
-        else if (tags.amenity === "cafe") type = "Cafe";
-        else if (tags.tourism === "hotel" || tags.tourism === "motel") type = "Hotel";
-        else if (tags.shop === "supermarket" || tags.shop === "convenience") type = "Supermarket";
-        else if (tags.shop) type = "Shop";
-        else if (tags.amenity === "fuel") type = "Fuel";
-        else if (tags.amenity === "hospital" || tags.amenity === "pharmacy") type = "Health";
-        else if (tags.amenity === "school" || tags.amenity === "university") type = "Education";
-        const addr = [tags["addr:street"], tags["addr:housenumber"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(", ");
+        const name = tags.name || tags.brand || tags.operator;
+        const lat = el.lat ?? el.center?.lat;
+        const lng = el.lon ?? el.center?.lon;
+        if (!name || !lat || !lng) return null;
+        const key = `${name}|${lat.toFixed(5)}|${lng.toFixed(5)}`;
+        if (seen.has(key)) return null;
+        seen.add(key);
+        const addr = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"], tags["addr:country"]].filter(Boolean).join(" ");
         return {
-          name: tags.name,
-          lat: elLat,
-          lng: elLng,
-          type,
+          name,
+          lat,
+          lng,
+          type: classifyOverpassTag(tags),
           address: addr || undefined,
-          distance: elLat && elLng ? geoHaversine(searchLat, searchLng, elLat, elLng) : undefined,
           phone: tags.phone || tags["contact:phone"] || undefined,
           website: tags.website || tags["contact:website"] || undefined,
           brand: tags.brand || undefined,
           cuisine: tags.cuisine || undefined,
           description: tags.description || undefined,
-        };
+          distance: geoHaversine(center.lat, center.lng, lat, lng),
+        } as SearchResult;
       })
-      .filter((r: any) => r.lat && r.lng)
-      .sort((a: any, b: any) => (a.distance ?? 9999) - (b.distance ?? 9999));
+      .filter(Boolean) as SearchResult[];
+  }, []);
+
+  const runNominatimBounded = useCallback(async (
+    query: string,
+    center: { lat: number; lng: number },
+    radiusKm: number,
+    bounded: boolean,
+    signal: AbortSignal,
+  ): Promise<SearchResult[]> => {
+    if (!query.trim()) return [];
+    const degR = radiusKm / 111;
+    const viewbox = `${(center.lng - degR).toFixed(4)},${(center.lat + degR).toFixed(4)},${(center.lng + degR).toFixed(4)},${(center.lat - degR).toFixed(4)}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=20&addressdetails=1&extratags=1&viewbox=${viewbox}&bounded=${bounded ? 1 : 0}`;
+    try {
+      const resp = await fetch(url, { headers: { "Accept-Language": "en" }, signal });
+      const data = await resp.json();
+      return (data || []).map((r: any) => {
+        const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+        const extra = r.extratags || {};
+        const a = r.address || {};
+        const addr = [a.road, a.house_number, a.city || a.town || a.village, a.state].filter(Boolean).join(", ");
+        return {
+          name: r.display_name.split(",").slice(0, 3).join(","),
+          lat,
+          lng,
+          type: classifyOsmResult(r),
+          address: addr || undefined,
+          phone: extra.phone || extra["contact:phone"] || undefined,
+          website: extra.website || extra["contact:website"] || undefined,
+          brand: extra.brand || undefined,
+          description: extra.description || undefined,
+          distance: geoHaversine(center.lat, center.lng, lat, lng),
+        } as SearchResult;
+      });
     } catch { return []; }
-  }, [geoCenter, geoRadiusKm]);
+  }, [classifyOsmResult]);
+
+  const runUnifiedSearch = useCallback(async (query: string) => {
+    // Abort any in-flight previous search
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
+    let center = resolveSearchCenter();
+    if (!center) {
+      geoLocateUser();
+      // Wait a tick for camera; otherwise we'd bail
+      await new Promise(r => setTimeout(r, 400));
+      center = resolveSearchCenter();
+      if (!center) { setUnifiedResults([]); return; }
+    }
+
+    setSearchLoading(true);
+    try {
+      // Expanding radius until we have ≥20 hits
+      const radii = [2, 5, 15, 50, 150];
+      let overpassHits: SearchResult[] = [];
+      let finalR = radii[radii.length - 1];
+      for (const r of radii) {
+        if (controller.signal.aborted) return;
+        const hits = await runOverpassAround(query, center, r, controller.signal);
+        if (controller.signal.aborted) return;
+        overpassHits = hits;
+        finalR = r;
+        if (hits.length >= 20) break;
+      }
+      // In parallel: bounded Nominatim (near) and unbounded (global), only for textual queries
+      const [nomNear, nomGlobal] = query.trim().length >= 2
+        ? await Promise.all([
+            runNominatimBounded(query, center, Math.max(finalR, 50), true, controller.signal),
+            runNominatimBounded(query, center, Math.max(finalR, 50), false, controller.signal),
+          ])
+        : [[], []];
+      if (controller.signal.aborted) return;
+      // Merge, dedupe by name+coords proximity, sort by distance
+      const merged: SearchResult[] = [];
+      const seen = new Set<string>();
+      for (const r of [...overpassHits, ...nomNear, ...nomGlobal]) {
+        const key = `${(r.name || "").toLowerCase().trim()}|${r.lat.toFixed(3)}|${r.lng.toFixed(3)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(r);
+      }
+      merged.sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
+      setUnifiedResults(merged);
+    } catch { /* aborted or network */ }
+    finally {
+      if (!controller.signal.aborted) setSearchLoading(false);
+    }
+  }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser]);
 
   /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
@@ -1801,16 +1904,15 @@ out center 30;`;
     return () => handler.destroy();
   }, [showMarketplacePins, isLoaded]);
 
-  /* ── Search (local presets + Nominatim + Overpass businesses) ── */
+  /* ── Search input handler: presets + unified OSM search ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setShowFarther(false);
-    if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); setOverpassResults([]); return; }
-    const q = query.toLowerCase();
+    const trimmed = query.trim();
+    const q = trimmed.toLowerCase();
     const filtered = PRESETS.filter(
       (p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)
     );
-    const coordMatch = query.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+    const coordMatch = trimmed.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
     if (coordMatch) {
       filtered.unshift({
         name: `Coordinates ${coordMatch[1]}, ${coordMatch[2]}`,
@@ -1819,55 +1921,19 @@ out center 30;`;
         type: "Coordinate",
       });
     }
-    setSearchResults(filtered);
+    setSearchResults(trimmed ? filtered : PRESETS);
 
-    // Auto-geolocate if no center when user starts searching
-    if (query.trim().length >= 3 && !geoCenter) geoLocateUser();
+    // Auto-geolocate so the very first search has a center
+    if (!geoCenter) geoLocateUser();
 
-    // Debounced parallel search: Nominatim + Overpass — prioritize local businesses
+    // Debounce 350ms, fire for any input (empty → discover-nearby)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    if (query.trim().length >= 3) {
-      setSearchLoading(true);
-      searchTimerRef.current = setTimeout(async () => {
-        const [nomResults, ovResults] = await Promise.all([
-          searchNominatim(query),
-          searchOverpassBusinesses(query),
-        ]);
-        // Deduplicate overpass results that are already in nominatim (by proximity)
-        const deduped = ovResults.filter(ov =>
-          !nomResults.some(n => Math.abs(n.lat - ov.lat) < 0.001 && Math.abs(n.lng - ov.lng) < 0.001)
-        );
-        // Smart ranking: local businesses first, then local places, then global
-        const businessTypes = new Set(["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"]);
-        const nearbyThreshold = geoRadiusKm || 10; // km
-        const center = geoCenter || (viewerRef.current && !viewerRef.current.isDestroyed() ? (() => {
-          const cam = viewerRef.current!.camera.positionCartographic;
-          return { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
-        })() : null);
-
-        const allResults = [...deduped, ...nomResults];
-        // Compute distance for all
-        const withDist = allResults.map(r => ({
-          ...r,
-          _dist: center ? geoHaversine(center.lat, center.lng, r.lat, r.lng) : 9999,
-          _isBiz: businessTypes.has(r.type),
-        }));
-        // Local businesses (within radius)
-        const localBiz = withDist.filter(r => r._isBiz && r._dist <= nearbyThreshold).sort((a, b) => a._dist - b._dist);
-        // Local non-business places
-        const localPlaces = withDist.filter(r => !r._isBiz && r._dist <= nearbyThreshold * 3).sort((a, b) => a._dist - b._dist);
-        // Global results (everything else)
-        const globalResults = withDist.filter(r => !localBiz.includes(r) && !localPlaces.includes(r)).sort((a, b) => a._dist - b._dist);
-
-        setOverpassResults(localBiz.slice(0, 20));
-        setNominatimResults([...localPlaces.slice(0, 10), ...globalResults.slice(0, 10)]);
-        setSearchLoading(false);
-      }, 100);
+    if (trimmed.length === 0 || trimmed.length >= 2) {
+      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed); }, 350);
     } else {
-      setNominatimResults([]);
-      setOverpassResults([]);
+      setUnifiedResults([]);
     }
-  }, [searchNominatim, searchOverpassBusinesses]);
+  }, [runUnifiedSearch, geoCenter, geoLocateUser]);
 
   /* ── Directions search helpers ── */
   const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
@@ -3301,85 +3367,62 @@ out center 30;`;
                             </div>
                           )}
                           {/* Results */}
-                          <div className="flex-1 overflow-y-auto min-h-0 max-h-72 p-2 space-y-0.5">
-                            {(searchLoading || geoLoading) && (
+                          <div className="flex-1 overflow-y-auto min-h-0 max-h-[60vh] p-2 space-y-0.5">
+                            {searchLoading && (
                               <div className="flex items-center justify-center gap-2 py-3">
                                 <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                                <span className="text-xs text-white/70">Searching…</span>
+                                <span className="text-xs text-white/70">Searching nearby…</span>
                               </div>
                             )}
-                            {geoBusinesses.length > 0 && (
-                              <>
-                                <div className="flex items-center gap-2 px-2 py-1">
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                  <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby</span>
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                </div>
-                                {(() => {
-                                  const q = searchQuery.toLowerCase();
-                                  const filtered = q ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q)) : geoBusinesses;
-                                  const shown = showFarther ? filtered : filtered.slice(0, 20);
-                                  return shown.map((b: any, idx: number) => (
-                                    <POICard key={b.id} compact variant="glass" index={idx}
-                                      poi={{ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance }}
-                                      onNavigate={() => {
-                                        flyToBusiness(b);
-                                        setSelectedBusiness({ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance, phone: b.phone || undefined, website: b.website || undefined, brand: b.brand || undefined, cuisine: b.cuisine || undefined, openNow: b.openNow });
-                                        setSearchOpen(false);
-                                      }}
-                                    />
-                                  ));
-                                })()}
-                              </>
-                            )}
-                            {overpassResults.length > 0 && searchQuery && (
-                              <>
-                                <div className="flex items-center gap-2 px-2 py-1">
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                  <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                </div>
-                                {(showFarther ? overpassResults : overpassResults.slice(0, 20)).map((r, idx) => (
-                                  <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
-                                    poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine }}
+                            {(() => {
+                              // Single ranked nearest-first list with distance-bucket dividers
+                              const buckets = [
+                                { max: 1, label: "📍 Within 1 km" },
+                                { max: 5, label: "🚶 Within 5 km" },
+                                { max: 25, label: "🚗 Within 25 km" },
+                                { max: Infinity, label: "🌍 Farther away" },
+                              ];
+                              let bucketIdx = -1;
+                              const out: any[] = [];
+                              unifiedResults.forEach((r, idx) => {
+                                const d = r.distance ?? Infinity;
+                                const bi = buckets.findIndex(b => d <= b.max);
+                                if (bi !== bucketIdx) {
+                                  bucketIdx = bi;
+                                  out.push(
+                                    <div key={`div-${bi}-${idx}`} className="flex items-center gap-2 px-2 py-1.5">
+                                      <div className="flex-1 h-px bg-emerald-500/20" />
+                                      <span className="text-[9px] text-emerald-400/70 font-mono uppercase tracking-wider">{buckets[bi].label}</span>
+                                      <div className="flex-1 h-px bg-emerald-500/20" />
+                                    </div>
+                                  );
+                                }
+                                const id = `uni-${idx}`;
+                                out.push(
+                                  <POICard key={id} compact variant="glass" index={idx}
+                                    poi={{ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description }}
                                     onNavigate={() => {
                                       flyTo(r);
-                                      setSelectedBusiness({ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine });
+                                      setSelectedBusiness({ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description });
                                       setSearchOpen(false);
                                     }}
                                   />
-                                ))}
-                              </>
+                                );
+                              });
+                              return out;
+                            })()}
+                            {!searchLoading && unifiedResults.length === 0 && searchQuery && (
+                              <p className="text-sm text-white/70 text-center py-4">No nearby results. Try a broader term.</p>
                             )}
-                            {!showFarther && searchQuery && (nominatimResults.length > 0 || geoBusinesses.length > 20 || overpassResults.length > 20) && (
-                              <button
-                                onClick={() => setShowFarther(true)}
-                                className="w-full mt-2 py-2 rounded-xl text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
-                              >
-                                Show farther results →
-                              </button>
-                            )}
-                            {showFarther && nominatimResults.length > 0 && searchQuery && (
-                              <>
-                                <div className="flex items-center gap-2 px-2 py-1">
-                                  <div className="flex-1 h-px bg-white/10" />
-                                  <span className="text-[9px] text-white/75 font-mono uppercase">🌍 Farther Places</span>
-                                  <div className="flex-1 h-px bg-white/10" />
-                                </div>
-                                {nominatimResults.map((r, idx) => (
-                                  <POICard key={`nom-${idx}`} compact variant="glass" index={idx}
-                                    poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, description: r.description }}
-                                    onNavigate={() => {
-                                      flyTo(r);
-                                      setSelectedBusiness({ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, description: r.description });
-                                      setSearchOpen(false);
-                                    }}
+                            {!searchLoading && unifiedResults.length === 0 && !searchQuery && searchResults.length > 0 && (
+                              <div className="space-y-0.5">
+                                {searchResults.map((r, idx) => (
+                                  <POICard key={`preset-${idx}`} compact variant="glass" index={idx}
+                                    poi={{ id: `preset-${idx}`, name: r.name, emoji: "⭐", category: r.type, lat: r.lat, lng: r.lng }}
+                                    onNavigate={() => { flyTo(r); setSearchOpen(false); }}
                                   />
                                 ))}
-                              </>
-                            )}
-                            {searchResults.length === 0 && nominatimResults.length === 0 && overpassResults.length === 0 && geoBusinesses.length === 0 && !searchLoading && !geoLoading && searchQuery && (
-                              <p className="text-sm text-white/70 text-center py-4">No results found.</p>
+                              </div>
                             )}
                           </div>
                         </div>
