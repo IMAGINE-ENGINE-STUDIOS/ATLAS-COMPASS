@@ -374,6 +374,9 @@ function SpaceshipPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const [hoveredResultIdx, setHoveredResultIdx] = useState<number | null>(null);
+  const [activeSearchCategory, setActiveSearchCategory] = useState<string>("");
+  const searchResultEntitiesRef = useRef<any[]>([]);
 
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
