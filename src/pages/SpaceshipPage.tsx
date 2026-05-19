@@ -369,12 +369,11 @@ function SpaceshipPage() {
   const routeCoordsRef = useRef<[number, number][]>([]);
   const journeyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Global search with Nominatim + Overpass
-  const [nominatimResults, setNominatimResults] = useState<SearchResult[]>([]);
-  const [overpassResults, setOverpassResults] = useState<SearchResult[]>([]);
+  // Unified search (nearest-first, OSM Overpass + Nominatim, unlimited)
+  const [unifiedResults, setUnifiedResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showFarther, setShowFarther] = useState(false);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
