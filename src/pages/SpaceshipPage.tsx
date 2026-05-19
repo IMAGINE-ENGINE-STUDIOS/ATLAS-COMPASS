@@ -709,19 +709,24 @@ function SpaceshipPage() {
       "https://overpass.osm.ch/api/interpreter",
     ];
     // Race all mirrors in parallel — first to respond wins. Massive latency win.
-    const mirrorPromises = endpoints.map(url => (async () => {
-      const resp = await fetch(url, {
-        method: "POST",
-        body: `data=${encodeURIComponent(q)}`,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal,
+    const raceMirrors = (): Promise<any> => new Promise((resolve, reject) => {
+      let pending = endpoints.length;
+      let resolved = false;
+      endpoints.forEach(url => {
+        fetch(url, {
+          method: "POST",
+          body: `data=${encodeURIComponent(q)}`,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          signal,
+        })
+          .then(r => (r.ok ? r.json() : Promise.reject(new Error("status " + r.status))))
+          .then(json => { if (!resolved) { resolved = true; resolve(json); } })
+          .catch(() => { pending--; if (pending === 0 && !resolved) reject(new Error("all mirrors failed")); });
       });
-      if (!resp.ok) throw new Error("mirror " + resp.status);
-      return resp.json();
-    })());
+    });
     let data: any = null;
     try {
-      data = await Promise.any(mirrorPromises);
+      data = await raceMirrors();
     } catch {
       return [];
     }
