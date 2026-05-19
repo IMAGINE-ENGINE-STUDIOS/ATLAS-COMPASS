@@ -27,9 +27,10 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Public Website */}
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<SpaceshipPage />} />
           <Route path="/atlas" element={<SpaceshipPage />} />
           <Route path="/explore" element={<SpaceshipPage />} />
+          <Route path="/landing" element={<LandingPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
