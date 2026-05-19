@@ -1,76 +1,129 @@
+# Fast Result Engine — Precise, Nearby-First, Map-Exposed
 
-## Problem
+A search experience that loads instantly, prioritizes nearby precision, exposes one-tap category filters (Food, Groceries, Cafés, Shops, etc.), and renders every result as a live pin on the globe synchronized with the dropdown list.
 
-Network logs show the search currently fails in three ways:
+## Goals
 
-1. Every keystroke triggers a new Overpass request **and** a parallel "geofenced businesses" refetch. Each new run aborts the previous one, so nothing finishes (`signal is aborted without reason` on every Overpass call).
-2. Nominatim is called with `bounded=0`, so the viewbox is only a soft hint. For "PUBL" near NYC it returns roads in Romania, Brazil, France — not nearby stores.
-3. Overpass is restricted to a tiny bbox (radius 5 km default) **and** to nodes only. Many shops/restaurants are ways or relations and get dropped, so even when it does complete the user sees 0 nearby.
+1. **Speed**: first useful results in <500ms; never block on slow mirrors.
+2. **Precision**: closest-first ranking; exact matches before fuzzy ones.
+3. **Map exposure**: every result in the panel = a pin on the globe (hover/click syncs both ways).
+4. **Quick templates**: one-tap category chips (Food, Groceries, Cafés, Shops, Pharmacy, Fuel, Hotels, ATMs, Parks).
+5. **No slider**, no radius controls — adaptive radius handled internally.
 
-Result: no nearby businesses, parks, or stores ever show up.
+---
 
-## Goal
-
-A single ranked list, **nearest first, unlimited results**, fed entirely by free public OSM APIs (Overpass + Nominatim — no Google, no Yellow Pages, no DB).
-
-## Approach (frontend only, in `src/pages/SpaceshipPage.tsx`)
-
-### 1. One unified search pipeline
-
-Replace the two parallel searches (`searchNominatim` + `searchOverpassBusinesses` + the `fetchGeofencedBusinesses` effect that also fires on radius change) with one function `runUnifiedSearch(query)` that:
-
-- Uses a single `AbortController` stored in a ref; aborts the previous run on each new keystroke.
-- Debounces 350 ms; only fires for `query.length >= 2`.
-- Resolves the search center once: `geoCenter` → else camera center → else triggers `geoLocateUser()` and bails for this keystroke.
-
-### 2. Nearby-first via Overpass with expanding radius
-
-Run Overpass with `nwr` (nodes + ways + relations, not just nodes), searching `name`, `brand`, and `operator` case-insensitively, across the categories users care about: `shop`, `amenity`, `tourism`, `leisure`, `office`, `healthcare`, `craft`, `historic`.
-
-Use an **expanding radius** loop, stop as soon as we have ≥ 20 hits:
+## Architecture
 
 ```text
-radii = [2, 5, 15, 50, 150]  // km
-for r in radii:
-  hits = overpass(query, center, r)
-  if hits.length >= 20: break
+┌─ SearchBar ──────────────────────────────────────────┐
+│ [🔍 input]  [Food] [Groceries] [Cafés] [Shops] ...   │
+└────────┬─────────────────────────────────────────────┘
+         │ debounced query / category click
+         ▼
+┌─ useSearchEngine() hook ─────────────────────────────┐
+│  • AbortController per request                       │
+│  • Tier 1: in-memory cache (key = q+lat+lng+cat)     │
+│  • Tier 2: Overpass (multi-mirror, expanding radius) │
+│  • Tier 3: Nominatim bounded + global (fuzzy)        │
+│  • Ranking: exact > prefix > fuzzy, then distance    │
+└────────┬─────────────────────────────────────────────┘
+         │ unifiedResults[]
+         ▼
+┌─ ResultsPanel ────────┐   ┌─ MapPinsLayer (Cesium) ─┐
+│  list, hover = focus  │◄──┤ billboards per result   │
+│  click = fly + open   │──►│ hover = highlight       │
+└───────────────────────┘   └─────────────────────────┘
 ```
 
-Each call uses `[out:json][timeout:25];( ... );out center 200;` and `around:` instead of bbox for true radial search. Distances are computed with haversine, results sorted ascending.
+---
 
-### 3. Farther results via Nominatim
+## Components & Files
 
-In parallel with the final Overpass call:
+### New
+- `src/hooks/useSearchEngine.ts` — pure data layer (cache, fetchers, ranking, abort).
+- `src/lib/search/overpass.ts` — multi-mirror Overpass client with race + failover.
+- `src/lib/search/nominatim.ts` — bounded/global Nominatim fetchers.
+- `src/lib/search/categories.ts` — category presets (label, icon, OSM filter).
+- `src/lib/search/ranking.ts` — exact/prefix/fuzzy + haversine scoring.
+- `src/components/atlas/SearchBar.tsx` — input + category chips + status.
+- `src/components/atlas/ResultsPanel.tsx` — list with live distance buckets.
+- `src/components/atlas/SearchPinsLayer.tsx` — Cesium billboards for results, synced via shared hover/selected state.
 
-- One Nominatim call with `viewbox=...&bounded=1` (hard bound) for in-area address/place hits.
-- One Nominatim call **without** viewbox for global fallback, only used after the in-area list is exhausted.
+### Edited
+- `src/pages/SpaceshipPage.tsx` — replace inline search blocks with the new components and hook.
 
-Both feed into the same ranked list and are sorted by haversine distance from the center.
+---
 
-### 4. Single ranked, unlimited list
+## Category Templates (one-tap)
 
-Replace the current "Nearby / Nearby Businesses / Farther Places" three-section UI and the `Show farther results →` toggle with one scrollable list:
+| Chip | Icon | OSM Filter |
+|---|---|---|
+| Food | UtensilsCrossed | `amenity~"restaurant\|fast_food\|food_court"` |
+| Groceries | ShoppingCart | `shop~"supermarket\|convenience\|grocery\|greengrocer\|bakery"` |
+| Cafés | Coffee | `amenity=cafe` |
+| Shops | Store | `shop` (any) |
+| Pharmacy | Stethoscope | `amenity=pharmacy` |
+| Fuel | Fuel | `amenity~"fuel\|charging_station"` |
+| Hotels | Hotel | `tourism~"hotel\|motel\|hostel\|guest_house"` |
+| ATMs | Building2 | `amenity~"atm\|bank"` |
+| Parks | Mountain | `leisure~"park\|garden"` |
 
-- Sorted strictly by distance (km).
-- Each row shows the existing `POICard` (logo, name, one-word service tag, distance).
-- No cap. Virtualised scroll is not required — the list lives in a `max-h-[60vh] overflow-y-auto` container that already exists.
-- Small inline divider every time the distance bucket crosses a threshold (e.g. `< 1 km`, `< 5 km`, `< 25 km`, `farther`) so the user still feels the "nearest first" structure without us hiding anything.
+Category click = empty text + filter active → fires nearby-only Overpass with the filter, no name regex.
 
-### 5. Remove the radius-driven geofence prefetch from the search panel
+---
 
-The `useEffect` that calls `fetchGeofencedBusinesses` whenever `geoRadiusKm`, `geoCategory`, `geofencingOpen`, or `searchOpen` changes is what causes the aborted Overpass storms in the logs. Keep that prefetch only for the standalone geofencing panel, not for the search dropdown. The search dropdown drives its own results from `runUnifiedSearch`.
+## Search Pipeline
 
-### 6. Empty query → recent + category presets
+1. **Trigger**: text input (350ms debounce) OR category chip click (immediate) OR empty input + open dropdown (auto "what's around me").
+2. **Resolve center**: cached camera center → POI focus → geoLocateUser fallback.
+3. **Cache check**: 60s TTL keyed by `q|cat|lat3|lng3`. Hit → render immediately.
+4. **Overpass (parallel mirrors, first to respond wins)**:
+   - Mirrors: `overpass-api.de`, `overpass.kumi.systems`, `overpass.private.coffee`, `overpass.osm.ch`.
+   - `Promise.any` with per-mirror timeout (4s).
+   - Expanding radius: 1 → 3 → 10 → 30 km, stop at ≥20 hits.
+   - Query uses `nwr` + category filter (if chip active) + optional `["name"~q,i]`.
+5. **Nominatim in parallel** (only for text queries ≥2 chars): bounded (viewbox+bounded=1) and global, both rate-limited to 1/sec.
+6. **Merge & dedupe** by `name|lat3|lng3`.
+7. **Rank**:
+   - score = `nameMatchTier * 1000 - distanceKm`
+   - tiers: exact=3, prefix=2, contains=1, fuzzy=0
+   - empty query → pure distance.
+8. **Render**: progressive — emit Overpass hits the moment they arrive, then re-sort when Nominatim resolves.
 
-When the input is empty but the dropdown is open, show the existing `PRESETS` plus a one-shot "what's around me" Overpass call (no name filter, around `geoCenter`, 2 km, top 30 by distance) so the user immediately sees nearby places without typing.
+---
 
-## Files to change
+## Map Exposure
 
-- `src/pages/SpaceshipPage.tsx` — replace `searchNominatim`, `searchOverpassBusinesses`, `handleSearch`, the radius-driven `useEffect`, and the results-rendering JSX in the search dropdown.
-- No other files need changes. `POICard` already renders logo + service + distance correctly.
+- `SearchPinsLayer` reads `unifiedResults` and renders a Cesium billboard per item (category icon, color by type).
+- Pin click → focus that result in the panel + fly camera.
+- Panel item hover → pulse corresponding pin (scale 1.4x via CSS-only billboard property).
+- Pins clear when search closes; persisted POIs remain untouched.
+- Distance buckets in panel: **Within 1 km**, **Within 5 km**, **Within 25 km**, **Farther**.
 
-## Out of scope
+---
 
-- No backend, no database (per "nonSQL doesn't matter — simplest that works").
-- No Google Places or Yellow Pages integration (per "100% free/public").
-- The radius slider stays removed.
+## UX Details
+
+- **Result row**: icon · name · one-word type tag · distance · address (truncated).
+- **Empty input + open**: shows category chips + "Nearby now" list (15 closest places of any kind).
+- **Loading**: subtle skeleton rows (no spinner overlay); never blanks the prior results.
+- **Error**: small inline "Network busy, retrying…" — never empty if cached results exist.
+- **Keyboard**: ↑/↓ to navigate, Enter to fly, Esc to close.
+
+---
+
+## Out of Scope
+
+- No backend, no database, no Google/Yellow Pages, no paid APIs.
+- No radius slider.
+- No changes to POI saving, marketplace, delivery, or routing flows beyond consuming a selected result.
+
+---
+
+## Acceptance Criteria
+
+- Typing "walmart" near any populated area returns ≥1 nearby Walmart within 800ms (when at least one mirror is reachable).
+- Clicking "Groceries" with empty input returns ≥20 grocery stores ranked by distance, all visible as pins on the globe.
+- Hovering a result pulses its pin; clicking flies to it.
+- If all Overpass mirrors fail, Nominatim global results still render for text queries; category chips show a clear "Mirrors unreachable" inline note instead of going blank.
+- No radius slider anywhere in the UI.

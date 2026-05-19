@@ -374,6 +374,9 @@ function SpaceshipPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const [hoveredResultIdx, setHoveredResultIdx] = useState<number | null>(null);
+  const [activeSearchCategory, setActiveSearchCategory] = useState<string>("");
+  const searchResultEntitiesRef = useRef<any[]>([]);
 
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
@@ -672,22 +675,35 @@ function SpaceshipPage() {
     center: { lat: number; lng: number },
     radiusKm: number,
     signal: AbortSignal,
+    categoryFilter?: string,
   ): Promise<SearchResult[]> => {
     const sanitized = query.replace(/["\\\n\r\[\]{}()|.*+?^$]/g, '').trim();
     const radiusM = Math.round(radiusKm * 1000);
     const around = `around:${radiusM},${center.lat},${center.lng}`;
-    // If empty query, just discover everything around. Otherwise filter by name/brand/operator.
+    // Optional category prefilter (e.g., from chips). Otherwise scan all common biz categories.
+    const catBlocks = (() => {
+      switch (categoryFilter) {
+        case "restaurant": return [`nwr["amenity"~"restaurant|fast_food|food_court"](${around});`];
+        case "cafe":       return [`nwr["amenity"="cafe"](${around});`];
+        case "supermarket":return [`nwr["shop"~"supermarket|convenience|grocery|greengrocer|bakery|department_store|general"](${around});`];
+        case "shop":       return [`nwr["shop"](${around});`];
+        case "hotel":      return [`nwr["tourism"~"hotel|motel|hostel|guest_house"](${around});`];
+        case "fuel":       return [`nwr["amenity"~"fuel|charging_station"](${around});`];
+        case "health":     return [`nwr["amenity"~"hospital|pharmacy|clinic|doctors|dentist"](${around});`,`nwr["healthcare"](${around});`];
+        default:           return ["shop","amenity","tourism","leisure","office","healthcare","craft","historic"].map(k => `nwr["${k}"](${around});`);
+      }
+    })();
     const nameFilter = sanitized ? `["name"~"${sanitized}",i]` : "";
     const brandFilter = sanitized ? `["brand"~"${sanitized}",i]` : "";
     const operatorFilter = sanitized ? `["operator"~"${sanitized}",i]` : "";
-    const categoryKeys = ["shop", "amenity", "tourism", "leisure", "office", "healthcare", "craft", "historic"];
+    // If a name is present, intersect it with the category set
     const blocks = sanitized
       ? [
-          ...categoryKeys.map(k => `nwr${nameFilter}["${k}"](${around});`),
+          ...catBlocks.map(b => b.replace(/^nwr/, `nwr${nameFilter}`)),
           `nwr${brandFilter}(${around});`,
           `nwr${operatorFilter}(${around});`,
         ]
-      : categoryKeys.map(k => `nwr["${k}"](${around});`);
+      : catBlocks;
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
     const endpoints = [
       "https://overpass-api.de/api/interpreter",
@@ -695,22 +711,27 @@ function SpaceshipPage() {
       "https://overpass.private.coffee/api/interpreter",
       "https://overpass.osm.ch/api/interpreter",
     ];
-    let data: any = null;
-    for (const url of endpoints) {
-      try {
-        const resp = await fetch(url, {
+    // Race all mirrors in parallel — first to respond wins. Massive latency win.
+    const raceMirrors = (): Promise<any> => new Promise((resolve, reject) => {
+      let pending = endpoints.length;
+      let resolved = false;
+      endpoints.forEach(url => {
+        fetch(url, {
           method: "POST",
           body: `data=${encodeURIComponent(q)}`,
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           signal,
-        });
-        if (!resp.ok) continue;
-        data = await resp.json();
-        break;
-      } catch (e: any) {
-        if (signal.aborted) return [];
-        continue;
-      }
+        })
+          .then(r => (r.ok ? r.json() : Promise.reject(new Error("status " + r.status))))
+          .then(json => { if (!resolved) { resolved = true; resolve(json); } })
+          .catch(() => { pending--; if (pending === 0 && !resolved) reject(new Error("all mirrors failed")); });
+      });
+    });
+    let data: any = null;
+    try {
+      data = await raceMirrors();
+    } catch {
+      return [];
     }
     if (!data) return [];
     const seen = new Set<string>();
@@ -777,7 +798,7 @@ function SpaceshipPage() {
     } catch { return []; }
   }, [classifyOsmResult]);
 
-  const runUnifiedSearch = useCallback(async (query: string) => {
+  const runUnifiedSearch = useCallback(async (query: string, categoryFilter?: string) => {
     // Abort any in-flight previous search
     if (searchAbortRef.current) searchAbortRef.current.abort();
     const controller = new AbortController();
@@ -795,13 +816,14 @@ function SpaceshipPage() {
     setSearchLoading(true);
     try {
       // Expanding radius until we have ≥20 hits. Tolerate Overpass failures.
-      const radii = [2, 5, 15, 50, 150];
+      // Tighter near radii for precision; broader rings only as fallback.
+      const radii = categoryFilter ? [1, 3, 10, 30] : [2, 5, 15, 50, 150];
       let overpassHits: SearchResult[] = [];
       let finalR = radii[radii.length - 1];
       for (const r of radii) {
         if (controller.signal.aborted) return;
         try {
-          const hits = await runOverpassAround(query, center, r, controller.signal);
+          const hits = await runOverpassAround(query, center, r, controller.signal, categoryFilter);
           if (controller.signal.aborted) return;
           if (hits.length > overpassHits.length) overpassHits = hits;
           finalR = r;
@@ -811,14 +833,15 @@ function SpaceshipPage() {
         }
       }
       // In parallel: bounded Nominatim (near) and unbounded (global), only for textual queries
-      const [nomNear, nomGlobal] = query.trim().length >= 2
+      // (skip when category-only browsing — Overpass nearby is more precise)
+      const [nomNear, nomGlobal] = query.trim().length >= 2 && !categoryFilter
         ? await Promise.all([
             runNominatimBounded(query, center, Math.max(finalR, 50), true, controller.signal),
             runNominatimBounded(query, center, Math.max(finalR, 50), false, controller.signal),
           ])
         : [[], []];
       if (controller.signal.aborted) return;
-      // Merge, dedupe by name+coords proximity, sort by distance
+      // Merge, dedupe by name+coords proximity
       const merged: SearchResult[] = [];
       const seen = new Set<string>();
       for (const r of [...overpassHits, ...nomNear, ...nomGlobal]) {
@@ -827,7 +850,22 @@ function SpaceshipPage() {
         seen.add(key);
         merged.push(r);
       }
-      merged.sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
+      // Precision-aware ranking: exact > prefix > contains > fuzzy; tiebreak by distance.
+      const q = query.trim().toLowerCase();
+      const matchTier = (name: string): number => {
+        if (!q) return 0;
+        const n = (name || "").toLowerCase();
+        if (n === q) return 4;
+        if (n.startsWith(q)) return 3;
+        if (n.split(/\s+/).some(w => w.startsWith(q))) return 2;
+        if (n.includes(q)) return 1;
+        return 0;
+      };
+      merged.sort((a, b) => {
+        const ta = matchTier(a.name), tb = matchTier(b.name);
+        if (ta !== tb) return tb - ta;
+        return (a.distance ?? 9e9) - (b.distance ?? 9e9);
+      });
       setUnifiedResults(merged);
     } catch { /* aborted or network */ }
     finally {
@@ -1924,6 +1962,62 @@ function SpaceshipPage() {
     return () => handler.destroy();
   }, [showMarketplacePins, isLoaded]);
 
+  /* ── Search-result pins on the globe (every dropdown item = a pin) ── */
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Clear previous search pins
+    searchResultEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    searchResultEntitiesRef.current = [];
+
+    if (!searchOpen || unifiedResults.length === 0) return;
+
+    const colorByType: Record<string, string> = {
+      Restaurant: "rgba(245,158,11,",
+      Cafe: "rgba(168,85,247,",
+      Supermarket: "rgba(16,185,129,",
+      Shop: "rgba(59,130,246,",
+      Hotel: "rgba(236,72,153,",
+      Fuel: "rgba(239,68,68,",
+      Health: "rgba(239,68,68,",
+      Bank: "rgba(34,197,94,",
+      Education: "rgba(99,102,241,",
+      Park: "rgba(34,197,94,",
+      Office: "rgba(148,163,184,",
+      Leisure: "rgba(56,189,248,",
+    };
+    const iconByType: Record<string, string> = {
+      Restaurant: "🍽️", Cafe: "☕", Supermarket: "🛒", Shop: "🏪",
+      Hotel: "🏨", Fuel: "⛽", Health: "🏥", Bank: "🏦",
+      Education: "🎓", Park: "🌳", Office: "🏢", Leisure: "🎯",
+      Attraction: "🎡", Craft: "🛠️", Historic: "🏛️", Place: "📍",
+    };
+
+    unifiedResults.slice(0, 80).forEach((r, idx) => {
+      const bg = (colorByType[r.type] || "rgba(0,212,255,") + "0.88)";
+      const icon = iconByType[r.type] || "📍";
+      const truncName = r.name.length > 22 ? r.name.slice(0, 20) + "…" : r.name;
+      const entity = viewer.entities.add({
+        id: `search-${idx}-${r.lat.toFixed(5)}-${r.lng.toFixed(5)}`,
+        position: Cartesian3.fromDegrees(r.lng, r.lat, 0),
+        billboard: {
+          image: createPinCanvas(icon, truncName, bg),
+          verticalOrigin: 1,
+          scale: hoveredResultIdx === idx ? 1.25 : 1.0,
+          scaleByDistance: { near: 200, nearValue: 1.0, far: 25000, farValue: 0.3 } as any,
+          translucencyByDistance: { near: 100, nearValue: 1.0, far: 30000, farValue: 0.0 } as any,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          heightReference: 1,
+        },
+        properties: { type: "search-result", idx } as any,
+      });
+      searchResultEntitiesRef.current.push(entity);
+    });
+  }, [unifiedResults, searchOpen, hoveredResultIdx, isLoaded]);
+
   /* ── Search input handler: presets + unified OSM search ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
@@ -1949,11 +2043,11 @@ function SpaceshipPage() {
     // Debounce 350ms, fire for any input (empty → discover-nearby)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (trimmed.length === 0 || trimmed.length >= 2) {
-      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed); }, 350);
+      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed, activeSearchCategory || undefined); }, 350);
     } else {
       setUnifiedResults([]);
     }
-  }, [runUnifiedSearch, geoCenter, geoLocateUser]);
+  }, [runUnifiedSearch, geoCenter, geoLocateUser, activeSearchCategory]);
 
   /* ── Directions search helpers ── */
   const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
@@ -3371,8 +3465,16 @@ function SpaceshipPage() {
                               const catKey = idx === 0 ? "all" : GEO_CATEGORIES[idx].key;
                               const catIcon = idx === 0 ? <Layers className="w-3 h-3" /> : GEO_CATEGORIES[idx].icon;
                               return (
-                                <button key={t} onClick={() => { setGeoCategory(catKey); businessLoadedAreaRef.current = ""; if (!showBusinessIcons) setShowBusinessIcons(true); geofenceFromCamera(); }}
-                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${geoCategory === catKey ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-black/65 text-white/75 border border-white/[0.06] hover:bg-black/75"}`}>
+                                <button key={t} onClick={() => {
+                                    setGeoCategory(catKey);
+                                    businessLoadedAreaRef.current = "";
+                                    if (!showBusinessIcons) setShowBusinessIcons(true);
+                                    geofenceFromCamera();
+                                    const next = catKey === "all" ? "" : catKey;
+                                    setActiveSearchCategory(next);
+                                    runUnifiedSearch(searchQuery.trim(), next || undefined);
+                                  }}
+                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${activeSearchCategory === (catKey === "all" ? "" : catKey) || (catKey === "all" && !activeSearchCategory) ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-black/65 text-white/75 border border-white/[0.06] hover:bg-black/75"}`}>
                                   {catIcon} {t}
                                 </button>
                               );
@@ -3419,14 +3521,16 @@ function SpaceshipPage() {
                                 }
                                 const id = `uni-${idx}`;
                                 out.push(
-                                  <POICard key={id} compact variant="glass" index={idx}
-                                    poi={{ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description }}
-                                    onNavigate={() => {
-                                      flyTo(r);
-                                      setSelectedBusiness({ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description });
-                                      setSearchOpen(false);
-                                    }}
-                                  />
+                                  <div key={id} onMouseEnter={() => setHoveredResultIdx(idx)} onMouseLeave={() => setHoveredResultIdx(null)}>
+                                    <POICard compact variant="glass" index={idx}
+                                      poi={{ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description }}
+                                      onNavigate={() => {
+                                        flyTo(r);
+                                        setSelectedBusiness({ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description });
+                                        setSearchOpen(false);
+                                      }}
+                                    />
+                                  </div>
                                 );
                               });
                               return out;
