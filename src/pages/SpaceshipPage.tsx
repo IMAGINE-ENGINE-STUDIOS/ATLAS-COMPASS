@@ -10,7 +10,7 @@ import {
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag
 } from "lucide-react";
-import { Radius, ChevronDown, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlob, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
@@ -374,6 +374,7 @@ function SpaceshipPage() {
   const [overpassResults, setOverpassResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showFarther, setShowFarther] = useState(false);
 
   // Cargo routes state
   const [showCargoRoutes, setShowCargoRoutes] = useState(false);
@@ -1803,6 +1804,7 @@ out center 30;`;
   /* ── Search (local presets + Nominatim + Overpass businesses) ── */
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
+    setShowFarther(false);
     if (!query.trim()) { setSearchResults(PRESETS); setNominatimResults([]); setOverpassResults([]); return; }
     const q = query.toLowerCase();
     const filtered = PRESETS.filter(
@@ -3211,19 +3213,7 @@ out center 30;`;
                   <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
                     <button onClick={geoLocateUser} title="Use my location" className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0"><Crosshair className="w-3.5 h-3.5" /></button>
                     <button onClick={geofenceFromCamera} title="Scan camera area" className="p-1.5 rounded-lg bg-white/[0.04] text-white/40 hover:text-white/70 transition-colors shrink-0"><Globe className="w-3.5 h-3.5" /></button>
-                    <div className="relative shrink-0">
-                      <button onClick={() => setGeoShowRadius(!geoShowRadius)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[10px] font-mono text-white/50 hover:bg-white/[0.08] transition-colors">
-                        <Radius className="w-3 h-3" /> {geoRadiusKm}km <ChevronDown className="w-2.5 h-2.5" />
-                      </button>
-                      {geoShowRadius && (
-                        <div className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-xl p-1 z-50 min-w-[80px]">
-                          {GEO_RADIUS_OPTIONS.map(r => (
-                            <button key={r} onClick={() => { setGeoRadiusKm(r); setGeoShowRadius(false); }}
-                              className={`w-full text-left px-3 py-1 rounded-lg text-xs transition-colors ${r === geoRadiusKm ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-white/5 text-white/60"}`}>{r} km</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <span className="text-[10px] font-mono text-white/40 ml-1">Nearby first</span>
                   </div>
                   {/* Category pills */}
                   <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
@@ -3258,13 +3248,14 @@ out center 30;`;
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-emerald-500/20" />
-                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby · {geoRadiusKm}km</span>
+                          <span className="text-[9px] text-emerald-400/70 font-mono uppercase">📍 Nearby</span>
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
                         {(() => {
                           const q = searchQuery.toLowerCase();
                           const filtered = q ? geoBusinesses.filter(b => b.name.toLowerCase().includes(q) || b.type.toLowerCase().includes(q)) : geoBusinesses;
-                          return filtered.map((b: any, idx: number) => (
+                          const shown = showFarther ? filtered : filtered.slice(0, 20);
+                          return shown.map((b: any, idx: number) => (
                             <POICard key={b.id} compact variant="glass" index={idx}
                               poi={{ id: b.id, name: b.name, emoji: b.type.split(" ")[0], category: b.type.slice(b.type.indexOf(" ") + 1), address: b.address, lat: b.lat, lng: b.lng, distance: b.distance }}
                               onNavigate={() => {
@@ -3284,7 +3275,7 @@ out center 30;`;
                           <span className="text-[9px] text-emerald-400/70 font-mono uppercase">🏪 Nearby Businesses</span>
                           <div className="flex-1 h-px bg-emerald-500/20" />
                         </div>
-                        {overpassResults.map((r, idx) => (
+                        {(showFarther ? overpassResults : overpassResults.slice(0, 20)).map((r, idx) => (
                           <POICard key={`ov-${idx}`} compact variant="glass" index={idx}
                             poi={{ id: String(idx), name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine }}
                             onNavigate={() => {
@@ -3296,11 +3287,19 @@ out center 30;`;
                         ))}
                       </>
                     )}
-                    {nominatimResults.length > 0 && searchQuery && (
+                    {!showFarther && searchQuery && (nominatimResults.length > 0 || geoBusinesses.length > 20 || overpassResults.length > 20) && (
+                      <button
+                        onClick={() => setShowFarther(true)}
+                        className="w-full mt-2 py-2 rounded-xl text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                      >
+                        Show farther results →
+                      </button>
+                    )}
+                    {showFarther && nominatimResults.length > 0 && searchQuery && (
                       <>
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="flex-1 h-px bg-white/10" />
-                          <span className="text-[9px] text-white/40 font-mono uppercase">🌍 Places</span>
+                          <span className="text-[9px] text-white/40 font-mono uppercase">🌍 Farther Places</span>
                           <div className="flex-1 h-px bg-white/10" />
                         </div>
                         {nominatimResults.map((r, idx) => (

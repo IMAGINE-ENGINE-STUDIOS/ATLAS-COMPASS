@@ -36,6 +36,32 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)}km`;
 }
 
+// Map raw OSM-ish categories to a single-word service tag
+const SERVICE_WORD: Record<string, string> = {
+  restaurant: "Food", "fast food": "Food", cafe: "Coffee", "café": "Coffee",
+  hotel: "Stay", motel: "Stay", hostel: "Stay",
+  shop: "Shop", store: "Shop", supermarket: "Grocery", convenience: "Grocery", grocery: "Grocery", mall: "Mall",
+  fuel: "Fuel", "gas station": "Fuel",
+  hospital: "Health", pharmacy: "Pharmacy", clinic: "Health", doctors: "Health",
+  school: "School", university: "School", college: "School",
+  bank: "Bank", atm: "Bank",
+};
+function serviceWord(category?: string): string {
+  if (!category) return "Place";
+  const k = category.toLowerCase().trim();
+  if (SERVICE_WORD[k]) return SERVICE_WORD[k];
+  // first word, capitalized
+  const first = k.split(/[\s·,/-]+/)[0] || "Place";
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
+function logoForWebsite(website?: string): string | null {
+  if (!website) return null;
+  try {
+    const host = new URL(website.startsWith("http") ? website : `https://${website}`).hostname;
+    return `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
+  } catch { return null; }
+}
+
 export default function POICard({ poi, onNavigate, onSelect, onDirections, onDelivery, compact = false, variant = "glass", index = 0 }: POICardProps) {
   const isGlass = variant === "glass";
   const [copied, setCopied] = useState(false);
@@ -50,6 +76,9 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
   };
 
   if (compact) {
+    const logo = logoForWebsite(poi.website);
+    const service = serviceWord(poi.category);
+    const initial = (poi.name?.[0] || "?").toUpperCase();
     return (
       <button
         onClick={() => (onSelect || onNavigate)?.(poi)}
@@ -59,16 +88,30 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
             : "bg-secondary/20 border border-border/20 hover:bg-primary/10 hover:border-primary/20"
         }`}
       >
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 ${
-          isGlass ? "bg-white/[0.06]" : "bg-primary/10"
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${
+          isGlass ? "bg-white/[0.06] border border-white/[0.06]" : "bg-primary/10"
         }`}>
-          {poi.emoji || "📍"}
+          {logo ? (
+            <img
+              src={logo}
+              alt=""
+              className="w-6 h-6 object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <span className={`text-xs font-bold ${isGlass ? "text-white/70" : "text-foreground"}`}>{initial}</span>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-semibold truncate ${isGlass ? "text-white" : "text-foreground"}`}>{poi.name}</p>
-          <p className={`text-[10px] truncate ${isGlass ? "text-white/30" : "text-muted-foreground"}`}>
-            {poi.category}{poi.address ? ` · ${poi.address}` : ""}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-px rounded ${
+              isGlass ? "bg-emerald-500/15 text-emerald-300" : "bg-primary/15 text-primary"
+            }`}>{service}</span>
+            {poi.address && (
+              <span className={`text-[10px] truncate ${isGlass ? "text-white/30" : "text-muted-foreground"}`}>{poi.address}</span>
+            )}
+          </div>
         </div>
         {poi.openNow !== undefined && (
           <span className={`w-2 h-2 rounded-full shrink-0 ${poi.openNow ? "bg-emerald-400 animate-pulse" : "bg-red-400/60"}`} />
