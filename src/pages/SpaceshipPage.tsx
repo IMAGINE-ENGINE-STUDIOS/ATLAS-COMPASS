@@ -689,14 +689,30 @@ function SpaceshipPage() {
         ]
       : categoryKeys.map(k => `nwr["${k}"](${around});`);
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
-    const resp = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      body: `data=${encodeURIComponent(q)}`,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      signal,
-    });
-    if (!resp.ok) return [];
-    const data = await resp.json();
+    const endpoints = [
+      "https://overpass-api.de/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter",
+      "https://overpass.private.coffee/api/interpreter",
+      "https://overpass.osm.ch/api/interpreter",
+    ];
+    let data: any = null;
+    for (const url of endpoints) {
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          body: `data=${encodeURIComponent(q)}`,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          signal,
+        });
+        if (!resp.ok) continue;
+        data = await resp.json();
+        break;
+      } catch (e: any) {
+        if (signal.aborted) return [];
+        continue;
+      }
+    }
+    if (!data) return [];
     const seen = new Set<string>();
     return (data.elements || [])
       .map((el: any) => {
@@ -778,17 +794,21 @@ function SpaceshipPage() {
 
     setSearchLoading(true);
     try {
-      // Expanding radius until we have ≥20 hits
+      // Expanding radius until we have ≥20 hits. Tolerate Overpass failures.
       const radii = [2, 5, 15, 50, 150];
       let overpassHits: SearchResult[] = [];
       let finalR = radii[radii.length - 1];
       for (const r of radii) {
         if (controller.signal.aborted) return;
-        const hits = await runOverpassAround(query, center, r, controller.signal);
-        if (controller.signal.aborted) return;
-        overpassHits = hits;
-        finalR = r;
-        if (hits.length >= 20) break;
+        try {
+          const hits = await runOverpassAround(query, center, r, controller.signal);
+          if (controller.signal.aborted) return;
+          if (hits.length > overpassHits.length) overpassHits = hits;
+          finalR = r;
+          if (hits.length >= 20) break;
+        } catch {
+          if (controller.signal.aborted) return;
+        }
       }
       // In parallel: bounded Nominatim (near) and unbounded (global), only for textual queries
       const [nomNear, nomGlobal] = query.trim().length >= 2
