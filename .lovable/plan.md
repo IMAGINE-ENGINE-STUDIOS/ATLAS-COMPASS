@@ -1,73 +1,76 @@
 
+## Problem
 
-# Atlas Marketplace Pins + Product Commerce Pipeline
+Network logs show the search currently fails in three ways:
 
-## Overview
-Add marketplace product pins to the Atlas 3D globe with glassmorphic product cards (inspired by the uploaded reference image), expandable detail views with 3D model viewer, photo gallery, purchase pipeline via Stripe, Uber Direct delivery integration, and directions/routing.
+1. Every keystroke triggers a new Overpass request **and** a parallel "geofenced businesses" refetch. Each new run aborts the previous one, so nothing finishes (`signal is aborted without reason` on every Overpass call).
+2. Nominatim is called with `bounded=0`, so the viewbox is only a soft hint. For "PUBL" near NYC it returns roads in Romania, Brazil, France — not nearby stores.
+3. Overpass is restricted to a tiny bbox (radius 5 km default) **and** to nodes only. Many shops/restaurants are ways or relations and get dropped, so even when it does complete the user sees 0 nearby.
 
-## Architecture
+Result: no nearby businesses, parks, or stores ever show up.
+
+## Goal
+
+A single ranked list, **nearest first, unlimited results**, fed entirely by free public OSM APIs (Overpass + Nominatim — no Google, no Yellow Pages, no DB).
+
+## Approach (frontend only, in `src/pages/SpaceshipPage.tsx`)
+
+### 1. One unified search pipeline
+
+Replace the two parallel searches (`searchNominatim` + `searchOverpassBusinesses` + the `fetchGeofencedBusinesses` effect that also fires on radius change) with one function `runUnifiedSearch(query)` that:
+
+- Uses a single `AbortController` stored in a ref; aborts the previous run on each new keystroke.
+- Debounces 350 ms; only fires for `query.length >= 2`.
+- Resolves the search center once: `geoCenter` → else camera center → else triggers `geoLocateUser()` and bails for this keystroke.
+
+### 2. Nearby-first via Overpass with expanding radius
+
+Run Overpass with `nwr` (nodes + ways + relations, not just nodes), searching `name`, `brand`, and `operator` case-insensitively, across the categories users care about: `shop`, `amenity`, `tourism`, `leisure`, `office`, `healthcare`, `craft`, `historic`.
+
+Use an **expanding radius** loop, stop as soon as we have ≥ 20 hits:
 
 ```text
-Atlas Globe (SpaceshipPage.tsx)
-  ├── Business POI pins (existing)
-  ├── NEW: Marketplace product pins (ShoppingBag icon, distinct color)
-  │     └── Click → MarketplaceProductCard (glassmorphic overlay)
-  │           ├── Collapsed: image, price, short description
-  │           └── Expanded:
-  │               ├── 3D Model viewer (if available)
-  │               ├── Photo gallery carousel
-  │               ├── Price, options, quantity selector
-  │               ├── "Buy Now" → Stripe checkout
-  │               ├── "Deliver" → AtlasDeliveryPanel (prefilled)
-  │               └── "Directions" → route polyline on globe
-  └── Toolbar: new Marketplace toggle button
+radii = [2, 5, 15, 50, 150]  // km
+for r in radii:
+  hits = overpass(query, center, r)
+  if hits.length >= 20: break
 ```
 
-## Steps
+Each call uses `[out:json][timeout:25];( ... );out center 200;` and `around:` instead of bbox for true radial search. Distances are computed with haversine, results sorted ascending.
 
-### 1. Create `src/components/atlas/MarketplaceProductCard.tsx`
-- Glassmorphic card matching the uploaded reference style: `backdrop-blur-2xl`, `bg-white/[0.06]`, `border border-white/[0.1]`, rounded-2xl, subtle gradient overlays
-- **Collapsed state**: product image/emoji, name, price, short description, distance
-- **Expanded state** (click to expand):
-  - Photo gallery with horizontal scroll/carousel
-  - 3D model viewer embed (using `<model-viewer>` web component or Three.js inline) when a `modelUrl` is available
-  - Options selector (size, color, variant as tags)
-  - Quantity stepper
-  - "Buy Now" button → triggers Stripe checkout
-  - "Deliver Here" button → opens AtlasDeliveryPanel with seller address prefilled
-  - "Directions" button → draws route from camera to product location
-- Seller info, rating, stock status
+### 3. Farther results via Nominatim
 
-### 2. Create `src/lib/marketplace-products.ts`
-- Define `MarketplaceProduct` interface: `id, name, description, images[], modelUrl?, price, currency, unit, options[], seller, sellerLat, sellerLng, category, stock, rating`
-- Function `fetchMarketplaceProducts(bbox)` — initially returns curated real-world product data from the existing marketplace products array, mapped with real coordinates
-- Export product data with real store coordinates (reuse existing marketplace data + extend)
+In parallel with the final Overpass call:
 
-### 3. Enable Stripe integration
-- Use `stripe--enable_stripe` tool to set up Stripe
-- Create edge function `stripe-checkout` that creates a Checkout Session for a given product
-- Wire "Buy Now" in the card to call the edge function and redirect to Stripe
+- One Nominatim call with `viewbox=...&bounded=1` (hard bound) for in-area address/place hits.
+- One Nominatim call **without** viewbox for global fallback, only used after the in-area list is exhausted.
 
-### 4. Update `SpaceshipPage.tsx` — Add marketplace pin layer
-- New toolbar toggle button (ShoppingBag icon) to show/hide marketplace pins
-- When enabled, place billboard entities for each marketplace product (distinct purple/violet pin color, ShoppingBag icon)
-- On click, show `MarketplaceProductCard` overlay positioned near the pin
-- Wire delivery button → open `AtlasDeliveryPanel` with seller address prefilled
-- Wire directions button → `fetchRoute()` from camera position to product location, draw polyline
-- Wire buy button → Stripe checkout edge function
+Both feed into the same ranked list and are sorted by haversine distance from the center.
 
-### 5. Update `AtlasDeliveryPanel.tsx`
-- Accept optional `productInfo` prop (name, weight, dimensions) to pre-populate item details in the delivery wizard step
+### 4. Single ranked, unlimited list
 
-### 6. Database table for products (optional, for persistence)
-- Create `marketplace_products` table for real product listings
-- For MVP, use client-side data; migrate to DB later
+Replace the current "Nearby / Nearby Businesses / Farther Places" three-section UI and the `Show farther results →` toggle with one scrollable list:
 
-## Technical Details
+- Sorted strictly by distance (km).
+- Each row shows the existing `POICard` (logo, name, one-word service tag, distance).
+- No cap. Virtualised scroll is not required — the list lives in a `max-h-[60vh] overflow-y-auto` container that already exists.
+- Small inline divider every time the distance bucket crosses a threshold (e.g. `< 1 km`, `< 5 km`, `< 25 km`, `farther`) so the user still feels the "nearest first" structure without us hiding anything.
 
-- **Glassmorphic styling**: Match reference image — outer container with `bg-white/[0.06] backdrop-blur-2xl border border-white/[0.1]`, inner sections with `bg-white/[0.04]` cards, subtle `bg-gradient-to-br from-white/[0.08] to-transparent` overlays
-- **3D model viewer**: Use `@google/model-viewer` web component (`<model-viewer>` tag) for inline GLB/glTF preview — lightweight, no extra Cesium entity needed
-- **Stripe flow**: Edge function creates checkout session → redirect to Stripe hosted page → return to Atlas on success
-- **Pin differentiation**: Business pins = emerald, Marketplace pins = violet/purple with ShoppingBag SVG billboard
-- **Route visualization**: Reuse existing OSRM `fetchRoute` logic already in SpaceshipPage
+### 5. Remove the radius-driven geofence prefetch from the search panel
 
+The `useEffect` that calls `fetchGeofencedBusinesses` whenever `geoRadiusKm`, `geoCategory`, `geofencingOpen`, or `searchOpen` changes is what causes the aborted Overpass storms in the logs. Keep that prefetch only for the standalone geofencing panel, not for the search dropdown. The search dropdown drives its own results from `runUnifiedSearch`.
+
+### 6. Empty query → recent + category presets
+
+When the input is empty but the dropdown is open, show the existing `PRESETS` plus a one-shot "what's around me" Overpass call (no name filter, around `geoCenter`, 2 km, top 30 by distance) so the user immediately sees nearby places without typing.
+
+## Files to change
+
+- `src/pages/SpaceshipPage.tsx` — replace `searchNominatim`, `searchOverpassBusinesses`, `handleSearch`, the radius-driven `useEffect`, and the results-rendering JSX in the search dropdown.
+- No other files need changes. `POICard` already renders logo + service + distance correctly.
+
+## Out of scope
+
+- No backend, no database (per "nonSQL doesn't matter — simplest that works").
+- No Google Places or Yellow Pages integration (per "100% free/public").
+- The radius slider stays removed.
