@@ -1039,7 +1039,6 @@ function SpaceshipPage() {
       navigationHelpButton: false,
       navigationInstructionsInitiallyVisible: false,
       creditContainer: document.createElement("div"),
-      skyAtmosphere: undefined,
       orderIndependentTranslucency: false,
     });
 
@@ -1051,6 +1050,43 @@ function SpaceshipPage() {
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
     viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
+
+    // Outer-atmosphere sky glow
+    if (viewer.scene.skyAtmosphere) {
+      viewer.scene.skyAtmosphere.show = true;
+      viewer.scene.skyAtmosphere.hueShift = -0.05;
+      viewer.scene.skyAtmosphere.saturationShift = 0.1;
+      viewer.scene.skyAtmosphere.brightnessShift = 0.05;
+    }
+
+    // Volumetric clouds scattered across the planet's outer atmosphere.
+    // Cesium's CloudCollection renders cumulus billboards that read as
+    // volumetric when viewed from orbit.
+    try {
+      const clouds = viewer.scene.primitives.add(new CloudCollection({ noiseDetail: 16 }));
+      const CLOUD_COUNT = 600;
+      const CLOUD_ALT = 8000; // ~troposphere top, sits above terrain & buildings
+      for (let i = 0; i < CLOUD_COUNT; i++) {
+        // Uniformly distribute on a sphere
+        const u = Math.random();
+        const v = Math.random();
+        const lng = (u * 360) - 180;
+        const lat = (Math.acos(2 * v - 1) * 180 / Math.PI) - 90;
+        const scaleX = 8000 + Math.random() * 24000;
+        const scaleY = 5000 + Math.random() * 16000;
+        clouds.add({
+          position: Cartesian3.fromDegrees(lng, lat, CLOUD_ALT + Math.random() * 4000),
+          scale: new Cartesian2(scaleX, scaleY),
+          maximumSize: new Cartesian3(20, 10, 12),
+          slice: 0.4 + Math.random() * 0.2,
+          brightness: 0.9 + Math.random() * 0.1,
+          cloudType: CloudType.CUMULUS,
+        } as any);
+      }
+      (viewer as any)._volumetricClouds = clouds;
+    } catch (e) {
+      console.warn("[Atlas] Volumetric clouds unavailable:", e);
+    }
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
@@ -1154,21 +1190,13 @@ function SpaceshipPage() {
     });
     brushIndicatorRef.current = brushEntity;
 
-    // Restore last camera position or default to Times Square
-    let initLng = -74.006, initLat = 40.7128, initAlt = 2500, initHeading = 0, initPitch = -35, initRoll = 0;
-    try {
-      const saved = localStorage.getItem("atlas_camera");
-      if (saved) {
-        const c = JSON.parse(saved);
-        if (c.lng != null) { initLng = c.lng; initLat = c.lat; initAlt = c.alt || 2500; initHeading = c.heading || 0; initPitch = c.pitch || -35; initRoll = c.roll || 0; }
-      }
-    } catch {}
+    // World always opens at a full global view (orbit perspective).
     viewer.camera.setView({
-      destination: Cartesian3.fromDegrees(initLng, initLat, initAlt),
+      destination: Cartesian3.fromDegrees(0, 20, 20000000),
       orientation: {
-        heading: CesiumMath.toRadians(initHeading),
-        pitch: CesiumMath.toRadians(initPitch),
-        roll: CesiumMath.toRadians(initRoll),
+        heading: CesiumMath.toRadians(0),
+        pitch: CesiumMath.toRadians(-90),
+        roll: 0,
       },
     });
 
