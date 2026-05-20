@@ -33,7 +33,7 @@ import {
   HeadingPitchRoll, Transforms,
   Cartesian2, Cesium3DTileset,
   PolylineGlowMaterialProperty,
-  CloudCollection, CloudType, SkyAtmosphere,
+  ImageMaterialProperty,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1059,34 +1059,24 @@ function SpaceshipPage() {
       viewer.scene.skyAtmosphere.brightnessShift = 0.05;
     }
 
-    // Volumetric clouds scattered across the planet's outer atmosphere.
-    // Cesium's CloudCollection renders cumulus billboards that read as
-    // volumetric when viewed from orbit.
-    try {
-      const clouds = viewer.scene.primitives.add(new CloudCollection({ noiseDetail: 16 }));
-      const CLOUD_COUNT = 600;
-      const CLOUD_ALT = 8000; // ~troposphere top, sits above terrain & buildings
-      for (let i = 0; i < CLOUD_COUNT; i++) {
-        // Uniformly distribute on a sphere
-        const u = Math.random();
-        const v = Math.random();
-        const lng = (u * 360) - 180;
-        const lat = (Math.acos(2 * v - 1) * 180 / Math.PI) - 90;
-        const scaleX = 8000 + Math.random() * 24000;
-        const scaleY = 5000 + Math.random() * 16000;
-        clouds.add({
-          position: Cartesian3.fromDegrees(lng, lat, CLOUD_ALT + Math.random() * 4000),
-          scale: new Cartesian2(scaleX, scaleY),
-          maximumSize: new Cartesian3(20, 10, 12),
-          slice: 0.4 + Math.random() * 0.2,
-          brightness: 0.9 + Math.random() * 0.1,
-          cloudType: CloudType.CUMULUS,
-        } as any);
-      }
-      (viewer as any)._volumetricClouds = clouds;
-    } catch (e) {
-      console.warn("[Atlas] Volumetric clouds unavailable:", e);
-    }
+    // Volumetric outer-atmosphere clouds — rendered as a translucent
+    // ellipsoid shell wrapping the planet at ~12km, textured with live
+    // global cloud imagery for a real "from orbit" look. This avoids the
+    // known Cesium CloudCollection translucent-sort crash and stays
+    // performant at any zoom level.
+    viewer.entities.add({
+      id: "atmospheric-cloud-shell",
+      position: Cartesian3.fromDegrees(0, 0, 0),
+      ellipsoid: {
+        radii: new Cartesian3(6_390_000, 6_390_000, 6_370_000),
+        material: new ImageMaterialProperty({
+          image: "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg",
+          transparent: true,
+          color: Color.WHITE.withAlpha(0.55) as any,
+        }),
+        outline: false,
+      } as any,
+    });
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
