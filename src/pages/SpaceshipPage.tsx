@@ -1060,33 +1060,37 @@ function SpaceshipPage() {
     }
 
     // Volumetric clouds scattered across the planet's outer atmosphere.
-    // Cesium's CloudCollection renders cumulus billboards that read as
-    // volumetric when viewed from orbit.
-    try {
-      const clouds = viewer.scene.primitives.add(new CloudCollection({ noiseDetail: 16 }));
-      const CLOUD_COUNT = 600;
-      const CLOUD_ALT = 8000; // ~troposphere top, sits above terrain & buildings
-      for (let i = 0; i < CLOUD_COUNT; i++) {
-        // Uniformly distribute on a sphere
-        const u = Math.random();
-        const v = Math.random();
-        const lng = (u * 360) - 180;
-        const lat = (Math.acos(2 * v - 1) * 180 / Math.PI) - 90;
-        const scaleX = 8000 + Math.random() * 24000;
-        const scaleY = 5000 + Math.random() * 16000;
-        clouds.add({
-          position: Cartesian3.fromDegrees(lng, lat, CLOUD_ALT + Math.random() * 4000),
-          scale: new Cartesian2(scaleX, scaleY),
-          maximumSize: new Cartesian3(20, 10, 12),
-          slice: 0.4 + Math.random() * 0.2,
-          brightness: 0.9 + Math.random() * 0.1,
-          cloudType: CloudType.CUMULUS,
-        } as any);
+    // Render asynchronously so a single bad cloud never crashes the scene.
+    requestAnimationFrame(() => {
+      if (viewer.isDestroyed()) return;
+      try {
+        const clouds = new CloudCollection({ noiseDetail: 16 });
+        viewer.scene.primitives.add(clouds);
+        const CLOUD_COUNT = 250;
+        const CLOUD_ALT = 9000;
+        for (let i = 0; i < CLOUD_COUNT; i++) {
+          const u = Math.random();
+          const v = Math.random();
+          const lng = (u * 360) - 180;
+          const lat = (Math.acos(2 * v - 1) * 180 / Math.PI) - 90;
+          const sx = 15000 + Math.random() * 25000;
+          const sy = 10000 + Math.random() * 15000;
+          try {
+            clouds.add({
+              position: Cartesian3.fromDegrees(lng, lat, CLOUD_ALT),
+              scale: new Cartesian2(sx, sy),
+              maximumSize: new Cartesian3(25, 12, 15),
+              slice: 0.5,
+              brightness: 1.0,
+              cloudType: CloudType.CUMULUS,
+            } as any);
+          } catch {}
+        }
+        (viewer as any)._volumetricClouds = clouds;
+      } catch (e) {
+        console.warn("[Atlas] Volumetric clouds unavailable:", e);
       }
-      (viewer as any)._volumetricClouds = clouds;
-    } catch (e) {
-      console.warn("[Atlas] Volumetric clouds unavailable:", e);
-    }
+    });
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
