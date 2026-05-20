@@ -1841,10 +1841,28 @@ function SpaceshipPage() {
     const handleDblClick = (e: Event) => {
       const loc = (e as CustomEvent).detail;
       if (brushMode) {
-        setPendingPlacement(loc);
-        // Lock the brush indicator at this position
-        if (brushIndicatorRef.current && viewerRef.current) {
-          const pos = Cartesian3.fromDegrees(loc.lng, loc.lat, loc.alt);
+        // Sample the actual tile/terrain altitude at this lat/lng so the
+        // brush snaps to the real surface — including negative altitudes
+        // (e.g. below sea level, depressions, basements).
+        let tileAlt = loc.alt;
+        const viewer = viewerRef.current;
+        if (viewer) {
+          try {
+            const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+            const sampled = viewer.scene.sampleHeight(carto);
+            if (typeof sampled === "number" && !isNaN(sampled)) {
+              tileAlt = sampled;
+            } else {
+              const terrainH = viewer.scene.globe.getHeight(carto);
+              if (typeof terrainH === "number" && !isNaN(terrainH)) tileAlt = terrainH;
+            }
+          } catch {}
+        }
+        const snappedLoc = { ...loc, alt: tileAlt };
+        setPendingPlacement(snappedLoc);
+        // Lock the brush indicator at the true tile altitude
+        if (brushIndicatorRef.current && viewer) {
+          const pos = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt);
           brushIndicatorRef.current.position = pos as any;
         }
       } else {
