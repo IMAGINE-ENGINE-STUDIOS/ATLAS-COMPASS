@@ -33,7 +33,6 @@ import {
   HeadingPitchRoll, Transforms,
   Cartesian2, Cesium3DTileset,
   PolylineGlowMaterialProperty,
-  ImageMaterialProperty,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
