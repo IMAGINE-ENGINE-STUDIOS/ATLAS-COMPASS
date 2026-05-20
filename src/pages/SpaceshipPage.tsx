@@ -1059,24 +1059,18 @@ function SpaceshipPage() {
       viewer.scene.skyAtmosphere.brightnessShift = 0.05;
     }
 
-    // Volumetric outer-atmosphere clouds — rendered as a translucent
-    // ellipsoid shell wrapping the planet at ~12km, textured with live
-    // global cloud imagery for a real "from orbit" look. This avoids the
-    // known Cesium CloudCollection translucent-sort crash and stays
-    // performant at any zoom level.
-    viewer.entities.add({
-      id: "atmospheric-cloud-shell",
-      position: Cartesian3.fromDegrees(0, 0, 0),
-      ellipsoid: {
-        radii: new Cartesian3(6_390_000, 6_390_000, 6_370_000),
-        material: new ImageMaterialProperty({
-          image: "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg",
-          transparent: true,
-          color: Color.WHITE.withAlpha(0.55) as any,
-        }),
-        outline: false,
-      } as any,
-    });
+    // Animated ocean water — uses Cesium's built-in water effect driven by
+    // the terrain provider's water mask plus an animated normal map for
+    // realistic moving waves on every ocean surface of the globe.
+    try {
+      viewer.scene.globe.showWaterEffect = true;
+      (viewer.scene.globe as any).oceanNormalMapUrl =
+        "https://cesium.com/public/SandcastleSampleData/waterNormals.jpg";
+      // Subtle blue tint so oceans read as water even before tiles load
+      viewer.scene.globe.baseColor = Color.fromCssColorString("#0b2a4a");
+    } catch (e) {
+      console.warn("[Atlas] Water effect not available", e);
+    }
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
