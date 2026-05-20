@@ -1059,37 +1059,25 @@ function SpaceshipPage() {
       viewer.scene.skyAtmosphere.brightnessShift = 0.05;
     }
 
-    // Volumetric clouds scattered across the planet's outer atmosphere.
-    // Render asynchronously so a single bad cloud never crashes the scene.
-    requestAnimationFrame(() => {
-      if (viewer.isDestroyed()) return;
-      try {
-        const clouds = new CloudCollection({ noiseDetail: 16 });
-        viewer.scene.primitives.add(clouds);
-        const CLOUD_COUNT = 250;
-        const CLOUD_ALT = 9000;
-        for (let i = 0; i < CLOUD_COUNT; i++) {
-          const u = Math.random();
-          const v = Math.random();
-          const lng = (u * 360) - 180;
-          const lat = (Math.acos(2 * v - 1) * 180 / Math.PI) - 90;
-          const sx = 15000 + Math.random() * 25000;
-          const sy = 10000 + Math.random() * 15000;
-          try {
-            clouds.add({
-              position: Cartesian3.fromDegrees(lng, lat, CLOUD_ALT),
-              scale: new Cartesian2(sx, sy),
-              maximumSize: new Cartesian3(25, 12, 15),
-              slice: 0.5,
-              brightness: 1.0,
-              cloudType: CloudType.CUMULUS,
-            } as any);
-          } catch {}
-        }
-        (viewer as any)._volumetricClouds = clouds;
-      } catch (e) {
-        console.warn("[Atlas] Volumetric clouds unavailable:", e);
-      }
+    // Volumetric outer-atmosphere clouds — rendered as a translucent
+    // ellipsoid shell wrapping the planet at ~12km, textured with live
+    // global cloud imagery for a real "from orbit" look. This avoids the
+    // known Cesium CloudCollection translucent-sort crash and stays
+    // performant at any zoom level.
+    viewer.entities.add({
+      id: "atmospheric-cloud-shell",
+      position: Cartesian3.fromDegrees(0, 0, 0),
+      ellipsoid: {
+        radii: new Cartesian3(6_390_000, 6_390_000, 6_370_000),
+        material: new (require("cesium") as any).ImageMaterialProperty
+          ? new (require("cesium") as any).ImageMaterialProperty({
+              image: "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg",
+              transparent: true,
+              color: Color.WHITE.withAlpha(0.55),
+            })
+          : Color.WHITE.withAlpha(0.25),
+        outline: false,
+      } as any,
     });
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
