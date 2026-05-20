@@ -1099,11 +1099,9 @@ function SpaceshipPage() {
     viewer.scene.requestRenderMode = false;
     viewer.scene.maximumRenderTimeChange = Infinity;
 
-    // Add world terrain — request water mask so Cesium's animated ocean
-    // water effect renders with real shorelines, and vertex normals so
-    // specular sun highlights bounce off the waves.
+    // Add world terrain
     createWorldTerrainAsync({
-      requestWaterMask: true,
+      requestWaterMask: false,
       requestVertexNormals: true,
     }).then((terrain) => {
       if (!viewer.isDestroyed()) {
