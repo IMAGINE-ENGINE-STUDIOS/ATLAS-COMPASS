@@ -33,7 +33,6 @@ import {
   HeadingPitchRoll, Transforms,
   Cartesian2, Cesium3DTileset,
   PolylineGlowMaterialProperty,
-  ImageMaterialProperty,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1059,39 +1058,6 @@ function SpaceshipPage() {
       viewer.scene.skyAtmosphere.brightnessShift = 0.05;
     }
 
-    // Animated ocean water with realistic sun specular highlights.
-    // - Cesium's built-in water effect uses the terrain water mask
-    //   to mark ocean tiles, then drives an animated normal map for
-    //   moving wave geometry.
-    // - Dynamic atmosphere lighting + sun-from-camera/sun-direction
-    //   lighting makes the sun glint reflect off the wave normals,
-    //   producing visible specular highlights from orbit.
-    try {
-      viewer.scene.globe.showWaterEffect = true;
-      (viewer.scene.globe as any).oceanNormalMapUrl =
-        "https://cesium.com/public/SandcastleSampleData/waterNormals.jpg";
-      viewer.scene.globe.baseColor = Color.fromCssColorString("#0b2a4a");
-
-      // Real sun lighting on the globe so oceans get specular glint
-      viewer.scene.globe.enableLighting = true;
-      (viewer.scene.globe as any).dynamicAtmosphereLighting = true;
-      (viewer.scene.globe as any).dynamicAtmosphereLightingFromSun = true;
-      (viewer.scene.globe as any).atmosphereLightIntensity = 12;
-
-      // Brighter outer atmosphere so the limb glows around the wet planet
-      if (viewer.scene.skyAtmosphere) {
-        viewer.scene.skyAtmosphere.show = true;
-        (viewer.scene.skyAtmosphere as any).brightnessShift = 0.15;
-        (viewer.scene.skyAtmosphere as any).saturationShift = 0.2;
-      }
-
-      // Keep the scene clock advancing so the animated normal map
-      // continuously scrolls (waves stay alive even when idle).
-      viewer.clock.shouldAnimate = true;
-      viewer.clock.multiplier = 1;
-    } catch (e) {
-      console.warn("[Atlas] Water effect not available", e);
-    }
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
@@ -1132,11 +1098,9 @@ function SpaceshipPage() {
     viewer.scene.requestRenderMode = false;
     viewer.scene.maximumRenderTimeChange = Infinity;
 
-    // Add world terrain — request water mask so Cesium's animated ocean
-    // water effect renders with real shorelines, and vertex normals so
-    // specular sun highlights bounce off the waves.
+    // Add world terrain
     createWorldTerrainAsync({
-      requestWaterMask: true,
+      requestWaterMask: false,
       requestVertexNormals: true,
     }).then((terrain) => {
       if (!viewer.isDestroyed()) {

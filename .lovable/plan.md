@@ -1,129 +1,75 @@
-# Fast Result Engine — Precise, Nearby-First, Map-Exposed
-
-A search experience that loads instantly, prioritizes nearby precision, exposes one-tap category filters (Food, Groceries, Cafés, Shops, etc.), and renders every result as a live pin on the globe synchronized with the dropdown list.
-
 ## Goals
 
-1. **Speed**: first useful results in <500ms; never block on slow mirrors.
-2. **Precision**: closest-first ranking; exact matches before fuzzy ones.
-3. **Map exposure**: every result in the panel = a pin on the globe (hover/click syncs both ways).
-4. **Quick templates**: one-tap category chips (Food, Groceries, Cafés, Shops, Pharmacy, Fuel, Hotels, ATMs, Parks).
-5. **No slider**, no radius controls — adaptive radius handled internally.
+1. Revert the last two visual changes (cloud shell + ocean water/specular). Restore the original clean globe baseline.
+2. Upgrade the Atlas search engine by layering **Google Maps Platform** (Places API New + Geocoding) on top of the existing free OSM Overpass + Nominatim pipeline — Google fills gaps, OSM stays as fallback, results are merged and deduped.
 
----
+## Step 1 — Roll back the planet changes
 
-## Architecture
+In `src/pages/SpaceshipPage.tsx`:
+
+- Remove the `viewer.entities.add({ id: "atmospheric-cloud-shell", ... })` block (the translucent NASA-clouds ellipsoid).
+- Remove the "Animated ocean water" block: `showWaterEffect`, `oceanNormalMapUrl`, `dynamicAtmosphereLighting*`, the `atmosphereLightIntensity` re-assignment, the `skyAtmosphere.brightnessShift/saturationShift` overrides, and the `viewer.clock.shouldAnimate / multiplier` lines.
+- Restore `createWorldTerrainAsync({ requestWaterMask: false, requestVertexNormals: true })` (the water mask is no longer needed and slows tile loads).
+- Drop the now-unused `ImageMaterialProperty` import.
+
+Net effect: globe goes back to the exact state before those two requests — no clouds, no animated water shader, no specular changes.
+
+## Step 2 — Wire up Google Maps Platform
+
+Connect the **Google Maps Platform** connector (`google_maps`) via `standard_connectors--connect`. This auto-provisions:
+
+- Server-side gateway access via `LOVABLE_API_KEY` + `GOOGLE_MAPS_API_KEY` (for Places API New, Geocoding, Routes).
+- `VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY` for any browser-side Places autocomplete if we want it later.
+
+No user-supplied API key needed — the managed connection works on `*.lovable.app`.
+
+## Step 3 — New edge function: `google-search`
+
+Create `supabase/functions/google-search/index.ts`:
+
+- Inputs: `{ query: string, center?: {lat,lng}, radiusMeters?: number }`.
+- Calls Places API (New) **Text Search** through the gateway:
+  `POST https://connector-gateway.lovable.dev/google_maps/places/v1/places:searchText`
+  with `X-Goog-FieldMask: places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.userRatingCount,places.websiteUri,places.nationalPhoneNumber,places.primaryType,places.iconMaskBaseUri`
+  and `locationBias.circle` when `center` is provided.
+- If the query looks like a pure address (no business keyword and Places returns 0), fall back to **Geocoding API** (`/maps/api/geocode/json`) via the same gateway.
+- Returns a normalized array shaped like the existing `SearchResult` (id, name, lat, lng, type, address, source: "google").
+- Standard headers, Zod input validation, abort-safe.
+
+## Step 4 — Merge into the unified search
+
+In `src/pages/SpaceshipPage.tsx` `runUnifiedSearch`:
 
 ```text
-┌─ SearchBar ──────────────────────────────────────────┐
-│ [🔍 input]  [Food] [Groceries] [Cafés] [Shops] ...   │
-└────────┬─────────────────────────────────────────────┘
-         │ debounced query / category click
-         ▼
-┌─ useSearchEngine() hook ─────────────────────────────┐
-│  • AbortController per request                       │
-│  • Tier 1: in-memory cache (key = q+lat+lng+cat)     │
-│  • Tier 2: Overpass (multi-mirror, expanding radius) │
-│  • Tier 3: Nominatim bounded + global (fuzzy)        │
-│  • Ranking: exact > prefix > fuzzy, then distance    │
-└────────┬─────────────────────────────────────────────┘
-         │ unifiedResults[]
-         ▼
-┌─ ResultsPanel ────────┐   ┌─ MapPinsLayer (Cesium) ─┐
-│  list, hover = focus  │◄──┤ billboards per result   │
-│  click = fly + open   │──►│ hover = highlight       │
-└───────────────────────┘   └─────────────────────────┘
+runUnifiedSearch(query)
+ ├─ runOverpassAround (expanding radii) ──► osm hits
+ ├─ runNominatimBounded near + global ───► nominatim hits
+ └─ supabase.functions.invoke('google-search', { query, center }) ──► google hits
+                                │
+                                ▼
+                merge → dedupe by (name + ~25m proximity) → rank
 ```
 
----
+Ranking changes (only the merge step, existing exact/prefix/contains scoring kept):
 
-## Components & Files
+1. Exact-name matches first, regardless of source.
+2. Then by haversine distance from viewport center.
+3. Tie-breaker: Google hits with a `rating ≥ 4.0` win over OSM hits to surface verified businesses faster.
+4. Dedupe: if a Google place and an OSM POI share a normalized name and are within ~25 m, keep the Google one (richer metadata) and merge the OSM id for back-compat.
 
-### New
-- `src/hooks/useSearchEngine.ts` — pure data layer (cache, fetchers, ranking, abort).
-- `src/lib/search/overpass.ts` — multi-mirror Overpass client with race + failover.
-- `src/lib/search/nominatim.ts` — bounded/global Nominatim fetchers.
-- `src/lib/search/categories.ts` — category presets (label, icon, OSM filter).
-- `src/lib/search/ranking.ts` — exact/prefix/fuzzy + haversine scoring.
-- `src/components/atlas/SearchBar.tsx` — input + category chips + status.
-- `src/components/atlas/ResultsPanel.tsx` — list with live distance buckets.
-- `src/components/atlas/SearchPinsLayer.tsx` — Cesium billboards for results, synced via shared hover/selected state.
+UI: the existing results dropdown stays as-is. Each row gains a tiny source badge — "Google" (subtle white text), nothing for OSM — so the user can tell where a hit came from. Pin colors unchanged.
 
-### Edited
-- `src/pages/SpaceshipPage.tsx` — replace inline search blocks with the new components and hook.
+## Step 5 — Enrich POI cards
 
----
+When a result has `source: "google"` we already get phone, website, rating, review count, and `iconMaskBaseUri`. Pass these through to `POICard` so the existing fields are populated from Google when present, OSM otherwise — no new card layout.
 
-## Category Templates (one-tap)
+## Technical details
 
-| Chip | Icon | OSM Filter |
-|---|---|---|
-| Food | UtensilsCrossed | `amenity~"restaurant\|fast_food\|food_court"` |
-| Groceries | ShoppingCart | `shop~"supermarket\|convenience\|grocery\|greengrocer\|bakery"` |
-| Cafés | Coffee | `amenity=cafe` |
-| Shops | Store | `shop` (any) |
-| Pharmacy | Stethoscope | `amenity=pharmacy` |
-| Fuel | Fuel | `amenity~"fuel\|charging_station"` |
-| Hotels | Hotel | `tourism~"hotel\|motel\|hostel\|guest_house"` |
-| ATMs | Building2 | `amenity~"atm\|bank"` |
-| Parks | Mountain | `leisure~"park\|garden"` |
+- All Google calls go through the connector gateway (never direct to `googleapis.com`).
+- No browser-side Google calls in this plan — we keep search server-side so we control quotas and field masks.
+- Existing free OSM pipeline is **not removed**; Google is additive. If the edge function fails or returns empty, search still works exactly like today.
+- New file: `supabase/functions/google-search/index.ts` (auto-deployed by Lovable Cloud).
+- Edited file: `src/pages/SpaceshipPage.tsx` (revert globe changes + extend `runUnifiedSearch` + tiny badge in dropdown row).
+- Edited file: `src/components/POICard.tsx` (pass through Google fields when present).
 
-Category click = empty text + filter active → fires nearby-only Overpass with the filter, no name regex.
-
----
-
-## Search Pipeline
-
-1. **Trigger**: text input (350ms debounce) OR category chip click (immediate) OR empty input + open dropdown (auto "what's around me").
-2. **Resolve center**: cached camera center → POI focus → geoLocateUser fallback.
-3. **Cache check**: 60s TTL keyed by `q|cat|lat3|lng3`. Hit → render immediately.
-4. **Overpass (parallel mirrors, first to respond wins)**:
-   - Mirrors: `overpass-api.de`, `overpass.kumi.systems`, `overpass.private.coffee`, `overpass.osm.ch`.
-   - `Promise.any` with per-mirror timeout (4s).
-   - Expanding radius: 1 → 3 → 10 → 30 km, stop at ≥20 hits.
-   - Query uses `nwr` + category filter (if chip active) + optional `["name"~q,i]`.
-5. **Nominatim in parallel** (only for text queries ≥2 chars): bounded (viewbox+bounded=1) and global, both rate-limited to 1/sec.
-6. **Merge & dedupe** by `name|lat3|lng3`.
-7. **Rank**:
-   - score = `nameMatchTier * 1000 - distanceKm`
-   - tiers: exact=3, prefix=2, contains=1, fuzzy=0
-   - empty query → pure distance.
-8. **Render**: progressive — emit Overpass hits the moment they arrive, then re-sort when Nominatim resolves.
-
----
-
-## Map Exposure
-
-- `SearchPinsLayer` reads `unifiedResults` and renders a Cesium billboard per item (category icon, color by type).
-- Pin click → focus that result in the panel + fly camera.
-- Panel item hover → pulse corresponding pin (scale 1.4x via CSS-only billboard property).
-- Pins clear when search closes; persisted POIs remain untouched.
-- Distance buckets in panel: **Within 1 km**, **Within 5 km**, **Within 25 km**, **Farther**.
-
----
-
-## UX Details
-
-- **Result row**: icon · name · one-word type tag · distance · address (truncated).
-- **Empty input + open**: shows category chips + "Nearby now" list (15 closest places of any kind).
-- **Loading**: subtle skeleton rows (no spinner overlay); never blanks the prior results.
-- **Error**: small inline "Network busy, retrying…" — never empty if cached results exist.
-- **Keyboard**: ↑/↓ to navigate, Enter to fly, Esc to close.
-
----
-
-## Out of Scope
-
-- No backend, no database, no Google/Yellow Pages, no paid APIs.
-- No radius slider.
-- No changes to POI saving, marketplace, delivery, or routing flows beyond consuming a selected result.
-
----
-
-## Acceptance Criteria
-
-- Typing "walmart" near any populated area returns ≥1 nearby Walmart within 800ms (when at least one mirror is reachable).
-- Clicking "Groceries" with empty input returns ≥20 grocery stores ranked by distance, all visible as pins on the globe.
-- Hovering a result pulses its pin; clicking flies to it.
-- If all Overpass mirrors fail, Nominatim global results still render for text queries; category chips show a clear "Mirrors unreachable" inline note instead of going blank.
-- No radius slider anywhere in the UI.
+No DB migrations, no auth changes, no new npm packages.
