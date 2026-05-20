@@ -1070,13 +1070,11 @@ function SpaceshipPage() {
       position: Cartesian3.fromDegrees(0, 0, 0),
       ellipsoid: {
         radii: new Cartesian3(6_390_000, 6_390_000, 6_370_000),
-        material: new (require("cesium") as any).ImageMaterialProperty
-          ? new (require("cesium") as any).ImageMaterialProperty({
-              image: "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg",
-              transparent: true,
-              color: Color.WHITE.withAlpha(0.55),
-            })
-          : Color.WHITE.withAlpha(0.25),
+        material: new ImageMaterialProperty({
+          image: "https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg",
+          transparent: true,
+          color: Color.WHITE.withAlpha(0.55) as any,
+        }),
         outline: false,
       } as any,
     });
