@@ -322,6 +322,12 @@ function SpaceshipPage() {
   // Tile Brush state
   const [brushMode, setBrushMode] = useState(false);
   const [brushPanelOpen, setBrushPanelOpen] = useState(false);
+  // Targeting Brush sub-modes:
+  //   reticle — live single-point info HUD
+  //   area    — paint a circular zone, scan & export
+  //   stamp   — load a model once, click to stamp many times
+  type BrushSubMode = "reticle" | "area" | "stamp";
+  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>("stamp");
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
@@ -338,6 +344,29 @@ function SpaceshipPage() {
   const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
+
+  // Stamp-mode loaded model (persists across stamps so dialog opens only once)
+  const stampModelRef = useRef<{
+    blobUrl: string;
+    fileName: string;
+    name: string;
+    baseScale: number;
+    baseHeading: number;
+  } | null>(null);
+  const [stampModelInfo, setStampModelInfo] = useState<{ name: string; fileName: string } | null>(null);
+  const [stampSpacingM, setStampSpacingM] = useState(0);
+  const lastStampRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  // Area-mode state
+  const areaEntityRef = useRef<any>(null);
+  const [areaCenter, setAreaCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [areaRadiusM, setAreaRadiusM] = useState(250);
+  const [areaScanning, setAreaScanning] = useState(false);
+  const [areaScanResults, setAreaScanResults] = useState<SearchResult[]>([]);
+
+  // Reticle-mode locked target
+  const [reticleTarget, setReticleTarget] = useState<{ lat: number; lng: number; alt: number } | null>(null);
+  const brushSubModeRef = useRef<BrushSubMode>("stamp");
 
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
