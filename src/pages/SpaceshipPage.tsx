@@ -2065,9 +2065,28 @@ function SpaceshipPage() {
   // Brush mode indicator visibility
   useEffect(() => {
     if (brushIndicatorRef.current) {
-      brushIndicatorRef.current.show = brushMode;
+      // Show the cursor reticle only when actively painting (not when
+      // browsing the placed-models list with brushMode off, and not while
+      // the area sub-mode draws its own circle).
+      brushIndicatorRef.current.show = brushMode && brushSubMode !== "area";
     }
-  }, [brushMode]);
+    if (areaEntityRef.current) {
+      areaEntityRef.current.show = brushMode && brushSubMode === "area" && !!areaCenter;
+    }
+  }, [brushMode, brushSubMode, areaCenter]);
+
+  // Keep the area-indicator entity in sync with center + radius
+  useEffect(() => {
+    const ent = areaEntityRef.current;
+    if (!ent) return;
+    if (areaCenter) {
+      ent.position = Cartesian3.fromDegrees(areaCenter.lng, areaCenter.lat, 0) as any;
+      if (ent.ellipse) {
+        ent.ellipse.semiMajorAxis = areaRadiusM as any;
+        ent.ellipse.semiMinorAxis = areaRadiusM as any;
+      }
+    }
+  }, [areaCenter, areaRadiusM]);
 
   // Marketplace pins — add/remove product billboard entities
   useEffect(() => {
