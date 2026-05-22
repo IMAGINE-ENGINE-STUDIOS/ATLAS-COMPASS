@@ -3309,7 +3309,14 @@ function SpaceshipPage() {
                       )}
                     </button>
                     <button
-                      onClick={() => { setPendingPlacement(null); setModelFile(null); setModelName(""); }}
+                      onClick={() => {
+                        setPendingPlacement(null);
+                        setModelFile(null);
+                        setModelName("");
+                        setConvertError(null);
+                        setConvertProgress("");
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
                       className="px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors"
                     >
                       Cancel
