@@ -2038,6 +2038,39 @@ function SpaceshipPage() {
           return;
         }
 
+        if (sub === "tiles") {
+          const tool = tilesToolRef.current;
+          if (tool === "grid") {
+            const { x, y } = lngLatToTile(snappedLoc.lat, snappedLoc.lng, tileZoom);
+            const k = tileKey(tileZoom, x, y);
+            setSelectedTiles(prev => {
+              const next = new Set(prev);
+              if (next.has(k)) next.delete(k); else next.add(k);
+              return next;
+            });
+          } else if (tool === "rectangle") {
+            if (!rectStart) {
+              setRectStart({ lat: snappedLoc.lat, lng: snappedLoc.lng });
+            } else {
+              const a = lngLatToTile(rectStart.lat, rectStart.lng, tileZoom);
+              const b = lngLatToTile(snappedLoc.lat, snappedLoc.lng, tileZoom);
+              const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+              const y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+              setSelectedTiles(prev => {
+                const next = new Set(prev);
+                for (let xi = x0; xi <= x1; xi++)
+                  for (let yi = y0; yi <= y1; yi++)
+                    next.add(tileKey(tileZoom, xi, yi));
+                return next;
+              });
+              setRectStart(null);
+            }
+          } else if (tool === "lasso") {
+            setLassoPoints(prev => [...prev, { lat: snappedLoc.lat, lng: snappedLoc.lng }]);
+          }
+          return;
+        }
+
         // sub === "stamp"
         // If a model is already loaded into stamp memory, stamp directly.
         if (stampModelRef.current) {
