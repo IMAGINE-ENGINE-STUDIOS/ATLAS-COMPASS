@@ -3641,6 +3641,7 @@ function SpaceshipPage() {
                       ))}
                     </div>
                   )}
+                  </div>
                 </GlassPanel>
               </div>
             )}
