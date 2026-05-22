@@ -840,23 +840,74 @@ function SpaceshipPage() {
           if (controller.signal.aborted) return;
         }
       }
-      // In parallel: bounded Nominatim (near) and unbounded (global), only for textual queries
-      // (skip when category-only browsing — Overpass nearby is more precise)
-      const [nomNear, nomGlobal] = query.trim().length >= 2 && !categoryFilter
+      // In parallel: bounded Nominatim (near), unbounded (global), and Google Places
+      // (Google fills gaps for businesses, addresses, ratings — only for textual queries)
+      const isTextual = query.trim().length >= 2 && !categoryFilter;
+      const googlePromise: Promise<SearchResult[]> = isTextual
+        ? supabase.functions
+            .invoke("google-search", {
+              body: {
+                query: query.trim(),
+                center: { lat: center.lat, lng: center.lng },
+                radiusMeters: Math.min(Math.max(finalR * 1000, 2000), 50000),
+              },
+            })
+            .then(({ data, error }) => {
+              if (error || !data?.results) return [];
+              return (data.results as any[]).map((r) => ({
+                name: r.name,
+                lat: r.lat,
+                lng: r.lng,
+                type: r.type || "Place",
+                address: r.address,
+                phone: r.phone,
+                website: r.website,
+                rating: r.rating,
+                ratingCount: r.ratingCount,
+                placeId: r.placeId,
+                source: "google" as const,
+              }));
+            })
+            .catch(() => [])
+        : Promise.resolve([]);
+
+      const [nomNear, nomGlobal, googleHits] = isTextual
         ? await Promise.all([
             runNominatimBounded(query, center, Math.max(finalR, 50), true, controller.signal),
             runNominatimBounded(query, center, Math.max(finalR, 50), false, controller.signal),
+            googlePromise,
           ])
-        : [[], []];
+        : [[], [], []];
       if (controller.signal.aborted) return;
-      // Merge, dedupe by name+coords proximity
+      // Merge with proximity-aware dedupe. When a Google place collides with an
+      // OSM/Nominatim hit within ~25 m on the same normalized name, prefer Google
+      // (richer metadata: phone, website, rating).
+      const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const distM = (a: SearchResult, b: SearchResult) => {
+        const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+        const s = Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(s));
+      };
+      const tagged: SearchResult[] = [
+        ...googleHits,
+        ...overpassHits.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
+        ...nomNear.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
+        ...nomGlobal.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
+      ];
       const merged: SearchResult[] = [];
-      const seen = new Set<string>();
-      for (const r of [...overpassHits, ...nomNear, ...nomGlobal]) {
-        const key = `${(r.name || "").toLowerCase().trim()}|${r.lat.toFixed(3)}|${r.lng.toFixed(3)}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push(r);
+      for (const r of tagged) {
+        const n = norm(r.name);
+        const dup = merged.find(
+          (m) => norm(m.name) === n && distM(m, r) < 25,
+        );
+        if (!dup) { merged.push(r); continue; }
+        // Upgrade existing to Google if richer.
+        if (dup.source !== "google" && r.source === "google") {
+          const idx = merged.indexOf(dup);
+          merged[idx] = { ...r };
+        }
       }
       // Precision-aware ranking: exact > prefix > contains > fuzzy; tiebreak by distance.
       const q = query.trim().toLowerCase();
@@ -872,6 +923,10 @@ function SpaceshipPage() {
       merged.sort((a, b) => {
         const ta = matchTier(a.name), tb = matchTier(b.name);
         if (ta !== tb) return tb - ta;
+        // Tie-breaker: well-rated Google places win over OSM
+        const ga = a.source === "google" && (a.rating ?? 0) >= 4.0 ? 1 : 0;
+        const gb = b.source === "google" && (b.rating ?? 0) >= 4.0 ? 1 : 0;
+        if (ga !== gb) return gb - ga;
         return (a.distance ?? 9e9) - (b.distance ?? 9e9);
       });
       setUnifiedResults(merged);
