@@ -2917,6 +2917,11 @@ function SpaceshipPage() {
                 {brushSubMode === "reticle" && "— Double-click to lock target"}
                 {brushSubMode === "area" && "— Double-click to set area center"}
                 {brushSubMode === "stamp" && (stampModelInfo ? "— Double-click to stamp" : "— Double-click to upload first model")}
+                {brushSubMode === "tiles" && (
+                  tilesTool === "grid" ? "— Double-click to toggle tile"
+                  : tilesTool === "rectangle" ? (rectStart ? "— Double-click second corner" : "— Double-click first corner")
+                  : "— Double-click to add lasso vertex"
+                )}
               </span>
             </div>
           </div>
