@@ -639,11 +639,11 @@ function SpaceshipPage() {
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    // Offset camera north so target appears centered in view with -50° pitch
-    const offsetDeg = 0.0025; // ~280m north offset
+    // Steep top-down view from a decent altitude — small north offset to keep target centered
+    const offsetDeg = 0.0004; // ~45m north
     viewer.camera.flyTo({
-      destination: Cartesian3.fromDegrees(b.lng, b.lat + offsetDeg, 400),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-55), roll: 0 },
+      destination: Cartesian3.fromDegrees(b.lng, b.lat + offsetDeg, 600),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-80), roll: 0 },
       duration: 1.5,
     });
   }, []);
@@ -2407,15 +2407,16 @@ function SpaceshipPage() {
 
   const flyTo = useCallback((result: SearchResult) => {
     if (!viewerRef.current) return;
-    // Closer zoom for businesses/shops/restaurants
+    // Top-down camera framing for navigation — consistent across types
     const businessTypes = ["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"];
     const isBusiness = businessTypes.includes(result.type);
-    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 2000 : isBusiness ? 400 : 5000;
-    // Offset camera north so target is centered in viewport
-    const offsetDeg = isBusiness ? 0.0025 : result.type === "City" ? 0.01 : 0.005;
+    const altitude = result.type === "Mountain" ? 8000 : result.type === "City" ? 3000 : isBusiness ? 600 : 1500;
+    const pitchDeg = result.type === "Mountain" ? -65 : result.type === "City" ? -75 : -80;
+    // Small north offset proportional to altitude to keep target centered under the pitched camera
+    const offsetDeg = (altitude / 111000) * 0.08;
     viewerRef.current.camera.flyTo({
       destination: Cartesian3.fromDegrees(result.lng, result.lat + offsetDeg, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(isBusiness ? -55 : -40), roll: 0 },
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(pitchDeg), roll: 0 },
       duration: 1.8,
     });
     viewerRef.current.entities.add({
@@ -2516,10 +2517,11 @@ function SpaceshipPage() {
 
   const flyToPOI = useCallback((poi: POI) => {
     if (!viewerRef.current) return;
-    const offsetDeg = 0.01;
+    const altitude = 800;
+    const offsetDeg = (altitude / 111000) * 0.08;
     viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(poi.lng, poi.lat + offsetDeg, 2000),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-45), roll: 0 },
+      destination: Cartesian3.fromDegrees(poi.lng, poi.lat + offsetDeg, altitude),
+      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-80), roll: 0 },
       duration: 2,
     });
   }, []);
