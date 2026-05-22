@@ -3769,6 +3769,214 @@ function SpaceshipPage() {
                     </div>
                   )}
 
+                  {/* ── Tiles mode body ── */}
+                  {brushSubMode === "tiles" && (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                        <p className="text-[10px] text-emerald-400/80 leading-relaxed">
+                          Select <span className="font-bold">Web Mercator XYZ map tiles</span> (the actual tiles the Earth is built from).
+                          Choose a tool, then double-click the globe.
+                        </p>
+                      </div>
+
+                      {/* Tool picker */}
+                      <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-xl">
+                        {(["grid", "rectangle", "lasso"] as const).map(t => (
+                          <button
+                            key={t}
+                            onClick={() => { setTilesTool(t); setRectStart(null); setLassoPoints([]); }}
+                            className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                              tilesTool === t
+                                ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
+                                : "text-white/60 hover:text-white border border-transparent"
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Zoom (tile size) */}
+                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[9px] text-white/70 uppercase tracking-wider">Tile zoom (z)</p>
+                          <p className="text-[11px] text-white/85 font-mono">
+                            z{tileZoom} · ~{tileSizeMeters(cursorInfo?.lat ?? 0, tileZoom).toFixed(1)} m
+                          </p>
+                        </div>
+                        <input
+                          type="range" min={6} max={22} step={1}
+                          value={tileZoom}
+                          onChange={(e) => setTileZoom(parseInt(e.target.value))}
+                          className="w-full accent-emerald-400"
+                        />
+                        <p className="text-[9px] text-white/50 mt-1">
+                          Higher z = smaller tiles. z18 ≈ building; z14 ≈ neighborhood; z10 ≈ city.
+                        </p>
+                      </div>
+
+                      {/* Tool-specific hint / lasso close */}
+                      {tilesTool === "rectangle" && rectStart && (
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2 text-[10px] text-amber-300">
+                          First corner set at {rectStart.lat.toFixed(4)}, {rectStart.lng.toFixed(4)}. Double-click the opposite corner.
+                          <button onClick={() => setRectStart(null)} className="ml-2 underline">cancel</button>
+                        </div>
+                      )}
+                      {tilesTool === "lasso" && (
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2 text-[10px] text-amber-300 flex items-center justify-between gap-2">
+                          <span>{lassoPoints.length} vertex{lassoPoints.length === 1 ? "" : "es"}</span>
+                          <div className="flex gap-1">
+                            <button
+                              disabled={lassoPoints.length < 3}
+                              onClick={() => {
+                                // Compute tile bbox of polygon, then select tiles whose centers are inside.
+                                const lats = lassoPoints.map(p => p.lat);
+                                const lngs = lassoPoints.map(p => p.lng);
+                                const nw = lngLatToTile(Math.max(...lats), Math.min(...lngs), tileZoom);
+                                const se = lngLatToTile(Math.min(...lats), Math.max(...lngs), tileZoom);
+                                const next = new Set(selectedTiles);
+                                for (let xi = Math.min(nw.x, se.x); xi <= Math.max(nw.x, se.x); xi++) {
+                                  for (let yi = Math.min(nw.y, se.y); yi <= Math.max(nw.y, se.y); yi++) {
+                                    const b = tileBounds(xi, yi, tileZoom);
+                                    const cLat = (b.north + b.south) / 2;
+                                    const cLng = (b.east + b.west) / 2;
+                                    if (pointInPoly(cLat, cLng, lassoPoints)) next.add(tileKey(tileZoom, xi, yi));
+                                  }
+                                }
+                                setSelectedTiles(next);
+                                setLassoPoints([]);
+                              }}
+                              className="px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-500/30 text-emerald-200 disabled:opacity-40"
+                            >
+                              Close & select
+                            </button>
+                            <button onClick={() => setLassoPoints([])} className="px-2 py-0.5 rounded bg-black/60 border border-white/10 text-white/70">
+                              clear
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Selection summary + batch actions */}
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[9px] text-emerald-300 uppercase tracking-wider">Selection</p>
+                          <p className="text-[11px] text-white/90 font-mono">{selectedTiles.size} tile{selectedTiles.size === 1 ? "" : "s"}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <button
+                            disabled={selectedTiles.size === 0 || tilesScanning}
+                            onClick={async () => {
+                              if (selectedTiles.size === 0) return;
+                              setTilesScanning(true);
+                              setTilesScanResults([]);
+                              try {
+                                // Union bounds; query Overpass via center+radius covering bbox diagonal.
+                                let n = -90, s = 90, e = -180, w = 180;
+                                selectedTiles.forEach(k => {
+                                  const { z, x, y } = parseTileKey(k);
+                                  const b = tileBounds(x, y, z);
+                                  n = Math.max(n, b.north); s = Math.min(s, b.south);
+                                  e = Math.max(e, b.east);  w = Math.min(w, b.west);
+                                });
+                                const center = { lat: (n + s) / 2, lng: (e + w) / 2 };
+                                const diagKm = geoHaversine(n, w, s, e);
+                                const radiusKm = Math.max(0.05, diagKm / 2);
+                                const ctrl = new AbortController();
+                                const results = await runOverpassAround("", center, radiusKm, ctrl.signal);
+                                // Filter to results actually inside selected tiles
+                                const filtered = results.filter(r => {
+                                  const { x, y } = lngLatToTile(r.lat, r.lng, tileZoom);
+                                  return selectedTiles.has(tileKey(tileZoom, x, y));
+                                });
+                                setTilesScanResults(filtered.slice(0, 80));
+                              } finally {
+                                setTilesScanning(false);
+                              }
+                            }}
+                            className="px-2 py-1.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
+                          >
+                            {tilesScanning ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Scan POIs"}
+                          </button>
+                          <button
+                            disabled={selectedTiles.size === 0 || !stampModelRef.current}
+                            title={!stampModelRef.current ? "Load a model in Stamp mode first" : "Stamp model at each tile center"}
+                            onClick={async () => {
+                              for (const k of selectedTiles) {
+                                const { z, x, y } = parseTileKey(k);
+                                const b = tileBounds(x, y, z);
+                                const lat = (b.north + b.south) / 2;
+                                const lng = (b.east + b.west) / 2;
+                                let alt = 0;
+                                const v = viewerRef.current;
+                                if (v) {
+                                  try {
+                                    const carto = Cartographic.fromDegrees(lng, lat);
+                                    const h = v.scene.sampleHeight(carto);
+                                    if (typeof h === "number" && !isNaN(h)) alt = h;
+                                    else {
+                                      const th = v.scene.globe.getHeight(carto);
+                                      if (typeof th === "number" && !isNaN(th)) alt = th;
+                                    }
+                                  } catch {}
+                                }
+                                await stampModelAt({ lat, lng, alt });
+                              }
+                            }}
+                            className="px-2 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
+                          >
+                            Stamp each
+                          </button>
+                          <button
+                            disabled={selectedTiles.size === 0}
+                            onClick={() => {
+                              const features = Array.from(selectedTiles).map(k => {
+                                const { z, x, y } = parseTileKey(k);
+                                const b = tileBounds(x, y, z);
+                                const ring: [number, number][] = [
+                                  [b.west, b.north], [b.east, b.north],
+                                  [b.east, b.south], [b.west, b.south],
+                                  [b.west, b.north],
+                                ];
+                                return {
+                                  type: "Feature",
+                                  properties: { z, x, y, tile: k },
+                                  geometry: { type: "Polygon", coordinates: [ring] },
+                                };
+                              });
+                              const fc = { type: "FeatureCollection", features };
+                              const blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url; a.download = `tiles-z${tileZoom}-${Date.now()}.geojson`; a.click();
+                              URL.revokeObjectURL(url);
+                            }}
+                            className="px-2 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/80 hover:text-white transition-colors disabled:opacity-40"
+                          >
+                            Export GeoJSON
+                          </button>
+                          <button
+                            disabled={selectedTiles.size === 0}
+                            onClick={() => { setSelectedTiles(new Set()); setTilesScanResults([]); }}
+                            className="px-2 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/60 hover:text-white transition-colors disabled:opacity-40"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        {tilesScanResults.length > 0 && (
+                          <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                            {tilesScanResults.map((r, i) => (
+                              <div key={i} className="px-2 py-1.5 rounded-lg bg-black/40 hover:bg-black/60 transition-colors">
+                                <p className="text-[11px] text-white/90 truncate">{r.name}</p>
+                                <p className="text-[9px] text-white/50 font-mono">{r.type}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Placed models list (shared across all modes) */}
                   <div className="mt-3 pt-3 border-t border-white/[0.06]">
                     <p className="text-[9px] text-white/60 uppercase tracking-wider mb-2">Placed models ({placedModels.length})</p>
