@@ -2556,18 +2556,86 @@ function SpaceshipPage() {
       const updated = [...placedModels, newModel];
       setPlacedModels(updated);
       savePlacedModels(updated);
+      // Remember the loaded model so subsequent dbl-clicks in Stamp mode
+      // immediately stamp another instance — no dialog. This is what makes
+      // the brush usable more than once.
+      stampModelRef.current = {
+        blobUrl,
+        fileName: modelFile.name,
+        name: modelName.trim(),
+        baseScale: modelScale,
+        baseHeading: modelHeading,
+      };
+      setStampModelInfo({ name: modelName.trim(), fileName: modelFile.name });
       setPendingPlacement(null);
       setModelFile(null);
       setModelName("");
       setModelScale(1);
       setModelHeading(0);
       setConvertProgress("");
+      // Reset native file input so re-picking the same file fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
       setConvertError(err.message || "Failed to convert model");
     } finally {
       setConvertingModel(false);
     }
   }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe]);
+
+  // Stamp a new instance of the currently-loaded stamp model at a location.
+  // No dialog — just creates a new PlacedModel reusing the existing blob URL.
+  const stampModelAt = useCallback(async (loc: { lat: number; lng: number; alt: number }) => {
+    const stamp = stampModelRef.current;
+    if (!stamp) return;
+    const modelId = crypto.randomUUID();
+    // Snap to ground precisely.
+    let surfaceAlt = loc.alt;
+    try {
+      const viewer = viewerRef.current;
+      if (viewer) {
+        const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+        const sampled = viewer.scene.sampleHeight(carto);
+        if (typeof sampled === "number" && !isNaN(sampled)) surfaceAlt = sampled;
+        else {
+          const terrainH = viewer.scene.globe.getHeight(carto);
+          if (typeof terrainH === "number" && !isNaN(terrainH)) surfaceAlt = terrainH;
+        }
+      }
+    } catch {}
+
+    const newModel: PlacedModel = {
+      id: modelId,
+      name: `${stamp.name} (${placedModels.length + 1})`,
+      fileName: stamp.fileName,
+      lat: loc.lat,
+      lng: loc.lng,
+      alt: surfaceAlt,
+      heading: stamp.baseHeading,
+      pitch: 0,
+      roll: 0,
+      scale: stamp.baseScale,
+      createdAt: Date.now(),
+    };
+    modelUrlsRef.current.set(newModel.id, stamp.blobUrl);
+    placeModelOnGlobe(newModel, stamp.blobUrl);
+    setPlacedModels(prev => {
+      const updated = [...prev, newModel];
+      savePlacedModels(updated);
+      return updated;
+    });
+    // Also persist a per-instance copy of the blob so it survives reloads.
+    try {
+      const resp = await fetch(stamp.blobUrl);
+      const blob = await resp.blob();
+      await saveAtlasModelBlob(modelId, blob, stamp.fileName);
+    } catch {}
+  }, [placeModelOnGlobe, placedModels.length]);
+
+  const clearStampModel = useCallback(() => {
+    stampModelRef.current = null;
+    setStampModelInfo(null);
+    lastStampRef.current = null;
+  }, []);
 
   const deleteModel = useCallback(async (id: string) => {
     const updated = placedModels.filter((m) => m.id !== id);
