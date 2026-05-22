@@ -593,6 +593,7 @@ function SpaceshipPage() {
 
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
+  useEffect(() => { brushSubModeRef.current = brushSubMode; }, [brushSubMode]);
 
   /* ── Classify OSM result into business type ── */
   const classifyOsmResult = useCallback((r: any): string => {
