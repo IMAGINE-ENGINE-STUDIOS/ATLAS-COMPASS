@@ -3532,8 +3532,8 @@ function SpaceshipPage() {
                   </div>
 
                   {/* Mode tabs */}
-                  <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-xl mb-3">
-                    {(["reticle", "area", "stamp"] as const).map((m) => (
+                  <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-xl mb-3">
+                    {(["reticle", "area", "stamp", "tiles"] as const).map((m) => (
                       <button
                         key={m}
                         onClick={() => setBrushSubMode(m)}
@@ -3545,10 +3545,11 @@ function SpaceshipPage() {
                         title={
                           m === "reticle" ? "Live targeting info" :
                           m === "area" ? "Paint a zone & scan" :
-                          "Stamp 3D models"
+                          m === "stamp" ? "Stamp 3D models" :
+                          "Select map tiles (XYZ)"
                         }
                       >
-                        {m === "reticle" ? "Reticle" : m === "area" ? "Area" : "Stamp"}
+                        {m === "reticle" ? "Reticle" : m === "area" ? "Area" : m === "stamp" ? "Stamp" : "Tiles"}
                       </button>
                     ))}
                   </div>
