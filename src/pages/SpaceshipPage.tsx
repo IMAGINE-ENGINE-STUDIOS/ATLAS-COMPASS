@@ -1251,6 +1251,24 @@ function SpaceshipPage() {
     });
     brushIndicatorRef.current = brushEntity;
 
+    // Area-mode circle entity (hidden by default; lives over the painted zone)
+    const areaEntity = viewer.entities.add({
+      id: "area-indicator",
+      position: Cartesian3.fromDegrees(0, 0, 0),
+      show: false,
+      ellipse: {
+        semiMajorAxis: 250,
+        semiMinorAxis: 250,
+        material: Color.fromCssColorString("#22d3ee").withAlpha(0.18),
+        outline: true,
+        outlineColor: Color.fromCssColorString("#22d3ee").withAlpha(0.85),
+        outlineWidth: 2,
+        height: 0,
+        heightReference: 1, // CLAMP_TO_GROUND
+      } as any,
+    });
+    areaEntityRef.current = areaEntity;
+
     // World always opens at a full global view (orbit perspective).
     viewer.camera.setView({
       destination: Cartesian3.fromDegrees(0, 20, 20000000),
