@@ -53,6 +53,10 @@ interface SearchResult {
   cuisine?: string;
   distance?: number;
   description?: string;
+  rating?: number;
+  ratingCount?: number;
+  source?: 'osm' | 'google';
+  placeId?: string;
 }
 
 interface CursorInfo {
