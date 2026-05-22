@@ -326,7 +326,8 @@ function SpaceshipPage() {
   //   reticle — live single-point info HUD
   //   area    — paint a circular zone, scan & export
   //   stamp   — load a model once, click to stamp many times
-  type BrushSubMode = "reticle" | "area" | "stamp";
+  //   tiles   — Web Mercator XYZ tile selection (grid/rect/lasso)
+  type BrushSubMode = "reticle" | "area" | "stamp" | "tiles";
   const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>("stamp");
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
@@ -367,6 +368,22 @@ function SpaceshipPage() {
   // Reticle-mode locked target
   const [reticleTarget, setReticleTarget] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const brushSubModeRef = useRef<BrushSubMode>("stamp");
+
+  // ── Tiles-mode state ──
+  // Web Mercator (XYZ / "slippy") tiles. Zoom 18 ≈ building-scale.
+  type TileKey = string; // `${z}/${x}/${y}`
+  type TilesTool = "grid" | "rectangle" | "lasso";
+  const [tilesTool, setTilesTool] = useState<TilesTool>("grid");
+  const [tileZoom, setTileZoom] = useState<number>(18);
+  const [selectedTiles, setSelectedTiles] = useState<Set<TileKey>>(new Set());
+  const [rectStart, setRectStart] = useState<{ lat: number; lng: number } | null>(null);
+  const [lassoPoints, setLassoPoints] = useState<{ lat: number; lng: number }[]>([]);
+  const [tilesScanning, setTilesScanning] = useState(false);
+  const [tilesScanResults, setTilesScanResults] = useState<SearchResult[]>([]);
+  const tileEntitiesRef = useRef<Map<TileKey, any>>(new Map());
+  const lassoEntityRef = useRef<any>(null);
+  const tilesToolRef = useRef<TilesTool>("grid");
+  useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
