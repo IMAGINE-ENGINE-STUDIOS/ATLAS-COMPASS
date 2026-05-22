@@ -3604,10 +3604,10 @@ function SpaceshipPage() {
                                 out.push(
                                   <div key={id} onMouseEnter={() => setHoveredResultIdx(idx)} onMouseLeave={() => setHoveredResultIdx(null)}>
                                     <POICard compact variant="glass" index={idx}
-                                      poi={{ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description }}
+                                      poi={{ id, name: r.name, emoji: r.source === "google" ? "🟢" : "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description, rating: r.rating }}
                                       onNavigate={() => {
                                         flyTo(r);
-                                        setSelectedBusiness({ id, name: r.name, emoji: "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description });
+                                        setSelectedBusiness({ id, name: r.name, emoji: r.source === "google" ? "🟢" : "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description, rating: r.rating });
                                         setSearchOpen(false);
                                       }}
                                     />
