@@ -2157,13 +2157,79 @@ function SpaceshipPage() {
     if (brushIndicatorRef.current) {
       // Show the cursor reticle only when actively painting (not when
       // browsing the placed-models list with brushMode off, and not while
-      // the area sub-mode draws its own circle).
-      brushIndicatorRef.current.show = brushMode && brushSubMode !== "area";
+      // the area / tiles sub-modes draw their own overlays).
+      brushIndicatorRef.current.show =
+        brushMode && brushSubMode !== "area" && brushSubMode !== "tiles";
     }
     if (areaEntityRef.current) {
       areaEntityRef.current.show = brushMode && brushSubMode === "area" && !!areaCenter;
     }
   }, [brushMode, brushSubMode, areaCenter]);
+
+  // ── Tiles-mode: render selected tile polygons on the globe ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const visible = brushMode && brushSubMode === "tiles";
+    const map = tileEntitiesRef.current;
+
+    // Remove entities for keys no longer selected (or hide all if not visible)
+    map.forEach((ent, k) => {
+      if (!visible || !selectedTiles.has(k)) {
+        if (viewer.entities.contains(ent)) viewer.entities.remove(ent);
+        map.delete(k);
+      }
+    });
+    if (!visible) return;
+
+    // Add new selections
+    selectedTiles.forEach(k => {
+      if (map.has(k)) return;
+      const { z, x, y } = parseTileKey(k);
+      const b = tileBounds(x, y, z);
+      const ring = [
+        b.west, b.north,
+        b.east, b.north,
+        b.east, b.south,
+        b.west, b.south,
+      ];
+      const ent = viewer.entities.add({
+        id: `tile-${k}`,
+        polygon: {
+          hierarchy: Cartesian3.fromDegreesArray(ring) as any,
+          material: Color.fromCssColorString("#10b981").withAlpha(0.22),
+          outline: true,
+          outlineColor: Color.fromCssColorString("#34d399").withAlpha(0.9),
+          height: 0,
+          heightReference: 1, // CLAMP_TO_GROUND
+        } as any,
+        properties: { type: "selected-tile", key: k } as any,
+      });
+      map.set(k, ent);
+    });
+  }, [selectedTiles, brushMode, brushSubMode, isLoaded]);
+
+  // ── Tiles-mode: render lasso outline (in-progress polygon) ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    if (lassoEntityRef.current) {
+      if (viewer.entities.contains(lassoEntityRef.current)) viewer.entities.remove(lassoEntityRef.current);
+      lassoEntityRef.current = null;
+    }
+    if (!(brushMode && brushSubMode === "tiles" && tilesTool === "lasso" && lassoPoints.length > 0)) return;
+    const pts = lassoPoints.concat(lassoPoints.length > 2 ? [lassoPoints[0]] : []);
+    const positions = Cartesian3.fromDegreesArray(pts.flatMap(p => [p.lng, p.lat]));
+    lassoEntityRef.current = viewer.entities.add({
+      id: "lasso-outline",
+      polyline: {
+        positions: positions as any,
+        width: 2,
+        material: Color.fromCssColorString("#f59e0b").withAlpha(0.9),
+        clampToGround: true,
+      } as any,
+    });
+  }, [lassoPoints, tilesTool, brushMode, brushSubMode]);
 
   // Keep the area-indicator entity in sync with center + radius
   useEffect(() => {
