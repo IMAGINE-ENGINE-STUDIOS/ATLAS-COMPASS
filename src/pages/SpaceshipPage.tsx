@@ -1949,29 +1949,54 @@ function SpaceshipPage() {
     const handleDblClick = (e: Event) => {
       const loc = (e as CustomEvent).detail;
       if (brushMode) {
-        // Sample the actual tile/terrain altitude at this lat/lng so the
-        // brush snaps to the real surface — including negative altitudes
-        // (e.g. below sea level, depressions, basements).
+        // Sample the actual tile/terrain altitude so all brush modes snap
+        // to the real surface (incl. negative altitudes below sea level).
         let tileAlt = loc.alt;
         const viewer = viewerRef.current;
         if (viewer) {
           try {
             const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
             const sampled = viewer.scene.sampleHeight(carto);
-            if (typeof sampled === "number" && !isNaN(sampled)) {
-              tileAlt = sampled;
-            } else {
+            if (typeof sampled === "number" && !isNaN(sampled)) tileAlt = sampled;
+            else {
               const terrainH = viewer.scene.globe.getHeight(carto);
               if (typeof terrainH === "number" && !isNaN(terrainH)) tileAlt = terrainH;
             }
           } catch {}
         }
         const snappedLoc = { ...loc, alt: tileAlt };
+        const sub = brushSubModeRef.current;
+
+        if (sub === "reticle") {
+          setReticleTarget(snappedLoc);
+          if (brushIndicatorRef.current && viewer) {
+            brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
+          }
+          return;
+        }
+
+        if (sub === "area") {
+          setAreaCenter({ lat: snappedLoc.lat, lng: snappedLoc.lng });
+          setAreaScanResults([]);
+          return;
+        }
+
+        // sub === "stamp"
+        // If a model is already loaded into stamp memory, stamp directly.
+        if (stampModelRef.current) {
+          // Spacing guard
+          if (stampSpacingM > 0 && lastStampRef.current) {
+            const d = geoHaversine(lastStampRef.current.lat, lastStampRef.current.lng, snappedLoc.lat, snappedLoc.lng);
+            if (d < stampSpacingM) return;
+          }
+          stampModelAt(snappedLoc);
+          lastStampRef.current = { lat: snappedLoc.lat, lng: snappedLoc.lng };
+          return;
+        }
+        // Otherwise open the placement dialog so the user picks/uploads a model.
         setPendingPlacement(snappedLoc);
-        // Lock the brush indicator at the true tile altitude
         if (brushIndicatorRef.current && viewer) {
-          const pos = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt);
-          brushIndicatorRef.current.position = pos as any;
+          brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
         setNamingPOI(loc);
