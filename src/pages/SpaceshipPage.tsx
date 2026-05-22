@@ -483,6 +483,46 @@ function SpaceshipPage() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
+  /* ── Web Mercator XYZ tile math (matches OSM / slippy tiles) ── */
+  const lngLatToTile = (lat: number, lng: number, z: number) => {
+    const n = Math.pow(2, z);
+    const x = Math.floor(((lng + 180) / 360) * n);
+    const latRad = (lat * Math.PI) / 180;
+    const y = Math.floor(
+      ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n
+    );
+    return { x: Math.max(0, Math.min(n - 1, x)), y: Math.max(0, Math.min(n - 1, y)) };
+  };
+  const tileToLngLat = (x: number, y: number, z: number) => {
+    const n = Math.pow(2, z);
+    const lng = (x / n) * 360 - 180;
+    const latRad = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n)));
+    return { lng, lat: (latRad * 180) / Math.PI };
+  };
+  const tileBounds = (x: number, y: number, z: number) => {
+    const nw = tileToLngLat(x, y, z);
+    const se = tileToLngLat(x + 1, y + 1, z);
+    return { north: nw.lat, west: nw.lng, south: se.lat, east: se.lng };
+  };
+  const tileSizeMeters = (lat: number, z: number) =>
+    (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, z);
+  const tileKey = (z: number, x: number, y: number): string => `${z}/${x}/${y}`;
+  const parseTileKey = (k: string) => {
+    const [z, x, y] = k.split("/").map(Number);
+    return { z, x, y };
+  };
+  // Ray-cast point-in-polygon (lng/lat)
+  const pointInPoly = (lat: number, lng: number, poly: { lat: number; lng: number }[]) => {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i].lng, yi = poly[i].lat;
+      const xj = poly[j].lng, yj = poly[j].lat;
+      const intersect = (yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi + 1e-12) + xi;
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  };
+
   const geoClassify = (tags: Record<string, string>) => {
     const a = tags.amenity || "", s = tags.shop || "", t = tags.tourism || "", h = tags.healthcare || "";
     if (a === "restaurant" || a === "fast_food") return "🍽️ Restaurant";
