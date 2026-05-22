@@ -1,75 +1,82 @@
 ## Goals
 
-1. Revert the last two visual changes (cloud shell + ocean water/specular). Restore the original clean globe baseline.
-2. Upgrade the Atlas search engine by layering **Google Maps Platform** (Places API New + Geocoding) on top of the existing free OSM Overpass + Nominatim pipeline — Google fills gaps, OSM stays as fallback, results are merged and deduped.
+1. Fix the "tile brush only works once" bug.
+2. Replace the current single-purpose brush with a comprehensive **Targeting Brush** that exposes three modes in one toolbar: **Reticle** (rich single-point info), **Area** (paint/scan a circular zone), **Stamp** (multi-place a chosen 3D model).
 
-## Step 1 — Roll back the planet changes
+---
 
-In `src/pages/SpaceshipPage.tsx`:
+## Step 1 — Fix "only works once"
 
-- Remove the `viewer.entities.add({ id: "atmospheric-cloud-shell", ... })` block (the translucent NASA-clouds ellipsoid).
-- Remove the "Animated ocean water" block: `showWaterEffect`, `oceanNormalMapUrl`, `dynamicAtmosphereLighting*`, the `atmosphereLightIntensity` re-assignment, the `skyAtmosphere.brightnessShift/saturationShift` overrides, and the `viewer.clock.shouldAnimate / multiplier` lines.
-- Restore `createWorldTerrainAsync({ requestWaterMask: false, requestVertexNormals: true })` (the water mask is no longer needed and slows tile loads).
-- Drop the now-unused `ImageMaterialProperty` import.
+Root cause in `src/pages/SpaceshipPage.tsx`:
 
-Net effect: globe goes back to the exact state before those two requests — no clouds, no animated water shader, no specular changes.
+- `confirmModelPlacement` resets `modelFile` state but never clears the underlying `<input type="file">` value. When the user picks the same file a second time, the `onChange` does not fire, so no model loads. Same trap for `convertError` from a prior attempt.
+- `pendingPlacement` is cleared on success but the brush indicator is left positioned at the last placement and `brushPanelOpen` stays open — the user has no clean re-arm state.
 
-## Step 2 — Wire up Google Maps Platform
+Fix:
 
-Connect the **Google Maps Platform** connector (`google_maps`) via `standard_connectors--connect`. This auto-provisions:
+- In `confirmModelPlacement` (and Cancel button), also call `if (fileInputRef.current) fileInputRef.current.value = ""`, reset `convertError`, `convertProgress`, and re-show the floating brush indicator at the cursor.
+- After successful placement, optionally keep `modelFile` (and the chosen scale/heading) so the next click just opens the dialog with the same model pre-loaded — that's exactly what the new Stamp mode is for (see Step 2C).
 
-- Server-side gateway access via `LOVABLE_API_KEY` + `GOOGLE_MAPS_API_KEY` (for Places API New, Geocoding, Routes).
-- `VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY` for any browser-side Places autocomplete if we want it later.
+## Step 2 — Comprehensive Targeting Brush
 
-No user-supplied API key needed — the managed connection works on `*.lovable.app`.
+New unified panel `BrushToolbar` mounted where the current Tile Brush panel lives. Tabbed UI (Reticle | Area | Stamp). Shared state: `brushMode: 'reticle' | 'area' | 'stamp' | null`, `brushRadiusMeters`, current `targetPoint`.
 
-## Step 3 — New edge function: `google-search`
+### 2A — Reticle mode (single point, rich)
 
-Create `supabase/functions/google-search/index.ts`:
+Crosshair entity follows the mouse on the globe. Live HUD card shows:
 
-- Inputs: `{ query: string, center?: {lat,lng}, radiusMeters?: number }`.
-- Calls Places API (New) **Text Search** through the gateway:
-  `POST https://connector-gateway.lovable.dev/google_maps/places/v1/places:searchText`
-  with `X-Goog-FieldMask: places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.userRatingCount,places.websiteUri,places.nationalPhoneNumber,places.primaryType,places.iconMaskBaseUri`
-  and `locationBias.circle` when `center` is provided.
-- If the query looks like a pure address (no business keyword and Places returns 0), fall back to **Geocoding API** (`/maps/api/geocode/json`) via the same gateway.
-- Returns a normalized array shaped like the existing `SearchResult` (id, name, lat, lng, type, address, source: "google").
-- Standard headers, Zod input validation, abort-safe.
+- Lat / lng (6 dp), ground altitude (terrain + 3D-tile sampled), slope (derived from 4 neighbor samples).
+- Reverse-geocoded address via existing Nominatim path (debounced 400 ms; cached).
+- Nearest POI from existing `placedModels` + `pois` arrays + last business scan (haversine).
+- Distance and bearing from current camera position.
 
-## Step 4 — Merge into the unified search
+Click locks the target. Locked actions: **Place model here** (jumps to Stamp), **Save as POI**, **Navigate (route)**, **Copy coords**.
 
-In `src/pages/SpaceshipPage.tsx` `runUnifiedSearch`:
+### 2B — Area mode (paint + scan)
 
-```text
-runUnifiedSearch(query)
- ├─ runOverpassAround (expanding radii) ──► osm hits
- ├─ runNominatimBounded near + global ───► nominatim hits
- └─ supabase.functions.invoke('google-search', { query, center }) ──► google hits
-                                │
-                                ▼
-                merge → dedupe by (name + ~25m proximity) → rank
-```
+Click-drag on the globe paints a circle (Cesium `EllipseGraphics` with translucent emerald fill + glow outline). Radius shown live; adjustable afterward via slider (10 m – 5 km).
 
-Ranking changes (only the merge step, existing exact/prefix/contains scoring kept):
+Inside the circle:
 
-1. Exact-name matches first, regardless of source.
-2. Then by haversine distance from viewport center.
-3. Tie-breaker: Google hits with a `rating ≥ 4.0` win over OSM hits to surface verified businesses faster.
-4. Dedupe: if a Google place and an OSM POI share a normalized name and are within ~25 m, keep the Google one (richer metadata) and merge the OSM id for back-compat.
+- Area (m²/km²), perimeter, center coords, min/max elevation (sampled grid).
+- "Scan" button runs the existing Overpass query bounded to the circle and lists POIs with the standard `POICard`.
+- "Stamp here" hands the circle to Stamp mode as a placement region.
+- "Export GeoJSON" downloads the polygon.
 
-UI: the existing results dropdown stays as-is. Each row gains a tiny source badge — "Google" (subtle white text), nothing for OSM — so the user can tell where a hit came from. Pin colors unchanged.
+### 2C — Stamp mode (multi-tile place)
 
-## Step 5 — Enrich POI cards
+Pick a 3D model once (reuses the existing upload + glTF conversion pipeline). Then every click on the globe stamps an instance — no dialog after the first.
 
-When a result has `source: "google"` we already get phone, website, rating, review count, and `iconMaskBaseUri`. Pass these through to `POICard` so the existing fields are populated from Google when present, OSM otherwise — no new card layout.
+Controls in the panel:
+
+- Spacing (m) — clicks closer than spacing are ignored.
+- Random rotation jitter (0–360°) and scale jitter (±%).
+- Snap to tile altitude toggle (default on, uses existing `sampleHeight` / `getHeight` flow).
+- Eraser toggle — click a placed model to delete it.
+- "Fill area" — if an Area-mode circle exists, auto-stamp N copies using Poisson disk sampling at the chosen spacing.
+
+Each stamp pushes a new `PlacedModel` into `placedModels` (reusing existing `placeModelOnGlobe`, `saveAtlasModelBlob`, blob-URL map, persistence). This is also what makes the "only works once" bug structurally impossible — the file is held in a ref, not consumed.
 
 ## Technical details
 
-- All Google calls go through the connector gateway (never direct to `googleapis.com`).
-- No browser-side Google calls in this plan — we keep search server-side so we control quotas and field masks.
-- Existing free OSM pipeline is **not removed**; Google is additive. If the edge function fails or returns empty, search still works exactly like today.
-- New file: `supabase/functions/google-search/index.ts` (auto-deployed by Lovable Cloud).
-- Edited file: `src/pages/SpaceshipPage.tsx` (revert globe changes + extend `runUnifiedSearch` + tiny badge in dropdown row).
-- Edited file: `src/components/POICard.tsx` (pass through Google fields when present).
+Files touched:
 
-No DB migrations, no auth changes, no new npm packages.
+- `src/pages/SpaceshipPage.tsx`
+  - Fix file-input reset in `confirmModelPlacement` + Cancel handler.
+  - Replace `brushMode: boolean` with `brushMode: 'reticle' | 'area' | 'stamp' | null`. Migrate the existing single-mode usages.
+  - Add new state: `brushRadiusMeters`, `targetPoint`, `areaCircle`, `stampModelRef` (ref to `{ blobUrl, fileName, baseScale, baseHeading }`), `stampSpacing`, `stampJitter`, `eraserOn`.
+  - Extend the existing `cesium-dblclick` / mousemove flow to also emit single-click coordinates (already partially there) and a drag-rectangle for Area mode.
+  - Add helpers: `sampleSlopeAt(lat, lng)`, `nearestPOI(point)`, `bearing(from, to)`, `poissonDiskInCircle(center, radius, spacing)`.
+
+- New file: `src/components/atlas/BrushToolbar.tsx`
+  - Self-contained tabbed glass panel; all data flows via props/callbacks so `SpaceshipPage` keeps owning Cesium state.
+
+- Reuse `POICard` and `GlassPanel` — no new design tokens.
+
+No new dependencies, no DB changes, no edge functions.
+
+## Out of scope
+
+- Saving brushes/areas to the cloud (kept in localStorage for now, alongside `placedModels`).
+- Multi-user collaborative brushing.
+- Heightmap-based volumetric brush (only flat circle for now).

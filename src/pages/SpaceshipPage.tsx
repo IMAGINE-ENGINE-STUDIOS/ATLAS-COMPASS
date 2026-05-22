@@ -322,6 +322,12 @@ function SpaceshipPage() {
   // Tile Brush state
   const [brushMode, setBrushMode] = useState(false);
   const [brushPanelOpen, setBrushPanelOpen] = useState(false);
+  // Targeting Brush sub-modes:
+  //   reticle — live single-point info HUD
+  //   area    — paint a circular zone, scan & export
+  //   stamp   — load a model once, click to stamp many times
+  type BrushSubMode = "reticle" | "area" | "stamp";
+  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>("stamp");
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
@@ -338,6 +344,29 @@ function SpaceshipPage() {
   const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
+
+  // Stamp-mode loaded model (persists across stamps so dialog opens only once)
+  const stampModelRef = useRef<{
+    blobUrl: string;
+    fileName: string;
+    name: string;
+    baseScale: number;
+    baseHeading: number;
+  } | null>(null);
+  const [stampModelInfo, setStampModelInfo] = useState<{ name: string; fileName: string } | null>(null);
+  const [stampSpacingM, setStampSpacingM] = useState(0);
+  const lastStampRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  // Area-mode state
+  const areaEntityRef = useRef<any>(null);
+  const [areaCenter, setAreaCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [areaRadiusM, setAreaRadiusM] = useState(250);
+  const [areaScanning, setAreaScanning] = useState(false);
+  const [areaScanResults, setAreaScanResults] = useState<SearchResult[]>([]);
+
+  // Reticle-mode locked target
+  const [reticleTarget, setReticleTarget] = useState<{ lat: number; lng: number; alt: number } | null>(null);
+  const brushSubModeRef = useRef<BrushSubMode>("stamp");
 
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
@@ -564,6 +593,7 @@ function SpaceshipPage() {
 
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
+  useEffect(() => { brushSubModeRef.current = brushSubMode; }, [brushSubMode]);
 
   /* ── Classify OSM result into business type ── */
   const classifyOsmResult = useCallback((r: any): string => {
@@ -1220,6 +1250,24 @@ function SpaceshipPage() {
       } as any,
     });
     brushIndicatorRef.current = brushEntity;
+
+    // Area-mode circle entity (hidden by default; lives over the painted zone)
+    const areaEntity = viewer.entities.add({
+      id: "area-indicator",
+      position: Cartesian3.fromDegrees(0, 0, 0),
+      show: false,
+      ellipse: {
+        semiMajorAxis: 250,
+        semiMinorAxis: 250,
+        material: Color.fromCssColorString("#22d3ee").withAlpha(0.18),
+        outline: true,
+        outlineColor: Color.fromCssColorString("#22d3ee").withAlpha(0.85),
+        outlineWidth: 2,
+        height: 0,
+        heightReference: 1, // CLAMP_TO_GROUND
+      } as any,
+    });
+    areaEntityRef.current = areaEntity;
 
     // World always opens at a full global view (orbit perspective).
     viewer.camera.setView({
@@ -1901,29 +1949,54 @@ function SpaceshipPage() {
     const handleDblClick = (e: Event) => {
       const loc = (e as CustomEvent).detail;
       if (brushMode) {
-        // Sample the actual tile/terrain altitude at this lat/lng so the
-        // brush snaps to the real surface — including negative altitudes
-        // (e.g. below sea level, depressions, basements).
+        // Sample the actual tile/terrain altitude so all brush modes snap
+        // to the real surface (incl. negative altitudes below sea level).
         let tileAlt = loc.alt;
         const viewer = viewerRef.current;
         if (viewer) {
           try {
             const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
             const sampled = viewer.scene.sampleHeight(carto);
-            if (typeof sampled === "number" && !isNaN(sampled)) {
-              tileAlt = sampled;
-            } else {
+            if (typeof sampled === "number" && !isNaN(sampled)) tileAlt = sampled;
+            else {
               const terrainH = viewer.scene.globe.getHeight(carto);
               if (typeof terrainH === "number" && !isNaN(terrainH)) tileAlt = terrainH;
             }
           } catch {}
         }
         const snappedLoc = { ...loc, alt: tileAlt };
+        const sub = brushSubModeRef.current;
+
+        if (sub === "reticle") {
+          setReticleTarget(snappedLoc);
+          if (brushIndicatorRef.current && viewer) {
+            brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
+          }
+          return;
+        }
+
+        if (sub === "area") {
+          setAreaCenter({ lat: snappedLoc.lat, lng: snappedLoc.lng });
+          setAreaScanResults([]);
+          return;
+        }
+
+        // sub === "stamp"
+        // If a model is already loaded into stamp memory, stamp directly.
+        if (stampModelRef.current) {
+          // Spacing guard
+          if (stampSpacingM > 0 && lastStampRef.current) {
+            const d = geoHaversine(lastStampRef.current.lat, lastStampRef.current.lng, snappedLoc.lat, snappedLoc.lng);
+            if (d < stampSpacingM) return;
+          }
+          stampModelAt(snappedLoc);
+          lastStampRef.current = { lat: snappedLoc.lat, lng: snappedLoc.lng };
+          return;
+        }
+        // Otherwise open the placement dialog so the user picks/uploads a model.
         setPendingPlacement(snappedLoc);
-        // Lock the brush indicator at the true tile altitude
         if (brushIndicatorRef.current && viewer) {
-          const pos = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt);
-          brushIndicatorRef.current.position = pos as any;
+          brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
         setNamingPOI(loc);
@@ -1992,9 +2065,28 @@ function SpaceshipPage() {
   // Brush mode indicator visibility
   useEffect(() => {
     if (brushIndicatorRef.current) {
-      brushIndicatorRef.current.show = brushMode;
+      // Show the cursor reticle only when actively painting (not when
+      // browsing the placed-models list with brushMode off, and not while
+      // the area sub-mode draws its own circle).
+      brushIndicatorRef.current.show = brushMode && brushSubMode !== "area";
     }
-  }, [brushMode]);
+    if (areaEntityRef.current) {
+      areaEntityRef.current.show = brushMode && brushSubMode === "area" && !!areaCenter;
+    }
+  }, [brushMode, brushSubMode, areaCenter]);
+
+  // Keep the area-indicator entity in sync with center + radius
+  useEffect(() => {
+    const ent = areaEntityRef.current;
+    if (!ent) return;
+    if (areaCenter) {
+      ent.position = Cartesian3.fromDegrees(areaCenter.lng, areaCenter.lat, 0) as any;
+      if (ent.ellipse) {
+        ent.ellipse.semiMajorAxis = areaRadiusM as any;
+        ent.ellipse.semiMinorAxis = areaRadiusM as any;
+      }
+    }
+  }, [areaCenter, areaRadiusM]);
 
   // Marketplace pins — add/remove product billboard entities
   useEffect(() => {
@@ -2483,18 +2575,86 @@ function SpaceshipPage() {
       const updated = [...placedModels, newModel];
       setPlacedModels(updated);
       savePlacedModels(updated);
+      // Remember the loaded model so subsequent dbl-clicks in Stamp mode
+      // immediately stamp another instance — no dialog. This is what makes
+      // the brush usable more than once.
+      stampModelRef.current = {
+        blobUrl,
+        fileName: modelFile.name,
+        name: modelName.trim(),
+        baseScale: modelScale,
+        baseHeading: modelHeading,
+      };
+      setStampModelInfo({ name: modelName.trim(), fileName: modelFile.name });
       setPendingPlacement(null);
       setModelFile(null);
       setModelName("");
       setModelScale(1);
       setModelHeading(0);
       setConvertProgress("");
+      // Reset native file input so re-picking the same file fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
       setConvertError(err.message || "Failed to convert model");
     } finally {
       setConvertingModel(false);
     }
   }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe]);
+
+  // Stamp a new instance of the currently-loaded stamp model at a location.
+  // No dialog — just creates a new PlacedModel reusing the existing blob URL.
+  const stampModelAt = useCallback(async (loc: { lat: number; lng: number; alt: number }) => {
+    const stamp = stampModelRef.current;
+    if (!stamp) return;
+    const modelId = crypto.randomUUID();
+    // Snap to ground precisely.
+    let surfaceAlt = loc.alt;
+    try {
+      const viewer = viewerRef.current;
+      if (viewer) {
+        const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+        const sampled = viewer.scene.sampleHeight(carto);
+        if (typeof sampled === "number" && !isNaN(sampled)) surfaceAlt = sampled;
+        else {
+          const terrainH = viewer.scene.globe.getHeight(carto);
+          if (typeof terrainH === "number" && !isNaN(terrainH)) surfaceAlt = terrainH;
+        }
+      }
+    } catch {}
+
+    const newModel: PlacedModel = {
+      id: modelId,
+      name: `${stamp.name} (${placedModels.length + 1})`,
+      fileName: stamp.fileName,
+      lat: loc.lat,
+      lng: loc.lng,
+      alt: surfaceAlt,
+      heading: stamp.baseHeading,
+      pitch: 0,
+      roll: 0,
+      scale: stamp.baseScale,
+      createdAt: Date.now(),
+    };
+    modelUrlsRef.current.set(newModel.id, stamp.blobUrl);
+    placeModelOnGlobe(newModel, stamp.blobUrl);
+    setPlacedModels(prev => {
+      const updated = [...prev, newModel];
+      savePlacedModels(updated);
+      return updated;
+    });
+    // Also persist a per-instance copy of the blob so it survives reloads.
+    try {
+      const resp = await fetch(stamp.blobUrl);
+      const blob = await resp.blob();
+      await saveAtlasModelBlob(modelId, blob, stamp.fileName);
+    } catch {}
+  }, [placeModelOnGlobe, placedModels.length]);
+
+  const clearStampModel = useCallback(() => {
+    stampModelRef.current = null;
+    setStampModelInfo(null);
+    lastStampRef.current = null;
+  }, []);
 
   const deleteModel = useCallback(async (id: string) => {
     const updated = placedModels.filter((m) => m.id !== id);
@@ -2594,8 +2754,14 @@ function SpaceshipPage() {
           >
             <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/40 rounded-full px-5 py-2 flex items-center gap-2">
               <Paintbrush className="w-4 h-4 text-emerald-400 animate-pulse" />
-              <span className="text-sm font-medium text-emerald-300">TILE BRUSH ACTIVE</span>
-              <span className="text-xs text-emerald-400/60">— Double-click to place model</span>
+              <span className="text-sm font-medium text-emerald-300">
+                TARGETING BRUSH · {brushSubMode.toUpperCase()}
+              </span>
+              <span className="text-xs text-emerald-400/60">
+                {brushSubMode === "reticle" && "— Double-click to lock target"}
+                {brushSubMode === "area" && "— Double-click to set area center"}
+                {brushSubMode === "stamp" && (stampModelInfo ? "— Double-click to stamp" : "— Double-click to upload first model")}
+              </span>
             </div>
           </div>
         )}
@@ -3168,7 +3334,14 @@ function SpaceshipPage() {
                       )}
                     </button>
                     <button
-                      onClick={() => { setPendingPlacement(null); setModelFile(null); setModelName(""); }}
+                      onClick={() => {
+                        setPendingPlacement(null);
+                        setModelFile(null);
+                        setModelName("");
+                        setConvertError(null);
+                        setConvertProgress("");
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
                       className="px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors"
                     >
                       Cancel
@@ -3189,7 +3362,7 @@ function SpaceshipPage() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Paintbrush className="w-4 h-4 text-emerald-400" />
-                      <span className="text-sm font-bold text-white">Tile Brush</span>
+                      <span className="text-sm font-bold text-white">Targeting Brush</span>
                       <span className="text-[10px] text-white/70 font-mono">({placedModels.length})</span>
                     </div>
                     <button onClick={() => { setBrushPanelOpen(false); setBrushMode(false); }}>
@@ -3197,12 +3370,246 @@ function SpaceshipPage() {
                     </button>
                   </div>
 
-                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 mb-3">
-                    <p className="text-[10px] text-emerald-400/80 leading-relaxed">
-                      <span className="font-bold">Double-click</span> anywhere on the globe to select a tile position, then upload a 3D model (GLB/glTF) to place it there.
-                    </p>
+                  {/* Mode tabs */}
+                  <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-xl mb-3">
+                    {(["reticle", "area", "stamp"] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setBrushSubMode(m)}
+                        className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                          brushSubMode === m
+                            ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
+                            : "text-white/60 hover:text-white border border-transparent"
+                        }`}
+                        title={
+                          m === "reticle" ? "Live targeting info" :
+                          m === "area" ? "Paint a zone & scan" :
+                          "Stamp 3D models"
+                        }
+                      >
+                        {m === "reticle" ? "Reticle" : m === "area" ? "Area" : "Stamp"}
+                      </button>
+                    ))}
                   </div>
 
+                  {/* ── Reticle mode body ── */}
+                  {brushSubMode === "reticle" && (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                        <p className="text-[10px] text-emerald-400/80 leading-relaxed">
+                          Move the mouse to read live coordinates. <span className="font-bold">Double-click</span> to lock target.
+                        </p>
+                      </div>
+                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
+                        <p className="text-[9px] text-white/70 uppercase tracking-wider mb-2">Cursor</p>
+                        {cursorInfo ? (
+                          <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-white/85">
+                            <div><span className="text-[8px] text-white/60 block">LAT</span>{cursorInfo.lat.toFixed(6)}°</div>
+                            <div><span className="text-[8px] text-white/60 block">LNG</span>{cursorInfo.lng.toFixed(6)}°</div>
+                            <div><span className="text-[8px] text-white/60 block">ALT</span>{formatAlt(cursorInfo.alt)}</div>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-white/40">Move mouse over the globe…</p>
+                        )}
+                      </div>
+                      {reticleTarget && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
+                          <p className="text-[9px] text-emerald-300 uppercase tracking-wider mb-2">Locked Target</p>
+                          <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-white/90 mb-3">
+                            <div><span className="text-[8px] text-white/60 block">LAT</span>{reticleTarget.lat.toFixed(6)}°</div>
+                            <div><span className="text-[8px] text-white/60 block">LNG</span>{reticleTarget.lng.toFixed(6)}°</div>
+                            <div><span className="text-[8px] text-white/60 block">ALT</span>{formatAlt(reticleTarget.alt)}</div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                if (!reticleTarget) return;
+                                setNamingPOI(reticleTarget);
+                                setPoiName("");
+                                setPoiDescription("");
+                              }}
+                              className="flex-1 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors"
+                            >
+                              Save POI
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!reticleTarget) return;
+                                navigator.clipboard?.writeText(`${reticleTarget.lat.toFixed(6)}, ${reticleTarget.lng.toFixed(6)}`);
+                              }}
+                              className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/80 hover:text-white transition-colors"
+                            >
+                              Copy
+                            </button>
+                            <button
+                              onClick={() => setReticleTarget(null)}
+                              className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/60 hover:text-white transition-colors"
+                              title="Clear lock"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Area mode body ── */}
+                  {brushSubMode === "area" && (
+                    <div className="space-y-3">
+                      <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3">
+                        <p className="text-[10px] text-cyan-300/80 leading-relaxed">
+                          <span className="font-bold">Double-click</span> the globe to set the area center. Adjust radius below, then Scan.
+                        </p>
+                      </div>
+                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[9px] text-white/70 uppercase tracking-wider">Radius</p>
+                          <p className="text-[11px] text-white/85 font-mono">
+                            {areaRadiusM >= 1000 ? `${(areaRadiusM/1000).toFixed(2)} km` : `${areaRadiusM} m`}
+                          </p>
+                        </div>
+                        <input
+                          type="range" min={10} max={5000} step={10}
+                          value={areaRadiusM}
+                          onChange={(e) => setAreaRadiusM(parseInt(e.target.value))}
+                          className="w-full accent-cyan-400"
+                        />
+                        <p className="text-[9px] text-white/50 mt-1">
+                          Area: {(Math.PI * areaRadiusM * areaRadiusM / 1e6).toFixed(3)} km²
+                        </p>
+                      </div>
+                      {areaCenter ? (
+                        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3">
+                          <p className="text-[9px] text-cyan-300 uppercase tracking-wider mb-2">Center</p>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-white/90 mb-3">
+                            <div><span className="text-[8px] text-white/60 block">LAT</span>{areaCenter.lat.toFixed(6)}°</div>
+                            <div><span className="text-[8px] text-white/60 block">LNG</span>{areaCenter.lng.toFixed(6)}°</div>
+                          </div>
+                          <div className="flex gap-2 mb-2">
+                            <button
+                              disabled={areaScanning}
+                              onClick={async () => {
+                                if (!areaCenter) return;
+                                setAreaScanning(true);
+                                setAreaScanResults([]);
+                                try {
+                                  const controller = new AbortController();
+                                  const results = await runOverpassAround("", areaCenter, areaRadiusM / 1000, controller.signal);
+                                  setAreaScanResults(results.slice(0, 50));
+                                } finally {
+                                  setAreaScanning(false);
+                                }
+                              }}
+                              className="flex-1 px-3 py-1.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
+                            >
+                              {areaScanning ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Scan POIs"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!areaCenter) return;
+                                // Build a 64-vertex circle GeoJSON polygon
+                                const pts: [number, number][] = [];
+                                const R = 6378137;
+                                const lat0 = areaCenter.lat * Math.PI/180;
+                                const lng0 = areaCenter.lng * Math.PI/180;
+                                const d = areaRadiusM / R;
+                                for (let i = 0; i <= 64; i++) {
+                                  const brg = (i / 64) * 2 * Math.PI;
+                                  const lat = Math.asin(Math.sin(lat0)*Math.cos(d) + Math.cos(lat0)*Math.sin(d)*Math.cos(brg));
+                                  const lng = lng0 + Math.atan2(Math.sin(brg)*Math.sin(d)*Math.cos(lat0), Math.cos(d) - Math.sin(lat0)*Math.sin(lat));
+                                  pts.push([lng * 180/Math.PI, lat * 180/Math.PI]);
+                                }
+                                const geojson = {
+                                  type: "Feature",
+                                  properties: { radius_m: areaRadiusM, center: [areaCenter.lng, areaCenter.lat] },
+                                  geometry: { type: "Polygon", coordinates: [pts] },
+                                };
+                                const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/geo+json" });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url; a.download = `area-${Date.now()}.geojson`; a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                              className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/80 hover:text-white transition-colors"
+                            >
+                              GeoJSON
+                            </button>
+                            <button
+                              onClick={() => { setAreaCenter(null); setAreaScanResults([]); }}
+                              className="px-2 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/60 hover:text-white transition-colors"
+                              title="Clear area"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                          {areaScanResults.length > 0 && (
+                            <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                              {areaScanResults.map((r, i) => (
+                                <div key={i} className="px-2 py-1.5 rounded-lg bg-black/40 hover:bg-black/60 transition-colors">
+                                  <p className="text-[11px] text-white/90 truncate">{r.name}</p>
+                                  <p className="text-[9px] text-white/50 font-mono">
+                                    {r.type}{r.distance != null ? ` · ${(r.distance/1000).toFixed(2)} km` : ""}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-[11px] text-white/40">
+                          Double-click globe to set center
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Stamp mode body ── */}
+                  {brushSubMode === "stamp" && (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                        <p className="text-[10px] text-emerald-400/80 leading-relaxed">
+                          {stampModelInfo
+                            ? <><span className="font-bold">Double-click</span> the globe to stamp another copy — no dialog. Clear the model below to switch.</>
+                            : <><span className="font-bold">Double-click</span> the globe to open the upload dialog. After your first placement, every double-click stamps another instance.</>
+                          }
+                        </p>
+                      </div>
+                      {stampModelInfo && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 flex items-center gap-3">
+                          <Box className="w-5 h-5 text-emerald-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] text-white truncate font-medium">{stampModelInfo.name}</p>
+                            <p className="text-[9px] text-white/60 truncate">{stampModelInfo.fileName}</p>
+                          </div>
+                          <button
+                            onClick={clearStampModel}
+                            className="px-2 py-1 rounded-lg text-[10px] text-white/70 hover:text-white border border-white/[0.08] hover:bg-black/60 transition-colors"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[9px] text-white/70 uppercase tracking-wider">Min spacing</p>
+                          <p className="text-[11px] text-white/85 font-mono">
+                            {stampSpacingM === 0 ? "off" : `${stampSpacingM} m`}
+                          </p>
+                        </div>
+                        <input
+                          type="range" min={0} max={500} step={5}
+                          value={stampSpacingM}
+                          onChange={(e) => setStampSpacingM(parseInt(e.target.value))}
+                          className="w-full accent-emerald-400"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Placed models list (shared across all modes) */}
+                  <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                    <p className="text-[9px] text-white/60 uppercase tracking-wider mb-2">Placed models ({placedModels.length})</p>
                   {placedModels.length === 0 ? (
                     <div className="text-center py-6">
                       <Box className="w-8 h-8 text-white/10 mx-auto mb-2" />
@@ -3240,6 +3647,7 @@ function SpaceshipPage() {
                       ))}
                     </div>
                   )}
+                  </div>
                 </GlassPanel>
               </div>
             )}
