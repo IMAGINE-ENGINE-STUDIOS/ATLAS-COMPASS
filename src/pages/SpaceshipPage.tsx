@@ -2096,7 +2096,7 @@ function SpaceshipPage() {
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
-  }, [brushMode]);
+  }, [brushMode, tileZoom, rectStart, stampSpacingM]);
 
   // Listen for model double-click (open transform widget)
   useEffect(() => {
