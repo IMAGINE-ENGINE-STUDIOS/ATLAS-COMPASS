@@ -337,6 +337,25 @@ function flyCameraToTarget(
   });
 }
 
+const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
+];
+
+async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<any | null> {
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const resp = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, { signal });
+      if (resp.ok) return await resp.json();
+    } catch (e: any) {
+      if (e?.name === "AbortError") throw e;
+    }
+  }
+  return null;
+}
+
 /* ── Main Spaceship Component ── */
 function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
@@ -496,6 +515,7 @@ function SpaceshipPage() {
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
+  const instantBusinessAbortRef = useRef<AbortController | null>(null);
 
   // Real-time aircraft & ship tracking
   const [showLiveTraffic, setShowLiveTraffic] = useState<boolean>(savedUI.showLiveTraffic ?? false);
@@ -629,16 +649,11 @@ function SpaceshipPage() {
       case "shop": filter = `nwr["shop"](${bbox});`; break;
       default: filter = `nwr["shop"](${bbox});nwr["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|clinic|doctors"](${bbox});nwr["tourism"~"hotel|motel"](${bbox});nwr["healthcare"](${bbox});`;
     }
-    const limit = geoRadiusKm <= 5 ? 150 : 80;
+      const limit = geoRadiusKm <= 5 ? 300 : 160;
     const q = `[out:json][timeout:15];(${filter});out center ${limit};`;
     try {
-      const resp = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST", body: `data=${encodeURIComponent(q)}`,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal: controller.signal,
-      });
-      if (!resp.ok) throw new Error("API error");
-      const data = await resp.json();
+      const data = await fetchOverpassJson(q, controller.signal);
+      if (!data) throw new Error("API error");
       const results = (data.elements || [])
         .filter((el: any) => el.tags?.name && (el.lat || el.center?.lat))
         .map((el: any) => {
@@ -829,6 +844,69 @@ function SpaceshipPage() {
     return "Place";
   };
 
+  const addBusinessPinsFromResults = useCallback((results: SearchResult[], center?: { lat: number; lng: number }) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    businessEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    businessEntitiesRef.current = [];
+    businessDataRef.current.clear();
+
+    const iconByType: Record<string, string> = {
+      Restaurant: "🍽️", Cafe: "☕", Supermarket: "🛒", Shop: "🏪",
+      Hotel: "🏨", Fuel: "⛽", Health: "🏥", Bank: "🏦",
+      Education: "🎓", Office: "🏢", Business: "🏪", Place: "📍",
+      Attraction: "🎡", Park: "🌳", Leisure: "🎯", Craft: "🛠️", Historic: "🏛️",
+    };
+    const colorByType: Record<string, string> = {
+      Restaurant: "rgba(249,115,22,0.75)", Cafe: "rgba(217,119,6,0.75)",
+      Supermarket: "rgba(34,197,94,0.75)", Shop: "rgba(16,185,129,0.75)",
+      Hotel: "rgba(99,102,241,0.75)", Fuel: "rgba(239,68,68,0.75)",
+      Health: "rgba(239,68,68,0.75)", Bank: "rgba(59,130,246,0.75)",
+      Education: "rgba(99,102,241,0.75)", Office: "rgba(148,163,184,0.75)",
+    };
+
+    results.slice(0, 500).forEach((r, idx) => {
+      const entityId = `biz-live-${idx}-${r.lat.toFixed(6)}-${r.lng.toFixed(6)}`;
+      const icon = iconByType[r.type] || "📍";
+      const truncName = r.name.length > 20 ? r.name.slice(0, 18) + "…" : r.name;
+      businessDataRef.current.set(entityId, {
+        id: entityId,
+        name: r.name,
+        emoji: icon,
+        category: r.type || "Business",
+        address: r.address,
+        lat: r.lat,
+        lng: r.lng,
+        distance: center ? geoHaversine(center.lat, center.lng, r.lat, r.lng) : r.distance,
+        phone: r.phone,
+        website: r.website,
+        brand: r.brand,
+        cuisine: r.cuisine,
+        description: r.description,
+      });
+      const entity = viewer.entities.add({
+        id: entityId,
+        position: Cartesian3.fromDegrees(r.lng, r.lat, 0),
+        billboard: {
+          image: createPinCanvas(icon, truncName, colorByType[r.type] || "rgba(0,212,255,0.75)"),
+          verticalOrigin: 1,
+          pixelOffset: new Cartesian2(0, 0),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: { near: 200, nearValue: 0.85, far: 30000, farValue: 0.3 } as any,
+          translucencyByDistance: { near: 100, nearValue: 1.0, far: 45000, farValue: 0.15 } as any,
+          heightReference: 1,
+          alignedAxis: Cartesian3.ZERO,
+        },
+        properties: { type: "business-result" } as any,
+        description: r.name + (r.address ? ` — ${r.address}` : ""),
+      });
+      businessEntitiesRef.current.push(entity);
+    });
+    viewer.scene.requestRender?.();
+  }, []);
+
   const runOverpassAround = useCallback(async (
     query: string,
     center: { lat: number; lng: number },
@@ -868,26 +946,22 @@ function SpaceshipPage() {
       : catBlocks;
     // Higher cap so a category-only "show ALL" near me returns everything in the radius
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 600;`;
-    const endpoints = [
-      "https://overpass-api.de/api/interpreter",
-      "https://overpass.kumi.systems/api/interpreter",
-      "https://overpass.private.coffee/api/interpreter",
-      "https://overpass.osm.ch/api/interpreter",
-    ];
     // Race all mirrors in parallel — first to respond wins. Massive latency win.
     const raceMirrors = (): Promise<any> => new Promise((resolve, reject) => {
-      let pending = endpoints.length;
+      let pending = OVERPASS_ENDPOINTS.length;
       let resolved = false;
-      endpoints.forEach(url => {
-        fetch(url, {
-          method: "POST",
-          body: `data=${encodeURIComponent(q)}`,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          signal,
-        })
+      let firstEmpty: any = null;
+      OVERPASS_ENDPOINTS.forEach(url => {
+        fetch(`${url}?data=${encodeURIComponent(q)}`, { signal })
           .then(r => (r.ok ? r.json() : Promise.reject(new Error("status " + r.status))))
-          .then(json => { if (!resolved) { resolved = true; resolve(json); } })
-          .catch(() => { pending--; if (pending === 0 && !resolved) reject(new Error("all mirrors failed")); });
+          .then(json => {
+            if (resolved) return;
+            if ((json?.elements || []).length > 0) { resolved = true; resolve(json); return; }
+            firstEmpty ??= json;
+            pending--;
+            if (pending === 0) { resolved = true; resolve(firstEmpty); }
+          })
+          .catch(() => { pending--; if (pending === 0 && !resolved) { resolved = true; firstEmpty ? resolve(firstEmpty) : reject(new Error("all mirrors failed")); } });
       });
     });
     let data: any = null;
@@ -1118,6 +1192,61 @@ function SpaceshipPage() {
       if (!controller.signal.aborted) setSearchLoading(false);
     }
   }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser, pois]);
+
+  const loadCategoryBusinessesInstant = useCallback(async (categoryKey: string = geoCategory) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    instantBusinessAbortRef.current?.abort();
+    const controller = new AbortController();
+    instantBusinessAbortRef.current = controller;
+
+    const cam = viewer.camera.positionCartographic;
+    const center = { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+    const category = categoryKey && categoryKey !== "all" ? categoryKey : undefined;
+    const radiusKm = cam.height < 2500 ? 2 : cam.height < 7000 ? 4 : cam.height < 25000 ? 8 : 15;
+
+    setShowBusinessIcons(true);
+    setSearchOpen(true);
+    setSearchQuery("");
+    setSearchLoading(true);
+    setIsLoadingBusinesses(true);
+    setActiveSearchCategory(category ?? "");
+    setGeoCenter(center);
+    setGeoLocationName(`${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`);
+    businessLoadedAreaRef.current = `instant-${center.lat.toFixed(3)},${center.lng.toFixed(3)},${radiusKm},${category ?? "all"}`;
+    bizLastFetchRef.current = 0;
+
+    try {
+      let hits = await runOverpassAround("", center, radiusKm, controller.signal, category);
+      if (hits.length === 0) {
+        const fallbackTerms: Record<string, string[]> = {
+          restaurant: ["restaurant", "fast food"], cafe: ["cafe", "coffee"],
+          supermarket: ["supermarket", "grocery"], shop: ["shop", "store"],
+          hotel: ["hotel"], fuel: ["fuel", "charging station"], health: ["pharmacy", "clinic"],
+        };
+        const terms = category ? fallbackTerms[category] ?? [category] : ["restaurant", "cafe", "shop", "supermarket"];
+        const batches = await Promise.all(terms.map(term => runNominatimBounded(term, center, radiusKm, true, controller.signal).catch(() => [])));
+        const seen = new Set<string>();
+        hits = batches.flat().filter(r => {
+          const key = `${r.name.toLowerCase()}|${r.lat.toFixed(5)}|${r.lng.toFixed(5)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+      if (controller.signal.aborted || viewer.isDestroyed()) return;
+      const sorted = hits
+        .map(r => ({ ...r, source: "osm" as const, distance: r.distance ?? geoHaversine(center.lat, center.lng, r.lat, r.lng) }))
+        .sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
+      setUnifiedResults(sorted);
+      addBusinessPinsFromResults(sorted, center);
+    } finally {
+      if (!controller.signal.aborted) {
+        setSearchLoading(false);
+        setIsLoadingBusinesses(false);
+      }
+    }
+  }, [addBusinessPinsFromResults, geoCategory, runNominatimBounded, runOverpassAround]);
 
   /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
@@ -1756,16 +1885,9 @@ function SpaceshipPage() {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
-        const resp = await fetch("https://overpass-api.de/api/interpreter", {
-          method: "POST",
-          body: `data=${encodeURIComponent(query)}`,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          signal: controller.signal,
-        });
+        const data = await fetchOverpassJson(query, controller.signal);
         clearTimeout(timeout);
-        if (!resp.ok || viewer.isDestroyed()) return;
-        const data = await resp.json();
-        if (!data.elements || viewer.isDestroyed()) return;
+        if (!data?.elements || viewer.isDestroyed()) return;
 
         // Clear old before adding new
         businessEntitiesRef.current.forEach(e => {
@@ -4484,23 +4606,9 @@ function SpaceshipPage() {
               if (!showBusinessIcons) setShowBusinessIcons(true);
               const next = k === "all" ? "" : k;
               setActiveSearchCategory(next);
-              geofenceFromCamera();
+              loadCategoryBusinessesInstant(k);
             }}
-            onActivate={() => {
-              // Force an instant reload of stores for the current category
-              // bypassing the 3s throttle + area-key cache.
-              businessLoadedAreaRef.current = "";
-              bizLastFetchRef.current = 0;
-              if (!showBusinessIcons) {
-                setShowBusinessIcons(true);
-              } else {
-                // Effect won't re-run because deps unchanged — kick the camera
-                // listener path which calls loadBusinesses on its next tick.
-                geofenceFromCamera();
-                // Also trigger a synthetic moveEnd so the debounced loader fires now.
-                try { viewerRef.current?.camera.moveEnd.raiseEvent(); } catch {}
-              }
-            }}
+            onActivate={(key) => loadCategoryBusinessesInstant(key)}
           />
 
           {/* Intelligence — Live Traffic Cameras Panel */}
@@ -4557,10 +4665,10 @@ function SpaceshipPage() {
               setGeoCategory(key);
               businessLoadedAreaRef.current = "";
               if (!showBusinessIcons) setShowBusinessIcons(true);
-              geofenceFromCamera();
               const next = key === "all" ? "" : key;
               setActiveSearchCategory(next);
-              runUnifiedSearch(searchQuery.trim(), next || undefined);
+              if (searchQuery.trim()) runUnifiedSearch(searchQuery.trim(), next || undefined);
+              else loadCategoryBusinessesInstant(key);
             }}
             onUseLocation={geoLocateUser}
             onScanCameraArea={geofenceFromCamera}
