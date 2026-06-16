@@ -444,6 +444,8 @@ function SpaceshipPage() {
   const [showMarketplacePins, setShowMarketplacePins] = useState<boolean>(savedUI.showMarketplacePins ?? false);
   const [selectedMarketplaceProduct, setSelectedMarketplaceProduct] = useState<MarketplaceProduct | null>(null);
   const marketplaceEntitiesRef = useRef<any[]>([]);
+  const cameraEntitiesRef = useRef<any[]>([]);
+  const [mapCameras, setMapCameras] = useState<TrafficCamera[]>([]);
 
   // Directions / Routing state
   const [directionsOpen, setDirectionsOpen] = useState(false);
