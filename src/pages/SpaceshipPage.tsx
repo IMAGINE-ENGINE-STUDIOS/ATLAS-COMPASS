@@ -1196,6 +1196,45 @@ function SpaceshipPage() {
     }
   }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser, pois]);
 
+  const loadCategoryBusinessesInstant = useCallback(async (categoryKey: string = geoCategory) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    instantBusinessAbortRef.current?.abort();
+    const controller = new AbortController();
+    instantBusinessAbortRef.current = controller;
+
+    const cam = viewer.camera.positionCartographic;
+    const center = { lat: CesiumMath.toDegrees(cam.latitude), lng: CesiumMath.toDegrees(cam.longitude) };
+    const category = categoryKey && categoryKey !== "all" ? categoryKey : undefined;
+    const radiusKm = cam.height < 2500 ? 2 : cam.height < 7000 ? 4 : cam.height < 25000 ? 8 : 15;
+
+    setShowBusinessIcons(true);
+    setSearchOpen(true);
+    setSearchQuery("");
+    setSearchLoading(true);
+    setIsLoadingBusinesses(true);
+    setActiveSearchCategory(category ?? "");
+    setGeoCenter(center);
+    setGeoLocationName(`${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`);
+    businessLoadedAreaRef.current = `instant-${center.lat.toFixed(3)},${center.lng.toFixed(3)},${radiusKm},${category ?? "all"}`;
+    bizLastFetchRef.current = 0;
+
+    try {
+      const hits = await runOverpassAround("", center, radiusKm, controller.signal, category);
+      if (controller.signal.aborted || viewer.isDestroyed()) return;
+      const sorted = hits
+        .map(r => ({ ...r, source: "osm" as const, distance: r.distance ?? geoHaversine(center.lat, center.lng, r.lat, r.lng) }))
+        .sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
+      setUnifiedResults(sorted);
+      addBusinessPinsFromResults(sorted, center);
+    } finally {
+      if (!controller.signal.aborted) {
+        setSearchLoading(false);
+        setIsLoadingBusinesses(false);
+      }
+    }
+  }, [addBusinessPinsFromResults, geoCategory, runOverpassAround]);
+
   /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
     setRouteLoading(true);
