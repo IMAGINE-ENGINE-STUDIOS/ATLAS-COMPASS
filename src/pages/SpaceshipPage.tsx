@@ -1960,13 +1960,10 @@ function SpaceshipPage() {
       }
     };
 
-    loadBusinesses();
-
-    // Debounced reload on camera move end (800ms delay)
+    // Stores load ONLY when the user selects a category filter or searches.
+    // The camera-move listener here just persists the camera state — it does
+    // not auto-fetch business pins.
     const removeListener = viewer.camera.moveEnd.addEventListener(() => {
-      if (bizLoadTimerRef.current) clearTimeout(bizLoadTimerRef.current);
-      bizLoadTimerRef.current = setTimeout(loadBusinesses, 800);
-      // Persist camera state so next load resumes here
       try {
         const cam = viewer.camera;
         const pos = cam.positionCartographic;
