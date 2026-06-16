@@ -348,6 +348,7 @@ const OVERPASS_ENDPOINTS = [
 ];
 
 async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<any | null> {
+  let lastOkEmpty: any = null;
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const resp = await fetch(endpoint, {
@@ -358,14 +359,16 @@ async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<a
       });
       if (!resp.ok) continue;
       const json = await resp.json();
-      // Skip mirrors that respond OK but with an empty payload (some mirrors
-      // serve stale/empty tiles); fall through to the next mirror.
+      // Some mirrors respond 200 with an empty payload due to stale/broken
+      // index. Prefer the first mirror that returns actual data; only fall
+      // back to an empty payload after every mirror has been tried.
       if ((json?.elements?.length ?? 0) > 0) return json;
+      lastOkEmpty ??= json;
     } catch (e: any) {
       if (e?.name === "AbortError") throw e;
     }
   }
-  return null;
+  return lastOkEmpty;
 }
 
 /* ── Main Spaceship Component ── */
