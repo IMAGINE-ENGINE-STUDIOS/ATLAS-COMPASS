@@ -4870,6 +4870,9 @@ function SpaceshipPage() {
           onApply={handleTransformApply}
           onClose={() => setEditingModel(null)}
           onSnapToGround={handleSnapToGround}
+          cropRadius={editingModel.cropRadius || 0}
+          onCropTile={handleCropTile}
+          onUncropTile={handleUncropTile}
         />
       )}
     </div>
