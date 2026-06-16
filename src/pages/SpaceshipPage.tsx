@@ -100,6 +100,7 @@ interface PlacedModel {
   scale: number;
   createdAt: number;
   category?: string; // see MODEL_CATEGORIES
+  cropRadius?: number; // meters — if >0, crops a circular hole in 3D tilesets under the model
 }
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
