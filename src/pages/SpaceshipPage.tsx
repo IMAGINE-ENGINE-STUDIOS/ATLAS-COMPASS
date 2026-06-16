@@ -4652,10 +4652,10 @@ function SpaceshipPage() {
               setGeoCategory(key);
               businessLoadedAreaRef.current = "";
               if (!showBusinessIcons) setShowBusinessIcons(true);
-              geofenceFromCamera();
               const next = key === "all" ? "" : key;
               setActiveSearchCategory(next);
-              runUnifiedSearch(searchQuery.trim(), next || undefined);
+              if (searchQuery.trim()) runUnifiedSearch(searchQuery.trim(), next || undefined);
+              else loadCategoryBusinessesInstant(key);
             }}
             onUseLocation={geoLocateUser}
             onScanCameraArea={geofenceFromCamera}
