@@ -2482,12 +2482,14 @@ function SpaceshipPage() {
       Park: "rgba(34,197,94,",
       Office: "rgba(148,163,184,",
       Leisure: "rgba(56,189,248,",
+      "Saved POI": "rgba(250,204,21,",
     };
     const iconByType: Record<string, string> = {
       Restaurant: "🍽️", Cafe: "☕", Supermarket: "🛒", Shop: "🏪",
       Hotel: "🏨", Fuel: "⛽", Health: "🏥", Bank: "🏦",
       Education: "🎓", Park: "🌳", Office: "🏢", Leisure: "🎯",
       Attraction: "🎡", Craft: "🛠️", Historic: "🏛️", Place: "📍",
+      "Saved POI": "⭐",
     };
 
     unifiedResults.slice(0, 80).forEach((r, idx) => {
