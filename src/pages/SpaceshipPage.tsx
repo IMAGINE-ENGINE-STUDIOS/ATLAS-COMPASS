@@ -2840,6 +2840,7 @@ function SpaceshipPage() {
       roll: 0,
       scale: stamp.baseScale,
       createdAt: Date.now(),
+      category: stamp.category,
     };
     modelUrlsRef.current.set(newModel.id, stamp.blobUrl);
     placeModelOnGlobe(newModel, stamp.blobUrl);
