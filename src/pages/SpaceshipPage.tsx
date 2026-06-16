@@ -337,6 +337,30 @@ function flyCameraToTarget(
   });
 }
 
+const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
+];
+
+async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<any | null> {
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        body: `data=${encodeURIComponent(query)}`,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal,
+      });
+      if (resp.ok) return await resp.json();
+    } catch (e: any) {
+      if (e?.name === "AbortError") throw e;
+    }
+  }
+  return null;
+}
+
 /* ── Main Spaceship Component ── */
 function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
