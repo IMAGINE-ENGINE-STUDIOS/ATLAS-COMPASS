@@ -321,10 +321,6 @@ function flyCameraToTarget(
   viewer.camera.flyToBoundingSphere(sphere, {
     offset,
     duration: options.duration ?? 1.6,
-    complete: () => {
-      if (!viewer.isDestroyed()) viewer.camera.lookAtTransform(Transforms.eastNorthUpToFixedFrame(center));
-      if (!viewer.isDestroyed()) viewer.camera.lookAtTransform(Cartesian3.ZERO as any);
-    },
   });
 }
 
@@ -697,15 +693,7 @@ function SpaceshipPage() {
   const flyToBusiness = useCallback((b: { lat: number; lng: number; name: string }) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    // Angled top-down view from a comfortable altitude so the user can immediately see the target and its surroundings
-    const altitude = 1500; // ~1.5km up
-    const pitchDeg = -65;
-    const offsetDeg = (altitude / 111000) * Math.tan(((90 + pitchDeg) * Math.PI) / 180) * -1;
-    viewer.camera.flyTo({
-      destination: Cartesian3.fromDegrees(b.lng, b.lat - offsetDeg, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(pitchDeg), roll: 0 },
-      duration: 1.5,
-    });
+    flyCameraToTarget(viewer, b, { range: 1700, pitchDeg: -36, radius: 90, duration: 1.5 });
   }, []);
 
   // Keep ref in sync with state for use inside Cesium handlers
@@ -1642,12 +1630,7 @@ function SpaceshipPage() {
           const bizData = businessDataRef.current.get(entityId);
           if (bizData) {
             setSelectedBusiness(bizData);
-            // Fly to pin and center camera directly on it
-            viewer.camera.flyTo({
-              destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 200),
-              orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
-              duration: 1.2,
-            });
+            flyCameraToTarget(viewer, bizData, { range: 1200, pitchDeg: -34, radius: 80, duration: 1.2 });
           }
         }
       }
