@@ -45,6 +45,7 @@ import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
 import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
 import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery";
+import SearchResultsPanel from "@/components/atlas/SearchResultsPanel";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
@@ -969,140 +970,154 @@ function SpaceshipPage() {
     let center = resolveSearchCenter();
     if (!center) {
       geoLocateUser();
-      // Wait a tick for camera; otherwise we'd bail
       await new Promise(r => setTimeout(r, 400));
       center = resolveSearchCenter();
       if (!center) { setUnifiedResults([]); return; }
     }
+    const ctr = center;
 
+    // ── Instant: saved POI matches (synchronous, render in the same frame) ──
+    const qLower = query.trim().toLowerCase();
+    const poiMatches: SearchResult[] = pois
+      .filter(p => !qLower
+        || p.name.toLowerCase().includes(qLower)
+        || (p.description || "").toLowerCase().includes(qLower)
+        || (p.notes || "").toLowerCase().includes(qLower))
+      .map(p => ({
+        name: p.name,
+        lat: p.lat,
+        lng: p.lng,
+        type: "Saved POI",
+        description: p.description,
+        distance: geoHaversine(ctr.lat, ctr.lng, p.lat, p.lng),
+        source: "osm",
+      } as SearchResult));
+    setUnifiedResults(poiMatches);
     setSearchLoading(true);
-    try {
-      // ── Fast path: category chip with no text query ──
-      // Single Overpass call at 5 km, no radius escalation, no Google round-trip.
-      // Renders ALL matching POIs (restaurants/shops/cafés/hotels/...) instantly.
-      if (!query.trim() && categoryFilter) {
-        try {
-          const hits = await runOverpassAround("", center, 5, controller.signal, categoryFilter);
-          if (controller.signal.aborted) return;
-          hits.sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
-          setUnifiedResults(hits);
-        } catch { /* network/abort */ }
-        finally { if (!controller.signal.aborted) setSearchLoading(false); }
-        return;
-      }
 
-      // Expanding radius until we have ≥20 hits. Tolerate Overpass failures.
-      // Tighter near radii for precision; broader rings only as fallback.
-      const radii = categoryFilter ? [1, 3, 10, 30] : [2, 5, 15, 50, 150];
-      let overpassHits: SearchResult[] = [];
-      let finalR = radii[radii.length - 1];
-      for (const r of radii) {
-        if (controller.signal.aborted) return;
-        try {
-          const hits = await runOverpassAround(query, center, r, controller.signal, categoryFilter);
-          if (controller.signal.aborted) return;
-          if (hits.length > overpassHits.length) overpassHits = hits;
-          finalR = r;
-          if (hits.length >= 20) break;
-        } catch {
-          if (controller.signal.aborted) return;
-        }
-      }
-      // In parallel: bounded Nominatim (near), unbounded (global), and Google Places
-      // (Google fills gaps for businesses, addresses, ratings — only for textual queries)
-      const isTextual = query.trim().length >= 2 && !categoryFilter;
-      const googlePromise: Promise<SearchResult[]> = isTextual
-        ? supabase.functions
-            .invoke("google-search", {
-              body: {
-                query: query.trim(),
-                center: { lat: center.lat, lng: center.lng },
-                radiusMeters: Math.min(Math.max(finalR * 1000, 2000), 50000),
-              },
-            })
-            .then(({ data, error }) => {
-              if (error || !data?.results) return [];
-              return (data.results as any[]).map((r) => ({
-                name: r.name,
-                lat: r.lat,
-                lng: r.lng,
-                type: r.type || "Place",
-                address: r.address,
-                phone: r.phone,
-                website: r.website,
-                rating: r.rating,
-                ratingCount: r.ratingCount,
-                placeId: r.placeId,
-                source: "google" as const,
-              }));
-            })
-            .catch(() => [])
-        : Promise.resolve([]);
+    // Per-source streaming buffers
+    let overpassBuf: SearchResult[] = [];
+    let nominatimBuf: SearchResult[] = [];
+    let googleBuf: SearchResult[] = [];
 
-      const [nomNear, nomGlobal, googleHits] = isTextual
-        ? await Promise.all([
-            runNominatimBounded(query, center, Math.max(finalR, 50), true, controller.signal),
-            runNominatimBounded(query, center, Math.max(finalR, 50), false, controller.signal),
-            googlePromise,
-          ])
-        : [[], [], []];
+    const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const distM = (a: SearchResult, b: SearchResult) => {
+      const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+      const s = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(s));
+    };
+    const matchTier = (name: string): number => {
+      if (!qLower) return 0;
+      const n = (name || "").toLowerCase();
+      if (n === qLower) return 4;
+      if (n.startsWith(qLower)) return 3;
+      if (n.split(/\s+/).some(w => w.startsWith(qLower))) return 2;
+      if (n.includes(qLower)) return 1;
+      return 0;
+    };
+    const recompose = () => {
       if (controller.signal.aborted) return;
-      // Merge with proximity-aware dedupe. When a Google place collides with an
-      // OSM/Nominatim hit within ~25 m on the same normalized name, prefer Google
-      // (richer metadata: phone, website, rating).
-      const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      const distM = (a: SearchResult, b: SearchResult) => {
-        const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180;
-        const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
-        const s = Math.sin(dLat / 2) ** 2 +
-          Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-        return 2 * R * Math.asin(Math.sqrt(s));
-      };
       const tagged: SearchResult[] = [
-        ...googleHits,
-        ...overpassHits.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
-        ...nomNear.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
-        ...nomGlobal.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
+        ...poiMatches,
+        ...googleBuf,
+        ...overpassBuf.map(r => ({ ...r, source: r.source ?? ("osm" as const) })),
+        ...nominatimBuf.map(r => ({ ...r, source: r.source ?? ("osm" as const) })),
       ];
       const merged: SearchResult[] = [];
       for (const r of tagged) {
         const n = norm(r.name);
-        const dup = merged.find(
-          (m) => norm(m.name) === n && distM(m, r) < 25,
-        );
+        const dup = merged.find(m => norm(m.name) === n && distM(m, r) < 25);
         if (!dup) { merged.push(r); continue; }
-        // Upgrade existing to Google if richer.
         if (dup.source !== "google" && r.source === "google") {
-          const idx = merged.indexOf(dup);
-          merged[idx] = { ...r };
+          merged[merged.indexOf(dup)] = { ...r };
         }
       }
-      // Precision-aware ranking: exact > prefix > contains > fuzzy; tiebreak by distance.
-      const q = query.trim().toLowerCase();
-      const matchTier = (name: string): number => {
-        if (!q) return 0;
-        const n = (name || "").toLowerCase();
-        if (n === q) return 4;
-        if (n.startsWith(q)) return 3;
-        if (n.split(/\s+/).some(w => w.startsWith(q))) return 2;
-        if (n.includes(q)) return 1;
-        return 0;
-      };
       merged.sort((a, b) => {
         const ta = matchTier(a.name), tb = matchTier(b.name);
         if (ta !== tb) return tb - ta;
-        // Tie-breaker: well-rated Google places win over OSM
         const ga = a.source === "google" && (a.rating ?? 0) >= 4.0 ? 1 : 0;
         const gb = b.source === "google" && (b.rating ?? 0) >= 4.0 ? 1 : 0;
         if (ga !== gb) return gb - ga;
         return (a.distance ?? 9e9) - (b.distance ?? 9e9);
       });
       setUnifiedResults(merged);
-    } catch { /* aborted or network */ }
+    };
+
+    try {
+      // Fast path: category chip with no text query
+      if (!query.trim() && categoryFilter) {
+        try {
+          const hits = await runOverpassAround("", ctr, 5, controller.signal, categoryFilter);
+          if (controller.signal.aborted) return;
+          overpassBuf = hits;
+          recompose();
+        } catch { /* */ }
+        finally { if (!controller.signal.aborted) setSearchLoading(false); }
+        return;
+      }
+
+      const isTextual = query.trim().length >= 2 && !categoryFilter;
+      const sidePromises: Promise<void>[] = [];
+
+      if (isTextual) {
+        sidePromises.push(
+          runNominatimBounded(query, ctr, 50, true, controller.signal).then(r => {
+            if (controller.signal.aborted) return;
+            nominatimBuf = r;
+            recompose();
+          }).catch(() => {})
+        );
+        sidePromises.push(
+          runNominatimBounded(query, ctr, 200, false, controller.signal).then(r => {
+            if (controller.signal.aborted) return;
+            const seen = new Set(nominatimBuf.map(x => `${x.name}|${x.lat.toFixed(4)}|${x.lng.toFixed(4)}`));
+            const extra = r.filter(x => !seen.has(`${x.name}|${x.lat.toFixed(4)}|${x.lng.toFixed(4)}`));
+            nominatimBuf = [...nominatimBuf, ...extra];
+            recompose();
+          }).catch(() => {})
+        );
+        sidePromises.push(
+          supabase.functions.invoke("google-search", {
+            body: { query: query.trim(), center: { lat: ctr.lat, lng: ctr.lng }, radiusMeters: 25000 },
+          }).then(({ data, error }) => {
+            if (controller.signal.aborted || error || !data?.results) return;
+            googleBuf = (data.results as any[]).map((r) => ({
+              name: r.name, lat: r.lat, lng: r.lng, type: r.type || "Place",
+              address: r.address, phone: r.phone, website: r.website,
+              rating: r.rating, ratingCount: r.ratingCount, placeId: r.placeId,
+              source: "google" as const,
+              distance: geoHaversine(ctr.lat, ctr.lng, r.lat, r.lng),
+            }));
+            recompose();
+          }).catch(() => {})
+        );
+      }
+
+      // Overpass expanding radius — push results after each ring
+      const radii = categoryFilter ? [1, 3, 10, 30] : [2, 5, 15, 50, 150];
+      for (const r of radii) {
+        if (controller.signal.aborted) return;
+        try {
+          const hits = await runOverpassAround(query, ctr, r, controller.signal, categoryFilter);
+          if (controller.signal.aborted) return;
+          if (hits.length > overpassBuf.length) {
+            overpassBuf = hits;
+            recompose();
+          }
+          if (hits.length >= 20) break;
+        } catch {
+          if (controller.signal.aborted) return;
+        }
+      }
+
+      await Promise.allSettled(sidePromises);
+    } catch { /* */ }
     finally {
       if (!controller.signal.aborted) setSearchLoading(false);
     }
-  }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser]);
+  }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser, pois]);
 
   /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
@@ -2467,12 +2482,14 @@ function SpaceshipPage() {
       Park: "rgba(34,197,94,",
       Office: "rgba(148,163,184,",
       Leisure: "rgba(56,189,248,",
+      "Saved POI": "rgba(250,204,21,",
     };
     const iconByType: Record<string, string> = {
       Restaurant: "🍽️", Cafe: "☕", Supermarket: "🛒", Shop: "🏪",
       Hotel: "🏨", Fuel: "⛽", Health: "🏥", Bank: "🏦",
       Education: "🎓", Park: "🌳", Office: "🏢", Leisure: "🎯",
       Attraction: "🎡", Craft: "🛠️", Historic: "🏛️", Place: "📍",
+      "Saved POI": "⭐",
     };
 
     unifiedResults.slice(0, 80).forEach((r, idx) => {
@@ -2519,10 +2536,12 @@ function SpaceshipPage() {
     // Auto-geolocate so the very first search has a center
     if (!geoCenter) geoLocateUser();
 
-    // Debounce 350ms, fire for any input (empty → discover-nearby)
+    // Instant search — 120 ms debounce. Saved POIs match synchronously inside
+    // runUnifiedSearch, so the panel updates in the same frame as the keystroke
+    // while async sources stream in.
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (trimmed.length === 0 || trimmed.length >= 2) {
-      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed, activeSearchCategory || undefined); }, 350);
+      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed, activeSearchCategory || undefined); }, 120);
     } else {
       setUnifiedResults([]);
     }
@@ -4500,6 +4519,44 @@ function SpaceshipPage() {
           {/* Camera recordings gallery */}
           <CameraRecordingsGallery open={recordingsOpen} onClose={() => setRecordingsOpen(false)} />
 
+          {/* Instant search side panel — places, businesses, saved POIs */}
+          <SearchResultsPanel
+            open={searchOpen}
+            query={searchQuery}
+            onQueryChange={(q) => handleSearch(q)}
+            onClose={() => { setSearchOpen(false); setUnifiedResults([]); }}
+            results={unifiedResults as any}
+            loading={searchLoading}
+            hoveredIdx={hoveredResultIdx}
+            setHoveredIdx={setHoveredResultIdx}
+            activeCategory={activeSearchCategory}
+            categories={GEO_CATEGORIES.map(c => ({ key: c.key, label: c.label, icon: c.icon }))}
+            onCategoryChange={(key) => {
+              setGeoCategory(key);
+              businessLoadedAreaRef.current = "";
+              if (!showBusinessIcons) setShowBusinessIcons(true);
+              geofenceFromCamera();
+              const next = key === "all" ? "" : key;
+              setActiveSearchCategory(next);
+              runUnifiedSearch(searchQuery.trim(), next || undefined);
+            }}
+            onUseLocation={geoLocateUser}
+            onScanCameraArea={geofenceFromCamera}
+            geoLocationName={geoLocationName}
+            geoCenter={geoCenter}
+            onSelect={(r) => {
+              flyTo(r as any);
+              setSelectedBusiness({
+                id: `sel-${r.lat}-${r.lng}`,
+                name: r.name, emoji: r.type === "Saved POI" ? "⭐" : r.source === "google" ? "🟢" : "📍",
+                category: r.type, address: r.address, lat: r.lat, lng: r.lng,
+                distance: r.distance, phone: r.phone, website: r.website,
+                brand: r.brand, cuisine: r.cuisine, description: r.description, rating: r.rating,
+              } as any);
+              setSearchOpen(false);
+            }}
+          />
+
            {/* Bottom HUD — Coordinates & Search */}
           <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
             {/* Bottom bar content */}
@@ -4546,139 +4603,7 @@ function SpaceshipPage() {
                       <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0"><X className="w-3.5 h-3.5 text-white/75" /></button>
                     )}
 
-                    {/* Integrated results dropdown — anchored to search input */}
-                    {searchOpen && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute left-0 right-0 z-30"
-                        style={{ bottom: 'calc(100% + 14px)', animation: 'slideUp 0.2s cubic-bezier(0.22,1,0.36,1)' }}
-                      >
-                        <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-                        <div className="flex flex-col max-h-[60vh] overflow-hidden rounded-2xl bg-black/80 backdrop-blur-2xl border border-white/[0.12] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
-                          style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>
-                          {/* Controls */}
-                          <div className="flex items-center gap-2 p-2 border-b border-white/[0.06]">
-                            <button onClick={geoLocateUser} title="Use my location" className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0"><Crosshair className="w-3.5 h-3.5" /></button>
-                            <button onClick={geofenceFromCamera} title="Scan camera area" className="p-1.5 rounded-lg bg-black/70 text-white/75 hover:text-white transition-colors shrink-0"><Globe className="w-3.5 h-3.5" /></button>
-                            <span className="text-[10px] font-mono text-white/75 ml-1">Nearby first</span>
-                          </div>
-                          {/* Category pills */}
-                          <div className="flex gap-1 overflow-x-auto no-scrollbar p-2 border-b border-white/[0.04]">
-                            {["All", ...GEO_CATEGORIES.filter(c => c.key !== "all").map(c => c.label)].map((t, idx) => {
-                              const catKey = idx === 0 ? "all" : GEO_CATEGORIES[idx].key;
-                              const catIcon = idx === 0 ? <Layers className="w-3 h-3" /> : GEO_CATEGORIES[idx].icon;
-                              return (
-                                <button key={t} onClick={() => {
-                                    setGeoCategory(catKey);
-                                    businessLoadedAreaRef.current = "";
-                                    if (!showBusinessIcons) setShowBusinessIcons(true);
-                                    geofenceFromCamera();
-                                    const next = catKey === "all" ? "" : catKey;
-                                    setActiveSearchCategory(next);
-                                    runUnifiedSearch(searchQuery.trim(), next || undefined);
-                                  }}
-                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all ${activeSearchCategory === (catKey === "all" ? "" : catKey) || (catKey === "all" && !activeSearchCategory) ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-black/65 text-white/75 border border-white/[0.06] hover:bg-black/75"}`}>
-                                  {catIcon} {t}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {/* Location info */}
-                          {geoCenter && (
-                            <div className="px-3 py-1.5 border-b border-white/[0.04] flex items-center gap-2">
-                              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                              <span className="text-[10px] text-white/70 truncate">{geoLocationName}</span>
-                              {geoBusinesses.length > 0 && <span className="text-[9px] font-mono text-emerald-400/50 shrink-0">{geoBusinesses.length} nearby</span>}
-                            </div>
-                          )}
-                          {/* Results */}
-                          <div className="flex-1 overflow-y-auto min-h-0 max-h-[60vh] p-2 space-y-0.5">
-                            {searchLoading && (
-                              <div className="flex items-center justify-center gap-2 py-3">
-                                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                                <span className="text-xs text-white/70">Searching nearby…</span>
-                              </div>
-                            )}
-                            {(() => {
-                              // Single ranked nearest-first list with distance-bucket dividers
-                              // 5 km is the primary "near me" bucket and renders first
-                              const buckets = [
-                                { max: 5, label: "🚶 Within 5 km" },
-                                { max: 25, label: "🚗 Within 25 km" },
-                                { max: Infinity, label: "🌍 Farther away" },
-                              ];
-                              let bucketIdx = -1;
-                              const out: any[] = [];
-                              unifiedResults.forEach((r, idx) => {
-                                const d = r.distance ?? Infinity;
-                                const bi = buckets.findIndex(b => d <= b.max);
-                                if (bi !== bucketIdx) {
-                                  bucketIdx = bi;
-                                  out.push(
-                                    <div key={`div-${bi}-${idx}`} className="flex items-center gap-2 px-2 py-1.5">
-                                      <div className="flex-1 h-px bg-emerald-500/20" />
-                                      <span className="text-[9px] text-emerald-400/70 font-mono uppercase tracking-wider">{buckets[bi].label}</span>
-                                      <div className="flex-1 h-px bg-emerald-500/20" />
-                                    </div>
-                                  );
-                                }
-                                const id = `uni-${idx}`;
-                                out.push(
-                                  <div key={id} onMouseEnter={() => setHoveredResultIdx(idx)} onMouseLeave={() => setHoveredResultIdx(null)}>
-                                    <POICard compact variant="glass" index={idx}
-                                      poi={{ id, name: r.name, emoji: r.source === "google" ? "🟢" : "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description, rating: r.rating }}
-                                      onNavigate={() => {
-                                        flyTo(r);
-                                        setSelectedBusiness({ id, name: r.name, emoji: r.source === "google" ? "🟢" : "📍", category: r.type, address: r.address, lat: r.lat, lng: r.lng, distance: r.distance, phone: r.phone, website: r.website, brand: r.brand, cuisine: r.cuisine, description: r.description, rating: r.rating });
-                                        setSearchOpen(false);
-                                      }}
-                                    />
-                                  </div>
-                                );
-                              });
-                              return out;
-                            })()}
-                            {!searchLoading && unifiedResults.length === 0 && searchQuery && (
-                              <p className="text-sm text-white/70 text-center py-4">No nearby results. Try a broader term.</p>
-                            )}
-                            {!searchLoading && unifiedResults.length === 0 && !searchQuery && geoBusinesses.length > 0 && (
-                              <div className="space-y-0.5">
-                                <div className="flex items-center gap-2 px-2 py-1.5">
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                  <span className="text-[9px] text-emerald-400/70 font-mono uppercase tracking-wider">📍 Nearby you</span>
-                                  <div className="flex-1 h-px bg-emerald-500/20" />
-                                </div>
-                                {geoBusinesses.slice(0, 40).map((b: any, idx: number) => (
-                                  <POICard key={`near-${b.id ?? idx}`} compact variant="glass" index={idx}
-                                    poi={{ id: b.id ?? `near-${idx}`, name: b.name, emoji: "📍", category: b.type, address: b.address, lat: b.lat, lng: b.lng, distance: b.distance, phone: b.phone, website: b.website, brand: b.brand, cuisine: b.cuisine, openNow: b.openNow }}
-                                    onNavigate={() => {
-                                      flyToBusiness(b);
-                                      setSelectedBusiness({ id: b.id, name: b.name, emoji: "📍", category: b.type, address: b.address, lat: b.lat, lng: b.lng, distance: b.distance, phone: b.phone, website: b.website, brand: b.brand, cuisine: b.cuisine });
-                                      setSearchOpen(false);
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            {!searchLoading && unifiedResults.length === 0 && !searchQuery && geoBusinesses.length === 0 && searchResults.length > 0 && (
-                              <div className="space-y-0.5">
-                                <div className="flex items-center gap-2 px-2 py-1.5">
-                                  <div className="flex-1 h-px bg-white/10" />
-                                  <span className="text-[9px] text-white/50 font-mono uppercase tracking-wider">⭐ Suggested places</span>
-                                  <div className="flex-1 h-px bg-white/10" />
-                                </div>
-                                {searchResults.map((r, idx) => (
-                                  <POICard key={`preset-${idx}`} compact variant="glass" index={idx}
-                                    poi={{ id: `preset-${idx}`, name: r.name, emoji: "⭐", category: r.type, lat: r.lat, lng: r.lng }}
-                                    onNavigate={() => { flyTo(r); setSearchOpen(false); }}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    {/* Results live in the dedicated left-side SearchResultsPanel mounted below */}
                   </div>
                 </div>
               </GlassPanel>
