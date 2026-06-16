@@ -2939,6 +2939,15 @@ function SpaceshipPage() {
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
+      {/* Placed Model Labels (HTML overlay) */}
+      {isLoaded && (
+        <ModelLabelsOverlay
+          viewer={viewerRef.current}
+          models={placedModels}
+          onSelect={(m) => flyToModel(m as PlacedModel)}
+        />
+      )}
+
       {/* Loading Screen */}
       
         {!isLoaded && (
