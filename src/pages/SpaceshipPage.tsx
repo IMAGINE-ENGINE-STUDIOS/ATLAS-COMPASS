@@ -37,6 +37,7 @@ import {
   ClassificationType,
   SceneTransforms,
   BoundingSphere, HeadingPitchRange, Matrix4,
+  ClippingPolygon, ClippingPolygonCollection,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -99,6 +100,7 @@ interface PlacedModel {
   scale: number;
   createdAt: number;
   category?: string; // see MODEL_CATEGORIES
+  cropRadius?: number; // meters — if >0, crops a circular hole in 3D tilesets under the model
 }
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
@@ -1488,6 +1490,7 @@ function SpaceshipPage() {
         tileset.maximumScreenSpaceError = 8;
         (viewer as any)._realisticTileset = tileset;
         viewer.scene.requestRender();
+        window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
     }).catch(() => {
       // Fallback: if realistic tiles fail, show globe + OSM buildings
@@ -1500,6 +1503,7 @@ function SpaceshipPage() {
             viewer.scene.primitives.add(tileset);
             tileset.maximumScreenSpaceError = 4;
             (viewer as any)._osmTileset = tileset;
+            window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
           }
         });
       }
@@ -1512,6 +1516,7 @@ function SpaceshipPage() {
         tileset.maximumScreenSpaceError = 4;
         tileset.show = false;
         (viewer as any)._osmTileset = tileset;
+        window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
     });
 
@@ -2834,6 +2839,72 @@ function SpaceshipPage() {
     );
     entity.orientation = Transforms.headingPitchRollQuaternion(position, hpr) as any;
   }, []);
+
+  // ── Tile cropping: clip a circular hole in 3D tilesets under a model ──
+  const buildCircleClippingPolygon = useCallback((lat: number, lng: number, radiusMeters: number, segments = 48) => {
+    const positions: Cartesian3[] = [];
+    const metersPerDegLat = 111320;
+    const metersPerDegLng = 111320 * Math.cos(CesiumMath.toRadians(lat));
+    for (let i = 0; i < segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const dLat = (radiusMeters * Math.sin(theta)) / metersPerDegLat;
+      const dLng = (radiusMeters * Math.cos(theta)) / Math.max(1, metersPerDegLng);
+      positions.push(Cartesian3.fromDegrees(lng + dLng, lat + dLat));
+    }
+    return new ClippingPolygon({ positions });
+  }, []);
+
+  const applyAllCropsRef = useRef<() => void>(() => {});
+  const applyAllCrops = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    const cropped = placedModels.filter(m => m.cropRadius && m.cropRadius > 0);
+    const polygons = cropped.map(m => buildCircleClippingPolygon(m.lat, m.lng, m.cropRadius!));
+    const tilesets = [
+      (viewer as any)._realisticTileset as Cesium3DTileset | undefined,
+      (viewer as any)._osmTileset as Cesium3DTileset | undefined,
+    ].filter(Boolean) as Cesium3DTileset[];
+    tilesets.forEach((ts) => {
+      try {
+        ts.clippingPolygons = polygons.length
+          ? new ClippingPolygonCollection({ polygons })
+          : (undefined as any);
+      } catch (err) {
+        console.warn("[CropTile] failed to apply clipping polygons", err);
+      }
+    });
+    viewer.scene.requestRender();
+  }, [placedModels, buildCircleClippingPolygon]);
+  useEffect(() => { applyAllCropsRef.current = applyAllCrops; }, [applyAllCrops]);
+
+  // Re-apply crops whenever models change or a tileset becomes ready.
+  useEffect(() => {
+    applyAllCrops();
+    const onReady = () => applyAllCropsRef.current();
+    window.addEventListener("cesium-tileset-ready", onReady);
+    return () => window.removeEventListener("cesium-tileset-ready", onReady);
+  }, [applyAllCrops]);
+
+  const handleCropTile = useCallback((radius: number) => {
+    if (!editingModel) return;
+    const r = Math.max(1, radius);
+    setPlacedModels(prev => {
+      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: r } : m);
+      savePlacedModels(updated);
+      return updated;
+    });
+    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: r } : current);
+  }, [editingModel]);
+
+  const handleUncropTile = useCallback(() => {
+    if (!editingModel) return;
+    setPlacedModels(prev => {
+      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: 0 } : m);
+      savePlacedModels(updated);
+      return updated;
+    });
+    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: 0 } : current);
+  }, [editingModel]);
 
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
     if (!viewerRef.current) return;
@@ -4799,6 +4870,9 @@ function SpaceshipPage() {
           onApply={handleTransformApply}
           onClose={() => setEditingModel(null)}
           onSnapToGround={handleSnapToGround}
+          cropRadius={editingModel.cropRadius || 0}
+          onCropTile={handleCropTile}
+          onUncropTile={handleUncropTile}
         />
       )}
     </div>
