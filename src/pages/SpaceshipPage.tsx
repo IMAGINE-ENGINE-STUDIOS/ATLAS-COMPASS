@@ -2797,6 +2797,7 @@ function SpaceshipPage() {
       setModelName("");
       setModelScale(1);
       setModelHeading(0);
+      setModelCategory("other");
       setConvertProgress("");
       // Reset native file input so re-picking the same file fires onChange.
       if (fileInputRef.current) fileInputRef.current.value = "";
