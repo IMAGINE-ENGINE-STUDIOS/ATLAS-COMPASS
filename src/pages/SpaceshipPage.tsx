@@ -362,6 +362,7 @@ function SpaceshipPage() {
     name: string;
     baseScale: number;
     baseHeading: number;
+    category?: string;
   } | null>(null);
   const [stampModelInfo, setStampModelInfo] = useState<{ name: string; fileName: string } | null>(null);
   const [stampSpacingM, setStampSpacingM] = useState(0);
