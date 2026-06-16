@@ -4776,7 +4776,7 @@ function SpaceshipPage() {
                   )}
                   <div className="w-px h-6 sm:h-8 bg-white/10 ml-auto" />
                   <div className="relative flex items-center gap-1.5 cursor-text flex-1 min-w-0"
-                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}>
+                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); } }}>
                     <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
                     {searchOpen ? (
                       <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search stores, addresses…"
