@@ -2534,10 +2534,12 @@ function SpaceshipPage() {
     // Auto-geolocate so the very first search has a center
     if (!geoCenter) geoLocateUser();
 
-    // Debounce 350ms, fire for any input (empty → discover-nearby)
+    // Instant search — 120 ms debounce. Saved POIs match synchronously inside
+    // runUnifiedSearch, so the panel updates in the same frame as the keystroke
+    // while async sources stream in.
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (trimmed.length === 0 || trimmed.length >= 2) {
-      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed, activeSearchCategory || undefined); }, 350);
+      searchTimerRef.current = setTimeout(() => { runUnifiedSearch(trimmed, activeSearchCategory || undefined); }, 120);
     } else {
       setUnifiedResults([]);
     }
