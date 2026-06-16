@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      camera_catalog: {
+        Row: {
+          country: string | null
+          created_at: string | null
+          feed_status: string | null
+          id: string
+          image_url: string | null
+          last_updated: string | null
+          lat: number
+          lng: number
+          name: string
+          refresh_rate: number | null
+          region: string | null
+          source: string
+          stream_url: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string | null
+          feed_status?: string | null
+          id: string
+          image_url?: string | null
+          last_updated?: string | null
+          lat: number
+          lng: number
+          name: string
+          refresh_rate?: number | null
+          region?: string | null
+          source: string
+          stream_url?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string | null
+          feed_status?: string | null
+          id?: string
+          image_url?: string | null
+          last_updated?: string | null
+          lat?: number
+          lng?: number
+          name?: string
+          refresh_rate?: number | null
+          region?: string | null
+          source?: string
+          stream_url?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

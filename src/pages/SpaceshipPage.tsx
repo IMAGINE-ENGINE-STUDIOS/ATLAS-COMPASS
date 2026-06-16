@@ -8,7 +8,7 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv
 } from "lucide-react";
 import { Layers } from "lucide-react";
 import {
@@ -42,6 +42,8 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
+import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
+import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
@@ -434,6 +436,8 @@ function SpaceshipPage() {
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
+  const [intelligenceOpen, setIntelligenceOpen] = useState(false);
+  const [activeCamera, setActiveCamera] = useState<TrafficCamera | null>(null);
   const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
   // Marketplace pins state
@@ -3088,6 +3092,14 @@ function SpaceshipPage() {
                   >
                     <ShoppingBag className="w-4 h-4" />
                   </button>
+                  {/* Intelligence — Traffic Cameras */}
+                  <button
+                    onClick={() => setIntelligenceOpen(o => !o)}
+                    className={`p-1.5 rounded-lg transition-colors ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    title="Intelligence — Live Traffic Cameras"
+                  >
+                    <Cctv className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
@@ -4353,6 +4365,36 @@ function SpaceshipPage() {
               geofenceFromCamera();
             }}
           />
+
+          {/* Intelligence — Live Traffic Cameras Panel */}
+          <IntelligencePanel
+            open={intelligenceOpen}
+            onClose={() => setIntelligenceOpen(false)}
+            getBounds={() => {
+              const viewer = viewerRef.current;
+              if (!viewer || viewer.isDestroyed()) return null;
+              const rect = viewer.camera.computeViewRectangle();
+              if (!rect) return null;
+              return {
+                north: CesiumMath.toDegrees(rect.north),
+                south: CesiumMath.toDegrees(rect.south),
+                east: CesiumMath.toDegrees(rect.east),
+                west: CesiumMath.toDegrees(rect.west),
+              } as CameraBounds;
+            }}
+            onSelectCamera={(cam) => {
+              const viewer = viewerRef.current;
+              if (viewer && !viewer.isDestroyed()) {
+                flyCameraToTarget(viewer, { lat: cam.lat, lng: cam.lng }, { range: 900, pitchDeg: -40, radius: 60, duration: 1.4 });
+              }
+              setActiveCamera(cam);
+            }}
+          />
+
+          {/* Live camera viewer popup */}
+          {activeCamera && (
+            <CameraViewerPopup camera={activeCamera} onClose={() => setActiveCamera(null)} />
+          )}
 
            {/* Bottom HUD — Coordinates & Search */}
           <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
