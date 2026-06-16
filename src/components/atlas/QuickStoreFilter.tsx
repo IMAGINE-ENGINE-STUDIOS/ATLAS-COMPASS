@@ -75,7 +75,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
               return (
                 <button
                   key={opt.key}
-                  onClick={() => { onChange(opt.key); onActivate?.(opt.key); }}
+                  onClick={() => { onChange(opt.key); }}
                   title={opt.label}
                   className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                     active
