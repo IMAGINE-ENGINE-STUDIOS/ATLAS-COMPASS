@@ -1688,6 +1688,8 @@ function SpaceshipPage() {
     businessEntitiesRef.current = [];
     businessDataRef.current.clear();
     businessLoadedAreaRef.current = "";
+    // Reset throttle so a category/visibility change refetches immediately
+    bizLastFetchRef.current = 0;
 
     if (!showBusinessIcons) return;
 
