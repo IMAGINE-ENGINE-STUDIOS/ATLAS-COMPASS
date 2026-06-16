@@ -1822,11 +1822,7 @@ function SpaceshipPage() {
           const bizData = businessDataRef.current.get(entityId);
           if (bizData) {
             setSelectedBusiness(bizData);
-            viewer.camera.flyTo({
-              destination: Cartesian3.fromDegrees(bizData.lng, bizData.lat, 200),
-              orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 },
-              duration: 1.2,
-            });
+            flyCameraToTarget(viewer, bizData, { range: 1200, pitchDeg: -34, radius: 80, duration: 1.2 });
           }
         }
       }
@@ -2469,19 +2465,11 @@ function SpaceshipPage() {
 
   const flyTo = useCallback((result: SearchResult) => {
     if (!viewerRef.current) return;
-    // Pull back to a comfortable framing distance so the target and its context are visible immediately
     const businessTypes = ["Restaurant","Cafe","Hotel","Shop","Store","Supermarket","Fuel","Health","Education","Business"];
     const isBusiness = businessTypes.includes(result.type);
-    const altitude = result.type === "Mountain" ? 12000 : result.type === "City" ? 6000 : isBusiness ? 1500 : 3000;
-    const pitchDeg = result.type === "Mountain" ? -55 : result.type === "City" ? -60 : -65;
-    // Place camera south of target by (altitude / tan(|pitch|)) so target sits in viewport center
-    const groundOffsetMeters = altitude / Math.tan((Math.abs(pitchDeg) * Math.PI) / 180);
-    const offsetDeg = groundOffsetMeters / 111000;
-    viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(result.lng, result.lat - offsetDeg, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(pitchDeg), roll: 0 },
-      duration: 1.8,
-    });
+    const range = result.type === "Mountain" ? 14000 : result.type === "City" ? 7200 : isBusiness ? 1700 : 3200;
+    const pitchDeg = result.type === "Mountain" ? -42 : result.type === "City" ? -45 : -36;
+    flyCameraToTarget(viewerRef.current, result, { range, pitchDeg, radius: isBusiness ? 90 : 180, duration: 1.8 });
     viewerRef.current.entities.add({
       position: Cartesian3.fromDegrees(result.lng, result.lat),
       name: result.name,
@@ -2580,15 +2568,7 @@ function SpaceshipPage() {
 
   const flyToPOI = useCallback((poi: POI) => {
     if (!viewerRef.current) return;
-    const altitude = 1800;
-    const pitchDeg = -65;
-    const groundOffsetMeters = altitude / Math.tan((Math.abs(pitchDeg) * Math.PI) / 180);
-    const offsetDeg = groundOffsetMeters / 111000;
-    viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(poi.lng, poi.lat - offsetDeg, altitude),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(pitchDeg), roll: 0 },
-      duration: 2,
-    });
+    flyCameraToTarget(viewerRef.current, poi, { range: 1800, pitchDeg: -36, radius: 90, duration: 1.6 });
   }, []);
 
   const saveNotes = useCallback(() => {
@@ -2892,11 +2872,7 @@ function SpaceshipPage() {
 
   const flyToModel = useCallback((model: PlacedModel) => {
     if (!viewerRef.current) return;
-    viewerRef.current.camera.flyTo({
-      destination: Cartesian3.fromDegrees(model.lng, model.lat, 500),
-      orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-35), roll: 0 },
-      duration: 2,
-    });
+    flyCameraToTarget(viewerRef.current, model, { range: 1400, pitchDeg: -32, radius: 80, duration: 1.6 });
   }, []);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
