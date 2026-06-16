@@ -3092,6 +3092,14 @@ function SpaceshipPage() {
                   >
                     <ShoppingBag className="w-4 h-4" />
                   </button>
+                  {/* Intelligence — Traffic Cameras */}
+                  <button
+                    onClick={() => setIntelligenceOpen(o => !o)}
+                    className={`p-1.5 rounded-lg transition-colors ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    title="Intelligence — Live Traffic Cameras"
+                  >
+                    <Cctv className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
