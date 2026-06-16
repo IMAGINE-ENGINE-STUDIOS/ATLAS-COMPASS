@@ -1490,6 +1490,7 @@ function SpaceshipPage() {
         tileset.maximumScreenSpaceError = 8;
         (viewer as any)._realisticTileset = tileset;
         viewer.scene.requestRender();
+        window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
     }).catch(() => {
       // Fallback: if realistic tiles fail, show globe + OSM buildings
@@ -1502,6 +1503,7 @@ function SpaceshipPage() {
             viewer.scene.primitives.add(tileset);
             tileset.maximumScreenSpaceError = 4;
             (viewer as any)._osmTileset = tileset;
+            window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
           }
         });
       }
@@ -1514,6 +1516,7 @@ function SpaceshipPage() {
         tileset.maximumScreenSpaceError = 4;
         tileset.show = false;
         (viewer as any)._osmTileset = tileset;
+        window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
     });
 
