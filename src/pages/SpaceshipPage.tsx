@@ -2626,13 +2626,6 @@ function SpaceshipPage() {
         maximumScale: 20000,
         heightReference: 0, // NONE — required for orientation to work
       } as any,
-      label: {
-        text: `🏗️ ${model.name}`, font: "12px Inter, sans-serif",
-        fillColor: Color.fromCssColorString("#00ff88"),
-        outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
-        pixelOffset: new Cartesian2(0, -40),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
     });
 
     applyModelTransformToEntity(entity, model);
