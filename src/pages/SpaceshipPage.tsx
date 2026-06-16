@@ -4560,8 +4560,8 @@ function SpaceshipPage() {
                             )}
                             {(() => {
                               // Single ranked nearest-first list with distance-bucket dividers
+                              // 5 km is the primary "near me" bucket and renders first
                               const buckets = [
-                                { max: 1, label: "📍 Within 1 km" },
                                 { max: 5, label: "🚶 Within 5 km" },
                                 { max: 25, label: "🚗 Within 25 km" },
                                 { max: Infinity, label: "🌍 Farther away" },
