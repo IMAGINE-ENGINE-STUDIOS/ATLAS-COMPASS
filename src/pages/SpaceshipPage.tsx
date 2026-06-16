@@ -346,6 +346,7 @@ function SpaceshipPage() {
   const [convertProgress, setConvertProgress] = useState<string>("");
   const [modelScale, setModelScale] = useState(1);
   const [modelHeading, setModelHeading] = useState(0);
+  const [modelCategory, setModelCategory] = useState<string>("other");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
   const restoringModelIdsRef = useRef<Set<string>>(new Set());
