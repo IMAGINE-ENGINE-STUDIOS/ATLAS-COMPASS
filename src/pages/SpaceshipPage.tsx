@@ -1728,7 +1728,7 @@ function SpaceshipPage() {
       }
 
       const radius = alt < 5000 ? 0.08 : alt < 20000 ? 0.15 : alt < 80000 ? 0.3 : 0.5;
-      const limit = alt < 10000 ? 120 : 60;
+      const limit = alt < 10000 ? 400 : alt < 80000 ? 250 : 150;
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)},${geoCategory}`;
       if (businessLoadedAreaRef.current === areaKey) {
         setIsLoadingBusinesses(false);
@@ -4485,6 +4485,21 @@ function SpaceshipPage() {
               const next = k === "all" ? "" : k;
               setActiveSearchCategory(next);
               geofenceFromCamera();
+            }}
+            onActivate={() => {
+              // Force an instant reload of stores for the current category
+              // bypassing the 3s throttle + area-key cache.
+              businessLoadedAreaRef.current = "";
+              bizLastFetchRef.current = 0;
+              if (!showBusinessIcons) {
+                setShowBusinessIcons(true);
+              } else {
+                // Effect won't re-run because deps unchanged — kick the camera
+                // listener path which calls loadBusinesses on its next tick.
+                geofenceFromCamera();
+                // Also trigger a synthetic moveEnd so the debounced loader fires now.
+                try { viewerRef.current?.camera.moveEnd.raiseEvent(); } catch {}
+              }
             }}
           />
 
