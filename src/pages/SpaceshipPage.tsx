@@ -4486,6 +4486,21 @@ function SpaceshipPage() {
               setActiveSearchCategory(next);
               geofenceFromCamera();
             }}
+            onActivate={() => {
+              // Force an instant reload of stores for the current category
+              // bypassing the 3s throttle + area-key cache.
+              businessLoadedAreaRef.current = "";
+              bizLastFetchRef.current = 0;
+              if (!showBusinessIcons) {
+                setShowBusinessIcons(true);
+              } else {
+                // Effect won't re-run because deps unchanged — kick the camera
+                // listener path which calls loadBusinesses on its next tick.
+                geofenceFromCamera();
+                // Also trigger a synthetic moveEnd so the debounced loader fires now.
+                try { viewerRef.current?.camera.moveEnd.raiseEvent(); } catch {}
+              }
+            }}
           />
 
           {/* Intelligence — Live Traffic Cameras Panel */}
