@@ -4339,6 +4339,20 @@ function SpaceshipPage() {
           
 
 
+          {/* Quick Store Filter — right-side circular button */}
+          <QuickStoreFilter
+            options={GEO_CATEGORIES}
+            value={geoCategory}
+            onChange={(k) => {
+              setGeoCategory(k);
+              businessLoadedAreaRef.current = "";
+              if (!showBusinessIcons) setShowBusinessIcons(true);
+              const next = k === "all" ? "" : k;
+              setActiveSearchCategory(next);
+              geofenceFromCamera();
+            }}
+          />
+
            {/* Bottom HUD — Coordinates & Search */}
           <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
             {/* Bottom bar content */}
