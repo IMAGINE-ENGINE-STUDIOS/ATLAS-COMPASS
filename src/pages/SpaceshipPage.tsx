@@ -849,6 +849,69 @@ function SpaceshipPage() {
     return "Place";
   };
 
+  const addBusinessPinsFromResults = useCallback((results: SearchResult[], center?: { lat: number; lng: number }) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    businessEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    businessEntitiesRef.current = [];
+    businessDataRef.current.clear();
+
+    const iconByType: Record<string, string> = {
+      Restaurant: "🍽️", Cafe: "☕", Supermarket: "🛒", Shop: "🏪",
+      Hotel: "🏨", Fuel: "⛽", Health: "🏥", Bank: "🏦",
+      Education: "🎓", Office: "🏢", Business: "🏪", Place: "📍",
+      Attraction: "🎡", Park: "🌳", Leisure: "🎯", Craft: "🛠️", Historic: "🏛️",
+    };
+    const colorByType: Record<string, string> = {
+      Restaurant: "rgba(249,115,22,0.75)", Cafe: "rgba(217,119,6,0.75)",
+      Supermarket: "rgba(34,197,94,0.75)", Shop: "rgba(16,185,129,0.75)",
+      Hotel: "rgba(99,102,241,0.75)", Fuel: "rgba(239,68,68,0.75)",
+      Health: "rgba(239,68,68,0.75)", Bank: "rgba(59,130,246,0.75)",
+      Education: "rgba(99,102,241,0.75)", Office: "rgba(148,163,184,0.75)",
+    };
+
+    results.slice(0, 500).forEach((r, idx) => {
+      const entityId = `biz-live-${idx}-${r.lat.toFixed(6)}-${r.lng.toFixed(6)}`;
+      const icon = iconByType[r.type] || "📍";
+      const truncName = r.name.length > 20 ? r.name.slice(0, 18) + "…" : r.name;
+      businessDataRef.current.set(entityId, {
+        id: entityId,
+        name: r.name,
+        emoji: icon,
+        category: r.type || "Business",
+        address: r.address,
+        lat: r.lat,
+        lng: r.lng,
+        distance: center ? geoHaversine(center.lat, center.lng, r.lat, r.lng) : r.distance,
+        phone: r.phone,
+        website: r.website,
+        brand: r.brand,
+        cuisine: r.cuisine,
+        description: r.description,
+      });
+      const entity = viewer.entities.add({
+        id: entityId,
+        position: Cartesian3.fromDegrees(r.lng, r.lat, 0),
+        billboard: {
+          image: createPinCanvas(icon, truncName, colorByType[r.type] || "rgba(0,212,255,0.75)"),
+          verticalOrigin: 1,
+          pixelOffset: new Cartesian2(0, 0),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: { near: 200, nearValue: 0.85, far: 30000, farValue: 0.3 } as any,
+          translucencyByDistance: { near: 100, nearValue: 1.0, far: 45000, farValue: 0.15 } as any,
+          heightReference: 1,
+          alignedAxis: Cartesian3.ZERO,
+        },
+        properties: { type: "business-result" } as any,
+        description: r.name + (r.address ? ` — ${r.address}` : ""),
+      });
+      businessEntitiesRef.current.push(entity);
+    });
+    viewer.scene.requestRender?.();
+  }, []);
+
   const runOverpassAround = useCallback(async (
     query: string,
     center: { lat: number; lng: number },
