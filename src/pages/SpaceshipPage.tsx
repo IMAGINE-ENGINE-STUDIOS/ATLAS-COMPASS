@@ -4385,7 +4385,7 @@ function SpaceshipPage() {
             onSelectCamera={(cam) => {
               const viewer = viewerRef.current;
               if (viewer && !viewer.isDestroyed()) {
-                flyCameraToTarget(viewer, { lat: cam.lat, lng: cam.lng, name: cam.name }, { range: 900, pitchDeg: -40, radius: 60, duration: 1.4 });
+                flyCameraToTarget(viewer, { lat: cam.lat, lng: cam.lng }, { range: 900, pitchDeg: -40, radius: 60, duration: 1.4 });
               }
               setActiveCamera(cam);
             }}
