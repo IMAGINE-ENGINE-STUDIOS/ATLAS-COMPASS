@@ -1,43 +1,29 @@
-# Instant Search Engine with Map Sync
+## Plan
 
-Upgrade the existing Atlas unified search (top bar in `SpaceshipPage.tsx`) so results appear instantly in a dedicated side panel AND as live pins on the globe, covering places/addresses, businesses, and the user's saved POIs.
+1. **Stop automatic store loading**
+   - Keep stores off by default.
+   - Opening the search bar should not trigger a broad background store scan.
+   - Stores load only when the user selects a category filter or types a search.
 
-## What changes
+2. **Fix the category filter click path**
+   - Make every category button directly call the instant loader, including repeated clicks on the same category.
+   - Avoid relying on React state timing for the selected category; pass the clicked category directly into the fetch.
+   - Keep the results panel open and show loading while fetching.
 
-1. **Instant-as-you-type**
-   - Drop debounce from current value to ~120 ms and fire on every keystroke ≥ 2 chars.
-   - Show partial results as they stream in: local POI matches (synchronous) appear first frame, then Overpass businesses, then Nominatim places — no waiting for the slowest source.
-   - Keep the abort-previous-request pattern so stale responses never overwrite newer ones.
+3. **Replace the failing category Overpass query format**
+   - The current `nwr[...](around:...)` category query is returning no usable results in Manhattan.
+   - Rewrite the filter query to use explicit `node`, `way`, and `relation` blocks with correct Overpass syntax for `around` searches.
+   - Use the same corrected query path for category pins and search results.
 
-2. **New side panel (`SearchResultsPanel`)**
-   - Left-anchored glassmorphic panel (~380 px), slides in when search is active, collapsible.
-   - Three grouped sections with counts: **Saved POIs**, **Places & Addresses**, **Businesses & Stores**.
-   - Each row: icon, name, category/address, distance from viewport center, action buttons (Fly to, Save POI, Route to).
-   - Hover row → corresponding pin pulses on globe. Click row → camera flies to it.
-   - Empty state per section while that source is still loading (skeleton rows).
+4. **Make pins reliably visible**
+   - Add fetched stores to both the left results panel and the Cesium map immediately.
+   - Keep store pins above depth with ground clamp, but fall back to normal coordinate placement if clamping fails.
+   - Clear old store pins before rendering the new selected category.
 
-3. **Saved POIs as a search source**
-   - Read from existing POI store (`mem://features/atlas-poi-system`).
-   - Match against POI name, description, tags. Synchronous, so they're always first to render.
-   - Tagged with a distinct icon/color so they stand out from OSM results.
+5. **Improve empty/failure behavior**
+   - If Overpass returns zero or is rate-limited, automatically fall back to bounded Nominatim category searches.
+   - Keep the loading state accurate and leave an empty result panel only after both sources fail.
 
-4. **Map pin sync**
-   - Existing `searchResultEntitiesRef` already renders one pin per result; extend it to:
-     - Color-code by source (POI / place / business).
-     - Highlight the hovered row's pin (scale + glow).
-     - Cluster when > 50 results in view to keep the globe readable.
-
-5. **Top-bar search box**
-   - Keep current input; add a small "results: N" badge and a clear (×) button.
-   - Pressing Enter focuses the first result; Esc closes panel + clears pins.
-
-## Technical notes
-
-- Files touched: `src/pages/SpaceshipPage.tsx` (wire panel + faster debounce + POI source), new `src/components/atlas/SearchResultsPanel.tsx`, small helper `src/lib/search-rank.ts` for distance + relevance scoring.
-- Reuse existing `runUnifiedSearch`, `runOverpassAround`, `runNominatimBounded`; refactor to emit partial results via a callback instead of awaiting `Promise.all`.
-- No new backend, no new API keys — uses Overpass + Nominatim + local POI store already in the app, consistent with the real-data constraint.
-- Pure CSS animations for panel slide and pin pulse.
-
-## Out of scope
-- Live cameras as a search source (can be added later if wanted).
-- Server-side search index / Algolia.
+6. **Verify in Manhattan**
+   - Test Food, Café, Grocery, and Shops around Manhattan/Times Square.
+   - Confirm the result count updates and visible map pins are created only after category selection or a text search.

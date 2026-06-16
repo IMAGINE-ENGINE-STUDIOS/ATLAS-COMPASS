@@ -340,22 +340,35 @@ function flyCameraToTarget(
 }
 
 const OVERPASS_ENDPOINTS = [
+  // Ordered by observed reliability — first non-empty response wins.
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.osm.ch/api/interpreter",
 ];
 
 async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<any | null> {
+  let lastOkEmpty: any = null;
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
-      const resp = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, { signal });
-      if (resp.ok) return await resp.json();
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+        body: `data=${encodeURIComponent(query)}`,
+        signal,
+      });
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      // Some mirrors respond 200 with an empty payload due to stale/broken
+      // index. Prefer the first mirror that returns actual data; only fall
+      // back to an empty payload after every mirror has been tried.
+      if ((json?.elements?.length ?? 0) > 0) return json;
+      lastOkEmpty ??= json;
     } catch (e: any) {
       if (e?.name === "AbortError") throw e;
     }
   }
-  return null;
+  return lastOkEmpty;
 }
 
 /* ── Main Spaceship Component ── */
@@ -948,30 +961,9 @@ function SpaceshipPage() {
       : catBlocks;
     // Higher cap so a category-only "show ALL" near me returns everything in the radius
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 600;`;
-    // Race all mirrors in parallel — first to respond wins. Massive latency win.
-    const raceMirrors = (): Promise<any> => new Promise((resolve, reject) => {
-      let pending = OVERPASS_ENDPOINTS.length;
-      let resolved = false;
-      let firstEmpty: any = null;
-      OVERPASS_ENDPOINTS.forEach(url => {
-        fetch(`${url}?data=${encodeURIComponent(q)}`, { signal })
-          .then(r => (r.ok ? r.json() : Promise.reject(new Error("status " + r.status))))
-          .then(json => {
-            if (resolved) return;
-            if ((json?.elements || []).length > 0) { resolved = true; resolve(json); return; }
-            firstEmpty ??= json;
-            pending--;
-            if (pending === 0) { resolved = true; resolve(firstEmpty); }
-          })
-          .catch(() => { pending--; if (pending === 0 && !resolved) { resolved = true; firstEmpty ? resolve(firstEmpty) : reject(new Error("all mirrors failed")); } });
-      });
-    });
-    let data: any = null;
-    try {
-      data = await raceMirrors();
-    } catch {
-      return [];
-    }
+    // Sequential mirror try — skip OK-but-empty mirrors so a broken/stale one
+    // (e.g. overpass.osm.ch returning {"elements":[]}) doesn't shadow a working one.
+    const data: any = await fetchOverpassJson(q, signal).catch(() => null);
     if (!data) return [];
     const seen = new Set<string>();
     return (data.elements || [])
@@ -1971,13 +1963,10 @@ function SpaceshipPage() {
       }
     };
 
-    loadBusinesses();
-
-    // Debounced reload on camera move end (800ms delay)
+    // Stores load ONLY when the user selects a category filter or searches.
+    // The camera-move listener here just persists the camera state — it does
+    // not auto-fetch business pins.
     const removeListener = viewer.camera.moveEnd.addEventListener(() => {
-      if (bizLoadTimerRef.current) clearTimeout(bizLoadTimerRef.current);
-      bizLoadTimerRef.current = setTimeout(loadBusinesses, 800);
-      // Persist camera state so next load resumes here
       try {
         const cam = viewer.camera;
         const pos = cam.positionCartographic;
@@ -4787,7 +4776,7 @@ function SpaceshipPage() {
                   )}
                   <div className="w-px h-6 sm:h-8 bg-white/10 ml-auto" />
                   <div className="relative flex items-center gap-1.5 cursor-text flex-1 min-w-0"
-                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); setShowBusinessIcons(true); businessLoadedAreaRef.current = ""; geofenceFromCamera(); } }}>
+                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); } }}>
                     <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
                     {searchOpen ? (
                       <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search stores, addresses…"
