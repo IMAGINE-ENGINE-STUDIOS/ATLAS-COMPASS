@@ -4519,6 +4519,44 @@ function SpaceshipPage() {
           {/* Camera recordings gallery */}
           <CameraRecordingsGallery open={recordingsOpen} onClose={() => setRecordingsOpen(false)} />
 
+          {/* Instant search side panel — places, businesses, saved POIs */}
+          <SearchResultsPanel
+            open={searchOpen}
+            query={searchQuery}
+            onQueryChange={(q) => handleSearch(q)}
+            onClose={() => { setSearchOpen(false); setUnifiedResults([]); }}
+            results={unifiedResults as any}
+            loading={searchLoading}
+            hoveredIdx={hoveredResultIdx}
+            setHoveredIdx={setHoveredResultIdx}
+            activeCategory={activeSearchCategory}
+            categories={GEO_CATEGORIES.map(c => ({ key: c.key, label: c.label, icon: c.icon }))}
+            onCategoryChange={(key) => {
+              setGeoCategory(key);
+              businessLoadedAreaRef.current = "";
+              if (!showBusinessIcons) setShowBusinessIcons(true);
+              geofenceFromCamera();
+              const next = key === "all" ? "" : key;
+              setActiveSearchCategory(next);
+              runUnifiedSearch(searchQuery.trim(), next || undefined);
+            }}
+            onUseLocation={geoLocateUser}
+            onScanCameraArea={geofenceFromCamera}
+            geoLocationName={geoLocationName}
+            geoCenter={geoCenter}
+            onSelect={(r) => {
+              flyTo(r as any);
+              setSelectedBusiness({
+                id: `sel-${r.lat}-${r.lng}`,
+                name: r.name, emoji: r.type === "Saved POI" ? "⭐" : r.source === "google" ? "🟢" : "📍",
+                category: r.type, address: r.address, lat: r.lat, lng: r.lng,
+                distance: r.distance, phone: r.phone, website: r.website,
+                brand: r.brand, cuisine: r.cuisine, description: r.description, rating: r.rating,
+              } as any);
+              setSearchOpen(false);
+            }}
+          />
+
            {/* Bottom HUD — Coordinates & Search */}
           <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
             {/* Bottom bar content */}
