@@ -34,6 +34,7 @@ import {
   Cartesian2, Cesium3DTileset,
   PolylineGlowMaterialProperty,
   ClassificationType,
+  SceneTransforms,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
