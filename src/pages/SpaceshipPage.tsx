@@ -4196,9 +4196,7 @@ function SpaceshipPage() {
                     variant="glass"
                     onNavigate={(poi) => {
                       const viewer = viewerRef.current;
-                      if (viewer && !viewer.isDestroyed()) {
-                        viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(poi.lng, poi.lat, 150), orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-50), roll: 0 }, duration: 1 });
-                      }
+                      flyCameraToTarget(viewer, poi, { range: 1200, pitchDeg: -34, radius: 80, duration: 1 });
                     }}
                     onDirections={(poi) => {
                       // Get user's current camera position as origin
