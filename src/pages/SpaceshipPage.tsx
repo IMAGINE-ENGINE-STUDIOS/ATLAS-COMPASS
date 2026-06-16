@@ -1329,15 +1329,35 @@ function SpaceshipPage() {
     });
     areaEntityRef.current = areaEntity;
 
-    // World always opens at a full global view (orbit perspective).
-    viewer.camera.setView({
-      destination: Cartesian3.fromDegrees(0, 20, 20000000),
-      orientation: {
-        heading: CesiumMath.toRadians(0),
-        pitch: CesiumMath.toRadians(-90),
-        roll: 0,
-      },
-    });
+    // Restore last camera viewport if available, else open at full global view.
+    let restoredCamera = false;
+    try {
+      const saved = localStorage.getItem("atlas_camera");
+      if (saved) {
+        const s = JSON.parse(saved);
+        if (typeof s.lng === "number" && typeof s.lat === "number" && typeof s.alt === "number") {
+          viewer.camera.setView({
+            destination: Cartesian3.fromDegrees(s.lng, s.lat, s.alt),
+            orientation: {
+              heading: CesiumMath.toRadians(s.heading ?? 0),
+              pitch: CesiumMath.toRadians(s.pitch ?? -90),
+              roll: CesiumMath.toRadians(s.roll ?? 0),
+            },
+          });
+          restoredCamera = true;
+        }
+      }
+    } catch {}
+    if (!restoredCamera) {
+      viewer.camera.setView({
+        destination: Cartesian3.fromDegrees(0, 20, 20000000),
+        orientation: {
+          heading: CesiumMath.toRadians(0),
+          pitch: CesiumMath.toRadians(-90),
+          roll: 0,
+        },
+      });
+    }
 
     // Mouse move handler for coordinates + brush indicator
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
