@@ -33,6 +33,7 @@ import {
   HeadingPitchRoll, Transforms,
   Cartesian2, Cesium3DTileset,
   PolylineGlowMaterialProperty,
+  ClassificationType,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -2202,8 +2203,7 @@ function SpaceshipPage() {
           material: Color.fromCssColorString("#10b981").withAlpha(0.22),
           outline: true,
           outlineColor: Color.fromCssColorString("#34d399").withAlpha(0.9),
-          height: 0,
-          heightReference: 1, // CLAMP_TO_GROUND
+          classificationType: ClassificationType.BOTH,
         } as any,
         properties: { type: "selected-tile", key: k } as any,
       });
