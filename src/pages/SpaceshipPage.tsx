@@ -3043,6 +3043,15 @@ function SpaceshipPage() {
         )}
       
 
+      {/* Business Store Loading Overlay */}
+      {isLoaded && isLoadingBusinesses && (
+        <div className="absolute inset-0 z-40 bg-[#0a0a1a]/40 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in pointer-events-none">
+          <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-primary animate-spin" />
+          <p className="mt-4 text-white/90 text-sm font-mono tracking-wide">LOADING STORES...</p>
+        </div>
+      )}
+      
+
       {/* Brush Mode Indicator */}
       
         {brushMode && !draggingModelId && (
