@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { X, RefreshCw, Radio, Camera, Video, Square, Pause, Play, Film } from "lucide-react";
+import { X, RefreshCw, Radio, Camera, Video, Square, Pause, Play, Film, Maximize2 } from "lucide-react";
 import type { TrafficCamera } from "./IntelligencePanel";
 import { cameraRecordings, formatDuration, type CameraRecording } from "@/lib/camera-recordings";
+import InlineVideoPlayer from "./InlineVideoPlayer";
 
 const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-camera-image`;
 
@@ -35,6 +36,7 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
   const [tick, setTick] = useState(0);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const refreshRate = Math.max(camera.refreshRate ?? 10, 1);
   const stream = isStream(camera.streamUrl);
 
@@ -60,6 +62,17 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
   }, [stream, refreshRate]);
 
   const imageSrc = `${PROXY_URL}?url=${encodeURIComponent(camera.imageUrl)}&_t=${tick}`;
+
+  const enterFullscreen = async () => {
+    const el = stageRef.current;
+    if (!el) return;
+    const anyEl = el as any;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (el.requestFullscreen) await el.requestFullscreen();
+      else if (anyEl.webkitRequestFullscreen) anyEl.webkitRequestFullscreen();
+    } catch {}
+  };
 
   const takeScreenshot = async () => {
     const canvas = document.createElement("canvas");
@@ -128,22 +141,24 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="aspect-video bg-black relative">
+        <div ref={stageRef} className="aspect-video bg-black relative">
           {stream && camera.streamUrl ? (
-            <video
-              ref={videoRef}
+            <InlineVideoPlayer
               src={camera.streamUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              controls
-              controlsList="nodownload noremoteplayback"
-              crossOrigin="anonymous"
-              className="w-full h-full object-contain"
+              className="w-full h-full"
+              videoRef={(el) => { videoRef.current = el; }}
             />
           ) : (
-            <img ref={imgRef} key={tick} src={imageSrc} alt={camera.name} crossOrigin="anonymous" className="w-full h-full object-contain" />
+            <>
+              <img ref={imgRef} key={tick} src={imageSrc} alt={camera.name} crossOrigin="anonymous" className="w-full h-full object-contain" />
+              <button
+                onClick={enterFullscreen}
+                title="Fullscreen"
+                className="absolute bottom-2 right-2 p-1.5 rounded-md bg-black/70 hover:bg-black/90 border border-white/15 text-white"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
           <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-500/80 text-white text-[10px] font-bold tracking-wider">LIVE</div>
           {active && (

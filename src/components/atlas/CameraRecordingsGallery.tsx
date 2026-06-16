@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { X, Pause, Play, Square, Download, Trash2, Film, Radio } from "lucide-react";
+import { X, Pause, Play, Square, Download, Trash2, Film, Radio, Maximize2 } from "lucide-react";
 import { cameraRecordings, formatBytes, formatDuration, type CameraRecording } from "@/lib/camera-recordings";
+import InlineVideoPlayer from "./InlineVideoPlayer";
 
 interface Props {
   open: boolean;
@@ -9,6 +10,7 @@ interface Props {
 
 export default function CameraRecordingsGallery({ open, onClose }: Props) {
   const [items, setItems] = useState<CameraRecording[]>(cameraRecordings.list());
+  const [playing, setPlaying] = useState<CameraRecording | null>(null);
 
   useEffect(() => {
     const unsub = cameraRecordings.subscribe(() => setItems(cameraRecordings.list()));
@@ -18,6 +20,7 @@ export default function CameraRecordingsGallery({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
+  <>
     <div className="absolute top-20 left-4 z-40 w-[calc(100vw-2rem)] max-w-[420px]">
       <div className="rounded-2xl bg-black/85 backdrop-blur-2xl border border-white/[0.1] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-7rem)]">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]">
@@ -87,10 +90,10 @@ export default function CameraRecordingsGallery({ open, onClose }: Props) {
                   </button>
                 )}
                 {rec.state === "finished" && rec.blobUrl && (
-                  <a href={rec.blobUrl} target="_blank" rel="noreferrer" title="Watch"
+                  <button onClick={() => setPlaying(rec)} title="Watch in-app"
                     className="p-1.5 rounded-lg text-white/80 hover:bg-white/[0.06] transition">
                     <Play className="w-3.5 h-3.5" />
-                  </a>
+                  </button>
                 )}
                 {rec.state === "finished" && (
                   <button onClick={() => cameraRecordings.download(rec.id)} title="Download"
@@ -108,5 +111,48 @@ export default function CameraRecordingsGallery({ open, onClose }: Props) {
         </div>
       </div>
     </div>
+    {playing && playing.blobUrl && (
+      <div
+        className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4"
+        onClick={() => setPlaying(null)}
+      >
+        <div
+          className="relative w-full max-w-5xl rounded-2xl overflow-hidden border border-white/10 bg-black shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 bg-black/70">
+            <Film className="w-4 h-4 text-red-400" />
+            <p className="text-sm font-semibold text-white truncate flex-1">{playing.cameraName}</p>
+            <span className="text-[10px] font-mono text-white/50">
+              {formatDuration(playing.durationSec)} · {formatBytes(playing.sizeBytes)}
+            </span>
+            <button
+              onClick={() => cameraRecordings.download(playing.id)}
+              title="Download"
+              className="p-1.5 rounded-lg text-white/80 hover:bg-white/10"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setPlaying(null)}
+              className="p-1.5 rounded-lg text-white/80 hover:bg-white/10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="aspect-video bg-black">
+            <InlineVideoPlayer
+              src={playing.blobUrl}
+              className="w-full h-full"
+              autoPlay
+              muted={false}
+              loop={false}
+              crossOrigin=""
+            />
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }
