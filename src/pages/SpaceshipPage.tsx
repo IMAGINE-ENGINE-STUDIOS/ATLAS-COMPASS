@@ -887,17 +887,11 @@ function SpaceshipPage() {
       : catBlocks;
     // Higher cap so a category-only "show ALL" near me returns everything in the radius
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 600;`;
-    const endpoints = [
-      "https://overpass-api.de/api/interpreter",
-      "https://overpass.kumi.systems/api/interpreter",
-      "https://overpass.private.coffee/api/interpreter",
-      "https://overpass.osm.ch/api/interpreter",
-    ];
     // Race all mirrors in parallel — first to respond wins. Massive latency win.
     const raceMirrors = (): Promise<any> => new Promise((resolve, reject) => {
-      let pending = endpoints.length;
+      let pending = OVERPASS_ENDPOINTS.length;
       let resolved = false;
-      endpoints.forEach(url => {
+      OVERPASS_ENDPOINTS.forEach(url => {
         fetch(url, {
           method: "POST",
           body: `data=${encodeURIComponent(q)}`,
