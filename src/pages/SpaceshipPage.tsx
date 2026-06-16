@@ -3502,6 +3502,33 @@ function SpaceshipPage() {
                     className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-400/40 placeholder:text-white/85 transition-colors mb-3"
                   />
 
+                  {/* Category Picker */}
+                  <div className="mb-3">
+                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1.5">Category</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {MODEL_CATEGORIES.map((c) => {
+                        const Icon = c.icon;
+                        const active = modelCategory === c.id;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setModelCategory(c.id)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-all"
+                            style={{
+                              background: active ? `${c.hex}33` : "rgba(0,0,0,0.5)",
+                              border: `1px solid ${active ? c.hex : "rgba(255,255,255,0.08)"}`,
+                              color: active ? c.hex : "rgba(255,255,255,0.7)",
+                            }}
+                          >
+                            <Icon className="w-3 h-3" />
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Scale & Heading Controls */}
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div>
