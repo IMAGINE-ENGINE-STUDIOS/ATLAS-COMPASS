@@ -140,10 +140,19 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return cameras.filter(c => {
+    const list = cameras.filter(c => {
       if (sourceFilter && c.source !== sourceFilter) return false;
       if (q && !`${c.name} ${c.source}`.toLowerCase().includes(q)) return false;
       return true;
+    });
+    return list.sort((a, b) => {
+      const score = (cam: TrafficCamera) => {
+        if (cam.streamUrl && cam.feedVerified) return 3;
+        if (cam.streamUrl) return 2;
+        if (cam.feedVerified) return 1;
+        return 0;
+      };
+      return score(b) - score(a) || a.name.localeCompare(b.name);
     });
   }, [cameras, filter, sourceFilter]);
 
