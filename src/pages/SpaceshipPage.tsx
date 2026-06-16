@@ -1872,16 +1872,9 @@ function SpaceshipPage() {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
-        const resp = await fetch("https://overpass-api.de/api/interpreter", {
-          method: "POST",
-          body: `data=${encodeURIComponent(query)}`,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          signal: controller.signal,
-        });
+        const data = await fetchOverpassJson(query, controller.signal);
         clearTimeout(timeout);
-        if (!resp.ok || viewer.isDestroyed()) return;
-        const data = await resp.json();
-        if (!data.elements || viewer.isDestroyed()) return;
+        if (!data?.elements || viewer.isDestroyed()) return;
 
         // Clear old before adding new
         businessEntitiesRef.current.forEach(e => {
