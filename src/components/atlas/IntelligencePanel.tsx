@@ -40,6 +40,24 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
   const [total, setTotal] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
+  const expandBounds = (b: CameraBounds, minKm = 30): CameraBounds => {
+    // Ensure bounds cover at least minKm x minKm (default 30km => 900 km²)
+    const centerLat = (b.north + b.south) / 2;
+    const centerLng = (b.east + b.west) / 2;
+    const halfLat = minKm / 2 / 111;
+    const halfLng = minKm / 2 / (111 * Math.max(0.05, Math.cos((centerLat * Math.PI) / 180)));
+    const curHalfLat = (b.north - b.south) / 2;
+    const curHalfLng = (b.east - b.west) / 2;
+    const hLat = Math.max(halfLat, curHalfLat);
+    const hLng = Math.max(halfLng, curHalfLng);
+    return {
+      north: Math.min(90, centerLat + hLat),
+      south: Math.max(-90, centerLat - hLat),
+      east: Math.min(180, centerLng + hLng),
+      west: Math.max(-180, centerLng - hLng),
+    };
+  };
+
   const fetchCameras = useCallback(async (worldwide = false) => {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
@@ -47,9 +65,12 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
     setLoading(true);
     setError(null);
 
+    const raw = getBounds();
     const bounds: CameraBounds = worldwide
       ? { north: 90, south: -90, east: 180, west: -180 }
-      : (getBounds() ?? { north: 90, south: -90, east: 180, west: -180 });
+      : raw
+        ? expandBounds(raw, 30)
+        : { north: 90, south: -90, east: 180, west: -180 };
 
     try {
       const acc: TrafficCamera[] = [];
@@ -78,22 +99,34 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
     }
   }, [getBounds]);
 
-  const triggerSync = useCallback(async () => {
+  const triggerSync = useCallback(async (worldwide = true) => {
     setSyncing(true);
     setError(null);
     try {
       await supabase.functions.invoke("sync-cameras", { body: {} });
-      await fetchCameras(true);
+      await fetchCameras(worldwide);
     } catch (e: any) {
       setError(e?.message ?? String(e));
     }
     setSyncing(false);
   }, [fetchCameras]);
 
-  // initial fetch when opened
+  // Auto-sync + load viewport cameras when opened
   useEffect(() => {
     if (!open) return;
-    fetchCameras(true);
+    (async () => {
+      // Show viewport cameras immediately (≥900 km² around camera)
+      await fetchCameras(false);
+      // Then sync upstream feeds and refresh viewport
+      setSyncing(true);
+      try {
+        await supabase.functions.invoke("sync-cameras", { body: {} });
+        await fetchCameras(false);
+      } catch (e: any) {
+        setError(e?.message ?? String(e));
+      }
+      setSyncing(false);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -147,7 +180,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
             />
           </div>
           <button
-            onClick={triggerSync}
+            onClick={() => triggerSync(true)}
             disabled={syncing}
             title="Sync from upstream DOT/ArcGIS sources"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 transition disabled:opacity-60"
