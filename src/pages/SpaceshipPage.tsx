@@ -390,25 +390,6 @@ function SpaceshipPage() {
   const tilesToolRef = useRef<TilesTool>("grid");
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
-  // Persist UI state so the app reloads exactly where the user left it.
-  useEffect(() => {
-    try {
-      localStorage.setItem("atlas_ui", JSON.stringify({
-        showBuildings, viewMode, hudVisible,
-        brushMode, brushPanelOpen, brushSubMode,
-        tilesTool, tileZoom,
-        showBusinessIcons, showLiveTraffic, geoCategory,
-        showMarketplacePins,
-      }));
-    } catch {}
-  }, [
-    showBuildings, viewMode, hudVisible,
-    brushMode, brushPanelOpen, brushSubMode,
-    tilesTool, tileZoom,
-    showBusinessIcons, showLiveTraffic, geoCategory,
-    showMarketplacePins,
-  ]);
-
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
 
