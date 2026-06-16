@@ -442,14 +442,14 @@ function SpaceshipPage() {
   const cargoEntitiesRef = useRef<any[]>([]);
 
   // Business/Store icons toggle
-  const [showBusinessIcons, setShowBusinessIcons] = useState(false);
+  const [showBusinessIcons, setShowBusinessIcons] = useState<boolean>(savedUI.showBusinessIcons ?? false);
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
 
   // Real-time aircraft & ship tracking
-  const [showLiveTraffic, setShowLiveTraffic] = useState(false);
+  const [showLiveTraffic, setShowLiveTraffic] = useState<boolean>(savedUI.showLiveTraffic ?? false);
   const [liveTrafficStats, setLiveTrafficStats] = useState({ planes: 0, ships: 0 });
   const liveTrafficEntitiesRef = useRef<any[]>([]);
   const liveTrafficTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -461,7 +461,7 @@ function SpaceshipPage() {
   const [geoCenter, setGeoCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [geoLocationName, setGeoLocationName] = useState("Use camera position");
   const [geoRadiusKm, setGeoRadiusKm] = useState(5);
-  const [geoCategory, setGeoCategory] = useState<string>("all");
+  const [geoCategory, setGeoCategory] = useState<string>(savedUI.geoCategory ?? "all");
   const [geoSearchQuery, setGeoSearchQuery] = useState("");
   const [geoBusinesses, setGeoBusinesses] = useState<any[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
