@@ -3164,6 +3164,14 @@ function SpaceshipPage() {
                   >
                     <Cctv className="w-4 h-4" />
                   </button>
+                  {/* Recordings Gallery */}
+                  <button
+                    onClick={() => setRecordingsOpen(o => !o)}
+                    className={`p-1.5 rounded-lg transition-colors ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    title="Camera recordings gallery"
+                  >
+                    <Film className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={toggleFullscreen}
                     className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
