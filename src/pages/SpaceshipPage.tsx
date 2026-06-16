@@ -25,6 +25,7 @@ import ModelTransformWidget, { type TransformData } from "@/components/ModelTran
 import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
 import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
 import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
+import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLabelsOverlay";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -34,6 +35,7 @@ import {
   Cartesian2, Cesium3DTileset,
   PolylineGlowMaterialProperty,
   ClassificationType,
+  SceneTransforms,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -90,6 +92,7 @@ interface PlacedModel {
   roll?: number;
   scale: number;
   createdAt: number;
+  category?: string; // see MODEL_CATEGORIES
 }
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
@@ -343,6 +346,7 @@ function SpaceshipPage() {
   const [convertProgress, setConvertProgress] = useState<string>("");
   const [modelScale, setModelScale] = useState(1);
   const [modelHeading, setModelHeading] = useState(0);
+  const [modelCategory, setModelCategory] = useState<string>("other");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelUrlsRef = useRef<Map<string, string>>(new Map());
   const restoringModelIdsRef = useRef<Set<string>>(new Set());
@@ -358,6 +362,7 @@ function SpaceshipPage() {
     name: string;
     baseScale: number;
     baseHeading: number;
+    category?: string;
   } | null>(null);
   const [stampModelInfo, setStampModelInfo] = useState<{ name: string; fileName: string } | null>(null);
   const [stampSpacingM, setStampSpacingM] = useState(0);
@@ -2621,13 +2626,6 @@ function SpaceshipPage() {
         maximumScale: 20000,
         heightReference: 0, // NONE — required for orientation to work
       } as any,
-      label: {
-        text: `🏗️ ${model.name}`, font: "12px Inter, sans-serif",
-        fillColor: Color.fromCssColorString("#00ff88"),
-        outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
-        pixelOffset: new Cartesian2(0, -40),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
     });
 
     applyModelTransformToEntity(entity, model);
@@ -2773,6 +2771,7 @@ function SpaceshipPage() {
         roll: 0,
         scale: modelScale,
         createdAt: Date.now(),
+        category: modelCategory,
       };
 
       modelUrlsRef.current.set(newModel.id, blobUrl);
@@ -2790,6 +2789,7 @@ function SpaceshipPage() {
         name: modelName.trim(),
         baseScale: modelScale,
         baseHeading: modelHeading,
+        category: modelCategory,
       };
       setStampModelInfo({ name: modelName.trim(), fileName: modelFile.name });
       setPendingPlacement(null);
@@ -2797,6 +2797,7 @@ function SpaceshipPage() {
       setModelName("");
       setModelScale(1);
       setModelHeading(0);
+      setModelCategory("other");
       setConvertProgress("");
       // Reset native file input so re-picking the same file fires onChange.
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -2840,6 +2841,7 @@ function SpaceshipPage() {
       roll: 0,
       scale: stamp.baseScale,
       createdAt: Date.now(),
+      category: stamp.category,
     };
     modelUrlsRef.current.set(newModel.id, stamp.blobUrl);
     placeModelOnGlobe(newModel, stamp.blobUrl);
@@ -2937,6 +2939,15 @@ function SpaceshipPage() {
 
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
+
+      {/* Placed Model Labels (HTML overlay) */}
+      {isLoaded && (
+        <ModelLabelsOverlay
+          viewer={viewerRef.current}
+          models={placedModels}
+          onSelect={(m) => flyToModel(m as PlacedModel)}
+        />
+      )}
 
       {/* Loading Screen */}
       
@@ -3501,6 +3512,33 @@ function SpaceshipPage() {
                     className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-400/40 placeholder:text-white/85 transition-colors mb-3"
                   />
 
+                  {/* Category Picker */}
+                  <div className="mb-3">
+                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1.5">Category</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {MODEL_CATEGORIES.map((c) => {
+                        const Icon = c.icon;
+                        const active = modelCategory === c.id;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setModelCategory(c.id)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-all"
+                            style={{
+                              background: active ? `${c.hex}33` : "rgba(0,0,0,0.5)",
+                              border: `1px solid ${active ? c.hex : "rgba(255,255,255,0.08)"}`,
+                              color: active ? c.hex : "rgba(255,255,255,0.7)",
+                            }}
+                          >
+                            <Icon className="w-3 h-3" />
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Scale & Heading Controls */}
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div>
@@ -3549,6 +3587,7 @@ function SpaceshipPage() {
                         setPendingPlacement(null);
                         setModelFile(null);
                         setModelName("");
+                        setModelCategory("other");
                         setConvertError(null);
                         setConvertProgress("");
                         if (fileInputRef.current) fileInputRef.current.value = "";
