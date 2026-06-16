@@ -4366,6 +4366,36 @@ function SpaceshipPage() {
             }}
           />
 
+          {/* Intelligence — Live Traffic Cameras Panel */}
+          <IntelligencePanel
+            open={intelligenceOpen}
+            onClose={() => setIntelligenceOpen(false)}
+            getBounds={() => {
+              const viewer = viewerRef.current;
+              if (!viewer || viewer.isDestroyed()) return null;
+              const rect = viewer.camera.computeViewRectangle();
+              if (!rect) return null;
+              return {
+                north: CesiumMath.toDegrees(rect.north),
+                south: CesiumMath.toDegrees(rect.south),
+                east: CesiumMath.toDegrees(rect.east),
+                west: CesiumMath.toDegrees(rect.west),
+              } as CameraBounds;
+            }}
+            onSelectCamera={(cam) => {
+              const viewer = viewerRef.current;
+              if (viewer && !viewer.isDestroyed()) {
+                flyCameraToTarget(viewer, { lat: cam.lat, lng: cam.lng, name: cam.name }, { range: 900, pitchDeg: -40, radius: 60, duration: 1.4 });
+              }
+              setActiveCamera(cam);
+            }}
+          />
+
+          {/* Live camera viewer popup */}
+          {activeCamera && (
+            <CameraViewerPopup camera={activeCamera} onClose={() => setActiveCamera(null)} />
+          )}
+
            {/* Bottom HUD — Coordinates & Search */}
           <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
             {/* Bottom bar content */}
