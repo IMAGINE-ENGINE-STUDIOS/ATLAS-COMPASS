@@ -398,7 +398,7 @@ function SpaceshipPage() {
   const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
   // Marketplace pins state
-  const [showMarketplacePins, setShowMarketplacePins] = useState(false);
+  const [showMarketplacePins, setShowMarketplacePins] = useState<boolean>(savedUI.showMarketplacePins ?? false);
   const [selectedMarketplaceProduct, setSelectedMarketplaceProduct] = useState<MarketplaceProduct | null>(null);
   const marketplaceEntitiesRef = useRef<any[]>([]);
 
