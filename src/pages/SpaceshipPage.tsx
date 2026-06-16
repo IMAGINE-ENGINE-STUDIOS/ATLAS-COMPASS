@@ -520,6 +520,7 @@ function SpaceshipPage() {
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
+  const instantBusinessAbortRef = useRef<AbortController | null>(null);
 
   // Real-time aircraft & ship tracking
   const [showLiveTraffic, setShowLiveTraffic] = useState<boolean>(savedUI.showLiveTraffic ?? false);
