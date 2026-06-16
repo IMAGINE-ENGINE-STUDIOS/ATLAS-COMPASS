@@ -37,6 +37,7 @@ import {
   ClassificationType,
   SceneTransforms,
   BoundingSphere, HeadingPitchRange, Matrix4,
+  ClippingPolygon, ClippingPolygonCollection,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
