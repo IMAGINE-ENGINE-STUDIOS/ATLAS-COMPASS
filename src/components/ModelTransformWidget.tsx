@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   Move, RotateCcw, Scale, X, Check, ArrowDown,
-  Plus, Minus,
+  Plus, Minus, Scissors,
 } from "lucide-react";
 
 export interface TransformData {
@@ -21,6 +21,9 @@ interface Props {
   onApply: (data: TransformData) => void;
   onClose: () => void;
   onSnapToGround: (data: TransformData, callback: (snapped: TransformData) => void) => void;
+  cropRadius?: number;
+  onCropTile?: (radius: number) => void;
+  onUncropTile?: () => void;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
@@ -84,9 +87,14 @@ function RotationSlider({ label, value, min, max, onChange }: {
   );
 }
 
-export default function ModelTransformWidget({ modelName, initial, onUpdate, onApply, onClose, onSnapToGround }: Props) {
+export default function ModelTransformWidget({ modelName, initial, onUpdate, onApply, onClose, onSnapToGround, cropRadius = 0, onCropTile, onUncropTile }: Props) {
   const [data, setData] = useState<TransformData>(initial);
   const [tab, setTab] = useState<"position" | "rotation" | "scale">("position");
+  const [cropInput, setCropInput] = useState<number>(cropRadius > 0 ? cropRadius : 30);
+
+  useEffect(() => {
+    if (cropRadius > 0) setCropInput(cropRadius);
+  }, [cropRadius]);
 
   useEffect(() => {
     setData(initial);
@@ -170,6 +178,44 @@ export default function ModelTransformWidget({ modelName, initial, onUpdate, onA
                 <ArrowDown className="w-3.5 h-3.5" />
                 Snap to Ground
               </button>
+              {onCropTile && (
+                <div className="mt-2 pt-2 border-t border-white/[0.06] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] text-white/75 uppercase tracking-wider">Crop Tile</span>
+                    <span className="text-[9px] text-white/55">radius m</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={cropInput}
+                      onChange={e => {
+                        const v = parseFloat(e.target.value);
+                        if (!isNaN(v)) setCropInput(Math.max(1, v));
+                      }}
+                      className="w-20 bg-black/70 border border-white/[0.08] rounded-md px-2 py-1 text-xs font-mono text-white text-center focus:outline-none focus:border-fuchsia-500/40"
+                    />
+                    <button
+                      onClick={() => onCropTile(cropInput)}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-fuchsia-500/15 border border-fuchsia-500/25 text-fuchsia-300 text-[11px] font-medium hover:bg-fuchsia-500/25 transition-all"
+                      title="Clip a circular hole in surrounding 3D tiles so the model sits in place of buildings/terrain"
+                    >
+                      <Scissors className="w-3.5 h-3.5" />
+                      {cropRadius > 0 ? "Update Crop" : "Crop Tile"}
+                    </button>
+                    {cropRadius > 0 && onUncropTile && (
+                      <button
+                        onClick={onUncropTile}
+                        className="px-2 py-2 rounded-xl bg-black/70 border border-white/[0.08] text-white/70 text-[10px] hover:bg-red-500/15 hover:text-red-300 hover:border-red-500/30 transition-all"
+                        title="Remove the tile crop"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
