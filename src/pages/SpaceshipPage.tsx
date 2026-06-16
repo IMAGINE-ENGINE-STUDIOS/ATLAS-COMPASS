@@ -2811,8 +2811,11 @@ function SpaceshipPage() {
 
     const cartographic = Cartographic.fromDegrees(currentData.lng, currentData.lat);
     let groundHeight = currentData.alt;
+    // Exclude the model itself from the ray so we sample the tile/terrain
+    // beneath it, not the top of the model.
+    const exclude: any[] = [entity];
     try {
-      const sampled = viewer.scene.sampleHeight(cartographic);
+      const sampled = viewer.scene.sampleHeight(cartographic, exclude);
       if (sampled !== undefined && sampled !== null && !isNaN(sampled)) {
         groundHeight = sampled;
       } else {
@@ -2830,6 +2833,10 @@ function SpaceshipPage() {
 
     const snapped = { ...currentData, alt: groundHeight };
     applyModelTransformToEntity(entity, snapped);
+    // Persist the snapped altitude on the model itself so re-renders and
+    // future edits use the new ground-locked value.
+    setPlacedModels(prev => prev.map(m => m.id === editingModel.id ? { ...m, alt: groundHeight } : m));
+    setEditingModel(prev => prev && prev.id === editingModel.id ? { ...prev, alt: groundHeight } : prev);
     callback(snapped);
   }, [applyModelTransformToEntity, editingModel]);
 
