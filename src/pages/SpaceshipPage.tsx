@@ -653,16 +653,11 @@ function SpaceshipPage() {
       case "shop": filter = `nwr["shop"](${bbox});`; break;
       default: filter = `nwr["shop"](${bbox});nwr["amenity"~"restaurant|cafe|fast_food|fuel|pharmacy|bank|hospital|clinic|doctors"](${bbox});nwr["tourism"~"hotel|motel"](${bbox});nwr["healthcare"](${bbox});`;
     }
-    const limit = geoRadiusKm <= 5 ? 150 : 80;
+      const limit = geoRadiusKm <= 5 ? 300 : 160;
     const q = `[out:json][timeout:15];(${filter});out center ${limit};`;
     try {
-      const resp = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST", body: `data=${encodeURIComponent(q)}`,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal: controller.signal,
-      });
-      if (!resp.ok) throw new Error("API error");
-      const data = await resp.json();
+      const data = await fetchOverpassJson(q, controller.signal);
+      if (!data) throw new Error("API error");
       const results = (data.elements || [])
         .filter((el: any) => el.tags?.name && (el.lat || el.center?.lat))
         .map((el: any) => {
