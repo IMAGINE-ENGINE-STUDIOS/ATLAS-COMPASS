@@ -8,7 +8,7 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film
 } from "lucide-react";
 import { Layers } from "lucide-react";
 import {
@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
 import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
+import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
