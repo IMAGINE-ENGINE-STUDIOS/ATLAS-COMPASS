@@ -301,14 +301,18 @@ function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
+  // Restore previously persisted UI state (if any)
+  const savedUI = (() => {
+    try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}"); } catch { return {}; }
+  })();
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
-  const [showBuildings, setShowBuildings] = useState(true);
-  const [viewMode, setViewMode] = useState<"realistic" | "osm">("realistic");
+  const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
+  const [viewMode, setViewMode] = useState<"realistic" | "osm">(savedUI.viewMode ?? "realistic");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [hudVisible, setHudVisible] = useState(true);
+  const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   const [cameraAlt, setCameraAlt] = useState(0);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
@@ -321,15 +325,15 @@ function SpaceshipPage() {
   const [editNotesValue, setEditNotesValue] = useState("");
 
   // Tile Brush state
-  const [brushMode, setBrushMode] = useState(false);
-  const [brushPanelOpen, setBrushPanelOpen] = useState(false);
+  const [brushMode, setBrushMode] = useState<boolean>(savedUI.brushMode ?? false);
+  const [brushPanelOpen, setBrushPanelOpen] = useState<boolean>(savedUI.brushPanelOpen ?? false);
   // Targeting Brush sub-modes:
   //   reticle — live single-point info HUD
   //   area    — paint a circular zone, scan & export
   //   stamp   — load a model once, click to stamp many times
   //   tiles   — Web Mercator XYZ tile selection (grid/rect/lasso)
   type BrushSubMode = "reticle" | "area" | "stamp" | "tiles";
-  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>("stamp");
+  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>(savedUI.brushSubMode ?? "stamp");
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
@@ -374,8 +378,8 @@ function SpaceshipPage() {
   // Web Mercator (XYZ / "slippy") tiles. Zoom 18 ≈ building-scale.
   type TileKey = string; // `${z}/${x}/${y}`
   type TilesTool = "grid" | "rectangle" | "lasso";
-  const [tilesTool, setTilesTool] = useState<TilesTool>("grid");
-  const [tileZoom, setTileZoom] = useState<number>(18);
+  const [tilesTool, setTilesTool] = useState<TilesTool>(savedUI.tilesTool ?? "grid");
+  const [tileZoom, setTileZoom] = useState<number>(savedUI.tileZoom ?? 18);
   const [selectedTiles, setSelectedTiles] = useState<Set<TileKey>>(new Set());
   const [rectStart, setRectStart] = useState<{ lat: number; lng: number } | null>(null);
   const [lassoPoints, setLassoPoints] = useState<{ lat: number; lng: number }[]>([]);
@@ -394,7 +398,7 @@ function SpaceshipPage() {
   const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
   // Marketplace pins state
-  const [showMarketplacePins, setShowMarketplacePins] = useState(false);
+  const [showMarketplacePins, setShowMarketplacePins] = useState<boolean>(savedUI.showMarketplacePins ?? false);
   const [selectedMarketplaceProduct, setSelectedMarketplaceProduct] = useState<MarketplaceProduct | null>(null);
   const marketplaceEntitiesRef = useRef<any[]>([]);
 
@@ -438,14 +442,14 @@ function SpaceshipPage() {
   const cargoEntitiesRef = useRef<any[]>([]);
 
   // Business/Store icons toggle
-  const [showBusinessIcons, setShowBusinessIcons] = useState(false);
+  const [showBusinessIcons, setShowBusinessIcons] = useState<boolean>(savedUI.showBusinessIcons ?? false);
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
 
   // Real-time aircraft & ship tracking
-  const [showLiveTraffic, setShowLiveTraffic] = useState(false);
+  const [showLiveTraffic, setShowLiveTraffic] = useState<boolean>(savedUI.showLiveTraffic ?? false);
   const [liveTrafficStats, setLiveTrafficStats] = useState({ planes: 0, ships: 0 });
   const liveTrafficEntitiesRef = useRef<any[]>([]);
   const liveTrafficTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -457,12 +461,31 @@ function SpaceshipPage() {
   const [geoCenter, setGeoCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [geoLocationName, setGeoLocationName] = useState("Use camera position");
   const [geoRadiusKm, setGeoRadiusKm] = useState(5);
-  const [geoCategory, setGeoCategory] = useState<string>("all");
+  const [geoCategory, setGeoCategory] = useState<string>(savedUI.geoCategory ?? "all");
   const [geoSearchQuery, setGeoSearchQuery] = useState("");
   const [geoBusinesses, setGeoBusinesses] = useState<any[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoShowRadius, setGeoShowRadius] = useState(false);
   const geoAbortRef = useRef<AbortController | null>(null);
+
+  // Persist UI state so the app reloads exactly where the user left it.
+  useEffect(() => {
+    try {
+      localStorage.setItem("atlas_ui", JSON.stringify({
+        showBuildings, viewMode, hudVisible,
+        brushMode, brushPanelOpen, brushSubMode,
+        tilesTool, tileZoom,
+        showBusinessIcons, showLiveTraffic, geoCategory,
+        showMarketplacePins,
+      }));
+    } catch {}
+  }, [
+    showBuildings, viewMode, hudVisible,
+    brushMode, brushPanelOpen, brushSubMode,
+    tilesTool, tileZoom,
+    showBusinessIcons, showLiveTraffic, geoCategory,
+    showMarketplacePins,
+  ]);
 
   const GEO_CATEGORIES = [
     { key: "all", label: "All", icon: <Layers className="w-3.5 h-3.5" /> },
@@ -1329,15 +1352,35 @@ function SpaceshipPage() {
     });
     areaEntityRef.current = areaEntity;
 
-    // World always opens at a full global view (orbit perspective).
-    viewer.camera.setView({
-      destination: Cartesian3.fromDegrees(0, 20, 20000000),
-      orientation: {
-        heading: CesiumMath.toRadians(0),
-        pitch: CesiumMath.toRadians(-90),
-        roll: 0,
-      },
-    });
+    // Restore last camera viewport if available, else open at full global view.
+    let restoredCamera = false;
+    try {
+      const saved = localStorage.getItem("atlas_camera");
+      if (saved) {
+        const s = JSON.parse(saved);
+        if (typeof s.lng === "number" && typeof s.lat === "number" && typeof s.alt === "number") {
+          viewer.camera.setView({
+            destination: Cartesian3.fromDegrees(s.lng, s.lat, s.alt),
+            orientation: {
+              heading: CesiumMath.toRadians(s.heading ?? 0),
+              pitch: CesiumMath.toRadians(s.pitch ?? -90),
+              roll: CesiumMath.toRadians(s.roll ?? 0),
+            },
+          });
+          restoredCamera = true;
+        }
+      }
+    } catch {}
+    if (!restoredCamera) {
+      viewer.camera.setView({
+        destination: Cartesian3.fromDegrees(0, 20, 20000000),
+        orientation: {
+          heading: CesiumMath.toRadians(0),
+          pitch: CesiumMath.toRadians(-90),
+          roll: 0,
+        },
+      });
+    }
 
     // Mouse move handler for coordinates + brush indicator
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
