@@ -347,12 +347,7 @@ const OVERPASS_ENDPOINTS = [
 async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<any | null> {
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
-      const resp = await fetch(endpoint, {
-        method: "POST",
-        body: `data=${encodeURIComponent(query)}`,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal,
-      });
+      const resp = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, { signal });
       if (resp.ok) return await resp.json();
     } catch (e: any) {
       if (e?.name === "AbortError") throw e;
