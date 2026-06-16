@@ -4466,8 +4466,15 @@ function SpaceshipPage() {
 
           {/* Live camera viewer popup */}
           {activeCamera && (
-            <CameraViewerPopup camera={activeCamera} onClose={() => setActiveCamera(null)} />
+            <CameraViewerPopup
+              camera={activeCamera}
+              onClose={() => setActiveCamera(null)}
+              onOpenGallery={() => setRecordingsOpen(true)}
+            />
           )}
+
+          {/* Camera recordings gallery */}
+          <CameraRecordingsGallery open={recordingsOpen} onClose={() => setRecordingsOpen(false)} />
 
            {/* Bottom HUD — Coordinates & Search */}
           <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
