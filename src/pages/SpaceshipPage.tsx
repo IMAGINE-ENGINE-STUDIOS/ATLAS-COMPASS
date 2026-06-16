@@ -1695,20 +1695,30 @@ function SpaceshipPage() {
     if (!showBusinessIcons) return;
 
     const loadBusinesses = async () => {
+      setIsLoadingBusinesses(true);
       // Throttle: min 3s between fetches
       const now = Date.now();
-      if (now - bizLastFetchRef.current < 3000) return;
+      if (now - bizLastFetchRef.current < 3000) {
+        setIsLoadingBusinesses(false);
+        return;
+      }
 
       const cam = viewer.camera.positionCartographic;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      if (alt > 500000) return;
+      if (alt > 500000) {
+        setIsLoadingBusinesses(false);
+        return;
+      }
 
       const radius = alt < 5000 ? 0.08 : alt < 20000 ? 0.15 : alt < 80000 ? 0.3 : 0.5;
       const limit = alt < 10000 ? 120 : 60;
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)},${geoCategory}`;
-      if (businessLoadedAreaRef.current === areaKey) return;
+      if (businessLoadedAreaRef.current === areaKey) {
+        setIsLoadingBusinesses(false);
+        return;
+      }
       businessLoadedAreaRef.current = areaKey;
       bizLastFetchRef.current = now;
 
