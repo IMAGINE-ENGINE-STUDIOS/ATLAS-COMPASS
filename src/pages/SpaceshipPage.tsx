@@ -340,17 +340,27 @@ function flyCameraToTarget(
 }
 
 const OVERPASS_ENDPOINTS = [
+  // Ordered by observed reliability — first non-empty response wins.
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.osm.ch/api/interpreter",
 ];
 
 async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<any | null> {
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
-      const resp = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, { signal });
-      if (resp.ok) return await resp.json();
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+        body: `data=${encodeURIComponent(query)}`,
+        signal,
+      });
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      // Skip mirrors that respond OK but with an empty payload (some mirrors
+      // serve stale/empty tiles); fall through to the next mirror.
+      if ((json?.elements?.length ?? 0) > 0) return json;
     } catch (e: any) {
       if (e?.name === "AbortError") throw e;
     }
