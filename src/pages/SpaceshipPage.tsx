@@ -468,6 +468,25 @@ function SpaceshipPage() {
   const [geoShowRadius, setGeoShowRadius] = useState(false);
   const geoAbortRef = useRef<AbortController | null>(null);
 
+  // Persist UI state so the app reloads exactly where the user left it.
+  useEffect(() => {
+    try {
+      localStorage.setItem("atlas_ui", JSON.stringify({
+        showBuildings, viewMode, hudVisible,
+        brushMode, brushPanelOpen, brushSubMode,
+        tilesTool, tileZoom,
+        showBusinessIcons, showLiveTraffic, geoCategory,
+        showMarketplacePins,
+      }));
+    } catch {}
+  }, [
+    showBuildings, viewMode, hudVisible,
+    brushMode, brushPanelOpen, brushSubMode,
+    tilesTool, tileZoom,
+    showBusinessIcons, showLiveTraffic, geoCategory,
+    showMarketplacePins,
+  ]);
+
   const GEO_CATEGORIES = [
     { key: "all", label: "All", icon: <Layers className="w-3.5 h-3.5" /> },
     { key: "restaurant", label: "Food", icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
