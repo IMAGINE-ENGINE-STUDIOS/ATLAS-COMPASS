@@ -4480,8 +4480,32 @@ function SpaceshipPage() {
                             {!searchLoading && unifiedResults.length === 0 && searchQuery && (
                               <p className="text-sm text-white/70 text-center py-4">No nearby results. Try a broader term.</p>
                             )}
-                            {!searchLoading && unifiedResults.length === 0 && !searchQuery && searchResults.length > 0 && (
+                            {!searchLoading && unifiedResults.length === 0 && !searchQuery && geoBusinesses.length > 0 && (
                               <div className="space-y-0.5">
+                                <div className="flex items-center gap-2 px-2 py-1.5">
+                                  <div className="flex-1 h-px bg-emerald-500/20" />
+                                  <span className="text-[9px] text-emerald-400/70 font-mono uppercase tracking-wider">📍 Nearby you</span>
+                                  <div className="flex-1 h-px bg-emerald-500/20" />
+                                </div>
+                                {geoBusinesses.slice(0, 40).map((b: any, idx: number) => (
+                                  <POICard key={`near-${b.id ?? idx}`} compact variant="glass" index={idx}
+                                    poi={{ id: b.id ?? `near-${idx}`, name: b.name, emoji: "📍", category: b.type, address: b.address, lat: b.lat, lng: b.lng, distance: b.distance, phone: b.phone, website: b.website, brand: b.brand, cuisine: b.cuisine, openNow: b.openNow }}
+                                    onNavigate={() => {
+                                      flyToBusiness(b);
+                                      setSelectedBusiness({ id: b.id, name: b.name, emoji: "📍", category: b.type, address: b.address, lat: b.lat, lng: b.lng, distance: b.distance, phone: b.phone, website: b.website, brand: b.brand, cuisine: b.cuisine });
+                                      setSearchOpen(false);
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            {!searchLoading && unifiedResults.length === 0 && !searchQuery && geoBusinesses.length === 0 && searchResults.length > 0 && (
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-2 px-2 py-1.5">
+                                  <div className="flex-1 h-px bg-white/10" />
+                                  <span className="text-[9px] text-white/50 font-mono uppercase tracking-wider">⭐ Suggested places</span>
+                                  <div className="flex-1 h-px bg-white/10" />
+                                </div>
                                 {searchResults.map((r, idx) => (
                                   <POICard key={`preset-${idx}`} compact variant="glass" index={idx}
                                     poi={{ id: `preset-${idx}`, name: r.name, emoji: "⭐", category: r.type, lat: r.lat, lng: r.lng }}
