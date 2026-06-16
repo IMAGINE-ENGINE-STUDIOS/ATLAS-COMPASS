@@ -301,14 +301,18 @@ function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
+  // Restore previously persisted UI state (if any)
+  const savedUI = (() => {
+    try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}"); } catch { return {}; }
+  })();
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
-  const [showBuildings, setShowBuildings] = useState(true);
-  const [viewMode, setViewMode] = useState<"realistic" | "osm">("realistic");
+  const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
+  const [viewMode, setViewMode] = useState<"realistic" | "osm">(savedUI.viewMode ?? "realistic");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [hudVisible, setHudVisible] = useState(true);
+  const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   const [cameraAlt, setCameraAlt] = useState(0);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
