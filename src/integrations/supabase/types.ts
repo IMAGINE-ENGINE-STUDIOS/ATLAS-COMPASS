@@ -21,6 +21,7 @@ export type Database = {
           feed_status: string | null
           id: string
           image_url: string | null
+          last_seen_at: string
           last_updated: string | null
           lat: number
           lng: number
@@ -36,6 +37,7 @@ export type Database = {
           feed_status?: string | null
           id: string
           image_url?: string | null
+          last_seen_at?: string
           last_updated?: string | null
           lat: number
           lng: number
@@ -51,6 +53,7 @@ export type Database = {
           feed_status?: string | null
           id?: string
           image_url?: string | null
+          last_seen_at?: string
           last_updated?: string | null
           lat?: number
           lng?: number
@@ -59,6 +62,36 @@ export type Database = {
           region?: string | null
           source?: string
           stream_url?: string | null
+        }
+        Relationships: []
+      }
+      camera_sync_status: {
+        Row: {
+          camera_count: number | null
+          last_error: string | null
+          last_success_at: string | null
+          last_sync_at: string | null
+          source_name: string
+          sync_duration_ms: number | null
+          updated_at: string
+        }
+        Insert: {
+          camera_count?: number | null
+          last_error?: string | null
+          last_success_at?: string | null
+          last_sync_at?: string | null
+          source_name: string
+          sync_duration_ms?: number | null
+          updated_at?: string
+        }
+        Update: {
+          camera_count?: number | null
+          last_error?: string | null
+          last_success_at?: string | null
+          last_sync_at?: string | null
+          source_name?: string
+          sync_duration_ms?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
