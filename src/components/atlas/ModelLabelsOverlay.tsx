@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Cartesian3, SceneTransforms, type Viewer } from "cesium";
 import {
   UtensilsCrossed, Coffee, Store, Hotel, Fuel, Stethoscope,
@@ -50,9 +50,7 @@ interface ScreenPos { id: string; x: number; y: number; model: PlacedModelLike; 
 interface Cluster {
   key: string;
   category: string;
-  cx: number;
-  cy: number;
-  members: ScreenPos[];
+  members: PlacedModelLike[];
 }
 
 interface Props {
@@ -69,67 +67,108 @@ interface Props {
  *   circular thumbnails so the user can easily identify each instance.
  */
 export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDistancePx = 70 }: Props) {
+  // Cluster membership only changes when models change or the camera settles —
+  // it stays stable mid-flight so labels can't visually swap groups every frame.
   const [clusters, setClusters] = useState<Cluster[]>([]);
-  const rafRef = useRef<number | null>(null);
+  const nodeRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
-  useEffect(() => {
-    if (!viewer || viewer.isDestroyed()) return;
-
-    const compute = () => {
-      if (!viewer || viewer.isDestroyed()) return;
+  // Recompute cluster membership using current screen positions.
+  const recomputeClusters = useMemo(() => {
+    return () => {
+      if (!viewer || viewer.isDestroyed()) {
+        setClusters([]);
+        return;
+      }
       const screen: ScreenPos[] = [];
       for (const m of models) {
         try {
           const world = Cartesian3.fromDegrees(m.lng, m.lat, (m.alt || 0) + 12);
           const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
-          if (!win) continue;
-          // Reject points behind camera or off-screen
-          const canvas = viewer.scene.canvas;
-          if (win.x < -200 || win.y < -80 || win.x > canvas.clientWidth + 200 || win.y > canvas.clientHeight + 200) continue;
+          if (!win) {
+            // still include — will be hidden in postRender if off-screen
+            screen.push({ id: m.id, x: 0, y: 0, model: m });
+            continue;
+          }
           screen.push({ id: m.id, x: win.x, y: win.y, model: m });
-        } catch { /* ignore */ }
+        } catch {
+          screen.push({ id: m.id, x: 0, y: 0, model: m });
+        }
       }
-
-      // Cluster by category + proximity (greedy)
       const out: Cluster[] = [];
       const used = new Set<string>();
       for (const p of screen) {
         if (used.has(p.id)) continue;
         const cat = p.model.category || "other";
-        const members: ScreenPos[] = [p];
+        const members: PlacedModelLike[] = [p.model];
         used.add(p.id);
         for (const q of screen) {
           if (used.has(q.id)) continue;
           if ((q.model.category || "other") !== cat) continue;
           const dx = q.x - p.x, dy = q.y - p.y;
           if (dx * dx + dy * dy <= clusterDistancePx * clusterDistancePx) {
-            members.push(q);
+            members.push(q.model);
             used.add(q.id);
           }
         }
-        const cx = members.reduce((s, m) => s + m.x, 0) / members.length;
-        const cy = members.reduce((s, m) => s + m.y, 0) / members.length;
-        out.push({ key: members.map(m => m.id).join("|"), category: cat, cx, cy, members });
+        out.push({
+          key: members.map(m => m.id).sort().join("|"),
+          category: cat,
+          members,
+        });
       }
       setClusters(out);
     };
-
-    const onChange = () => {
-      if (rafRef.current != null) return;
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        compute();
-      });
-    };
-
-    const remove = viewer.scene.postRender.addEventListener(onChange);
-    compute();
-
-    return () => {
-      remove();
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
   }, [viewer, models, clusterDistancePx]);
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    recomputeClusters();
+    // Only re-cluster when camera settles, to avoid mid-flight regrouping.
+    const remove = viewer.camera.moveEnd.addEventListener(recomputeClusters);
+    return () => { remove(); };
+  }, [viewer, recomputeClusters]);
+
+  // IMPERATIVE positioning: every postRender, sync each cluster DOM node
+  // directly to its world position so labels stay glued to the model
+  // regardless of React commit timing.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const sync = () => {
+      if (!viewer || viewer.isDestroyed()) return;
+      const canvas = viewer.scene.canvas;
+      const cw = canvas.clientWidth;
+      const ch = canvas.clientHeight;
+      for (const cluster of clusters) {
+        const node = nodeRefs.current.get(cluster.key);
+        if (!node) continue;
+        // Average world position of all members for the anchor.
+        let sx = 0, sy = 0, visible = 0;
+        for (const m of cluster.members) {
+          try {
+            const world = Cartesian3.fromDegrees(m.lng, m.lat, (m.alt || 0) + 12);
+            const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+            if (!win) continue;
+            sx += win.x; sy += win.y; visible++;
+          } catch { /* ignore */ }
+        }
+        if (!visible) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
+        const x = sx / visible;
+        const y = sy / visible;
+        if (x < -200 || y < -80 || x > cw + 200 || y > ch + 200) {
+          node.style.opacity = "0";
+          node.style.pointerEvents = "none";
+          continue;
+        }
+        node.style.opacity = "1";
+        node.style.pointerEvents = "auto";
+        // translate first so the -50%/-100% shift is applied around the anchor
+        node.style.transform = `translate3d(${x}px, ${y - 14}px, 0) translate(-50%, -100%)`;
+      }
+    };
+    sync();
+    const remove = viewer.scene.postRender.addEventListener(sync);
+    return () => { remove(); };
+  }, [viewer, clusters]);
 
   if (!viewer) return null;
 
@@ -139,18 +178,15 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
         const cat = getCategory(cluster.category);
         const Icon = cat.icon;
         if (cluster.members.length === 1) {
-          const m = cluster.members[0].model;
+          const m = cluster.members[0];
           const accent = accentForId(m.id);
           return (
-            <button
+            <div
               key={cluster.key}
-              type="button"
+              ref={(el) => { nodeRefs.current.set(cluster.key, el); }}
+              className="absolute left-0 top-0 will-change-transform pointer-events-auto group cursor-pointer"
+              style={{ transform: "translate3d(-9999px,-9999px,0)" }}
               onClick={(e) => { e.stopPropagation(); onSelect?.(m); }}
-              className="absolute -translate-x-1/2 -translate-y-full pointer-events-auto group"
-              style={{
-                left: cluster.cx,
-                top: cluster.cy - 14,
-              }}
             >
               <div
                 className="backdrop-blur-xl rounded-full pl-2 pr-3 py-1 flex items-center gap-1.5 transition-transform group-hover:scale-105"
@@ -175,7 +211,7 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
                 className="mx-auto w-px"
                 style={{ height: 10, background: `linear-gradient(to bottom, ${accent}aa, transparent)` }}
               />
-            </button>
+            </div>
           );
         }
 
@@ -183,8 +219,9 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
         return (
           <div
             key={cluster.key}
-            className="absolute -translate-x-1/2 -translate-y-full pointer-events-auto"
-            style={{ left: cluster.cx, top: cluster.cy - 14 }}
+            ref={(el) => { nodeRefs.current.set(cluster.key, el); }}
+            className="absolute left-0 top-0 will-change-transform pointer-events-auto"
+            style={{ transform: "translate3d(-9999px,-9999px,0)" }}
           >
             <div
               className="backdrop-blur-xl rounded-full px-2 py-1 flex items-center gap-1.5"
@@ -199,13 +236,13 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
               </span>
               {cluster.members.slice(0, 8).map(m => {
                 const accent = accentForId(m.id);
-                const initials = m.model.name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase().slice(0, 2) || "·";
+                const initials = m.name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase().slice(0, 2) || "·";
                 return (
                   <button
                     key={m.id}
                     type="button"
-                    title={m.model.name}
-                    onClick={(e) => { e.stopPropagation(); onSelect?.(m.model); }}
+                    title={m.name}
+                    onClick={(e) => { e.stopPropagation(); onSelect?.(m); }}
                     className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold transition-transform hover:scale-110"
                     style={{
                       background: `${accent}33`,
