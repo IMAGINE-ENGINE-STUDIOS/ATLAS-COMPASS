@@ -4417,6 +4417,7 @@ function SpaceshipPage() {
           <IntelligencePanel
             open={intelligenceOpen}
             onClose={() => setIntelligenceOpen(false)}
+            onCamerasLoaded={setMapCameras}
             getBounds={() => {
               const viewer = viewerRef.current;
               if (!viewer || viewer.isDestroyed()) return null;
