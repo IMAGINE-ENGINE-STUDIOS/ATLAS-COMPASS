@@ -41,6 +41,7 @@ import {
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
@@ -4338,6 +4339,20 @@ function SpaceshipPage() {
             )}
           
 
+
+          {/* Quick Store Filter — right-side circular button */}
+          <QuickStoreFilter
+            options={GEO_CATEGORIES}
+            value={geoCategory}
+            onChange={(k) => {
+              setGeoCategory(k);
+              businessLoadedAreaRef.current = "";
+              if (!showBusinessIcons) setShowBusinessIcons(true);
+              const next = k === "all" ? "" : k;
+              setActiveSearchCategory(next);
+              geofenceFromCamera();
+            }}
+          />
 
            {/* Bottom HUD — Coordinates & Search */}
           <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
