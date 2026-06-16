@@ -3586,6 +3586,7 @@ function SpaceshipPage() {
                         setPendingPlacement(null);
                         setModelFile(null);
                         setModelName("");
+                        setModelCategory("other");
                         setConvertError(null);
                         setConvertProgress("");
                         if (fileInputRef.current) fileInputRef.current.value = "";
