@@ -950,11 +950,18 @@ function SpaceshipPage() {
     const raceMirrors = (): Promise<any> => new Promise((resolve, reject) => {
       let pending = OVERPASS_ENDPOINTS.length;
       let resolved = false;
+      let firstEmpty: any = null;
       OVERPASS_ENDPOINTS.forEach(url => {
         fetch(`${url}?data=${encodeURIComponent(q)}`, { signal })
           .then(r => (r.ok ? r.json() : Promise.reject(new Error("status " + r.status))))
-          .then(json => { if (!resolved) { resolved = true; resolve(json); } })
-          .catch(() => { pending--; if (pending === 0 && !resolved) reject(new Error("all mirrors failed")); });
+          .then(json => {
+            if (resolved) return;
+            if ((json?.elements || []).length > 0) { resolved = true; resolve(json); return; }
+            firstEmpty ??= json;
+            pending--;
+            if (pending === 0) { resolved = true; resolve(firstEmpty); }
+          })
+          .catch(() => { pending--; if (pending === 0 && !resolved) { resolved = true; firstEmpty ? resolve(firstEmpty) : reject(new Error("all mirrors failed")); } });
       });
     });
     let data: any = null;
