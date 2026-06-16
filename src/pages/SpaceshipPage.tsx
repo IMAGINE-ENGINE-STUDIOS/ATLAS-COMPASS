@@ -2364,6 +2364,51 @@ function SpaceshipPage() {
     return () => handler.destroy();
   }, [showMarketplacePins, isLoaded]);
 
+  /* ── Traffic camera pins (Intelligence layer) ── */
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    cameraEntitiesRef.current.forEach(e => {
+      if (viewer.entities.contains(e)) viewer.entities.remove(e);
+    });
+    cameraEntitiesRef.current = [];
+
+    if (!intelligenceOpen || mapCameras.length === 0) return;
+
+    const camById = new Map(mapCameras.map(c => [c.id, c] as const));
+    mapCameras.slice(0, 2000).forEach(cam => {
+      const truncName = cam.name.length > 22 ? cam.name.slice(0, 20) + "…" : cam.name;
+      const entity = viewer.entities.add({
+        id: `camera-${cam.id}`,
+        position: Cartesian3.fromDegrees(cam.lng, cam.lat, 0),
+        billboard: {
+          image: createPinCanvas("📹", truncName, "rgba(239,68,68,"),
+          verticalOrigin: 1,
+          scale: 0.55,
+          scaleByDistance: { near: 200, nearValue: 1.0, far: 60000, farValue: 0.25 } as any,
+          translucencyByDistance: { near: 0, nearValue: 1.0, far: 90000, farValue: 0.3 } as any,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          heightReference: 1,
+        },
+        properties: { type: "camera", camId: cam.id } as any,
+      });
+      cameraEntitiesRef.current.push(entity);
+    });
+
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((click: { position: Cartesian2 }) => {
+      const picked = viewer.scene.pick(click.position);
+      if (defined(picked) && picked.id?.id?.startsWith?.("camera-")) {
+        const cid = picked.id.properties?.camId?.getValue?.(viewer.clock.currentTime) || picked.id.id.replace("camera-", "");
+        const cam = camById.get(cid);
+        if (cam) setActiveCamera(cam);
+      }
+    }, ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => handler.destroy();
+  }, [mapCameras, intelligenceOpen, isLoaded]);
+
   /* ── Search-result pins on the globe (every dropdown item = a pin) ── */
   useEffect(() => {
     const viewer = viewerRef.current;
