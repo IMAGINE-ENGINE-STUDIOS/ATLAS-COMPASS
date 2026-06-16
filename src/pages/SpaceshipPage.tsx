@@ -25,6 +25,7 @@ import ModelTransformWidget, { type TransformData } from "@/components/ModelTran
 import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
 import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
 import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
+import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLabelsOverlay";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
