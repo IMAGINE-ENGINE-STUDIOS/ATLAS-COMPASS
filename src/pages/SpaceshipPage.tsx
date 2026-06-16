@@ -974,6 +974,20 @@ function SpaceshipPage() {
 
     setSearchLoading(true);
     try {
+      // ── Fast path: category chip with no text query ──
+      // Single Overpass call at 5 km, no radius escalation, no Google round-trip.
+      // Renders ALL matching POIs (restaurants/shops/cafés/hotels/...) instantly.
+      if (!query.trim() && categoryFilter) {
+        try {
+          const hits = await runOverpassAround("", center, 5, controller.signal, categoryFilter);
+          if (controller.signal.aborted) return;
+          hits.sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
+          setUnifiedResults(hits);
+        } catch { /* network/abort */ }
+        finally { if (!controller.signal.aborted) setSearchLoading(false); }
+        return;
+      }
+
       // Expanding radius until we have ≥20 hits. Tolerate Overpass failures.
       // Tighter near radii for precision; broader rings only as fallback.
       const radii = categoryFilter ? [1, 3, 10, 30] : [2, 5, 15, 50, 150];
