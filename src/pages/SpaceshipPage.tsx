@@ -91,6 +91,7 @@ interface PlacedModel {
   roll?: number;
   scale: number;
   createdAt: number;
+  category?: string; // see MODEL_CATEGORIES
 }
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
