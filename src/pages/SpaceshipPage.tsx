@@ -36,7 +36,7 @@ import {
   PolylineGlowMaterialProperty,
   ClassificationType,
   SceneTransforms,
-  BoundingSphere, HeadingPitchRange,
+  BoundingSphere, HeadingPitchRange, Matrix4,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -321,6 +321,14 @@ function flyCameraToTarget(
   viewer.camera.flyToBoundingSphere(sphere, {
     offset,
     duration: options.duration ?? 1.6,
+    complete: () => {
+      if (viewer.isDestroyed()) return;
+      const position = viewer.camera.positionWC.clone();
+      const direction = viewer.camera.directionWC.clone();
+      const up = viewer.camera.upWC.clone();
+      viewer.camera.lookAtTransform(Matrix4.IDENTITY);
+      viewer.camera.setView({ destination: position, orientation: { direction, up } });
+    },
   });
 }
 
