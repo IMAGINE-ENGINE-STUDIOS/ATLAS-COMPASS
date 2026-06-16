@@ -862,7 +862,8 @@ function SpaceshipPage() {
           ...catBlocks,
         ]
       : catBlocks;
-    const q = `[out:json][timeout:25];(${blocks.join("")});out center 200;`;
+    // Higher cap so a category-only "show ALL" near me returns everything in the radius
+    const q = `[out:json][timeout:25];(${blocks.join("")});out center 600;`;
     const endpoints = [
       "https://overpass-api.de/api/interpreter",
       "https://overpass.kumi.systems/api/interpreter",
