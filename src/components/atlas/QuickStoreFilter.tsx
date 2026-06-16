@@ -12,8 +12,8 @@ interface Props {
   options: StoreFilterOption[];
   value: string;
   onChange: (key: string) => void;
-  /** Fired when the user taps the main button — use to force-load stores instantly. */
-  onActivate?: () => void;
+  /** Fired when the user taps a filter — use to force-load stores instantly. */
+  onActivate?: (key: string) => void;
 }
 
 export default function QuickStoreFilter({ options, value, onChange, onActivate }: Props) {
@@ -75,7 +75,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
               return (
                 <button
                   key={opt.key}
-                  onClick={() => { onChange(opt.key); onActivate?.(); }}
+                  onClick={() => { onChange(opt.key); onActivate?.(opt.key); }}
                   title={opt.label}
                   className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                     active
@@ -97,7 +97,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
         onPointerUp={cancelHold}
         onPointerLeave={cancelHold}
         onPointerCancel={cancelHold}
-        onClick={() => { setOpen(o => !o); onActivate?.(); }}
+        onClick={() => { setOpen(o => !o); onActivate?.(current?.key ?? value); }}
         title={open ? `Filter: ${current?.label}` : "Hold to choose store filter"}
         aria-label="Quick store filter"
         className={`relative w-12 h-12 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all select-none touch-none ${
