@@ -490,6 +490,7 @@ function SpaceshipPage() {
 
   // Business/Store icons toggle
   const [showBusinessIcons, setShowBusinessIcons] = useState<boolean>(savedUI.showBusinessIcons ?? false);
+  const [isLoadingBusinesses, setIsLoadingBusinesses] = useState(false);
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
@@ -1694,20 +1695,30 @@ function SpaceshipPage() {
     if (!showBusinessIcons) return;
 
     const loadBusinesses = async () => {
+      setIsLoadingBusinesses(true);
       // Throttle: min 3s between fetches
       const now = Date.now();
-      if (now - bizLastFetchRef.current < 3000) return;
+      if (now - bizLastFetchRef.current < 3000) {
+        setIsLoadingBusinesses(false);
+        return;
+      }
 
       const cam = viewer.camera.positionCartographic;
       const lat = CesiumMath.toDegrees(cam.latitude);
       const lng = CesiumMath.toDegrees(cam.longitude);
       const alt = cam.height;
-      if (alt > 500000) return;
+      if (alt > 500000) {
+        setIsLoadingBusinesses(false);
+        return;
+      }
 
       const radius = alt < 5000 ? 0.08 : alt < 20000 ? 0.15 : alt < 80000 ? 0.3 : 0.5;
       const limit = alt < 10000 ? 120 : 60;
       const areaKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radius.toFixed(3)},${geoCategory}`;
-      if (businessLoadedAreaRef.current === areaKey) return;
+      if (businessLoadedAreaRef.current === areaKey) {
+        setIsLoadingBusinesses(false);
+        return;
+      }
       businessLoadedAreaRef.current = areaKey;
       bizLastFetchRef.current = now;
 
@@ -1813,7 +1824,9 @@ function SpaceshipPage() {
           });
           businessEntitiesRef.current.push(entity);
         });
-      } catch { /* ignore network/abort errors */ }
+      } catch { /* ignore network/abort errors */ } finally {
+        if (!viewer.isDestroyed()) setIsLoadingBusinesses(false);
+      }
     };
 
     loadBusinesses();
@@ -3028,6 +3041,15 @@ function SpaceshipPage() {
             <p className="mt-6 text-white/80 text-sm font-mono">INITIALIZING EARTH SYSTEMS...</p>
           </div>
         )}
+      
+
+      {/* Business Store Loading Overlay */}
+      {isLoaded && isLoadingBusinesses && (
+        <div className="absolute inset-0 z-40 bg-[#0a0a1a]/40 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in pointer-events-none">
+          <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-primary animate-spin" />
+          <p className="mt-4 text-white/90 text-sm font-mono tracking-wide">LOADING STORES...</p>
+        </div>
+      )}
       
 
       {/* Brush Mode Indicator */}
