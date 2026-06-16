@@ -36,6 +36,7 @@ import {
   PolylineGlowMaterialProperty,
   ClassificationType,
   SceneTransforms,
+  BoundingSphere, HeadingPitchRange,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -297,6 +298,34 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
   const dataUrl = canvas.toDataURL("image/png");
   pinCanvasCache.set(key, dataUrl);
   return dataUrl;
+}
+
+function flyCameraToTarget(
+  viewer: Viewer | null,
+  target: { lat: number; lng: number; alt?: number },
+  options: { range?: number; pitchDeg?: number; headingDeg?: number; duration?: number; radius?: number } = {}
+) {
+  if (!viewer || viewer.isDestroyed()) return;
+  viewer.trackedEntity = undefined;
+  viewer.selectedEntity = undefined;
+
+  const targetAltitude = Math.max(target.alt ?? 0, 0) + 8;
+  const center = Cartesian3.fromDegrees(target.lng, target.lat, targetAltitude);
+  const sphere = new BoundingSphere(center, options.radius ?? 80);
+  const offset = new HeadingPitchRange(
+    CesiumMath.toRadians(options.headingDeg ?? 0),
+    CesiumMath.toRadians(options.pitchDeg ?? -38),
+    options.range ?? 1800
+  );
+
+  viewer.camera.flyToBoundingSphere(sphere, {
+    offset,
+    duration: options.duration ?? 1.6,
+    complete: () => {
+      if (!viewer.isDestroyed()) viewer.camera.lookAtTransform(Transforms.eastNorthUpToFixedFrame(center));
+      if (!viewer.isDestroyed()) viewer.camera.lookAtTransform(Cartesian3.ZERO as any);
+    },
+  });
 }
 
 /* ── Main Spaceship Component ── */
