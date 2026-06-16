@@ -1824,7 +1824,9 @@ function SpaceshipPage() {
           });
           businessEntitiesRef.current.push(entity);
         });
-      } catch { /* ignore network/abort errors */ }
+      } catch { /* ignore network/abort errors */ } finally {
+        if (!viewer.isDestroyed()) setIsLoadingBusinesses(false);
+      }
     };
 
     loadBusinesses();
