@@ -1217,7 +1217,23 @@ function SpaceshipPage() {
     bizLastFetchRef.current = 0;
 
     try {
-      const hits = await runOverpassAround("", center, radiusKm, controller.signal, category);
+      let hits = await runOverpassAround("", center, radiusKm, controller.signal, category);
+      if (hits.length === 0) {
+        const fallbackTerms: Record<string, string[]> = {
+          restaurant: ["restaurant", "fast food"], cafe: ["cafe", "coffee"],
+          supermarket: ["supermarket", "grocery"], shop: ["shop", "store"],
+          hotel: ["hotel"], fuel: ["fuel", "charging station"], health: ["pharmacy", "clinic"],
+        };
+        const terms = category ? fallbackTerms[category] ?? [category] : ["restaurant", "cafe", "shop", "supermarket"];
+        const batches = await Promise.all(terms.map(term => runNominatimBounded(term, center, radiusKm, true, controller.signal).catch(() => [])));
+        const seen = new Set<string>();
+        hits = batches.flat().filter(r => {
+          const key = `${r.name.toLowerCase()}|${r.lat.toFixed(5)}|${r.lng.toFixed(5)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
       if (controller.signal.aborted || viewer.isDestroyed()) return;
       const sorted = hits
         .map(r => ({ ...r, source: "osm" as const, distance: r.distance ?? geoHaversine(center.lat, center.lng, r.lat, r.lng) }))
@@ -1230,7 +1246,7 @@ function SpaceshipPage() {
         setIsLoadingBusinesses(false);
       }
     }
-  }, [addBusinessPinsFromResults, geoCategory, runOverpassAround]);
+  }, [addBusinessPinsFromResults, geoCategory, runNominatimBounded, runOverpassAround]);
 
   /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
