@@ -2771,6 +2771,7 @@ function SpaceshipPage() {
         roll: 0,
         scale: modelScale,
         createdAt: Date.now(),
+        category: modelCategory,
       };
 
       modelUrlsRef.current.set(newModel.id, blobUrl);
@@ -2788,6 +2789,7 @@ function SpaceshipPage() {
         name: modelName.trim(),
         baseScale: modelScale,
         baseHeading: modelHeading,
+        category: modelCategory,
       };
       setStampModelInfo({ name: modelName.trim(), fileName: modelFile.name });
       setPendingPlacement(null);
