@@ -26,11 +26,12 @@ interface Props {
   onClose: () => void;
   getBounds: () => CameraBounds | null;
   onSelectCamera: (camera: TrafficCamera) => void;
+  onCamerasLoaded?: (cameras: TrafficCamera[]) => void;
 }
 
 const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-camera-image`;
 
-export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera }: Props) {
+export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera, onCamerasLoaded }: Props) {
   const [cameras, setCameras] = useState<TrafficCamera[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -85,6 +86,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
         const page = (data?.cameras ?? []) as TrafficCamera[];
         acc.push(...page);
         setCameras([...acc]);
+        onCamerasLoaded?.([...acc]);
         setTotal(data?.total ?? acc.length);
         hasMore = !!data?.hasMore;
         cursor = data?.nextCursor;
