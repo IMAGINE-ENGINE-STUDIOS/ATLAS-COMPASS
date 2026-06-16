@@ -958,30 +958,9 @@ function SpaceshipPage() {
       : catBlocks;
     // Higher cap so a category-only "show ALL" near me returns everything in the radius
     const q = `[out:json][timeout:25];(${blocks.join("")});out center 600;`;
-    // Race all mirrors in parallel — first to respond wins. Massive latency win.
-    const raceMirrors = (): Promise<any> => new Promise((resolve, reject) => {
-      let pending = OVERPASS_ENDPOINTS.length;
-      let resolved = false;
-      let firstEmpty: any = null;
-      OVERPASS_ENDPOINTS.forEach(url => {
-        fetch(`${url}?data=${encodeURIComponent(q)}`, { signal })
-          .then(r => (r.ok ? r.json() : Promise.reject(new Error("status " + r.status))))
-          .then(json => {
-            if (resolved) return;
-            if ((json?.elements || []).length > 0) { resolved = true; resolve(json); return; }
-            firstEmpty ??= json;
-            pending--;
-            if (pending === 0) { resolved = true; resolve(firstEmpty); }
-          })
-          .catch(() => { pending--; if (pending === 0 && !resolved) { resolved = true; firstEmpty ? resolve(firstEmpty) : reject(new Error("all mirrors failed")); } });
-      });
-    });
-    let data: any = null;
-    try {
-      data = await raceMirrors();
-    } catch {
-      return [];
-    }
+    // Sequential mirror try — skip OK-but-empty mirrors so a broken/stale one
+    // (e.g. overpass.osm.ch returning {"elements":[]}) doesn't shadow a working one.
+    const data: any = await fetchOverpassJson(q, signal).catch(() => null);
     if (!data) return [];
     const seen = new Set<string>();
     return (data.elements || [])
