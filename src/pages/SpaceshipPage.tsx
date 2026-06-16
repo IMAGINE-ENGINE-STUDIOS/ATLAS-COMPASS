@@ -970,140 +970,154 @@ function SpaceshipPage() {
     let center = resolveSearchCenter();
     if (!center) {
       geoLocateUser();
-      // Wait a tick for camera; otherwise we'd bail
       await new Promise(r => setTimeout(r, 400));
       center = resolveSearchCenter();
       if (!center) { setUnifiedResults([]); return; }
     }
+    const ctr = center;
 
+    // ── Instant: saved POI matches (synchronous, render in the same frame) ──
+    const qLower = query.trim().toLowerCase();
+    const poiMatches: SearchResult[] = pois
+      .filter(p => !qLower
+        || p.name.toLowerCase().includes(qLower)
+        || (p.description || "").toLowerCase().includes(qLower)
+        || (p.notes || "").toLowerCase().includes(qLower))
+      .map(p => ({
+        name: p.name,
+        lat: p.lat,
+        lng: p.lng,
+        type: "Saved POI",
+        description: p.description,
+        distance: geoHaversine(ctr.lat, ctr.lng, p.lat, p.lng),
+        source: "osm",
+      } as SearchResult));
+    setUnifiedResults(poiMatches);
     setSearchLoading(true);
-    try {
-      // ── Fast path: category chip with no text query ──
-      // Single Overpass call at 5 km, no radius escalation, no Google round-trip.
-      // Renders ALL matching POIs (restaurants/shops/cafés/hotels/...) instantly.
-      if (!query.trim() && categoryFilter) {
-        try {
-          const hits = await runOverpassAround("", center, 5, controller.signal, categoryFilter);
-          if (controller.signal.aborted) return;
-          hits.sort((a, b) => (a.distance ?? 9e9) - (b.distance ?? 9e9));
-          setUnifiedResults(hits);
-        } catch { /* network/abort */ }
-        finally { if (!controller.signal.aborted) setSearchLoading(false); }
-        return;
-      }
 
-      // Expanding radius until we have ≥20 hits. Tolerate Overpass failures.
-      // Tighter near radii for precision; broader rings only as fallback.
-      const radii = categoryFilter ? [1, 3, 10, 30] : [2, 5, 15, 50, 150];
-      let overpassHits: SearchResult[] = [];
-      let finalR = radii[radii.length - 1];
-      for (const r of radii) {
-        if (controller.signal.aborted) return;
-        try {
-          const hits = await runOverpassAround(query, center, r, controller.signal, categoryFilter);
-          if (controller.signal.aborted) return;
-          if (hits.length > overpassHits.length) overpassHits = hits;
-          finalR = r;
-          if (hits.length >= 20) break;
-        } catch {
-          if (controller.signal.aborted) return;
-        }
-      }
-      // In parallel: bounded Nominatim (near), unbounded (global), and Google Places
-      // (Google fills gaps for businesses, addresses, ratings — only for textual queries)
-      const isTextual = query.trim().length >= 2 && !categoryFilter;
-      const googlePromise: Promise<SearchResult[]> = isTextual
-        ? supabase.functions
-            .invoke("google-search", {
-              body: {
-                query: query.trim(),
-                center: { lat: center.lat, lng: center.lng },
-                radiusMeters: Math.min(Math.max(finalR * 1000, 2000), 50000),
-              },
-            })
-            .then(({ data, error }) => {
-              if (error || !data?.results) return [];
-              return (data.results as any[]).map((r) => ({
-                name: r.name,
-                lat: r.lat,
-                lng: r.lng,
-                type: r.type || "Place",
-                address: r.address,
-                phone: r.phone,
-                website: r.website,
-                rating: r.rating,
-                ratingCount: r.ratingCount,
-                placeId: r.placeId,
-                source: "google" as const,
-              }));
-            })
-            .catch(() => [])
-        : Promise.resolve([]);
+    // Per-source streaming buffers
+    let overpassBuf: SearchResult[] = [];
+    let nominatimBuf: SearchResult[] = [];
+    let googleBuf: SearchResult[] = [];
 
-      const [nomNear, nomGlobal, googleHits] = isTextual
-        ? await Promise.all([
-            runNominatimBounded(query, center, Math.max(finalR, 50), true, controller.signal),
-            runNominatimBounded(query, center, Math.max(finalR, 50), false, controller.signal),
-            googlePromise,
-          ])
-        : [[], [], []];
+    const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const distM = (a: SearchResult, b: SearchResult) => {
+      const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+      const s = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(s));
+    };
+    const matchTier = (name: string): number => {
+      if (!qLower) return 0;
+      const n = (name || "").toLowerCase();
+      if (n === qLower) return 4;
+      if (n.startsWith(qLower)) return 3;
+      if (n.split(/\s+/).some(w => w.startsWith(qLower))) return 2;
+      if (n.includes(qLower)) return 1;
+      return 0;
+    };
+    const recompose = () => {
       if (controller.signal.aborted) return;
-      // Merge with proximity-aware dedupe. When a Google place collides with an
-      // OSM/Nominatim hit within ~25 m on the same normalized name, prefer Google
-      // (richer metadata: phone, website, rating).
-      const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      const distM = (a: SearchResult, b: SearchResult) => {
-        const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180;
-        const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
-        const s = Math.sin(dLat / 2) ** 2 +
-          Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-        return 2 * R * Math.asin(Math.sqrt(s));
-      };
       const tagged: SearchResult[] = [
-        ...googleHits,
-        ...overpassHits.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
-        ...nomNear.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
-        ...nomGlobal.map((r) => ({ ...r, source: r.source ?? ("osm" as const) })),
+        ...poiMatches,
+        ...googleBuf,
+        ...overpassBuf.map(r => ({ ...r, source: r.source ?? ("osm" as const) })),
+        ...nominatimBuf.map(r => ({ ...r, source: r.source ?? ("osm" as const) })),
       ];
       const merged: SearchResult[] = [];
       for (const r of tagged) {
         const n = norm(r.name);
-        const dup = merged.find(
-          (m) => norm(m.name) === n && distM(m, r) < 25,
-        );
+        const dup = merged.find(m => norm(m.name) === n && distM(m, r) < 25);
         if (!dup) { merged.push(r); continue; }
-        // Upgrade existing to Google if richer.
         if (dup.source !== "google" && r.source === "google") {
-          const idx = merged.indexOf(dup);
-          merged[idx] = { ...r };
+          merged[merged.indexOf(dup)] = { ...r };
         }
       }
-      // Precision-aware ranking: exact > prefix > contains > fuzzy; tiebreak by distance.
-      const q = query.trim().toLowerCase();
-      const matchTier = (name: string): number => {
-        if (!q) return 0;
-        const n = (name || "").toLowerCase();
-        if (n === q) return 4;
-        if (n.startsWith(q)) return 3;
-        if (n.split(/\s+/).some(w => w.startsWith(q))) return 2;
-        if (n.includes(q)) return 1;
-        return 0;
-      };
       merged.sort((a, b) => {
         const ta = matchTier(a.name), tb = matchTier(b.name);
         if (ta !== tb) return tb - ta;
-        // Tie-breaker: well-rated Google places win over OSM
         const ga = a.source === "google" && (a.rating ?? 0) >= 4.0 ? 1 : 0;
         const gb = b.source === "google" && (b.rating ?? 0) >= 4.0 ? 1 : 0;
         if (ga !== gb) return gb - ga;
         return (a.distance ?? 9e9) - (b.distance ?? 9e9);
       });
       setUnifiedResults(merged);
-    } catch { /* aborted or network */ }
+    };
+
+    try {
+      // Fast path: category chip with no text query
+      if (!query.trim() && categoryFilter) {
+        try {
+          const hits = await runOverpassAround("", ctr, 5, controller.signal, categoryFilter);
+          if (controller.signal.aborted) return;
+          overpassBuf = hits;
+          recompose();
+        } catch { /* */ }
+        finally { if (!controller.signal.aborted) setSearchLoading(false); }
+        return;
+      }
+
+      const isTextual = query.trim().length >= 2 && !categoryFilter;
+      const sidePromises: Promise<void>[] = [];
+
+      if (isTextual) {
+        sidePromises.push(
+          runNominatimBounded(query, ctr, 50, true, controller.signal).then(r => {
+            if (controller.signal.aborted) return;
+            nominatimBuf = r;
+            recompose();
+          }).catch(() => {})
+        );
+        sidePromises.push(
+          runNominatimBounded(query, ctr, 200, false, controller.signal).then(r => {
+            if (controller.signal.aborted) return;
+            const seen = new Set(nominatimBuf.map(x => `${x.name}|${x.lat.toFixed(4)}|${x.lng.toFixed(4)}`));
+            const extra = r.filter(x => !seen.has(`${x.name}|${x.lat.toFixed(4)}|${x.lng.toFixed(4)}`));
+            nominatimBuf = [...nominatimBuf, ...extra];
+            recompose();
+          }).catch(() => {})
+        );
+        sidePromises.push(
+          supabase.functions.invoke("google-search", {
+            body: { query: query.trim(), center: { lat: ctr.lat, lng: ctr.lng }, radiusMeters: 25000 },
+          }).then(({ data, error }) => {
+            if (controller.signal.aborted || error || !data?.results) return;
+            googleBuf = (data.results as any[]).map((r) => ({
+              name: r.name, lat: r.lat, lng: r.lng, type: r.type || "Place",
+              address: r.address, phone: r.phone, website: r.website,
+              rating: r.rating, ratingCount: r.ratingCount, placeId: r.placeId,
+              source: "google" as const,
+              distance: geoHaversine(ctr.lat, ctr.lng, r.lat, r.lng),
+            }));
+            recompose();
+          }).catch(() => {})
+        );
+      }
+
+      // Overpass expanding radius — push results after each ring
+      const radii = categoryFilter ? [1, 3, 10, 30] : [2, 5, 15, 50, 150];
+      for (const r of radii) {
+        if (controller.signal.aborted) return;
+        try {
+          const hits = await runOverpassAround(query, ctr, r, controller.signal, categoryFilter);
+          if (controller.signal.aborted) return;
+          if (hits.length > overpassBuf.length) {
+            overpassBuf = hits;
+            recompose();
+          }
+          if (hits.length >= 20) break;
+        } catch {
+          if (controller.signal.aborted) return;
+        }
+      }
+
+      await Promise.allSettled(sidePromises);
+    } catch { /* */ }
     finally {
       if (!controller.signal.aborted) setSearchLoading(false);
     }
-  }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser]);
+  }, [resolveSearchCenter, runOverpassAround, runNominatimBounded, geoLocateUser, pois]);
 
   /* ── OSRM Routing (with fallback) ── */
   const fetchRoute = useCallback(async (origin: SearchResult, dest: SearchResult) => {
