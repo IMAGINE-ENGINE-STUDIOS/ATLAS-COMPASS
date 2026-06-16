@@ -490,6 +490,7 @@ function SpaceshipPage() {
 
   // Business/Store icons toggle
   const [showBusinessIcons, setShowBusinessIcons] = useState<boolean>(savedUI.showBusinessIcons ?? false);
+  const [isLoadingBusinesses, setIsLoadingBusinesses] = useState(false);
   const businessEntitiesRef = useRef<any[]>([]);
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
