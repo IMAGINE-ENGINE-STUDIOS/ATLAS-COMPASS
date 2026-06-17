@@ -131,7 +131,6 @@ const DEFAULT_CROP_BASE = (radiusMeters: number): CropBase => {
     heights: new Array(gridSize * gridSize).fill(0),
   };
 };
-}
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
 const MODELS_STORAGE_KEY = "nexus-spaceship-models";
