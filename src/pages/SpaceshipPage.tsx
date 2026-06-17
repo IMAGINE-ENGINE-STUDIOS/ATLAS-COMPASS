@@ -61,7 +61,7 @@ const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string })
     height={20}
     loading="lazy"
     draggable={false}
-    className="w-3.5 h-3.5 object-contain select-none"
+    className="w-4 h-4 sm:w-3.5 sm:h-3.5 object-contain select-none shrink-0"
     style={{ filter: `drop-shadow(0 0 4px ${hex}aa) drop-shadow(0 0 1px ${hex})` }}
   />
 );
