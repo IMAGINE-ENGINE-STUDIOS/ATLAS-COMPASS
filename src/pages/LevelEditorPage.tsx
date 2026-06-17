@@ -39,6 +39,7 @@ import {
   CAD_FORMATS,
 } from "@/lib/model-import";
 import { GLTFLoader } from "three-stdlib";
+import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 
 function rgbaToHex(c: RGBA): string {
   const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
@@ -134,6 +135,32 @@ export default function LevelEditorPage() {
   const [addingPointMode, setAddingPointMode] = useState<boolean>(false);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
+
+  // Face-paint mode: when active, clicks on the selected object's faces add
+  // to `paintedFaces` (Shift = additive). The inspector panel writes the
+  // chosen color/texture into the object's `faceOverrides`.
+  const [facePaintActive, setFacePaintActive] = useState(false);
+  const [paintedFaces, setPaintedFaces] = useState<Set<string>>(new Set());
+  const facePaintState = useMemo(
+    () => ({
+      active: facePaintActive,
+      objectId: facePaintActive ? selectedId : null,
+      selected: paintedFaces,
+      toggle: (key: string, add: boolean) =>
+        setPaintedFaces((prev) => {
+          const next = add ? new Set(prev) : new Set<string>();
+          if (prev.has(key) && add) next.delete(key);
+          else next.add(key);
+          return next;
+        }),
+      clear: () => setPaintedFaces(new Set()),
+    }),
+    [facePaintActive, selectedId, paintedFaces],
+  );
+  // Exiting paint mode (or switching object) clears the selection.
+  useEffect(() => {
+    if (!facePaintActive) setPaintedFaces(new Set());
+  }, [facePaintActive, selectedId]);
 
   const snap = snapEnabled ? snapSize : 0;
 
@@ -978,6 +1005,7 @@ export default function LevelEditorPage() {
           <LevelScene3D
             scene={renderedScene}
             selectedId={selectedId}
+            facePaint={facePaintState}
             onSelect={(oid) => {
               if (editingPolygonId) {
                 // While spline editing is active, keep the editing polygon
@@ -1084,6 +1112,11 @@ export default function LevelEditorPage() {
                   }
                   addingPoint={addingPointMode}
                   onToggleAddPoint={() => setAddingPointMode((v) => !v)}
+                  projectId={id || "unsaved"}
+                  facePaintActive={facePaintActive}
+                  paintedFaces={paintedFaces}
+                  onToggleFacePaint={() => setFacePaintActive((v) => !v)}
+                  onClearFacePaint={() => setPaintedFaces(new Set())}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
@@ -1271,6 +1304,7 @@ function Vec3Field({
 
 function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
+  projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -1281,6 +1315,11 @@ function ObjectInspector({
   addingPoint?: boolean;
   onToggleAddPoint?: () => void;
   onDelete?: () => void;
+  projectId: string;
+  facePaintActive: boolean;
+  paintedFaces: Set<string>;
+  onToggleFacePaint: () => void;
+  onClearFacePaint: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -1372,6 +1411,19 @@ function ObjectInspector({
           onPatch={(materialOverrides) =>
             onPatch({ materialOverrides } as any)
           }
+        />
+      )}
+      {(obj.kind === "polygon" || obj.kind === "primitive" || obj.kind === "model") && (
+        <FacePaintPanel
+          obj={obj}
+          projectId={projectId}
+          active={facePaintActive}
+          selectedFaces={paintedFaces}
+          onToggleActive={onToggleFacePaint}
+          onClearSelection={onClearFacePaint}
+          onPatchFaceOverrides={(faceOverrides) => onPatch({ faceOverrides } as any)}
+          onPatchModelOverrides={(materialOverrides) => onPatch({ materialOverrides } as any)}
+          disabled={disabled}
         />
       )}
       {onDelete && (

@@ -15,6 +15,13 @@ import type {
   SceneTerrain,
   HDRIEnvironment as HDRIEnvironmentCfg,
 } from "@/lib/levelTypes";
+import {
+  buildFaceMaterials,
+  objectFaceKeys,
+  primitiveFaceKeys,
+  resolveFaceKeyFromHit,
+} from "@/lib/face-system";
+import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 
 /* ---------- helpers ---------- */
 
@@ -114,28 +121,41 @@ function PrimitiveMesh({
     }
   }, [obj.shape]);
 
+  const paint = useFacePaint();
+  const faceKeys = useMemo(() => primitiveFaceKeys(obj.shape), [obj.shape]);
+  const isActivePaint = paint.active && paint.objectId === obj.id;
+  const materials = useMemo(() => {
+    return buildFaceMaterials(
+      faceKeys,
+      { color: obj.color, metalness: obj.metalness, roughness: obj.roughness },
+      obj.faceOverrides,
+      isActivePaint ? paint.selected : null,
+      { doubleSide: obj.shape === "plane" },
+    );
+  }, [faceKeys, obj.color, obj.metalness, obj.roughness, obj.faceOverrides, obj.shape, isActivePaint, paint.selected]);
+
+  // Object-level selection tint (blue) wins over the face-paint green
+  // overlay when nothing is painted, so users still see what they picked.
+  if (selected && !isActivePaint) {
+    for (const m of materials) {
+      m.emissive = new THREE.Color("#3b82f6");
+      m.emissiveIntensity = 0.4;
+    }
+  }
+
   return (
     <mesh
       visible={obj.visible}
       geometry={geom}
+      material={materials}
       castShadow
       receiveShadow
+      userData={{ __faceKeys: faceKeys, __objId: obj.id }}
       onClick={(e) => {
         e.stopPropagation();
         onSelect?.(obj.id);
       }}
-    >
-      <meshStandardMaterial
-        color={rgbaToColor(obj.color)}
-        metalness={obj.metalness}
-        roughness={obj.roughness}
-        transparent={obj.color[3] < 1}
-        opacity={obj.color[3]}
-        emissive={selected ? new THREE.Color("#3b82f6") : new THREE.Color(0, 0, 0)}
-        emissiveIntensity={selected ? 0.4 : 0}
-        side={obj.shape === "plane" ? THREE.DoubleSide : THREE.FrontSide}
-      />
-    </mesh>
+    />
   );
 }
 
@@ -148,175 +168,148 @@ function PolygonMesh({
   selected?: boolean;
   onSelect?: (id: string) => void;
 }) {
+  const paint = useFacePaint();
+  const isActivePaint = paint.active && paint.objectId === obj.id;
+  const faceKeys = useMemo(() => objectFaceKeys(obj), [obj.points.length, obj.extrude]);
+
   const { geometry, materials } = useMemo(() => {
-    const shape = new THREE.Shape(
-      obj.points.length
-        ? obj.points.map(([x, z]) => new THREE.Vector2(x, z))
-        : [new THREE.Vector2(-0.5, -0.5), new THREE.Vector2(0.5, -0.5), new THREE.Vector2(0, 0.5)],
-    );
-    const hasXZOffset =
-      !!obj.bottomOffsets &&
-      obj.bottomOffsets.some(
-        (o) => o && (Math.abs(o[0]) > 1e-6 || Math.abs(o[1]) > 1e-6),
-      );
-    const hasTopHeights =
-      !!obj.pointHeights && obj.pointHeights.some((h) => Math.abs(h || 0) > 1e-6);
-    const hasBottomHeights =
-      !!obj.bottomHeights && obj.bottomHeights.some((h) => Math.abs(h || 0) > 1e-6);
-    // Use the custom builder whenever any per-vertex deformation exists, OR
-    // whenever the polygon is extruded and we need independent rings.
-    const hasOffset =
-      obj.extrude > 0 && (hasXZOffset || hasTopHeights || hasBottomHeights);
-    const hasFlatHeights = obj.extrude <= 0 && hasTopHeights;
+    const topPts = obj.points.length
+      ? obj.points
+      : ([[-0.5, -0.5], [0.5, -0.5], [0, 0.5]] as Array<[number, number]>);
     let geom: THREE.BufferGeometry;
-    if (hasOffset) {
-      // Custom prism with non-shared vertices so each face gets its own
-      // flat normals (no smoothed shading across cap/side seams that
-      // shows up as visible "stripes" on plain white textures).
-      const N = obj.points.length;
-      const top = obj.points;
+
+    if (obj.extrude > 0) {
+      // Always-on custom prism builder. Splits sides into N independent
+      // material groups so the face-paint system can address each side.
+      const N = topPts.length;
       const offs = obj.bottomOffsets || [];
       const tH = obj.pointHeights || [];
       const bH = obj.bottomHeights || [];
       const topV = (i: number): [number, number, number] => {
-        const [x, z] = top[i];
+        const [x, z] = topPts[i];
         return [x, obj.extrude + (tH[i] || 0), -z];
       };
       const botV = (i: number): [number, number, number] => {
-        const [x, z] = top[i];
+        const [x, z] = topPts[i];
         const [ox, oz] = offs[i] || [0, 0];
-        return [x + ox, (bH[i] || 0), -(z + oz)];
+        return [x + ox, bH[i] || 0, -(z + oz)];
       };
-      const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
+      const contour2D = topPts.map(([x, z]) => new THREE.Vector2(x, z));
       const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
-      const capPositions: number[] = [];
-      const capUvs: number[] = [];
-      // bbox for cap UVs
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-      for (const [x, z] of top) {
+      for (const [x, z] of topPts) {
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
       }
       const spanX = Math.max(maxX - minX, 1e-6);
       const spanZ = Math.max(maxZ - minZ, 1e-6);
-      const pushCapVert = (p: [number, number, number], uv: [number, number]) => {
-        capPositions.push(p[0], p[1], p[2]);
-        capUvs.push(uv[0], uv[1]);
-      };
-      // top cap
-      for (const t of tris) {
-        for (const i of [t[0], t[1], t[2]]) {
-          const [x, z] = top[i];
-          pushCapVert(topV(i), [(x - minX) / spanX, (z - minZ) / spanZ]);
-        }
+
+      const chunks: Array<{ pos: number[]; uv: number[] }> = [];
+      // group 0 — top cap
+      {
+        const pos: number[] = [], uv: number[] = [];
+        for (const t of tris)
+          for (const i of [t[0], t[1], t[2]]) {
+            const [x, z] = topPts[i];
+            const v = topV(i);
+            pos.push(v[0], v[1], v[2]);
+            uv.push((x - minX) / spanX, (z - minZ) / spanZ);
+          }
+        chunks.push({ pos, uv });
       }
-      // bottom cap (reverse winding)
-      for (const t of tris) {
-        for (const i of [t[0], t[2], t[1]]) {
-          const [x, z] = top[i];
-          pushCapVert(botV(i), [(x - minX) / spanX, 1 - (z - minZ) / spanZ]);
-        }
+      // group 1 — bottom cap (reverse winding)
+      {
+        const pos: number[] = [], uv: number[] = [];
+        for (const t of tris)
+          for (const i of [t[0], t[2], t[1]]) {
+            const [x, z] = topPts[i];
+            const v = botV(i);
+            pos.push(v[0], v[1], v[2]);
+            uv.push((x - minX) / spanX, 1 - (z - minZ) / spanZ);
+          }
+        chunks.push({ pos, uv });
       }
-      const sidePositions: number[] = [];
-      const sideUvs: number[] = [];
+      // groups 2..N+1 — one per side quad
       for (let i = 0; i < N; i++) {
         const j = (i + 1) % N;
         const a = topV(i), b = topV(j), c = botV(j), d = botV(i);
         const dx = b[0] - a[0], dz = b[2] - a[2];
         const segLen = Math.hypot(dx, dz);
-        // tri 1: a, b, c
-        sidePositions.push(...a, ...b, ...c);
-        sideUvs.push(0, 1, segLen, 1, segLen, 0);
-        // tri 2: a, c, d
-        sidePositions.push(...a, ...c, ...d);
-        sideUvs.push(0, 1, segLen, 0, 0, 0);
+        const pos: number[] = [], uv: number[] = [];
+        pos.push(...a, ...b, ...c); uv.push(0, 1, segLen, 1, segLen, 0);
+        pos.push(...a, ...c, ...d); uv.push(0, 1, segLen, 0, 0, 0);
+        chunks.push({ pos, uv });
       }
-      const allPositions = capPositions.concat(sidePositions);
-      const allUvs = capUvs.concat(sideUvs);
+
+      const allPos: number[] = [], allUv: number[] = [];
       geom = new THREE.BufferGeometry();
-      geom.setAttribute("position", new THREE.Float32BufferAttribute(allPositions, 3));
-      geom.setAttribute("uv", new THREE.Float32BufferAttribute(allUvs, 2));
-      const capCount = capPositions.length / 3;
-      const sideCount = sidePositions.length / 3;
-      geom.addGroup(0, capCount, 0);
-      geom.addGroup(capCount, sideCount, 1);
-      geom.computeVertexNormals();
-    } else if (hasFlatHeights) {
-      // Flat (non-extruded) polygon with per-vertex Y — build a single
-      // triangulated cap whose vertices ride the spline's heights.
-      const top = obj.points;
-      const tH = obj.pointHeights || [];
-      const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
-      const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
-      const positions: number[] = [];
-      const uvs: number[] = [];
-      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-      for (const [x, z] of top) {
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
-      }
-      const spanX = Math.max(maxX - minX, 1e-6);
-      const spanZ = Math.max(maxZ - minZ, 1e-6);
-      for (const t of tris) {
-        for (const i of [t[0], t[1], t[2]]) {
-          const [x, z] = top[i];
-          positions.push(x, tH[i] || 0, -z);
-          uvs.push((x - minX) / spanX, (z - minZ) / spanZ);
-        }
-      }
-      geom = new THREE.BufferGeometry();
-      geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-      geom.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-      geom.addGroup(0, positions.length / 3, 0);
+      chunks.forEach((c, idx) => {
+        const start = allPos.length / 3;
+        allPos.push(...c.pos); allUv.push(...c.uv);
+        geom.addGroup(start, c.pos.length / 3, idx);
+      });
+      geom.setAttribute("position", new THREE.Float32BufferAttribute(allPos, 3));
+      geom.setAttribute("uv", new THREE.Float32BufferAttribute(allUv, 2));
       geom.computeVertexNormals();
     } else {
-      geom =
-        obj.extrude > 0
-          ? new THREE.ExtrudeGeometry(shape, {
-              depth: obj.extrude,
-              bevelEnabled: obj.bevel > 0,
-              bevelSize: obj.bevel,
-              bevelThickness: obj.bevel,
-              bevelSegments: 2,
-            })
-          : new THREE.ShapeGeometry(shape);
-      geom.rotateX(-Math.PI / 2); // make spline lay on XZ plane
-      // Don't recompute normals — ExtrudeGeometry already provides
-      // per-face flat normals on the sides; recomputing averages them
-      // across shared vertices and causes visible shading stripes.
+      // Flat polygon — single group "cap". Honor per-vertex top heights.
+      const tH = obj.pointHeights || [];
+      const hasHeights = tH.some((h) => Math.abs(h || 0) > 1e-6);
+      if (hasHeights) {
+        const contour2D = topPts.map(([x, z]) => new THREE.Vector2(x, z));
+        const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
+        const positions: number[] = [];
+        const uvs: number[] = [];
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (const [x, z] of topPts) {
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+        }
+        const spanX = Math.max(maxX - minX, 1e-6);
+        const spanZ = Math.max(maxZ - minZ, 1e-6);
+        for (const t of tris)
+          for (const i of [t[0], t[1], t[2]]) {
+            const [x, z] = topPts[i];
+            positions.push(x, tH[i] || 0, -z);
+            uvs.push((x - minX) / spanX, (z - minZ) / spanZ);
+          }
+        geom = new THREE.BufferGeometry();
+        geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        geom.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+        geom.addGroup(0, positions.length / 3, 0);
+        geom.computeVertexNormals();
+      } else {
+        const shape = new THREE.Shape(topPts.map(([x, z]) => new THREE.Vector2(x, z)));
+        geom = new THREE.ShapeGeometry(shape);
+        geom.rotateX(-Math.PI / 2);
+      }
     }
 
-    // Two material groups: 0 = caps (top/bottom), 1 = sides
+    const defaultsByKey: Record<string, { color: any; metalness: number; roughness: number }> = {};
     if (obj.extrude > 0) {
-      // ExtrudeGeometry groups: 0 = front (caps), 1 = sides
-      const mats = [
-        new THREE.MeshStandardMaterial({
-          color: rgbaToColor(obj.topColor),
-          side: THREE.DoubleSide,
-          metalness: 0.1,
-          roughness: 0.7,
-        }),
-        new THREE.MeshStandardMaterial({
-          color: rgbaToColor(obj.sideColor),
-          side: THREE.DoubleSide,
-          metalness: 0.1,
-          roughness: 0.8,
-        }),
-      ];
-      return { geometry: geom, materials: mats };
+      defaultsByKey["top"] = { color: obj.topColor, metalness: 0.1, roughness: 0.7 };
+      defaultsByKey["bottom"] = { color: obj.topColor, metalness: 0.1, roughness: 0.7 };
+      for (let i = 0; i < topPts.length; i++)
+        defaultsByKey[`side_${i}`] = { color: obj.sideColor, metalness: 0.1, roughness: 0.8 };
+    } else {
+      defaultsByKey["cap"] = { color: obj.fillColor, metalness: 0.1, roughness: 0.8 };
     }
-    return {
-      geometry: geom,
-      materials: [
-        new THREE.MeshStandardMaterial({
-          color: rgbaToColor(obj.fillColor),
-          side: THREE.DoubleSide,
-          metalness: 0.1,
-          roughness: 0.8,
-        }),
-      ],
-    };
-  }, [obj.points, obj.bottomOffsets, obj.pointHeights, obj.bottomHeights, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
+    const mats = buildFaceMaterials(
+      faceKeys,
+      defaultsByKey,
+      obj.faceOverrides,
+      isActivePaint ? paint.selected : null,
+      { doubleSide: true },
+    );
+    return { geometry: geom, materials: mats };
+  }, [obj.points, obj.bottomOffsets, obj.pointHeights, obj.bottomHeights, obj.extrude, obj.fillColor, obj.sideColor, obj.topColor, obj.faceOverrides, faceKeys, isActivePaint, paint.selected]);
+
+  if (selected && !isActivePaint) {
+    for (const m of materials) {
+      (m as any).emissive = new THREE.Color("#3b82f6");
+      (m as any).emissiveIntensity = 0.4;
+    }
+  }
 
   return (
     <mesh
@@ -325,15 +318,12 @@ function PolygonMesh({
       material={materials}
       castShadow
       receiveShadow
+      userData={{ __faceKeys: faceKeys, __objId: obj.id }}
       onClick={(e) => {
         e.stopPropagation();
         onSelect?.(obj.id);
       }}
-    >
-      {selected && (
-        <meshBasicMaterial color="#3b82f6" wireframe attach="material-2" />
-      )}
-    </mesh>
+    />
   );
 }
 
@@ -354,6 +344,9 @@ function GLTFModelMesh({ obj, onSelect }: { obj: ModelObject; onSelect?: (id: st
       const key = n.name || `mesh_${i++}`;
       n.userData.__meshKey = key;
       n.userData.__objId = obj.id;
+      // Expose a single-entry face-key map so the FacePickerOverlay can
+      // resolve a click on a model mesh to "mesh:<name>".
+      n.userData.__faceKeys = [`mesh:${key}`];
       if (!n.userData.__origMat) n.userData.__origMat = n.material;
 
       const ov = overrides[key];
@@ -708,6 +701,14 @@ export interface LevelSceneProps {
   onSelectLight?: (id: string) => void;
   addingPolygonPoint?: boolean;
   onAddingPointHandled?: () => void;
+  /** Face-paint mode state (provided by the editor page). */
+  facePaint?: {
+    active: boolean;
+    objectId: string | null;
+    selected: Set<string>;
+    toggle: (key: string, add: boolean) => void;
+    clear: () => void;
+  };
 }
 
 /**
@@ -736,6 +737,7 @@ export function LevelSceneContents({
   onSelectLight,
   addingPolygonPoint,
   onAddingPointHandled,
+  facePaint,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -744,8 +746,15 @@ export function LevelSceneContents({
   const groupRef = useRef<THREE.Group>(null);
   // Pick a sensible focus action for double-click — set focus request from parent
   const handleFocus = (id: string) => onSelect?.(id);
+  const facePaintValue = facePaint ?? {
+    active: false,
+    objectId: null,
+    selected: new Set<string>(),
+    toggle: () => {},
+    clear: () => {},
+  };
   return (
-    <>
+    <FacePaintContext.Provider value={facePaintValue}>
       {/* HDRI takes over the background when asBackground is on; otherwise solid color. */}
       {!(scene.environment.hdri && scene.environment.hdri.asBackground && scene.environment.hdri.activeId) && (
         <color attach="background" args={[scene.environment.background]} />
@@ -835,7 +844,14 @@ export function LevelSceneContents({
           />
         );
       })()}
-    </>
+      {facePaintValue.active && facePaintValue.objectId && (
+        <FacePickerOverlay
+          groupRef={groupRef}
+          objectId={facePaintValue.objectId}
+          toggle={facePaintValue.toggle}
+        />
+      )}
+    </FacePaintContext.Provider>
   );
 }
 
@@ -843,6 +859,60 @@ export function LevelSceneContents({
  * Standalone editor canvas (with controls + grid). Used by the LEVEL editor page.
  */
 export default function LevelScene3D(
+  props: LevelSceneProps & { className?: string }
+) {
+  return <LevelScene3DInner {...props} />;
+}
+
+/**
+ * Click-handler overlay active during "Paint Faces" mode. Raycasts the
+ * scene from pointer events, finds the target object's mesh, and toggles
+ * the hit face key in the shared selection set.
+ */
+function FacePickerOverlay({
+  groupRef,
+  objectId,
+  toggle,
+}: {
+  groupRef: React.RefObject<THREE.Group>;
+  objectId: string;
+  toggle: (key: string, add: boolean) => void;
+}) {
+  const { camera, gl } = useThree();
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const target = groupRef.current?.getObjectByName(`obj-${objectId}`);
+    if (!target) return;
+    const onDown = (ev: PointerEvent) => {
+      if (ev.button !== 0) return;
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const hits = raycaster.intersectObject(target, true);
+      const hit = hits.find((h) => (h.object as any).userData?.__faceKeys || (h.object as any).isMesh);
+      if (!hit) return;
+      const obj = hit.object as any;
+      let key: string | null = null;
+      if (obj.userData?.__faceKeys) {
+        key = resolveFaceKeyFromHit(hit);
+      } else if (obj.isMesh && obj.name) {
+        key = `mesh:${obj.name}`;
+      }
+      if (!key) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+      toggle(key, ev.shiftKey);
+    };
+    canvas.addEventListener("pointerdown", onDown, true);
+    return () => canvas.removeEventListener("pointerdown", onDown, true);
+  }, [camera, gl, groupRef, objectId, toggle]);
+  return null;
+}
+
+function LevelScene3DInner(
   props: LevelSceneProps & { className?: string }
 ) {
   const { className, ...rest } = props;

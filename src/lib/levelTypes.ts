@@ -12,6 +12,34 @@ export interface BaseObject {
   visible: boolean;
   layerId?: string; // optional; falls back to default layer
   locked?: boolean;
+  /**
+   * Per-face material overrides. Keys are stable face identifiers that
+   * depend on the object's shape:
+   *  - Polygon flat:      "cap"
+   *  - Polygon extruded:  "top" | "bottom" | "side_<i>"
+   *  - Primitive box:     "px" | "nx" | "py" | "ny" | "pz" | "nz"
+   *  - Primitive cylinder:"side" | "top" | "bottom"
+   *  - Primitive cone:    "side" | "bottom"
+   *  - Other primitives:  "all"
+   *
+   * Models use `materialOverrides` (per-mesh) instead.
+   */
+  faceOverrides?: Record<string, FaceOverride>;
+}
+
+export interface FaceOverride {
+  color?: RGBA;
+  opacity?: number;
+  metalness?: number;
+  roughness?: number;
+  /** Albedo texture (data URL or remote URL). */
+  textureUrl?: string;
+  /** UV tiling (default [1, 1]). */
+  repeat?: [number, number];
+  /** UV offset (default [0, 0]). */
+  offset?: [number, number];
+  /** UV rotation in radians (default 0). */
+  rotation?: number;
 }
 
 export interface PrimitiveObject extends BaseObject {
