@@ -242,17 +242,9 @@ export default function LevelEditorPage() {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      // Don't let a stuck auth-refresh block the editor from loading.
-      // If the session call hasn't resolved in 4s, proceed without it
-      // (RLS will simply deny writes on public levels viewed anonymously).
-      const sessionPromise = ensureLevelSession().catch((e) => {
-        console.warn("[level] session init failed", e);
-        return null;
-      });
-      const uid = await Promise.race<string | null>([
-        sessionPromise,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
-      ]);
+      // Read the cached/current user only; creating or refreshing auth here can
+      // steal the browser auth lock and keep the editor stuck on Loading….
+      const uid = await ensureLevelSession({ allowAnonymous: false });
       setUserId(uid);
       const { data, error } = await supabase
         .from("levels")
