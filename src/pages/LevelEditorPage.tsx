@@ -631,6 +631,8 @@ export default function LevelEditorPage() {
     else {
       toast.success("Placed on Atlas");
       setPlaceDialogOpen(false);
+      setCurrentPlacement({ lat, lng, scale: sc });
+      setShowLocationViewport(true);
     }
   };
 
