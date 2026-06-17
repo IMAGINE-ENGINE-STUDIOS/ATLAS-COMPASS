@@ -1033,7 +1033,7 @@ export default function LevelEditorPage() {
               <div className="flex items-center justify-between pt-2 border-t border-border/40">
                 <div>
                   <Label className="text-xs flex items-center gap-1">
-                    {isPublic ? <Globe2 className="w-3 h-3" /> : <Lock className="w-3 h-3" />} Public
+                    {isPublic ? <Globe2 className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />} Public
                   </Label>
                   <p className="text-[10px] text-muted-foreground">Anyone can view this Level</p>
                 </div>
