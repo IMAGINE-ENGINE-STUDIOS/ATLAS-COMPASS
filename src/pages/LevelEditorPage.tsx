@@ -765,6 +765,55 @@ function PolygonPointsEditor({
 
 /* ---------- animation panel ---------- */
 
+function LightInspector({
+  light, onPatch, disabled, snap = 0,
+}: { light: SceneLight; onPatch: (p: Partial<SceneLight>) => void; disabled?: boolean; snap?: number }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">Name</Label>
+        <Input value={light.name} disabled={disabled} onChange={(e) => onPatch({ name: e.target.value })} className="h-7 text-xs" />
+      </div>
+      <div>
+        <Label className="text-xs">Type</Label>
+        <Select value={light.kind} onValueChange={(v) => onPatch({ kind: v as SceneLight["kind"] })} disabled={disabled}>
+          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="directional" className="text-xs">Directional</SelectItem>
+            <SelectItem value="point" className="text-xs">Point</SelectItem>
+            <SelectItem value="spot" className="text-xs">Spot</SelectItem>
+            <SelectItem value="ambient" className="text-xs">Ambient</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {light.kind !== "ambient" && (
+        <Vec3Field label="Position" value={light.position} onChange={(position) => onPatch({ position })} disabled={disabled} snap={snap} />
+      )}
+      <div>
+        <Label className="text-xs">Color</Label>
+        <Input
+          type="color"
+          value={rgbaToHex(light.color)}
+          disabled={disabled}
+          onChange={(e) => onPatch({ color: hexToRgba(e.target.value, light.color[3]) })}
+          className="h-8 w-full p-1"
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Intensity {light.intensity.toFixed(2)}</Label>
+        <Slider value={[light.intensity]} min={0} max={10} step={0.05} disabled={disabled}
+          onValueChange={([v]) => onPatch({ intensity: v })} />
+      </div>
+      {light.kind !== "ambient" && (
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">Cast shadow</Label>
+          <Switch checked={!!light.castShadow} onCheckedChange={(v) => onPatch({ castShadow: v })} disabled={disabled} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnimationPanel({
   scene, onAdd, onRemove, onPatch, disabled,
 }: {
