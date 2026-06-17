@@ -88,18 +88,70 @@ function PolygonMesh({
         ? obj.points.map(([x, z]) => new THREE.Vector2(x, z))
         : [new THREE.Vector2(-0.5, -0.5), new THREE.Vector2(0.5, -0.5), new THREE.Vector2(0, 0.5)],
     );
-    const geom =
-      obj.extrude > 0
-        ? new THREE.ExtrudeGeometry(shape, {
-            depth: obj.extrude,
-            bevelEnabled: obj.bevel > 0,
-            bevelSize: obj.bevel,
-            bevelThickness: obj.bevel,
-            bevelSegments: 2,
-          })
-        : new THREE.ShapeGeometry(shape);
-    geom.rotateX(-Math.PI / 2); // make spline lay on XZ plane
-    geom.computeVertexNormals();
+    const hasOffset =
+      obj.extrude > 0 &&
+      !!obj.bottomOffsets &&
+      obj.bottomOffsets.some(
+        (o) => o && (Math.abs(o[0]) > 1e-6 || Math.abs(o[1]) > 1e-6),
+      );
+    let geom: THREE.BufferGeometry;
+    if (hasOffset) {
+      // Custom prism: top ring uses poly.points; bottom ring uses
+      // (x + ox, z + oz) per index. Triangulate the (top) contour and
+      // reuse the same triangle list (flipped) for the bottom cap; build
+      // quad sides between corresponding indices.
+      const N = obj.points.length;
+      const top = obj.points;
+      const offs = obj.bottomOffsets || [];
+      const positions: number[] = [];
+      // Coordinate space matches the rotated default geometry below:
+      // shape (x, z) -> world-local (x, y, -z).
+      for (let i = 0; i < N; i++) {
+        const [x, z] = top[i];
+        positions.push(x, obj.extrude, -z);
+      }
+      for (let i = 0; i < N; i++) {
+        const [x, z] = top[i];
+        const [ox, oz] = offs[i] || [0, 0];
+        positions.push(x + ox, 0, -(z + oz));
+      }
+      const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
+      const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
+      const indices: number[] = [];
+      // top cap
+      for (const t of tris) indices.push(t[0], t[1], t[2]);
+      // bottom cap (reverse winding, offset by N)
+      for (const t of tris) indices.push(N + t[0], N + t[2], N + t[1]);
+      const sideStart = indices.length;
+      // sides — quad per edge
+      for (let i = 0; i < N; i++) {
+        const j = (i + 1) % N;
+        indices.push(i, j, N + j);
+        indices.push(i, N + j, N + i);
+      }
+      geom = new THREE.BufferGeometry();
+      geom.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3),
+      );
+      geom.setIndex(indices);
+      geom.addGroup(0, sideStart, 0);
+      geom.addGroup(sideStart, indices.length - sideStart, 1);
+      geom.computeVertexNormals();
+    } else {
+      geom =
+        obj.extrude > 0
+          ? new THREE.ExtrudeGeometry(shape, {
+              depth: obj.extrude,
+              bevelEnabled: obj.bevel > 0,
+              bevelSize: obj.bevel,
+              bevelThickness: obj.bevel,
+              bevelSegments: 2,
+            })
+          : new THREE.ShapeGeometry(shape);
+      geom.rotateX(-Math.PI / 2); // make spline lay on XZ plane
+      geom.computeVertexNormals();
+    }
 
     // Two material groups: 0 = caps (top/bottom), 1 = sides
     if (obj.extrude > 0) {
@@ -131,7 +183,7 @@ function PolygonMesh({
         }),
       ],
     };
-  }, [obj.points, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
+  }, [obj.points, obj.bottomOffsets, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
 
   return (
     <mesh
