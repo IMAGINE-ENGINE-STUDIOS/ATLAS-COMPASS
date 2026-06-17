@@ -494,6 +494,7 @@ export interface LevelSceneProps {
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
   editingPolygonId?: string | null;
   onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
+  onPolygonOffsetsChange?: (id: string, offsets: Array<[number, number]>) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
@@ -522,6 +523,7 @@ export function LevelSceneContents({
   controlsRef,
   editingPolygonId,
   onPolygonPointsChange,
+  onPolygonOffsetsChange,
   transformMode,
   onObjectTransform,
   snap,
@@ -614,6 +616,7 @@ export function LevelSceneContents({
             poly={poly}
             controlsRef={controlsRef}
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
+            onOffsetsChange={(offs) => onPolygonOffsetsChange?.(poly.id, offs)}
             addingPoint={!!addingPolygonPoint}
             onAddingPointHandled={onAddingPointHandled}
           />
