@@ -2917,11 +2917,11 @@ function SpaceshipPage() {
   const handleUncropTile = useCallback(() => {
     if (!editingModel) return;
     setPlacedModels(prev => {
-      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: 0 } : m);
+      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: 0, cropBase: undefined } : m);
       savePlacedModels(updated);
       return updated;
     });
-    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: 0 } : current);
+    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: 0, cropBase: undefined } : current);
   }, [editingModel]);
 
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
