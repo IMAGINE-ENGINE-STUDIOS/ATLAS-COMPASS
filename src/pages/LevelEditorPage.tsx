@@ -922,6 +922,9 @@ export default function LevelEditorPage() {
             }}
             editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
+            onPolygonOffsetsChange={(oid, bottomOffsets) =>
+              patchObject(oid, { bottomOffsets } as any)
+            }
             addingPolygonPoint={addingPointMode && !!editingPolygonId}
             onAddingPointHandled={() => setAddingPointMode(false)}
             transformMode={selectedObjectLocked ? null : transformMode}
