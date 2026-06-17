@@ -52,6 +52,8 @@ import filterShopsPng   from "@/assets/icons/filter-shops.png";
 import filterHotelsPng  from "@/assets/icons/filter-hotels.png";
 import filterFuelPng    from "@/assets/icons/filter-fuel.png";
 import filterHealthPng  from "@/assets/icons/filter-health.png";
+import targetPng        from "@/assets/icons/target.png";
+import eyePng           from "@/assets/icons/eye.png";
 
 const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string }) => (
   <img
