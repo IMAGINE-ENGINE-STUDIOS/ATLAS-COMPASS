@@ -3132,7 +3132,12 @@ function SpaceshipPage() {
         const lng = model.lng + dLng(cx_m);
         const lat = model.lat + dLat(cy_m);
         const absH = Math.abs(h);
-        const pos = Cartesian3.fromDegrees(lng, lat, baseAlt + h / 2);
+        // Terrain must never rise above the model's base — cap top at baseAlt.
+        // raise (h>0): box sits just below baseAlt, filling up to it.
+        // lower (h<0): box sits below baseAlt, top at baseAlt + h.
+        const topZ = baseAlt + Math.min(0, h);
+        const centerZ = topZ - absH / 2;
+        const pos = Cartesian3.fromDegrees(lng, lat, centerZ);
         out.push(viewer.entities.add({
           position: pos,
           box: {
