@@ -38,6 +38,7 @@ import {
   SceneTransforms,
   BoundingSphere, HeadingPitchRange, Matrix4,
   ClippingPolygon, ClippingPolygonCollection,
+  CallbackProperty, ColorMaterialProperty, LabelStyle, HorizontalOrigin, VerticalOrigin,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
