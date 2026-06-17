@@ -1,4 +1,5 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -44,29 +45,71 @@ function HDRIEnvironmentRuntime({ cfg }: { cfg: HDRIEnvironmentCfg }) {
       setTex(null);
       return;
     }
+    // Skip placeholder URLs left behind when a level is restored without its
+    // local HDRI blob (e.g. opened in a different browser, or after the
+    // per-level HDRI cache was evicted). Trying to fetch "local:<id>" throws
+    // "Failed to fetch" repeatedly and used to spam the canvas.
+    if (!active.url || active.url.startsWith("local:")) {
+      console.warn("[hdri] active map has no usable URL — re-upload to restore lighting");
+      setTex(null);
+      return;
+    }
     let cancelled = false;
+    let blobUrl: string | null = null;
+    // Huge data: URLs (>~10MB) can fail `fetch()` with "Failed to fetch" in
+    // Chromium. Convert to a Blob URL first — Blob URLs always load cleanly
+    // and also free the giant base64 string from the loader pipeline.
+    let urlToLoad = active.url;
+    if (active.url.startsWith("data:")) {
+      try {
+        const [meta, b64] = active.url.split(",", 2);
+        const mime = meta.match(/data:([^;]+)/)?.[1] ?? "application/octet-stream";
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+        urlToLoad = blobUrl;
+      } catch (e) {
+        console.warn("[hdri] failed to convert data URL to blob", e);
+      }
+    }
     const Loader: any = active.ext === "exr" ? EXRLoader : RGBELoader;
     const loader = new Loader();
     loader.load(
-      active.url,
+      urlToLoad,
       (t: THREE.Texture) => {
         if (cancelled) {
           t.dispose();
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
           return;
         }
-        t.mapping = THREE.EquirectangularReflectionMapping;
-        // Pre-filter via PMREM for correct PBR reflections
-        const pmrem = new THREE.PMREMGenerator(gl);
-        const target = pmrem.fromEquirectangular(t);
-        t.dispose();
-        pmrem.dispose();
-        setTex(target.texture);
+        try {
+          t.mapping = THREE.EquirectangularReflectionMapping;
+          // Pre-filter via PMREM for correct PBR reflections
+          const pmrem = new THREE.PMREMGenerator(gl);
+          const target = pmrem.fromEquirectangular(t);
+          t.dispose();
+          pmrem.dispose();
+          setTex(target.texture);
+        } catch (err) {
+          // PMREM can throw if the WebGL context is lost mid-load. Don't
+          // tear down the React tree — fall back to no environment map.
+          console.warn("[hdri] PMREM filtering failed", err);
+          t.dispose();
+          setTex(null);
+        } finally {
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
+        }
       },
       undefined,
-      (err: unknown) => console.warn("HDRI load failed", err),
+      (err: unknown) => {
+        console.warn("HDRI load failed", err);
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+      },
     );
     return () => {
       cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [active?.id, active?.url, active?.ext, gl]);
 
@@ -1150,6 +1193,7 @@ function LevelScene3DInner(
   const { className, ...rest } = props;
   const controlsRef = useRef<any>(null);
   const [focusReq, setFocusReq] = useState<{ id: string; nonce: number } | null>(null);
+  const [canvasKey, setCanvasKey] = useState(0);
   // Bridge so the inner <group onDoubleClick> can trigger a focus request
   // without threading a ref/callback through every render.
   useEffect(() => {
@@ -1161,26 +1205,72 @@ function LevelScene3DInner(
   }, []);
   return (
     <Canvas
+      key={canvasKey}
       className={className}
       shadows
       camera={{ position: [6, 6, 8], fov: 50 }}
+      // Cap pixel ratio so high-DPI screens (e.g. retina × browser zoom)
+      // don't push the GPU past its memory budget and lose the context.
+      dpr={[1, 1.75]}
+      gl={{ powerPreference: "high-performance", antialias: true, preserveDrawingBuffer: false }}
+      onCreated={({ gl }) => {
+        const canvas = gl.domElement;
+        const onLost = (e: Event) => {
+          e.preventDefault();
+          console.warn("[scene] WebGL context lost — attempting recovery");
+        };
+        const onRestored = () => {
+          console.warn("[scene] WebGL context restored — remounting Canvas");
+          // Force a clean remount so all GPU resources rebuild against the
+          // new context (avoids the dreaded permanent black canvas).
+          setCanvasKey((k) => k + 1);
+        };
+        canvas.addEventListener("webglcontextlost", onLost, false);
+        canvas.addEventListener("webglcontextrestored", onRestored, false);
+      }}
       onPointerMissed={() => rest.onSelect?.(null)}
     >
-      <Suspense fallback={null}>
-        <LevelSceneContents
-          {...rest}
-          focusRequest={focusReq}
-          onFocusHandled={() => setFocusReq(null)}
-          controlsRef={controlsRef}
-        />
+      <SceneErrorBoundary onError={(err) => console.warn("[scene] render error caught", err)}>
+        <Suspense fallback={null}>
+          <LevelSceneContents
+            {...rest}
+            focusRequest={focusReq}
+            onFocusHandled={() => setFocusReq(null)}
+            controlsRef={controlsRef}
+          />
           {/* Fall back to a neutral studio preset only when the user hasn't supplied an HDRI. */}
           {!(rest.scene.environment.hdri && rest.scene.environment.hdri.activeId) && (
             <Environment preset="city" />
           )}
-      </Suspense>
+        </Suspense>
+      </SceneErrorBoundary>
       <OrbitControls ref={controlsRef} makeDefault enableDamping />
     </Canvas>
   );
+}
+
+/**
+ * Error boundary scoped to the R3F scene tree. A single misbehaving asset
+ * (broken HDRI, malformed GLTF, sculpt math edge case) won't unmount the
+ * whole canvas — it just suppresses that subtree until the next render.
+ */
+class SceneErrorBoundary extends Component<
+  { children: ReactNode; onError?: (err: unknown) => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(err: unknown) {
+    this.props.onError?.(err);
+    // Recover on the next frame so transient failures don't lock the canvas.
+    queueMicrotask(() => this.setState({ failed: false }));
+  }
+  render() {
+    if (this.state.failed) return null;
+    return this.props.children;
+  }
 }
 
 /* ---------- focus / smooth camera move ---------- */
