@@ -5230,6 +5230,11 @@ function SpaceshipPage() {
           cropRadius={editingModel.cropRadius || 0}
           onCropTile={handleCropTile}
           onUncropTile={handleUncropTile}
+          cropBase={editingModel.cropBase}
+          onCropBaseChange={handleCropBaseChange}
+          onResetTerrain={handleResetTerrain}
+          terrainEditing={terrainEditing}
+          onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
         />
       )}
     </div>
