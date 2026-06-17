@@ -1,5 +1,5 @@
-import { Suspense, useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, OrbitControls, useGLTF, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import type {
@@ -178,10 +178,12 @@ function RenderObject({
   obj,
   selectedId,
   onSelect,
+  onFocus,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  onFocus?: (id: string) => void;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
@@ -282,8 +284,17 @@ export function LevelSceneContents({
   showGrid,
   playing,
   skipAmbient,
-}: LevelSceneProps) {
+  focusRequest,
+  onFocusHandled,
+  controlsRef,
+}: LevelSceneProps & {
+  focusRequest?: { id: string; nonce: number } | null;
+  onFocusHandled?: () => void;
+  controlsRef?: React.MutableRefObject<any>;
+}) {
   const groupRef = useRef<THREE.Group>(null);
+  // Pick a sensible focus action for double-click — set focus request from parent
+  const handleFocus = (id: string) => onSelect?.(id);
   return (
     <>
       <color attach="background" args={[scene.environment.background]} />
@@ -303,12 +314,27 @@ export function LevelSceneContents({
       )}
       <group ref={groupRef} onPointerMissed={() => onSelect?.(null)}>
         {scene.objects.map((o) => (
-          <group key={o.id} name={`obj-${o.id}`}>
+          <group
+            key={o.id}
+            name={`obj-${o.id}`}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              (e as any).nativeEvent?.preventDefault?.();
+              // ask parent (Canvas wrapper) to focus this object
+              (window as any).__levelFocusObject?.(o.id);
+            }}
+          >
             <RenderObject obj={o} selectedId={selectedId} onSelect={onSelect ? (id) => onSelect(id) : undefined} />
           </group>
         ))}
       </group>
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
+      <FocusController
+        target={focusRequest}
+        groupRef={groupRef}
+        controlsRef={controlsRef}
+        onDone={onFocusHandled}
+      />
     </>
   );
 }
@@ -320,6 +346,17 @@ export default function LevelScene3D(
   props: LevelSceneProps & { className?: string }
 ) {
   const { className, ...rest } = props;
+  const controlsRef = useRef<any>(null);
+  const [focusReq, setFocusReq] = useState<{ id: string; nonce: number } | null>(null);
+  // Bridge so the inner <group onDoubleClick> can trigger a focus request
+  // without threading a ref/callback through every render.
+  useEffect(() => {
+    (window as any).__levelFocusObject = (id: string) =>
+      setFocusReq({ id, nonce: Date.now() });
+    return () => {
+      if ((window as any).__levelFocusObject) delete (window as any).__levelFocusObject;
+    };
+  }, []);
   return (
     <Canvas
       className={className}
@@ -328,10 +365,90 @@ export default function LevelScene3D(
       onPointerMissed={() => rest.onSelect?.(null)}
     >
       <Suspense fallback={null}>
-        <LevelSceneContents {...rest} />
+        <LevelSceneContents
+          {...rest}
+          focusRequest={focusReq}
+          onFocusHandled={() => setFocusReq(null)}
+          controlsRef={controlsRef}
+        />
         <Environment preset="city" />
       </Suspense>
-      <OrbitControls makeDefault enableDamping />
+      <OrbitControls ref={controlsRef} makeDefault enableDamping />
     </Canvas>
   );
+}
+
+/* ---------- focus / smooth camera move ---------- */
+
+function FocusController({
+  target,
+  groupRef,
+  controlsRef,
+  onDone,
+}: {
+  target?: { id: string; nonce: number } | null;
+  groupRef: React.RefObject<THREE.Group>;
+  controlsRef?: React.MutableRefObject<any>;
+  onDone?: () => void;
+}) {
+  const { camera } = useThree();
+  const animRef = useRef<{
+    fromPos: THREE.Vector3;
+    toPos: THREE.Vector3;
+    fromTarget: THREE.Vector3;
+    toTarget: THREE.Vector3;
+    t: number;
+    duration: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!target || !groupRef.current) return;
+    const obj = groupRef.current.getObjectByName(`obj-${target.id}`);
+    if (!obj) return;
+    const box = new THREE.Box3().setFromObject(obj);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+    const fov = ((camera as THREE.PerspectiveCamera).fov ?? 50) * (Math.PI / 180);
+    const distance = (radius / Math.tan(fov / 2)) * 1.8 + radius;
+    // Keep current viewing direction; just slide along it to the new framing
+    const ctrls = controlsRef?.current;
+    const currentTarget = ctrls?.target
+      ? ctrls.target.clone()
+      : new THREE.Vector3(0, 0, 0);
+    const dir = camera.position.clone().sub(currentTarget);
+    if (dir.lengthSq() < 1e-6) dir.set(1, 1, 1);
+    dir.normalize();
+    const toPos = center.clone().add(dir.multiplyScalar(distance));
+    animRef.current = {
+      fromPos: camera.position.clone(),
+      toPos,
+      fromTarget: currentTarget,
+      toTarget: center.clone(),
+      t: 0,
+      duration: 0.6,
+    };
+  }, [target?.id, target?.nonce, camera, groupRef, controlsRef]);
+
+  useFrame((_, dt) => {
+    const a = animRef.current;
+    if (!a) return;
+    a.t = Math.min(1, a.t + dt / a.duration);
+    // ease-in-out cubic
+    const k = a.t < 0.5 ? 4 * a.t * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 3) / 2;
+    camera.position.lerpVectors(a.fromPos, a.toPos, k);
+    const ctrls = controlsRef?.current;
+    if (ctrls?.target) {
+      ctrls.target.lerpVectors(a.fromTarget, a.toTarget, k);
+      ctrls.update?.();
+    }
+    camera.lookAt(ctrls?.target ?? a.toTarget);
+    if (a.t >= 1) {
+      animRef.current = null;
+      onDone?.();
+    }
+  });
+
+  return null;
 }
