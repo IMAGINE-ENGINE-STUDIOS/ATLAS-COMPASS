@@ -1008,18 +1008,20 @@ function PolygonEditOverlay({
   // corner of the geometry is visible and controllable.
   const topPoints = useMemo(
     () =>
-      poly.points.map(([x, z]) =>
-        new THREE.Vector3(x, (poly.extrude || 0) + 0.01, -z).applyMatrix4(objMatrix),
-      ),
-    [poly.points, poly.extrude, objMatrix],
+      poly.points.map(([x, z], i) => {
+        const h = poly.pointHeights?.[i] || 0;
+        return new THREE.Vector3(x, (poly.extrude || 0) + h + 0.01, -z).applyMatrix4(objMatrix);
+      }),
+    [poly.points, poly.pointHeights, poly.extrude, objMatrix],
   );
   const bottomPoints = useMemo(
     () =>
       poly.points.map(([x, z], i) => {
         const o = poly.bottomOffsets?.[i] || [0, 0];
-        return new THREE.Vector3(x + o[0], -0.01, -(z + o[1])).applyMatrix4(objMatrix);
+        const h = poly.bottomHeights?.[i] || 0;
+        return new THREE.Vector3(x + o[0], h - 0.01, -(z + o[1])).applyMatrix4(objMatrix);
       }),
-    [poly.points, poly.bottomOffsets, objMatrix],
+    [poly.points, poly.bottomOffsets, poly.bottomHeights, objMatrix],
   );
   const hasExtrude = (poly.extrude || 0) > 0.001;
 
