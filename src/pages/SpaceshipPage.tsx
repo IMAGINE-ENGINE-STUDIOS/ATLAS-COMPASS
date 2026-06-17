@@ -5122,7 +5122,7 @@ function SpaceshipPage() {
             hoveredIdx={hoveredResultIdx}
             setHoveredIdx={setHoveredResultIdx}
             activeCategory={activeSearchCategory}
-            categories={GEO_CATEGORIES.map(c => ({ key: c.key, label: c.label, icon: c.icon }))}
+            categories={GEO_CATEGORIES.map(c => ({ key: c.key, label: c.label, icon: c.icon, color: c.color, hex: c.hex }))}
             onCategoryChange={(key) => {
               setGeoCategory(key);
               businessLoadedAreaRef.current = "";
