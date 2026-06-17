@@ -12,6 +12,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
+import { getLocalLevel, getLocalLevelOwnerId, isLocalLevelId, updateLocalLevel } from "@/lib/localLevels";
 import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
@@ -242,6 +243,23 @@ export default function LevelEditorPage() {
   useEffect(() => {
     if (!id) return;
     (async () => {
+      if (isLocalLevelId(id)) {
+        const local = getLocalLevel(id);
+        if (!local) {
+          toast.error("Level not found");
+          navigate("/levels");
+          return;
+        }
+        const owner = getLocalLevelOwnerId();
+        setUserId(owner);
+        setName(local.name);
+        setDescription(local.description ?? "");
+        setIsPublic(local.is_public);
+        setOwnerId(local.owner_id);
+        setScene(rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(local.scene as any) }));
+        setLoading(false);
+        return;
+      }
       // Read the cached/current user only; creating or refreshing auth here can
       // steal the browser auth lock and keep the editor stuck on Loading….
       const uid = await ensureLevelSession({ allowAnonymous: false });
@@ -278,6 +296,14 @@ export default function LevelEditorPage() {
       setSaving(true);
       setAutosaveStatus("saving");
       const persistable = stripHdriBlobs(id, scene);
+      if (isLocalLevelId(id)) {
+        updateLocalLevel(id, { name, description, is_public: isPublic, scene: persistable });
+        setSaving(false);
+        lastSavedAtRef.current = Date.now();
+        setAutosaveStatus("saved");
+        if (!opts.silent) toast.success("Saved");
+        return;
+      }
       const { error } = await supabase
         .from("levels")
         .update({ name, description, is_public: isPublic, scene: persistable as any })
