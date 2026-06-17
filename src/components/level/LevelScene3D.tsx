@@ -1,7 +1,7 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls } from "@react-three/drei";
+import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import { RGBELoader } from "three-stdlib";
 import { EXRLoader } from "three-stdlib";
@@ -830,6 +830,31 @@ function RenderLight({ light, skipAmbient }: { light: SceneLight; skipAmbient?: 
   return <ambientLight color={color} intensity={light.intensity} />;
 }
 
+/* ---------- global illumination ---------- */
+
+function GlobalIllumination({ gi }: { gi: NonNullable<LevelScene["environment"]["gi"]> }) {
+  if (!gi.enabled) return null;
+  return (
+    <>
+      <hemisphereLight
+        color={gi.skyColor}
+        groundColor={gi.groundColor}
+        intensity={gi.hemisphereIntensity}
+      />
+      {gi.contactShadows && (
+        <ContactShadows
+          position={[0, 0.01, 0]}
+          opacity={gi.contactOpacity}
+          blur={gi.contactBlur}
+          scale={40}
+          far={20}
+          color="#000000"
+        />
+      )}
+    </>
+  );
+}
+
 /* ---------- light gizmo (scene-space icon + area of effect) ---------- */
 
 function LightGizmo({
@@ -1103,7 +1128,11 @@ export function LevelSceneContents({
       {scene.environment.hdri && scene.environment.hdri.activeId && (
         <HDRIEnvironmentRuntime cfg={scene.environment.hdri} />
       )}
-      {!skipAmbient && <ambientLight intensity={scene.environment.ambient} />}
+      {scene.environment.gi?.enabled ? (
+        <GlobalIllumination gi={scene.environment.gi} />
+      ) : (
+        !skipAmbient && <ambientLight intensity={scene.environment.ambient} />
+      )}
       {scene.lights.map((l) => (
         <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} />
       ))}
