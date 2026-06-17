@@ -1197,6 +1197,26 @@ export default function LevelEditorPage() {
               />
             </TabsContent>
 
+            <TabsContent value="terrain" className="p-3 space-y-3 m-0">
+              <TerrainPanel
+                terrain={scene.terrain}
+                disabled={!isOwner}
+                onPatch={(p) =>
+                  updateScene((s) => {
+                    const base = s.terrain ?? defaultTerrain();
+                    s.terrain = { ...base, ...p } as SceneTerrain;
+                    return s;
+                  })
+                }
+                onEnable={(enabled) =>
+                  updateScene((s) => {
+                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
+                    return s;
+                  })
+                }
+              />
+            </TabsContent>
+
             <TabsContent value="level" className="p-3 space-y-3 m-0">
               <div className="space-y-2">
                 <Label className="text-xs">Description</Label>
