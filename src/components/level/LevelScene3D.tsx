@@ -412,6 +412,51 @@ export default function LevelScene3D(
 
 /* ---------- focus / smooth camera move ---------- */
 
+function TransformGizmo({
+  targetId,
+  mode,
+  groupRef,
+  controlsRef,
+  onCommit,
+}: {
+  targetId: string;
+  mode: "translate" | "rotate" | "scale";
+  groupRef: React.RefObject<THREE.Group>;
+  controlsRef?: React.MutableRefObject<any>;
+  onCommit: (t: {
+    position: [number, number, number];
+    rotation: [number, number, number];
+    scale: [number, number, number];
+  }) => void;
+}) {
+  const [target, setTarget] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    // Find the group named obj-<id> after render
+    const t = groupRef.current?.getObjectByName(`obj-${targetId}`) ?? null;
+    setTarget(t);
+  }, [targetId, groupRef]);
+
+  if (!target) return null;
+  return (
+    <TransformControls
+      object={target as any}
+      mode={mode}
+      size={0.8}
+      onMouseDown={() => {
+        if (controlsRef?.current) controlsRef.current.enabled = false;
+      }}
+      onMouseUp={() => {
+        if (controlsRef?.current) controlsRef.current.enabled = true;
+        onCommit({
+          position: [target.position.x, target.position.y, target.position.z],
+          rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
+          scale: [target.scale.x, target.scale.y, target.scale.z],
+        });
+      }}
+    />
+  );
+}
+
 function PolygonEditOverlay({
   poly,
   controlsRef,
