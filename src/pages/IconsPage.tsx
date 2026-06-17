@@ -105,91 +105,50 @@ type FontSpec = {
 };
 
 const FONTS: FontSpec[] = [
-  {
-    name: "Atlas Display",
-    tag: "display-ultralight",
-    stack: '"SF Pro Display",-apple-system,BlinkMacSystemFont,system-ui,sans-serif',
-    weight: 200,
-    tracking: "-0.04em",
-    sample: "Iconography.",
-    caption: "SF Pro Display · 200 · Hero",
-    size: "clamp(56px, 9vw, 132px)",
-  },
-  {
-    name: "Editorial Serif",
-    tag: "serif-italic",
-    stack: '"Cormorant Garamond","Playfair Display",Georgia,serif',
-    weight: 300,
-    tracking: "-0.02em",
-    sample: "A monochrome system.",
-    caption: "Serif · 300 italic · Editorial",
-    italic: true,
-    size: "clamp(40px, 6vw, 88px)",
-  },
-  {
-    name: "Brutalist Caps",
-    tag: "brutalist",
-    stack: '"SF Pro Display",-apple-system,system-ui,sans-serif',
-    weight: 800,
-    tracking: "-0.02em",
-    sample: "GROUND CONTROL",
-    caption: "Display · 800 · Compressed",
-    transform: "uppercase",
-    size: "clamp(40px, 7vw, 96px)",
-  },
-  {
-    name: "Telemetry Mono",
-    tag: "mono-tnum",
-    stack: '"SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace',
-    weight: 500,
-    tracking: "0.02em",
-    sample: "40.7128° N · 74.0060° W",
-    caption: "Mono · 500 · Tabular",
-    size: "clamp(20px, 2.4vw, 32px)",
-  },
-  {
-    name: "Tracking Label",
-    tag: "label-mono",
-    stack: '"SF Mono","JetBrains Mono",ui-monospace,monospace',
-    weight: 500,
-    tracking: "0.32em",
-    sample: "SERIES — 020",
-    caption: "Mono · 500 · Eyebrow / 0.32em",
-    transform: "uppercase",
-    size: "clamp(11px, 1vw, 13px)",
-  },
-  {
-    name: "Body Refined",
-    tag: "body",
-    stack: '"SF Pro Text",-apple-system,BlinkMacSystemFont,system-ui,sans-serif',
-    weight: 400,
-    tracking: "-0.005em",
-    sample:
-      "Engineered for instrumentation, telemetry and the control surfaces of the Atlas suite.",
-    caption: "Text · 400 · Body 14/22",
-    size: "14px",
-  },
-  {
-    name: "Numeric Readout",
-    tag: "numeric",
-    stack: '"SF Mono","JetBrains Mono",ui-monospace,monospace',
-    weight: 300,
-    tracking: "-0.02em",
-    sample: "01 / 020",
-    caption: "Mono · 300 · Readout",
-    size: "clamp(48px, 6vw, 84px)",
-  },
-  {
-    name: "Whisper",
-    tag: "whisper",
-    stack: '"Cormorant Garamond",Georgia,serif',
-    weight: 300,
-    tracking: "0.04em",
-    sample: "a quiet system",
-    caption: "Serif · 300 italic · Lowercase",
-    italic: true,
-    size: "clamp(28px, 3.6vw, 52px)",
-  },
+  { name: "Atlas Display",       tag: "display-ultralight", stack: '"SF Pro Display",-apple-system,system-ui,sans-serif', weight: 200, tracking: "-0.04em", sample: "Iconography.",                          caption: "SF Pro Display · 200 · Hero",         size: "clamp(56px, 9vw, 132px)" },
+  { name: "Editorial Italic",    tag: "cormorant-italic",   stack: '"Cormorant Garamond",Georgia,serif',                  weight: 300, tracking: "-0.02em", sample: "A monochrome system.",                  caption: "Cormorant · 300 italic · Editorial",  italic: true, size: "clamp(40px, 6vw, 88px)" },
+  { name: "Brutalist Caps",      tag: "brutalist",          stack: '"Archivo Black",-apple-system,sans-serif',            weight: 900, tracking: "-0.02em", sample: "GROUND CONTROL",                        caption: "Archivo Black · 900 · Compressed",    transform: "uppercase", size: "clamp(40px, 7vw, 96px)" },
+  { name: "Telemetry Mono",      tag: "jetbrains-tnum",     stack: '"JetBrains Mono",ui-monospace,monospace',             weight: 500, tracking: "0.02em",  sample: "40.7128° N · 74.0060° W",               caption: "JetBrains Mono · 500 · Tabular",      size: "clamp(20px, 2.4vw, 32px)" },
+  { name: "Tracking Label",      tag: "label-mono",         stack: '"JetBrains Mono",ui-monospace,monospace',             weight: 500, tracking: "0.32em",  sample: "SERIES — 020",                          caption: "Mono · 500 · Eyebrow / 0.32em",       transform: "uppercase", size: "clamp(11px, 1vw, 13px)" },
+  { name: "Body Refined",        tag: "body",               stack: '"SF Pro Text",-apple-system,system-ui,sans-serif',    weight: 400, tracking: "-0.005em",sample: "Engineered for instrumentation, telemetry and control surfaces.", caption: "SF Pro Text · 400 · Body 14/22", size: "14px" },
+  { name: "Numeric Readout",     tag: "numeric",            stack: '"JetBrains Mono",ui-monospace,monospace',             weight: 300, tracking: "-0.02em", sample: "01 / 040",                              caption: "Mono · 300 · Readout",                size: "clamp(48px, 6vw, 84px)" },
+  { name: "Whisper",             tag: "whisper",            stack: '"Cormorant Garamond",Georgia,serif',                  weight: 300, tracking: "0.04em",  sample: "a quiet system",                        caption: "Cormorant · 300 italic · Lowercase",  italic: true, size: "clamp(28px, 3.6vw, 52px)" },
+
+  { name: "Bebas Stencil",       tag: "bebas",              stack: '"Bebas Neue",sans-serif',                             weight: 400, tracking: "0.04em",  sample: "MISSION READY",                         caption: "Bebas Neue · 400 · Condensed",        transform: "uppercase", size: "clamp(48px, 7vw, 104px)" },
+  { name: "Anton Headline",      tag: "anton",              stack: '"Anton",sans-serif',                                  weight: 400, tracking: "-0.01em", sample: "ATLAS PROTOCOL",                        caption: "Anton · 400 · Poster",                transform: "uppercase", size: "clamp(48px, 7vw, 112px)" },
+  { name: "Fraunces Display",    tag: "fraunces",           stack: '"Fraunces",serif',                                    weight: 600, tracking: "-0.03em", sample: "New Worlds.",                           caption: "Fraunces · 600 · Optical 144",        size: "clamp(48px, 7vw, 112px)" },
+  { name: "Fraunces Whisper",    tag: "fraunces-italic",    stack: '"Fraunces",serif',                                    weight: 300, tracking: "-0.02em", sample: "drifting through orbit",                caption: "Fraunces · 300 italic",               italic: true, size: "clamp(36px, 5vw, 72px)" },
+  { name: "DM Serif Plate",      tag: "dm-serif",           stack: '"DM Serif Display",serif',                            weight: 400, tracking: "-0.02em", sample: "Architecture",                          caption: "DM Serif Display · 400",              size: "clamp(48px, 7vw, 112px)" },
+  { name: "Instrument Serif",    tag: "instrument",         stack: '"Instrument Serif",serif',                            weight: 400, tracking: "-0.02em", sample: "Instrument of the future",              caption: "Instrument Serif · 400",              size: "clamp(40px, 6vw, 88px)" },
+  { name: "Instrument Italic",   tag: "instrument-italic",  stack: '"Instrument Serif",serif',                            weight: 400, tracking: "-0.02em", sample: "in motion",                             caption: "Instrument Serif · 400 italic",       italic: true, size: "clamp(40px, 6vw, 88px)" },
+  { name: "Crimson Quiet",       tag: "crimson",            stack: '"Crimson Pro",serif',                                 weight: 300, tracking: "-0.01em", sample: "the slow news of stars",                caption: "Crimson Pro · 300 italic",            italic: true, size: "clamp(28px, 3.6vw, 52px)" },
+  { name: "Spectral Body",       tag: "spectral",           stack: '"Spectral",serif',                                    weight: 300, tracking: "0",       sample: "Long-form reading at altitude.",        caption: "Spectral · 300 · Long-form",          size: "clamp(16px, 1.4vw, 19px)" },
+  { name: "Newsreader",          tag: "newsreader",         stack: '"Newsreader",serif',                                  weight: 300, tracking: "-0.01em", sample: "Dispatch from low orbit",               caption: "Newsreader · 300 italic",             italic: true, size: "clamp(28px, 3.6vw, 52px)" },
+  { name: "Libre Caslon",        tag: "caslon",             stack: '"Libre Caslon Text",serif',                           weight: 400, tracking: "0",       sample: "Set in the Caslon manner.",             caption: "Libre Caslon · 400 italic",           italic: true, size: "clamp(24px, 3vw, 40px)" },
+  { name: "Playfair Plate",      tag: "playfair",           stack: '"Playfair Display",serif',                            weight: 700, tracking: "-0.02em", sample: "Manifesto.",                            caption: "Playfair · 700 · Editorial",          size: "clamp(48px, 7vw, 112px)" },
+  { name: "Cinzel Inscription",  tag: "cinzel",             stack: '"Cinzel",serif',                                      weight: 700, tracking: "0.06em",  sample: "TERRA INCOGNITA",                       caption: "Cinzel · 700 · Inscription",          transform: "uppercase", size: "clamp(28px, 4vw, 56px)" },
+
+  { name: "Space Grotesk Hero",  tag: "space-grotesk",      stack: '"Space Grotesk",sans-serif',                          weight: 500, tracking: "-0.03em", sample: "Built for the surface.",                caption: "Space Grotesk · 500",                 size: "clamp(40px, 6vw, 88px)" },
+  { name: "Unbounded",           tag: "unbounded",          stack: '"Unbounded",sans-serif',                              weight: 700, tracking: "-0.04em", sample: "no limits",                             caption: "Unbounded · 700 · Lowercase",         size: "clamp(40px, 6vw, 96px)" },
+  { name: "Syne Brutal",         tag: "syne",               stack: '"Syne",sans-serif',                                   weight: 800, tracking: "-0.04em", sample: "ART/SCIENCE",                           caption: "Syne · 800 · Display",                transform: "uppercase", size: "clamp(40px, 6vw, 96px)" },
+  { name: "Big Shoulders",       tag: "big-shoulders",      stack: '"Big Shoulders Display",sans-serif',                  weight: 900, tracking: "0.02em",  sample: "HEAVY LIFT",                            caption: "Big Shoulders · 900",                 transform: "uppercase", size: "clamp(48px, 7vw, 120px)" },
+  { name: "Big Shoulders Thin",  tag: "big-shoulders-thin", stack: '"Big Shoulders Display",sans-serif',                  weight: 300, tracking: "0.04em",  sample: "GLIDE PATH",                            caption: "Big Shoulders · 300",                 transform: "uppercase", size: "clamp(48px, 7vw, 120px)" },
+
+  { name: "Major Mono",          tag: "major-mono",         stack: '"Major Mono Display",monospace',                      weight: 400, tracking: "0.04em",  sample: "lo-fi terminal",                        caption: "Major Mono · 400 · Glyph",            size: "clamp(28px, 4vw, 56px)" },
+  { name: "IBM Plex Mono",       tag: "ibm-plex-mono",      stack: '"IBM Plex Mono",monospace',                           weight: 300, tracking: "0",       sample: "$ ssh atlas@orbit.local",               caption: "IBM Plex Mono · 300",                 size: "clamp(16px, 1.6vw, 22px)" },
+  { name: "IBM Plex Italic",     tag: "ibm-plex-italic",    stack: '"IBM Plex Mono",monospace',                           weight: 300, tracking: "0",       sample: "// quiet annotations",                  caption: "IBM Plex Mono · 300 italic",          italic: true, size: "clamp(16px, 1.6vw, 22px)" },
+  { name: "IBM Plex Serif",      tag: "ibm-plex-serif",     stack: '"IBM Plex Serif",serif',                              weight: 300, tracking: "-0.01em", sample: "Engineering, with footnotes.",          caption: "IBM Plex Serif · 300 italic",         italic: true, size: "clamp(20px, 2.2vw, 30px)" },
+  { name: "Space Mono",          tag: "space-mono",         stack: '"Space Mono",monospace',                              weight: 400, tracking: "-0.01em", sample: "404 / NOT FOUND",                       caption: "Space Mono · 400",                    size: "clamp(20px, 2.4vw, 32px)" },
+  { name: "Space Mono Italic",   tag: "space-mono-italic",  stack: '"Space Mono",monospace',                              weight: 400, tracking: "0",       sample: "/* drift */",                           caption: "Space Mono · 400 italic",             italic: true, size: "clamp(20px, 2.4vw, 32px)" },
+  { name: "VT323 Cathode",       tag: "vt323",              stack: '"VT323",monospace',                                   weight: 400, tracking: "0.02em",  sample: "> READY.",                              caption: "VT323 · 400 · CRT",                   size: "clamp(28px, 3.6vw, 52px)" },
+  { name: "Rubik Mono Block",    tag: "rubik-mono",         stack: '"Rubik Mono One",sans-serif',                         weight: 400, tracking: "0",       sample: "BLOCK ONE",                             caption: "Rubik Mono One · 400",                transform: "uppercase", size: "clamp(28px, 4vw, 56px)" },
+
+  { name: "Orbitron Console",    tag: "orbitron",           stack: '"Orbitron",sans-serif',                               weight: 800, tracking: "0.08em",  sample: "TRAJECTORY",                            caption: "Orbitron · 800 · HUD",                transform: "uppercase", size: "clamp(28px, 4vw, 56px)" },
+  { name: "Zen Dots",            tag: "zen-dots",           stack: '"Zen Dots",sans-serif',                               weight: 400, tracking: "0.04em",  sample: "SIGNAL LOCK",                           caption: "Zen Dots · 400 · Display",            transform: "uppercase", size: "clamp(28px, 4vw, 56px)" },
+  { name: "Tourney Variable",    tag: "tourney",            stack: '"Tourney",sans-serif',                                weight: 800, tracking: "-0.02em", sample: "VELOCITY",                              caption: "Tourney · 800 · Variable",            transform: "uppercase", size: "clamp(40px, 6vw, 96px)" },
+
+  { name: "Caption Micro",       tag: "caption",            stack: '"JetBrains Mono",monospace',                          weight: 500, tracking: "0.24em",  sample: "FIG. 003 — IDLE STATE",                 caption: "Mono · 500 · Caption / 0.24em",       transform: "uppercase", size: "10px" },
+  { name: "Quote Editorial",     tag: "quote",              stack: '"Instrument Serif",serif',                            weight: 400, tracking: "-0.02em", sample: "“We do not aim for orbit. We aim past it.”", caption: "Instrument · 400 italic · Pull-quote", italic: true, size: "clamp(28px, 3.6vw, 52px)" },
 ];
 
 export default function IconsPage() {
@@ -239,7 +198,7 @@ export default function IconsPage() {
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300;1,500&family=Playfair+Display:ital,wght@0,400;1,400&family=JetBrains+Mono:wght@300;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300;1,500&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@300;500;700&family=Space+Grotesk:wght@300;500;700&family=Archivo+Black&family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Serif+Display:ital@0;1&family=Big+Shoulders+Display:wght@300;700;900&family=Major+Mono+Display&family=IBM+Plex+Mono:ital,wght@0,300;0,500;1,300&family=IBM+Plex+Serif:ital,wght@0,300;1,300&family=Unbounded:wght@300;700&family=Syne:wght@400;800&family=Instrument+Serif:ital@0;1&family=Cinzel:wght@400;700&family=Anton&family=Rubik+Mono+One&family=VT323&family=Space+Mono:ital,wght@0,400;1,400&family=Crimson+Pro:ital,wght@0,300;1,300&family=Spectral:ital,wght@0,300;1,300&family=Newsreader:ital,wght@0,300;1,300&family=Libre+Caslon+Text:ital@0;1&family=Tourney:wght@300;800&family=Zen+Dots&family=Orbitron:wght@500;800&display=swap"
         rel="stylesheet"
       />
 
