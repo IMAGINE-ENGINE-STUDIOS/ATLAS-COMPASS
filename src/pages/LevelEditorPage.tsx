@@ -3027,3 +3027,118 @@ function HDRIPanel({
     </div>
   );
 }
+
+/* ==========================================================
+ * GlobalIlluminationPanel
+ * Toggles hemisphere light + contact shadows as a cheap real-time
+ * global-illumination approximation for the level scene.
+ * ========================================================== */
+function GlobalIlluminationPanel({
+  gi,
+  disabled,
+  onChange,
+}: {
+  gi?: LevelScene["environment"]["gi"];
+  disabled?: boolean;
+  onChange: (updater: (cur: NonNullable<LevelScene["environment"]["gi"]>) => NonNullable<LevelScene["environment"]["gi"]>) => void;
+}) {
+  const cfg = gi ?? {
+    enabled: true,
+    skyColor: "#87ceeb",
+    groundColor: "#3d5c3d",
+    hemisphereIntensity: 0.6,
+    contactShadows: true,
+    contactOpacity: 0.4,
+    contactBlur: 2.5,
+  };
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border/40">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs flex items-center gap-1">
+          <Sun className="w-3 h-3" /> Global illumination
+        </Label>
+        <Switch
+          checked={cfg.enabled}
+          onCheckedChange={(v) => onChange((cur) => ({ ...cur, enabled: v }))}
+          disabled={disabled}
+        />
+      </div>
+
+      {cfg.enabled && (
+        <>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Sky color</Label>
+              <Input
+                type="color"
+                value={cfg.skyColor}
+                onChange={(e) => onChange((cur) => ({ ...cur, skyColor: e.target.value }))}
+                disabled={disabled}
+                className="h-7 w-full p-1"
+              />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Ground color</Label>
+              <Input
+                type="color"
+                value={cfg.groundColor}
+                onChange={(e) => onChange((cur) => ({ ...cur, groundColor: e.target.value }))}
+                disabled={disabled}
+                className="h-7 w-full p-1"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[10px]">Hemisphere intensity {cfg.hemisphereIntensity.toFixed(2)}</Label>
+            <Slider
+              value={[cfg.hemisphereIntensity]}
+              min={0}
+              max={2}
+              step={0.05}
+              onValueChange={([v]) => onChange((cur) => ({ ...cur, hemisphereIntensity: v }))}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px]">Contact shadows (AO)</Label>
+            <Switch
+              checked={cfg.contactShadows}
+              onCheckedChange={(v) => onChange((cur) => ({ ...cur, contactShadows: v }))}
+              disabled={disabled}
+            />
+          </div>
+
+          {cfg.contactShadows && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Shadow opacity {cfg.contactOpacity.toFixed(2)}</Label>
+                <Slider
+                  value={[cfg.contactOpacity]}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onValueChange={([v]) => onChange((cur) => ({ ...cur, contactOpacity: v }))}
+                  disabled={disabled}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Shadow blur {cfg.contactBlur.toFixed(1)}</Label>
+                <Slider
+                  value={[cfg.contactBlur]}
+                  min={0}
+                  max={10}
+                  step={0.5}
+                  onValueChange={([v]) => onChange((cur) => ({ ...cur, contactBlur: v }))}
+                  disabled={disabled}
+                />
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
