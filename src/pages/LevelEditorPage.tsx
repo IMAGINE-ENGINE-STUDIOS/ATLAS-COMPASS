@@ -346,6 +346,24 @@ export default function LevelEditorPage() {
           className="h-8 w-64 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold"
         />
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={undo}
+            disabled={historyRef.current.past.length === 0}
+            title="Undo (Ctrl/Cmd+Z)"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={redo}
+            disabled={historyRef.current.future.length === 0}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </Button>
           <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
             <button
               onClick={() => setSnapEnabled((v) => !v)}
@@ -549,6 +567,11 @@ export default function LevelEditorPage() {
                   onToggleEdit={() =>
                     setEditingPolygonId((cur) => (cur === selectedObj.id ? null : selectedObj.id))
                   }
+                  onDelete={() => {
+                    removeObject(selectedObj.id);
+                    if (selectedId === selectedObj.id) setSelectedId(null);
+                    if (editingPolygonId === selectedObj.id) setEditingPolygonId(null);
+                  }}
                 />
               )}
             </TabsContent>
