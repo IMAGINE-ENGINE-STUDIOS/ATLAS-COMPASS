@@ -259,6 +259,15 @@ export default function LevelEditorPage() {
           setSelectedLightId(null);
         }
       }
+      // gizmo mode shortcuts — only when no input is focused
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || (e.target as any)?.isContentEditable) return;
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key.toLowerCase() === "g") setTransformMode("translate");
+        else if (e.key.toLowerCase() === "r") setTransformMode("rotate");
+        else if (e.key.toLowerCase() === "t") setTransformMode("scale");
+        else if (e.key === "Escape") setTransformMode(null);
+      }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
