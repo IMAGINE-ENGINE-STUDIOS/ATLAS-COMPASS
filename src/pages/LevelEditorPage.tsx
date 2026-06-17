@@ -297,11 +297,21 @@ export default function LevelEditorPage() {
       setAutosaveStatus("saving");
       const persistable = stripHdriBlobs(id, scene);
       if (isLocalLevelId(id)) {
-        updateLocalLevel(id, { name, description, is_public: isPublic, scene: persistable });
+        let ok = false;
+        try {
+          ok = updateLocalLevel(id, { name, description, is_public: isPublic, scene: persistable });
+        } catch (err) {
+          console.warn("[level] local save failed", err);
+        }
         setSaving(false);
-        lastSavedAtRef.current = Date.now();
-        setAutosaveStatus("saved");
-        if (!opts.silent) toast.success("Saved");
+        if (ok) {
+          lastSavedAtRef.current = Date.now();
+          setAutosaveStatus("saved");
+          if (!opts.silent) toast.success("Saved");
+        } else {
+          setAutosaveStatus("error");
+          toast.error("Local storage is full — uploaded models are too large to autosave. Remove a model or sign in to save to the cloud.");
+        }
         return;
       }
       const { error } = await supabase
