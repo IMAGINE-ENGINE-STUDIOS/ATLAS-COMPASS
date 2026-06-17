@@ -1112,6 +1112,11 @@ export default function LevelEditorPage() {
                   }
                   addingPoint={addingPointMode}
                   onToggleAddPoint={() => setAddingPointMode((v) => !v)}
+                  projectId={id || "unsaved"}
+                  facePaintActive={facePaintActive}
+                  paintedFaces={paintedFaces}
+                  onToggleFacePaint={() => setFacePaintActive((v) => !v)}
+                  onClearFacePaint={() => setPaintedFaces(new Set())}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
