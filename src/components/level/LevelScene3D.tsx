@@ -1054,10 +1054,14 @@ function PolygonEditOverlay({
   // Disarm offset mode when the polygon being edited changes.
   useEffect(() => {
     setArmedOffsetIndex(null);
+    setArmedTopIndex(null);
   }, [poly.id]);
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") setArmedOffsetIndex(null);
+      if (ev.key === "Escape") {
+        setArmedOffsetIndex(null);
+        setArmedTopIndex(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
