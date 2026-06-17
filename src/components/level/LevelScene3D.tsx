@@ -262,6 +262,117 @@ function RenderLight({ light, skipAmbient }: { light: SceneLight; skipAmbient?: 
   return <ambientLight color={color} intensity={light.intensity} />;
 }
 
+/* ---------- light gizmo (scene-space icon + area of effect) ---------- */
+
+function LightGizmo({
+  light,
+  selected,
+  onSelect,
+}: {
+  light: SceneLight;
+  selected?: boolean;
+  onSelect?: (id: string) => void;
+}) {
+  if (light.kind === "ambient") return null; // ambient has no position
+  const color = rgbaToColor(light.color);
+  const pos = light.position;
+  // Area-of-effect radius scales with intensity. Spot uses a cone height.
+  const radius = Math.max(1, light.intensity * 3);
+  // Direction for directional / spot: from position toward target (default origin)
+  const dirVec = useMemo(() => {
+    const t = light.target ?? [0, 0, 0];
+    const v = new THREE.Vector3(t[0] - pos[0], t[1] - pos[1], t[2] - pos[2]);
+    if (v.lengthSq() < 1e-6) v.set(0, -1, 0);
+    return v.normalize();
+  }, [light.target, pos[0], pos[1], pos[2]]);
+  // Quaternion to rotate +Y axis toward dirVec (cone/arrow points along +Y by default)
+  const orientQ = useMemo(() => {
+    return new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      dirVec.clone().negate(), // cone opens in -Y locally, so flip
+    );
+  }, [dirVec]);
+
+  return (
+    <group position={pos as any}>
+      {/* clickable icon */}
+      <mesh
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect?.(light.id);
+        }}
+        renderOrder={1000}
+      >
+        <octahedronGeometry args={[0.25, 0]} />
+        <meshBasicMaterial
+          color={color}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* selection ring */}
+      {selected && (
+        <mesh renderOrder={1001}>
+          <ringGeometry args={[0.35, 0.42, 32]} />
+          <meshBasicMaterial
+            color="#facc15"
+            side={THREE.DoubleSide}
+            depthTest={false}
+            depthWrite={false}
+            toneMapped={false}
+            transparent
+            opacity={0.9}
+          />
+        </mesh>
+      )}
+      {/* area of effect (only when selected) */}
+      {selected && light.kind === "point" && (
+        <mesh>
+          <sphereGeometry args={[radius, 24, 16]} />
+          <meshBasicMaterial
+            color={color}
+            wireframe
+            transparent
+            opacity={0.35}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+      {selected && light.kind === "spot" && (
+        <group quaternion={orientQ as any}>
+          {/* cone tip at origin, base at -radius along Y after rotation */}
+          <mesh position={[0, -radius / 2, 0]}>
+            <coneGeometry args={[radius * 0.5, radius, 24, 1, true]} />
+            <meshBasicMaterial
+              color={color}
+              wireframe
+              transparent
+              opacity={0.4}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
+      )}
+      {selected && light.kind === "directional" && (
+        <group quaternion={orientQ as any}>
+          {/* arrow shaft */}
+          <mesh position={[0, -radius / 2, 0]}>
+            <cylinderGeometry args={[0.04, 0.04, radius, 12]} />
+            <meshBasicMaterial color={color} depthTest={false} toneMapped={false} />
+          </mesh>
+          {/* arrowhead */}
+          <mesh position={[0, -radius, 0]}>
+            <coneGeometry args={[0.2, 0.5, 16]} />
+            <meshBasicMaterial color={color} depthTest={false} toneMapped={false} />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
 /* ---------- animation runner ---------- */
 
 function AnimationRunner({
