@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
   Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
-  SunMedium, FlashlightIcon as Spotlight,
+  SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
@@ -117,6 +117,38 @@ export default function LevelEditorPage() {
 
   const isOwner = userId && ownerId && userId === ownerId;
 
+  // ---------- undo/redo history ----------
+  const historyRef = useRef<{ past: LevelScene[]; future: LevelScene[] }>({ past: [], future: [] });
+  const [historyTick, setHistoryTick] = useState(0);
+  const HISTORY_LIMIT = 100;
+  const pushHistory = useCallback((prev: LevelScene) => {
+    const h = historyRef.current;
+    h.past.push(prev);
+    if (h.past.length > HISTORY_LIMIT) h.past.shift();
+    h.future = [];
+    setHistoryTick((t) => t + 1);
+  }, []);
+  const undo = useCallback(() => {
+    const h = historyRef.current;
+    if (!h.past.length) return;
+    setScene((cur) => {
+      const prev = h.past.pop()!;
+      h.future.push(cur);
+      setHistoryTick((t) => t + 1);
+      return prev;
+    });
+  }, []);
+  const redo = useCallback(() => {
+    const h = historyRef.current;
+    if (!h.future.length) return;
+    setScene((cur) => {
+      const next = h.future.pop()!;
+      h.past.push(cur);
+      setHistoryTick((t) => t + 1);
+      return next;
+    });
+  }, []);
+
   // load
   useEffect(() => {
     if (!id) return;
@@ -161,15 +193,26 @@ export default function LevelEditorPage() {
         e.preventDefault();
         save();
       }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+        e.preventDefault();
+        redo();
+      }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [save]);
+  }, [save, undo, redo]);
 
   /* ---------- scene mutators ---------- */
 
   const updateScene = (mut: (s: LevelScene) => LevelScene) =>
-    setScene((prev) => mut(structuredClone(prev)));
+    setScene((prev) => {
+      pushHistory(prev);
+      return mut(structuredClone(prev));
+    });
 
   const addObject = (o: SceneObject) =>
     updateScene((s) => {
