@@ -707,7 +707,7 @@ function Vec3Field({
 }
 
 function ObjectInspector({
-  obj, onPatch, disabled, snap = 0, editing, onToggleEdit,
+  obj, onPatch, disabled, snap = 0, editing, onToggleEdit, onDelete,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -715,6 +715,7 @@ function ObjectInspector({
   snap?: number;
   editing?: boolean;
   onToggleEdit?: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <div className="space-y-3">
