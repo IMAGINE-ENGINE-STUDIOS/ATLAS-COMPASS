@@ -1422,6 +1422,31 @@ export default function LevelEditorPage() {
           onClose={() => setShowLocationViewport(false)}
           onOpenAtlas={() => navigate(`/atlas?lat=${currentPlacement.lat}&lng=${currentPlacement.lng}`)}
           onPickManually={() => setPlaceDialogOpen(true)}
+          onMove={async (la, ln) => {
+            setCurrentPlacement({ lat: la, lng: ln, scale: currentPlacement.scale });
+            setPlaceLat(la.toFixed(6));
+            setPlaceLng(ln.toFixed(6));
+            if (!id || !userId || isLocalLevelId(id)) return;
+            // Persist the new coordinates on the most recent placement row.
+            const { data } = await supabase
+              .from("atlas_level_placements")
+              .select("id")
+              .eq("level_id", id)
+              .eq("owner_id", userId)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (data?.id) {
+              await supabase
+                .from("atlas_level_placements")
+                .update({ lat: la, lng: ln })
+                .eq("id", data.id);
+            } else {
+              await supabase.from("atlas_level_placements").insert({
+                owner_id: userId, level_id: id, lat: la, lng: ln, scale: currentPlacement.scale,
+              });
+            }
+          }}
         />
       )}
     </div>
