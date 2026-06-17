@@ -830,6 +830,31 @@ function RenderLight({ light, skipAmbient }: { light: SceneLight; skipAmbient?: 
   return <ambientLight color={color} intensity={light.intensity} />;
 }
 
+/* ---------- global illumination ---------- */
+
+function GlobalIllumination({ gi }: { gi: NonNullable<LevelScene["environment"]["gi"]> }) {
+  if (!gi.enabled) return null;
+  return (
+    <>
+      <hemisphereLight
+        color={gi.skyColor}
+        groundColor={gi.groundColor}
+        intensity={gi.hemisphereIntensity}
+      />
+      {gi.contactShadows && (
+        <ContactShadows
+          position={[0, 0.01, 0]}
+          opacity={gi.contactOpacity}
+          blur={gi.contactBlur}
+          scale={40}
+          far={20}
+          color="#000000"
+        />
+      )}
+    </>
+  );
+}
+
 /* ---------- light gizmo (scene-space icon + area of effect) ---------- */
 
 function LightGizmo({
