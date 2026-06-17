@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import {
   Move, RotateCcw, Scale, X, Check, ArrowDown,
   Plus, Minus, Scissors, Grid3x3, Square as SquareIcon, Circle as CircleIcon,
-  Brush, MousePointerClick, Pencil, RotateCw,
+  Pencil, RotateCw, ArrowUp, Waves, Layers,
 } from "lucide-react";
 
 export interface TransformData {
@@ -18,9 +18,10 @@ export interface TransformData {
 export interface CropBaseUI {
   shape: "circle" | "square";
   wireframe: boolean;
-  voxelMode: "click" | "brush";
+  tool: "raise" | "lower" | "smooth" | "flatten";
   brushRadius: number;
   brushStrength: number;
+  flattenHeight: number;
 }
 
 interface Props {
