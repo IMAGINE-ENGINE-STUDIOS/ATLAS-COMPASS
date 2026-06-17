@@ -704,12 +704,21 @@ function PolygonEditOverlay({
   poly,
   controlsRef,
   onChange,
+  addingPoint,
+  onAddingPointHandled,
 }: {
   poly: PolygonObject;
   controlsRef?: React.MutableRefObject<any>;
   onChange: (pts: Array<[number, number]>) => void;
+  addingPoint?: boolean;
+  onAddingPointHandled?: () => void;
 }) {
   const { camera, gl } = useThree();
+  // Hover preview for add-point-on-edge mode: insertion index + local 2D coord.
+  const [hoverInsert, setHoverInsert] = useState<{
+    index: number; // insert AFTER this segment start index
+    local: [number, number]; // shape-space (lx, lz_shape) — same units as poly.points
+  } | null>(null);
   const dragRef = useRef<{
     index: number;
     plane: THREE.Plane;
