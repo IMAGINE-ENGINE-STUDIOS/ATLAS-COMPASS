@@ -130,6 +130,8 @@ export default function LevelEditorPage() {
   const [placeLat, setPlaceLat] = useState("40.7580");
   const [placeLng, setPlaceLng] = useState("-73.9855");
   const [placeScale, setPlaceScale] = useState("1");
+  const [currentPlacement, setCurrentPlacement] = useState<{ lat: number; lng: number; scale: number } | null>(null);
+  const [showLocationViewport, setShowLocationViewport] = useState(true);
   const [selectedLightId, setSelectedLightId] = useState<string | null>(null);
   const [selectedLightIds, setSelectedLightIds] = useState<Set<string>>(new Set());
   const [snapEnabled, setSnapEnabled] = useState(false);
