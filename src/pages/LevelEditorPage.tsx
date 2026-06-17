@@ -641,8 +641,15 @@ function Vec3Field({
 }
 
 function ObjectInspector({
-  obj, onPatch, disabled, snap = 0,
-}: { obj: SceneObject; onPatch: (p: Partial<SceneObject>) => void; disabled?: boolean; snap?: number }) {
+  obj, onPatch, disabled, snap = 0, editing, onToggleEdit,
+}: {
+  obj: SceneObject;
+  onPatch: (p: Partial<SceneObject>) => void;
+  disabled?: boolean;
+  snap?: number;
+  editing?: boolean;
+  onToggleEdit?: () => void;
+}) {
   return (
     <div className="space-y-3">
       <div>
@@ -680,6 +687,16 @@ function ObjectInspector({
 
       {obj.kind === "polygon" && (
         <>
+          <Button
+            size="sm"
+            variant={editing ? "default" : "outline"}
+            className="w-full h-8 text-[11px]"
+            disabled={disabled}
+            onClick={onToggleEdit}
+          >
+            <Pencil className="w-3.5 h-3.5 mr-1" />
+            {editing ? "Editing geometry — click to finish" : "Edit geometry (spline points)"}
+          </Button>
           <div>
             <Label className="text-xs">Extrude {obj.extrude.toFixed(2)}</Label>
             <Slider value={[obj.extrude]} min={0} max={20} step={0.1} disabled={disabled}
