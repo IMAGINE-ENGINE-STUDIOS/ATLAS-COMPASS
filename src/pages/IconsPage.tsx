@@ -9,7 +9,7 @@ import { ArrowLeft, Check, Copy } from "lucide-react";
 
 type IconProps = { className?: string };
 const base = "w-full h-full";
-const SVG = (props: React.SVGProps<SVGSVGElement>) => (
+const SVG = ({ className, children, ...rest }: React.SVGProps<SVGSVGElement>) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -17,9 +17,11 @@ const SVG = (props: React.SVGProps<SVGSVGElement>) => (
     strokeWidth={1.6}
     strokeLinecap="round"
     strokeLinejoin="round"
-    className={base}
-    {...props}
-  />
+    className={className || base}
+    {...rest}
+  >
+    {children}
+  </svg>
 );
 
 const AtlasOrbit = ({ className }: IconProps) => (
