@@ -275,8 +275,55 @@ function getTypeIcon(type: string) {
 
 /* ── Create high-quality pin canvas for billboard ── */
 const pinCanvasCache = new Map<string, string>();
-function createPinCanvas(icon: string, name: string, bgColor: string): string {
-  const key = `${icon}|${name}|${bgColor}`;
+
+// ── Favicon cache for store pins ──────────────────────────────────────────
+// Each website resolves to an <img> we draw inside the pin's icon circle.
+// Status: 'loading' (in flight), HTMLImageElement (loaded), or 'failed'.
+type FaviconState = "loading" | "failed" | HTMLImageElement;
+const faviconCache = new Map<string, FaviconState>();
+const faviconWaiters = new Map<string, Array<(img: HTMLImageElement | null) => void>>();
+
+function hostFor(website?: string): string | null {
+  if (!website) return null;
+  try {
+    return new URL(website.startsWith("http") ? website : `https://${website}`).hostname;
+  } catch { return null; }
+}
+
+/** Returns the loaded favicon synchronously if cached, otherwise kicks off a
+ *  load and invokes onReady when ready (or null on failure). */
+function getFavicon(website: string | undefined, onReady?: (img: HTMLImageElement | null) => void): HTMLImageElement | null {
+  const host = hostFor(website);
+  if (!host) { onReady?.(null); return null; }
+  const cached = faviconCache.get(host);
+  if (cached instanceof HTMLImageElement) return cached;
+  if (cached === "failed") { onReady?.(null); return null; }
+  if (onReady) {
+    const list = faviconWaiters.get(host) || [];
+    list.push(onReady);
+    faviconWaiters.set(host, list);
+  }
+  if (cached === "loading") return null;
+  faviconCache.set(host, "loading");
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.referrerPolicy = "no-referrer";
+  img.onload = () => {
+    faviconCache.set(host, img);
+    (faviconWaiters.get(host) || []).forEach(fn => fn(img));
+    faviconWaiters.delete(host);
+  };
+  img.onerror = () => {
+    faviconCache.set(host, "failed");
+    (faviconWaiters.get(host) || []).forEach(fn => fn(null));
+    faviconWaiters.delete(host);
+  };
+  img.src = `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
+  return null;
+}
+
+function createPinCanvas(icon: string, name: string, bgColor: string, favicon?: HTMLImageElement | null): string {
+  const key = `${icon}|${name}|${bgColor}|${favicon ? (favicon.src) : ""}`;
   if (pinCanvasCache.has(key)) return pinCanvasCache.get(key)!;
 
   // Parse `r,g,b` out of the incoming `rgba(r,g,b,...)` (handles both
@@ -378,15 +425,26 @@ function createPinCanvas(icon: string, name: string, bgColor: string): string {
   const cy = oy + pillH / 2;
   ctx.beginPath();
   ctx.arc(cx, cy, circleD / 2, 0, Math.PI * 2);
-  ctx.fillStyle = rgba(0.28);
+  ctx.fillStyle = favicon ? "#ffffff" : rgba(0.28);
   ctx.fill();
 
-  // Icon glyph — text color matches accent so emoji stays vivid.
-  ctx.font = `${12 * dpr}px -apple-system, BlinkMacSystemFont, "Apple Color Emoji", sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = rgba(1);
-  ctx.fillText(icon, cx, cy + 0.5 * dpr);
+  if (favicon) {
+    // Draw the company favicon clipped to the circle.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, circleD / 2 - 1, 0, Math.PI * 2);
+    ctx.clip();
+    const s = circleD - 4 * dpr;
+    ctx.drawImage(favicon, cx - s / 2, cy - s / 2, s, s);
+    ctx.restore();
+  } else {
+    // Icon glyph — text color matches accent so emoji stays vivid.
+    ctx.font = `${12 * dpr}px -apple-system, BlinkMacSystemFont, "Apple Color Emoji", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = rgba(1);
+    ctx.fillText(icon, cx, cy + 0.5 * dpr);
+  }
 
   // Label — accent color, like the overlay pill.
   ctx.font = fontSpec;
