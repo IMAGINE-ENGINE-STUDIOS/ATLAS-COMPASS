@@ -239,7 +239,7 @@ export default function IconsPage() {
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300;1,500&family=Playfair+Display:ital,wght@0,400;1,400&family=JetBrains+Mono:wght@300;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300;1,500&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@300;500;700&family=Space+Grotesk:wght@300;500;700&family=Archivo+Black&family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Serif+Display:ital@0;1&family=Big+Shoulders+Display:wght@300;700;900&family=Major+Mono+Display&family=IBM+Plex+Mono:ital,wght@0,300;0,500;1,300&family=IBM+Plex+Serif:ital,wght@0,300;1,300&family=Unbounded:wght@300;700&family=Syne:wght@400;800&family=Instrument+Serif:ital@0;1&family=Cinzel:wght@400;700&family=Anton&family=Rubik+Mono+One&family=VT323&family=Space+Mono:ital,wght@0,400;1,400&family=Crimson+Pro:ital,wght@0,300;1,300&family=Spectral:ital,wght@0,300;1,300&family=Newsreader:ital,wght@0,300;1,300&family=Libre+Caslon+Text:ital@0;1&family=Tourney:wght@300;800&family=Zen+Dots&family=Orbitron:wght@500;800&display=swap"
         rel="stylesheet"
       />
 
