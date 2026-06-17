@@ -387,6 +387,7 @@ export function LevelSceneContents({
           position={[0, 0, 0]}
         />
       )}
+      {scene.terrain?.enabled && <RenderTerrain terrain={scene.terrain} />}
       <group ref={groupRef} onPointerMissed={() => onSelect?.(null)}>
         {scene.objects.map((o) => (
           <group
@@ -420,6 +421,7 @@ export function LevelSceneContents({
           groupRef={groupRef}
           controlsRef={controlsRef}
           snap={snap}
+          snapToTerrain={!!scene.terrain?.enabled && !!scene.terrain?.snapToSurface}
           onCommit={(t) => onObjectTransform(selectedId, t)}
         />
       )}
