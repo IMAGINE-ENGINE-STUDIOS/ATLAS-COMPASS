@@ -253,7 +253,7 @@ export default function LevelEditorPage() {
           .eq("id", id)
           .maybeSingle(),
         5000,
-        { data: null, error: new Error("Level request timed out") },
+        { data: null, error: { message: "Level request timed out", details: "", hint: "", code: "TIMEOUT" } as any },
       );
       if (error || !data) {
         toast.error(error?.message ?? "Level not found");
