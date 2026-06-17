@@ -1004,6 +1004,29 @@ export default function LevelEditorPage() {
 
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
+          {/* Terrain toolbar at top of viewport */}
+          <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none">
+            <div className="pointer-events-auto inline-flex">
+              <TerrainPanel
+                terrain={scene.terrain}
+                disabled={!isOwner}
+                onPatch={(p) =>
+                  updateScene((s) => {
+                    const base = s.terrain ?? defaultTerrain();
+                    s.terrain = { ...base, ...p } as SceneTerrain;
+                    return s;
+                  })
+                }
+                onEnable={(enabled) =>
+                  updateScene((s) => {
+                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
+                    return s;
+                  })
+                }
+              />
+            </div>
+          </div>
+
           <LevelScene3D
             scene={renderedScene}
             selectedId={selectedId}
@@ -1217,24 +1240,6 @@ export default function LevelEditorPage() {
                 </div>
                 <Switch checked={isPublic} onCheckedChange={setIsPublic} disabled={!isOwner} />
               </div>
-
-              <TerrainPanel
-                terrain={scene.terrain}
-                disabled={!isOwner}
-                onPatch={(p) =>
-                  updateScene((s) => {
-                    const base = s.terrain ?? defaultTerrain();
-                    s.terrain = { ...base, ...p } as SceneTerrain;
-                    return s;
-                  })
-                }
-                onEnable={(enabled) =>
-                  updateScene((s) => {
-                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
-                    return s;
-                  })
-                }
-              />
             </TabsContent>
           </Tabs>
         </aside>
@@ -2044,7 +2049,7 @@ function TerrainPanel({
   };
 
   return (
-    <div className="space-y-2 pt-3 border-t border-border/40">
+    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-card/80 backdrop-blur-xl shadow-lg max-w-sm">
       <div className="flex items-center justify-between">
         <Label className="text-xs flex items-center gap-1">
           <Layers className="w-3 h-3" /> Terrain
