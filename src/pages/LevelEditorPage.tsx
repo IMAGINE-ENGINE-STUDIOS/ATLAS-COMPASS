@@ -5,6 +5,7 @@ import {
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
   Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
+  Move3d, Rotate3d, Scaling,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
@@ -114,6 +115,7 @@ export default function LevelEditorPage() {
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [snapSize, setSnapSize] = useState(0.5);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
+  const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
 
   const snap = snapEnabled ? snapSize : 0;
 
@@ -256,6 +258,15 @@ export default function LevelEditorPage() {
           setSelectedLightIds(new Set());
           setSelectedLightId(null);
         }
+      }
+      // gizmo mode shortcuts — only when no input is focused
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || (e.target as any)?.isContentEditable) return;
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key.toLowerCase() === "g") setTransformMode("translate");
+        else if (e.key.toLowerCase() === "r") setTransformMode("rotate");
+        else if (e.key.toLowerCase() === "t") setTransformMode("scale");
+        else if (e.key === "Escape") setTransformMode(null);
       }
     };
     window.addEventListener("keydown", fn);
@@ -432,6 +443,35 @@ export default function LevelEditorPage() {
           >
             <Redo2 className="w-3.5 h-3.5" />
           </Button>
+          <div className="flex items-center gap-0.5 px-1 h-8 rounded-md border border-border/40 bg-card/40">
+            <Button
+              size="sm"
+              variant={transformMode === "translate" ? "secondary" : "ghost"}
+              className="h-6 px-1.5"
+              onClick={() => setTransformMode((m) => (m === "translate" ? null : "translate"))}
+              title="Move (G)"
+            >
+              <Move3d className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant={transformMode === "rotate" ? "secondary" : "ghost"}
+              className="h-6 px-1.5"
+              onClick={() => setTransformMode((m) => (m === "rotate" ? null : "rotate"))}
+              title="Rotate (R)"
+            >
+              <Rotate3d className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant={transformMode === "scale" ? "secondary" : "ghost"}
+              className="h-6 px-1.5"
+              onClick={() => setTransformMode((m) => (m === "scale" ? null : "scale"))}
+              title="Scale (T)"
+            >
+              <Scaling className="w-3.5 h-3.5" />
+            </Button>
+          </div>
           <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
             <button
               onClick={() => setSnapEnabled((v) => !v)}
@@ -621,6 +661,8 @@ export default function LevelEditorPage() {
             playing={playing}
             editingPolygonId={editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
+            transformMode={transformMode}
+            onObjectTransform={(oid, t) => patchObject(oid, t as any)}
             className="w-full h-full"
           />
         </main>

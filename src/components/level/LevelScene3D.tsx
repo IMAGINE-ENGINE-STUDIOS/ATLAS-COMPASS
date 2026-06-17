@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Grid, OrbitControls, useGLTF, Environment, Html } from "@react-three/drei";
+import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
 import type {
   LevelScene,
@@ -273,6 +273,11 @@ export interface LevelSceneProps {
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
   editingPolygonId?: string | null;
   onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
+  transformMode?: "translate" | "rotate" | "scale" | null;
+  onObjectTransform?: (
+    id: string,
+    t: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] },
+  ) => void;
 }
 
 /**
@@ -291,6 +296,8 @@ export function LevelSceneContents({
   controlsRef,
   editingPolygonId,
   onPolygonPointsChange,
+  transformMode,
+  onObjectTransform,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -339,6 +346,15 @@ export function LevelSceneContents({
         controlsRef={controlsRef}
         onDone={onFocusHandled}
       />
+      {selectedId && transformMode && !editingPolygonId && !playing && onObjectTransform && (
+        <TransformGizmo
+          targetId={selectedId}
+          mode={transformMode}
+          groupRef={groupRef}
+          controlsRef={controlsRef}
+          onCommit={(t) => onObjectTransform(selectedId, t)}
+        />
+      )}
       {editingPolygonId && (() => {
         const poly = scene.objects.find((o) => o.id === editingPolygonId && o.kind === "polygon") as
           | PolygonObject | undefined;
@@ -395,6 +411,51 @@ export default function LevelScene3D(
 }
 
 /* ---------- focus / smooth camera move ---------- */
+
+function TransformGizmo({
+  targetId,
+  mode,
+  groupRef,
+  controlsRef,
+  onCommit,
+}: {
+  targetId: string;
+  mode: "translate" | "rotate" | "scale";
+  groupRef: React.RefObject<THREE.Group>;
+  controlsRef?: React.MutableRefObject<any>;
+  onCommit: (t: {
+    position: [number, number, number];
+    rotation: [number, number, number];
+    scale: [number, number, number];
+  }) => void;
+}) {
+  const [target, setTarget] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    // Find the group named obj-<id> after render
+    const t = groupRef.current?.getObjectByName(`obj-${targetId}`) ?? null;
+    setTarget(t);
+  }, [targetId, groupRef]);
+
+  if (!target) return null;
+  return (
+    <TransformControls
+      object={target as any}
+      mode={mode}
+      size={0.8}
+      onMouseDown={() => {
+        if (controlsRef?.current) controlsRef.current.enabled = false;
+      }}
+      onMouseUp={() => {
+        if (controlsRef?.current) controlsRef.current.enabled = true;
+        onCommit({
+          position: [target.position.x, target.position.y, target.position.z],
+          rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
+          scale: [target.scale.x, target.scale.y, target.scale.z],
+        });
+      }}
+    />
+  );
+}
 
 function PolygonEditOverlay({
   poly,
