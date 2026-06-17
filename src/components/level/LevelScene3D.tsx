@@ -1082,8 +1082,72 @@ function PolygonEditOverlay({
   const beginDrag = (index: number, ring: "top" | "bottom", e: any) => {
     e.stopPropagation();
     if (controlsRef?.current) controlsRef.current.enabled = false;
+    const verticalMode = !!(e.shiftKey || e.nativeEvent?.shiftKey);
+    if (verticalMode) {
+      // Drag along the object's local Y axis. Build a vertical plane that
+      // contains the handle and faces the camera (best precision).
+      const handleWorld =
+        ring === "top"
+          ? topPoints[index].clone()
+          : bottomPoints[index].clone();
+      const yAxisWorld = new THREE.Vector3(0, 1, 0)
+        .transformDirection(objMatrix)
+        .normalize();
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      // Plane normal: perpendicular to Y axis, as parallel to camera view as possible.
+      let n = new THREE.Vector3().crossVectors(yAxisWorld, camDir).normalize();
+      if (n.lengthSq() < 1e-4) n = new THREE.Vector3(1, 0, 0);
+      n.crossVectors(n, yAxisWorld).normalize(); // ensure n is perp to Y
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, handleWorld);
+      const raycaster = new THREE.Raycaster();
+      const ndc = new THREE.Vector2();
+      const canvas = gl.domElement;
+      const startH =
+        (ring === "top"
+          ? poly.pointHeights?.[index]
+          : poly.bottomHeights?.[index]) || 0;
+      // Convert handle's starting local Y into a reference.
+      const startLocal = handleWorld.clone().applyMatrix4(invObjMatrix);
+      const baseY = startLocal.y; // current local Y of the handle (includes startH offset)
+      const onMove = (ev: PointerEvent) => {
+        const rect = canvas.getBoundingClientRect();
+        ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+        ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(ndc, camera);
+        const hit = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(plane, hit)) return;
+        const local = hit.clone().applyMatrix4(invObjMatrix);
+        const delta = local.y - baseY;
+        const newH = startH + delta;
+        if (ring === "top") {
+          const next: number[] = poly.points.map((_, i) =>
+            i === index ? newH : (poly.pointHeights?.[i] || 0),
+          );
+          onHeightsChange?.({ top: next });
+        } else {
+          const next: number[] = poly.points.map((_, i) =>
+            i === index ? newH : (poly.bottomHeights?.[i] || 0),
+          );
+          onHeightsChange?.({ bottom: next });
+        }
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        if (controlsRef?.current) controlsRef.current.enabled = true;
+        dragRef.current = null;
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      dragRef.current = { index, plane, onMove, onUp };
+      return;
+    }
     // Drag plane sits at the handle's face so the cursor stays under it.
-    const planeY = ring === "top" ? (poly.extrude || 0) + 0.01 : -0.01;
+    const planeY =
+      ring === "top"
+        ? (poly.extrude || 0) + (poly.pointHeights?.[index] || 0) + 0.01
+        : (poly.bottomHeights?.[index] || 0) - 0.01;
     const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
     const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
