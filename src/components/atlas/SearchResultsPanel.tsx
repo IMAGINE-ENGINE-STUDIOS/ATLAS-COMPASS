@@ -23,6 +23,8 @@ export interface CategoryChip {
   key: string;
   label: string;
   icon: React.ReactNode;
+  color?: string;
+  hex?: string;
 }
 
 interface Props {
