@@ -932,6 +932,8 @@ export interface LevelSceneProps {
     toggle: (key: string, add: boolean) => void;
     clear: () => void;
   };
+  /** Terrain sculpt mode state (provided by the editor page). */
+  sculpt?: TerrainSculptConfig;
 }
 
 /**
@@ -961,6 +963,7 @@ export function LevelSceneContents({
   addingPolygonPoint,
   onAddingPointHandled,
   facePaint,
+  sculpt,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -1074,6 +1077,12 @@ export function LevelSceneContents({
           toggle={facePaintValue.toggle}
         />
       )}
+      {sculpt?.active &&
+        scene.terrain?.enabled &&
+        scene.terrain.source === "primitive" &&
+        scene.terrain.shape === "plane" && (
+          <TerrainSculptOverlay sculpt={sculpt} controlsRef={controlsRef} />
+        )}
     </FacePaintContext.Provider>
   );
 }
