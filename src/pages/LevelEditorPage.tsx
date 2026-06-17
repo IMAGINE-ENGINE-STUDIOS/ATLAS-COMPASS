@@ -1395,11 +1395,15 @@ export default function LevelEditorPage() {
               <Label className="text-xs">Scale</Label>
               <Input value={placeScale} onChange={(e) => setPlaceScale(e.target.value)} />
             </div>
-            <LocationMapPreview
+            <AtlasMiniMap
               lat={parseFloat(placeLat)}
               lng={parseFloat(placeLng)}
-              className="h-48 w-full rounded-lg overflow-hidden border border-white/10"
+              onChange={(la, ln) => { setPlaceLat(la.toFixed(6)); setPlaceLng(ln.toFixed(6)); }}
+              className="h-56 w-full rounded-lg overflow-hidden border border-white/10"
             />
+            <p className="text-[10px] text-muted-foreground">
+              Drag the pin (or click the map) to move the placement.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPlaceDialogOpen(false)}>Cancel</Button>
