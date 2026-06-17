@@ -232,6 +232,82 @@ export default function ModelTransformWidget({
                       </button>
                     )}
                   </div>
+                  {cropRadius > 0 && cropBase && onCropBaseChange && (
+                    <div className="mt-2 pt-2 border-t border-white/[0.06] space-y-2">
+                      {/* Shape */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-white/75 uppercase tracking-wider">Base shape</span>
+                        <div className="flex rounded-lg bg-black/70 border border-white/[0.08] overflow-hidden">
+                          <button
+                            onClick={() => onCropBaseChange({ shape: "circle" })}
+                            className={`flex items-center gap-1 px-2 py-1 text-[10px] ${cropBase.shape === "circle" ? "bg-fuchsia-500/20 text-fuchsia-300" : "text-white/70 hover:text-white"}`}
+                          ><CircleIcon className="w-3 h-3" />Circle</button>
+                          <button
+                            onClick={() => onCropBaseChange({ shape: "square" })}
+                            className={`flex items-center gap-1 px-2 py-1 text-[10px] border-l border-white/[0.08] ${cropBase.shape === "square" ? "bg-fuchsia-500/20 text-fuchsia-300" : "text-white/70 hover:text-white"}`}
+                          ><SquareIcon className="w-3 h-3" />Square</button>
+                        </div>
+                      </div>
+                      {/* Wireframe toggle */}
+                      <button
+                        onClick={() => onCropBaseChange({ wireframe: !cropBase.wireframe })}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-[10px] transition-all ${cropBase.wireframe ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-300" : "bg-black/70 border-white/[0.08] text-white/75 hover:text-white"}`}
+                      >
+                        <span className="flex items-center gap-1.5"><Grid3x3 className="w-3 h-3" />Wireframe + Ruler</span>
+                        <span className={`w-7 h-3.5 rounded-full relative transition-colors ${cropBase.wireframe ? "bg-cyan-500/70" : "bg-white/15"}`}>
+                          <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${cropBase.wireframe ? "left-3.5" : "left-0.5"}`} />
+                        </span>
+                      </button>
+                      {/* Voxel tool */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-white/75 uppercase tracking-wider">Terrain tool</span>
+                        <div className="flex rounded-lg bg-black/70 border border-white/[0.08] overflow-hidden">
+                          <button
+                            onClick={() => onCropBaseChange({ voxelMode: "click" })}
+                            className={`flex items-center gap-1 px-2 py-1 text-[10px] ${cropBase.voxelMode === "click" ? "bg-amber-500/20 text-amber-300" : "text-white/70 hover:text-white"}`}
+                          ><MousePointerClick className="w-3 h-3" />Click</button>
+                          <button
+                            onClick={() => onCropBaseChange({ voxelMode: "brush" })}
+                            className={`flex items-center gap-1 px-2 py-1 text-[10px] border-l border-white/[0.08] ${cropBase.voxelMode === "brush" ? "bg-amber-500/20 text-amber-300" : "text-white/70 hover:text-white"}`}
+                          ><Brush className="w-3 h-3" />Brush</button>
+                        </div>
+                      </div>
+                      {cropBase.voxelMode === "brush" && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-white/70 w-14">Radius</span>
+                            <input type="range" min={1} max={20} step={1} value={cropBase.brushRadius}
+                              onChange={e => onCropBaseChange({ brushRadius: Number(e.target.value) })}
+                              className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
+                            <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushRadius}m</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-white/70 w-14">Strength</span>
+                            <input type="range" min={0.1} max={2} step={0.1} value={cropBase.brushStrength}
+                              onChange={e => onCropBaseChange({ brushStrength: Number(e.target.value) })}
+                              className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
+                            <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushStrength.toFixed(1)}</span>
+                          </div>
+                        </>
+                      )}
+                      {/* Edit toggle + reset */}
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={onToggleTerrainEditing}
+                          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-medium transition-all ${terrainEditing ? "bg-amber-500/25 border-amber-400/40 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.35)]" : "bg-black/70 border-white/[0.08] text-white/75 hover:text-white"}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                          {terrainEditing ? "Editing — click globe (Shift = invert)" : "Edit terrain"}
+                        </button>
+                        {onResetTerrain && (
+                          <button onClick={onResetTerrain} title="Flatten the height field"
+                            className="px-2 py-1.5 rounded-lg bg-black/70 border border-white/[0.08] text-white/75 hover:bg-white/10 transition-all">
+                            <RotateCw className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
