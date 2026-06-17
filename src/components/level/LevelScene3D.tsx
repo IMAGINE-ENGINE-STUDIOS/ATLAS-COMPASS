@@ -10,6 +10,7 @@ import type {
   ModelObject,
   SceneLight,
   AnimationTrack,
+  SceneTerrain,
 } from "@/lib/levelTypes";
 
 /* ---------- helpers ---------- */
@@ -162,6 +163,72 @@ function GLTFModelMesh({ obj, onSelect }: { obj: ModelObject; onSelect?: (id: st
         onSelect?.(obj.id);
       }}
     />
+  );
+}
+
+/* ---------- terrain ---------- */
+
+function TerrainModel({ url }: { url: string }) {
+  const gltf = useGLTF(url);
+  const cloned = useMemo(() => gltf.scene.clone(), [gltf]);
+  useEffect(() => {
+    cloned.traverse((c: any) => {
+      if (c.isMesh) {
+        c.receiveShadow = true;
+        c.userData.isTerrain = true;
+      }
+    });
+  }, [cloned]);
+  return <primitive object={cloned} />;
+}
+
+function RenderTerrain({ terrain }: { terrain: SceneTerrain }) {
+  if (!terrain.enabled || !terrain.visible) return null;
+  const [sx, sy, sz] = terrain.size;
+  const color = rgbaToColor(terrain.color);
+  const material = (
+    <meshStandardMaterial
+      color={color}
+      wireframe={terrain.wireframe}
+      transparent={terrain.color[3] < 1}
+      opacity={terrain.color[3]}
+      metalness={0.05}
+      roughness={0.95}
+      side={THREE.DoubleSide}
+    />
+  );
+  return (
+    <group
+      name="__terrain_root"
+      position={terrain.position}
+      rotation={terrain.rotation as any}
+      userData={{ isTerrain: true }}
+    >
+      {terrain.source === "model" && terrain.modelUrl ? (
+        <Suspense fallback={null}>
+          <TerrainModel url={terrain.modelUrl} />
+        </Suspense>
+      ) : terrain.shape === "plane" ? (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+          userData={{ isTerrain: true }}
+        >
+          <planeGeometry args={[sx, sz, Math.max(1, Math.round(sx)), Math.max(1, Math.round(sz))]} />
+          {material}
+        </mesh>
+      ) : terrain.shape === "box" ? (
+        <mesh receiveShadow userData={{ isTerrain: true }} position={[0, -sy / 2, 0]}>
+          <boxGeometry args={[sx, sy, sz]} />
+          {material}
+        </mesh>
+      ) : (
+        <mesh receiveShadow userData={{ isTerrain: true }}>
+          <sphereGeometry args={[sx / 2, 48, 32]} />
+          {material}
+        </mesh>
+      )}
+    </group>
   );
 }
 
