@@ -102,6 +102,35 @@ interface PlacedModel {
   createdAt: number;
   category?: string; // see MODEL_CATEGORIES
   cropRadius?: number; // meters — if >0, crops a circular hole in 3D tilesets under the model
+  cropBase?: CropBase;
+}
+
+/** Architectural base + editable voxel terrain that fills a cropped tile. */
+interface CropBase {
+  shape: "circle" | "square";
+  wireframe: boolean;
+  voxelMode: "click" | "brush";
+  brushRadius: number;   // m
+  brushStrength: number; // m per step
+  gridSize: number;      // cells per side (gridSize × gridSize)
+  cellSize: number;      // meters per cell (1m default)
+  heights: number[];     // length = gridSize * gridSize, meters
+}
+
+const DEFAULT_CROP_BASE = (radiusMeters: number): CropBase => {
+  const cellSize = 1;
+  const gridSize = Math.max(2, Math.ceil((radiusMeters * 2) / cellSize));
+  return {
+    shape: "circle",
+    wireframe: false,
+    voxelMode: "click",
+    brushRadius: 4,
+    brushStrength: 0.5,
+    gridSize,
+    cellSize,
+    heights: new Array(gridSize * gridSize).fill(0),
+  };
+};
 }
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
