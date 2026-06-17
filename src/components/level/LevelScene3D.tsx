@@ -396,6 +396,153 @@ export default function LevelScene3D(
 
 /* ---------- focus / smooth camera move ---------- */
 
+function PolygonEditOverlay({
+  poly,
+  controlsRef,
+  onChange,
+}: {
+  poly: PolygonObject;
+  controlsRef?: React.MutableRefObject<any>;
+  onChange: (pts: Array<[number, number]>) => void;
+}) {
+  const { camera, gl } = useThree();
+  const dragRef = useRef<{
+    index: number;
+    plane: THREE.Plane;
+    onMove: (ev: PointerEvent) => void;
+    onUp: (ev: PointerEvent) => void;
+  } | null>(null);
+
+  // The polygon is laid out on the XZ plane (geometry.rotateX(-PI/2)),
+  // so each 2D spline point (px, pz) lives at local (px, 0, pz). The mesh
+  // itself is then translated/rotated/scaled by the object's transform.
+  // For dragging we project the cursor onto the world-space XZ plane that
+  // passes through the object's origin and convert back to local 2D.
+  const objMatrix = useMemo(() => {
+    const m = new THREE.Matrix4();
+    const pos = new THREE.Vector3(...poly.position);
+    const rot = new THREE.Euler(...(poly.rotation as any));
+    const scl = new THREE.Vector3(...poly.scale);
+    m.compose(pos, new THREE.Quaternion().setFromEuler(rot), scl);
+    return m;
+  }, [poly.position, poly.rotation, poly.scale]);
+  const invObjMatrix = useMemo(() => objMatrix.clone().invert(), [objMatrix]);
+
+  const worldPoints = useMemo(
+    () =>
+      poly.points.map(([x, z]) => new THREE.Vector3(x, 0, z).applyMatrix4(objMatrix)),
+    [poly.points, objMatrix],
+  );
+
+  const beginDrag = (index: number, e: any) => {
+    e.stopPropagation();
+    if (controlsRef?.current) controlsRef.current.enabled = false;
+    const origin = new THREE.Vector3(0, 0, 0).applyMatrix4(objMatrix);
+    const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const canvas = gl.domElement;
+    const onMove = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, hit)) return;
+      const local = hit.clone().applyMatrix4(invObjMatrix);
+      const next = poly.points.map((p, i) => (i === index ? [local.x, local.z] : p)) as Array<[number, number]>;
+      onChange(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (controlsRef?.current) controlsRef.current.enabled = true;
+      dragRef.current = null;
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    dragRef.current = { index, plane, onMove, onUp };
+  };
+
+  useEffect(() => {
+    return () => {
+      const d = dragRef.current;
+      if (d) {
+        window.removeEventListener("pointermove", d.onMove);
+        window.removeEventListener("pointerup", d.onUp);
+        if (controlsRef?.current) controlsRef.current.enabled = true;
+      }
+    };
+  }, [controlsRef]);
+
+  return (
+    <group>
+      {/* outline + handles */}
+      {worldPoints.map((wp, i) => {
+        const next = worldPoints[(i + 1) % worldPoints.length];
+        const mid = wp.clone().add(next).multiplyScalar(0.5);
+        // segment length in local units (matches the inspector point values)
+        const a = poly.points[i];
+        const b = poly.points[(i + 1) % poly.points.length];
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        return (
+          <group key={i}>
+            {/* draggable handle */}
+            <mesh
+              position={wp.toArray() as any}
+              onPointerDown={(e) => beginDrag(i, e)}
+              renderOrder={999}
+            >
+              <sphereGeometry args={[0.12, 16, 16]} />
+              <meshBasicMaterial color="#facc15" depthTest={false} />
+            </mesh>
+            {/* point index label */}
+            <Html position={wp.clone().add(new THREE.Vector3(0, 0.25, 0)).toArray() as any} center distanceFactor={8} zIndexRange={[100, 0]}>
+              <div style={{
+                background: "rgba(15,23,42,0.85)", color: "#facc15", padding: "1px 6px",
+                borderRadius: 999, fontSize: 10, fontFamily: "ui-monospace, monospace",
+                border: "1px solid #facc1555", whiteSpace: "nowrap", pointerEvents: "none",
+              }}>
+                P{i} · {a[0].toFixed(2)},{a[1].toFixed(2)}
+              </div>
+            </Html>
+            {/* segment length label */}
+            {(poly.closed || i < worldPoints.length - 1) && (
+              <Html position={mid.toArray() as any} center distanceFactor={8} zIndexRange={[100, 0]}>
+                <div style={{
+                  background: "rgba(15,23,42,0.85)", color: "#67e8f9", padding: "1px 6px",
+                  borderRadius: 4, fontSize: 10, fontFamily: "ui-monospace, monospace",
+                  border: "1px solid #67e8f955", whiteSpace: "nowrap", pointerEvents: "none",
+                }}>
+                  {len.toFixed(2)}
+                </div>
+              </Html>
+            )}
+          </group>
+        );
+      })}
+      {/* edge lines */}
+      <line>
+        <bufferGeometry
+          attach="geometry"
+          onUpdate={(g) => {
+            const verts: number[] = [];
+            for (let i = 0; i < worldPoints.length; i++) {
+              const a = worldPoints[i];
+              const b = worldPoints[(i + 1) % worldPoints.length];
+              if (!poly.closed && i === worldPoints.length - 1) continue;
+              verts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+            }
+            g.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+          }}
+        />
+        <lineBasicMaterial attach="material" color="#facc15" depthTest={false} transparent opacity={0.9} />
+      </line>
+    </group>
+  );
+}
+
 function FocusController({
   target,
   groupRef,
