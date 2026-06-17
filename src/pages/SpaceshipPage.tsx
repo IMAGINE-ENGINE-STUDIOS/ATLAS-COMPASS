@@ -551,6 +551,13 @@ function SpaceshipPage() {
   })();
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // LEVEL placements on Atlas — double-click a pin to open the Level page
+  useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
+    const name = p.levels?.name ?? "this Level";
+    if (window.confirm(`Open Level "${name}"?`)) {
+      navigate(`/level/${p.level_id}`);
+    }
+  }, [navigate]));
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
