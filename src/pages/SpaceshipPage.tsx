@@ -52,6 +52,8 @@ import filterShopsPng   from "@/assets/icons/filter-shops.png";
 import filterHotelsPng  from "@/assets/icons/filter-hotels.png";
 import filterFuelPng    from "@/assets/icons/filter-fuel.png";
 import filterHealthPng  from "@/assets/icons/filter-health.png";
+import targetPng        from "@/assets/icons/target.png";
+import eyePng           from "@/assets/icons/eye.png";
 
 const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string }) => (
   <img
@@ -5331,7 +5333,7 @@ function SpaceshipPage() {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
               <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 flex-1 min-w-0">
                 <div className="flex items-center gap-2 sm:gap-4">
-                  <Crosshair className="w-3.5 h-3.5 text-white/75 shrink-0" />
+                  <img src={targetPng} alt="Target" width={16} height={16} className="w-3.5 h-3.5 object-contain shrink-0" />
                   {cursorInfo ? (
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className="min-w-0">
@@ -5378,7 +5380,7 @@ function SpaceshipPage() {
 
               <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+                  <img src={eyePng} alt="Eye" width={16} height={16} className="w-3.5 h-3.5 sm:w-4 sm:h-4 object-contain shrink-0" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
                     <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">{formatAlt(cameraAlt)}</p>
