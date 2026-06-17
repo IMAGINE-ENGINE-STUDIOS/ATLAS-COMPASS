@@ -1351,7 +1351,17 @@ function PolygonEditOverlay({
             {/* draggable handle */}
             <mesh
               position={wp.toArray() as any}
-              onPointerDown={(e) => beginDrag(i, "top", e)}
+              onPointerDown={(e) => {
+                if (armedTopIndex === i && hasExtrude) {
+                  beginIndependentTopDrag(i, e);
+                } else {
+                  beginDrag(i, "top", e);
+                }
+              }}
+              onDoubleClick={(e: any) => {
+                e.stopPropagation();
+                if (hasExtrude) setArmedTopIndex(i);
+              }}
               onContextMenu={(e: any) => {
                 e.stopPropagation();
                 e.nativeEvent?.preventDefault?.();
@@ -1362,8 +1372,27 @@ function PolygonEditOverlay({
               renderOrder={999}
             >
               <sphereGeometry args={[0.055, 16, 16]} />
-              <meshBasicMaterial color="#facc15" depthTest={false} depthWrite={false} toneMapped={false} />
+              <meshBasicMaterial
+                color={armedTopIndex === i ? "#22c55e" : "#facc15"}
+                depthTest={false}
+                depthWrite={false}
+                toneMapped={false}
+              />
             </mesh>
+            {armedTopIndex === i && (
+              <mesh position={wp.toArray() as any} renderOrder={998}>
+                <ringGeometry args={[0.09, 0.12, 24]} />
+                <meshBasicMaterial
+                  color="#22c55e"
+                  depthTest={false}
+                  depthWrite={false}
+                  toneMapped={false}
+                  transparent
+                  opacity={0.9}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+            )}
             {/* point index label */}
             <Html position={wp.clone().add(new THREE.Vector3(0, 0.25, 0)).toArray() as any} center distanceFactor={8} zIndexRange={[100, 0]}>
               <div style={{
