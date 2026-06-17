@@ -23,6 +23,7 @@ import {
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
+import AtlasMiniMap from "@/components/level/AtlasMiniMap";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1394,11 +1395,15 @@ export default function LevelEditorPage() {
               <Label className="text-xs">Scale</Label>
               <Input value={placeScale} onChange={(e) => setPlaceScale(e.target.value)} />
             </div>
-            <LocationMapPreview
+            <AtlasMiniMap
               lat={parseFloat(placeLat)}
               lng={parseFloat(placeLng)}
-              className="h-48 w-full rounded-lg overflow-hidden border border-white/10"
+              onChange={(la, ln) => { setPlaceLat(la.toFixed(6)); setPlaceLng(ln.toFixed(6)); }}
+              className="h-56 w-full rounded-lg overflow-hidden border border-white/10"
             />
+            <p className="text-[10px] text-muted-foreground">
+              Drag the pin (or click the map) to move the placement.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPlaceDialogOpen(false)}>Cancel</Button>
@@ -1417,6 +1422,31 @@ export default function LevelEditorPage() {
           onClose={() => setShowLocationViewport(false)}
           onOpenAtlas={() => navigate(`/atlas?lat=${currentPlacement.lat}&lng=${currentPlacement.lng}`)}
           onPickManually={() => setPlaceDialogOpen(true)}
+          onMove={async (la, ln) => {
+            setCurrentPlacement({ lat: la, lng: ln, scale: currentPlacement.scale });
+            setPlaceLat(la.toFixed(6));
+            setPlaceLng(ln.toFixed(6));
+            if (!id || !userId || isLocalLevelId(id)) return;
+            // Persist the new coordinates on the most recent placement row.
+            const { data } = await supabase
+              .from("atlas_level_placements")
+              .select("id")
+              .eq("level_id", id)
+              .eq("owner_id", userId)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (data?.id) {
+              await supabase
+                .from("atlas_level_placements")
+                .update({ lat: la, lng: ln })
+                .eq("id", data.id);
+            } else {
+              await supabase.from("atlas_level_placements").insert({
+                owner_id: userId, level_id: id, lat: la, lng: ln, scale: currentPlacement.scale,
+              });
+            }
+          }}
         />
       )}
     </div>
@@ -2535,16 +2565,17 @@ function LocationMapPreview({ lat, lng, className }: { lat: number; lng: number;
 }
 
 function LocationViewport({
-  lat, lng, onClose, onOpenAtlas, onPickManually,
+  lat, lng, onClose, onOpenAtlas, onPickManually, onMove,
 }: {
   lat: number;
   lng: number;
   onClose: () => void;
   onOpenAtlas: () => void;
   onPickManually: () => void;
+  onMove?: (lat: number, lng: number) => void;
 }) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-72 rounded-xl border border-white/10 bg-background/85 backdrop-blur-md shadow-2xl overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-50 w-80 rounded-xl border border-white/10 bg-background/85 backdrop-blur-md shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center gap-1.5 min-w-0">
           <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -2573,7 +2604,7 @@ function LocationViewport({
           </Button>
         </div>
       </div>
-      <LocationMapPreview lat={lat} lng={lng} className="h-44 w-full" />
+      <AtlasMiniMap lat={lat} lng={lng} onChange={onMove} className="h-52 w-full" />
       <button
         onClick={onPickManually}
         className="w-full px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 border-t border-white/10 text-left transition-colors"
