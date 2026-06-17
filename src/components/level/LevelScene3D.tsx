@@ -807,6 +807,73 @@ function PolygonEditOverlay({
     };
   }, [controlsRef]);
 
+  // Add-point-on-edge mode: track cursor over the top-face plane and snap a
+  // ghost insertion handle to the nearest edge. Click commits the new point.
+  useEffect(() => {
+    if (!addingPoint) {
+      setHoverInsert(null);
+      return;
+    }
+    const canvas = gl.domElement;
+    const planeY = (poly.extrude || 0) + 0.01;
+    const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
+    const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const hit = new THREE.Vector3();
+
+    const computeNearest = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+      const local = hit.clone().applyMatrix4(invObjMatrix);
+      // shape coords: lx = local.x, ly = -local.z
+      const px = local.x, py = -local.z;
+      const segCount = poly.closed ? poly.points.length : poly.points.length - 1;
+      let best = { dist: Infinity, index: 0, point: [px, py] as [number, number] };
+      for (let i = 0; i < segCount; i++) {
+        const a = poly.points[i];
+        const b = poly.points[(i + 1) % poly.points.length];
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        const len2 = dx * dx + dy * dy || 1e-6;
+        const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2));
+        const sx = a[0] + dx * t, sy = a[1] + dy * t;
+        const d = Math.hypot(px - sx, py - sy);
+        if (d < best.dist) best = { dist: d, index: i, point: [sx, sy] };
+      }
+      return best;
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      const r = computeNearest(ev.clientX, ev.clientY);
+      if (r) setHoverInsert({ index: r.index, local: r.point });
+    };
+    const onClick = (ev: MouseEvent) => {
+      const r = computeNearest(ev.clientX, ev.clientY);
+      if (!r) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+      const next = [...poly.points];
+      next.splice(r.index + 1, 0, r.point);
+      onChange(next as Array<[number, number]>);
+      onAddingPointHandled?.();
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") onAddingPointHandled?.();
+    };
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("click", onClick, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("click", onClick, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [addingPoint, gl, camera, poly.points, poly.closed, poly.extrude, objMatrix, invObjMatrix, onChange, onAddingPointHandled]);
+
   return (
     <group>
       {/* outline + handles (top ring) */}
