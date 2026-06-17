@@ -259,37 +259,56 @@ export default function ModelTransformWidget({
                           <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${cropBase.wireframe ? "left-3.5" : "left-0.5"}`} />
                         </span>
                       </button>
-                      {/* Voxel tool */}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] text-white/75 uppercase tracking-wider">Terrain tool</span>
-                        <div className="flex rounded-lg bg-black/70 border border-white/[0.08] overflow-hidden">
-                          <button
-                            onClick={() => onCropBaseChange({ voxelMode: "click" })}
-                            className={`flex items-center gap-1 px-2 py-1 text-[10px] ${cropBase.voxelMode === "click" ? "bg-amber-500/20 text-amber-300" : "text-white/70 hover:text-white"}`}
-                          ><MousePointerClick className="w-3 h-3" />Click</button>
-                          <button
-                            onClick={() => onCropBaseChange({ voxelMode: "brush" })}
-                            className={`flex items-center gap-1 px-2 py-1 text-[10px] border-l border-white/[0.08] ${cropBase.voxelMode === "brush" ? "bg-amber-500/20 text-amber-300" : "text-white/70 hover:text-white"}`}
-                          ><Brush className="w-3 h-3" />Brush</button>
+                      {/* Terrain brush — pick an operation, drag on the globe to apply */}
+                      <div className="space-y-1.5">
+                        <span className="text-[9px] text-white/75 uppercase tracking-wider">Terrain</span>
+                        <div className="grid grid-cols-4 gap-1">
+                          {([
+                            { k: "raise",   label: "Raise",   icon: <ArrowUp className="w-3 h-3" /> },
+                            { k: "lower",   label: "Lower",   icon: <ArrowDown className="w-3 h-3" /> },
+                            { k: "smooth",  label: "Smooth",  icon: <Waves className="w-3 h-3" /> },
+                            { k: "flatten", label: "Flatten", icon: <Layers className="w-3 h-3" /> },
+                          ] as const).map(t => (
+                            <button
+                              key={t.k}
+                              onClick={() => onCropBaseChange({ tool: t.k })}
+                              className={`flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg border text-[9px] font-medium transition-all ${
+                                cropBase.tool === t.k
+                                  ? "bg-amber-500/20 border-amber-400/40 text-amber-200"
+                                  : "bg-black/70 border-white/[0.08] text-white/70 hover:text-white"
+                              }`}
+                            >
+                              {t.icon}
+                              {t.label}
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      {cropBase.voxelMode === "brush" && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] text-white/70 w-14">Radius</span>
-                            <input type="range" min={1} max={20} step={1} value={cropBase.brushRadius}
-                              onChange={e => onCropBaseChange({ brushRadius: Number(e.target.value) })}
-                              className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
-                            <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushRadius}m</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] text-white/70 w-14">Strength</span>
-                            <input type="range" min={0.1} max={2} step={0.1} value={cropBase.brushStrength}
-                              onChange={e => onCropBaseChange({ brushStrength: Number(e.target.value) })}
-                              className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
-                            <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushStrength.toFixed(1)}</span>
-                          </div>
-                        </>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-white/70 w-14">Radius</span>
+                        <input type="range" min={1} max={20} step={1} value={cropBase.brushRadius}
+                          onChange={e => onCropBaseChange({ brushRadius: Number(e.target.value) })}
+                          className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
+                        <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushRadius}m</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-white/70 w-14">Strength</span>
+                        <input type="range" min={0.1} max={2} step={0.1} value={cropBase.brushStrength}
+                          onChange={e => onCropBaseChange({ brushStrength: Number(e.target.value) })}
+                          className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
+                        <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushStrength.toFixed(1)}</span>
+                      </div>
+                      {cropBase.tool === "flatten" && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] text-white/70 w-14">Target</span>
+                          <input type="number" step={0.5} value={cropBase.flattenHeight ?? 0}
+                            onChange={e => {
+                              const v = parseFloat(e.target.value);
+                              if (!isNaN(v)) onCropBaseChange({ flattenHeight: v });
+                            }}
+                            className="flex-1 bg-black/70 border border-white/[0.08] rounded-md px-2 py-1 text-[10px] font-mono text-white text-center focus:outline-none focus:border-amber-500/40" />
+                          <span className="text-[10px] font-mono text-white/60 w-8 text-right">m</span>
+                        </div>
                       )}
                       {/* Edit toggle + reset */}
                       <div className="flex gap-1.5">
