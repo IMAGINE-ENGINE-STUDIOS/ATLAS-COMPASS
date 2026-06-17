@@ -110,7 +110,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
         </>
       )}
 
-      {/* Main circular store button */}
+      {/* Main pill store button */}
       <button
         onPointerDown={startHold}
         onPointerUp={cancelHold}
@@ -119,13 +119,27 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
         onClick={() => { setOpen(o => !o); onActivate?.(current?.key ?? value); }}
         title={open ? `Filter: ${current?.label}` : "Hold to choose store filter"}
         aria-label="Quick store filter"
-        className={`relative w-12 h-12 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all select-none touch-none ${
-          open
-            ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.4)]"
-            : "bg-black/70 border-white/[0.08] text-white/85 hover:text-white hover:bg-black/85"
-        }`}
+        className="relative flex items-center gap-2 pl-2.5 pr-3.5 py-1.5 rounded-full backdrop-blur-xl border transition-all select-none touch-none"
+        style={open ? {
+          background: `${current?.hex || "#94a3b8"}22`,
+          borderColor: `${current?.hex || "#94a3b8"}66`,
+          boxShadow: `0 4px 20px ${current?.hex || "#94a3b8"}33`,
+          color: current?.hex || "#94a3b8",
+        } : {
+          background: "rgba(0,0,0,0.7)",
+          borderColor: "rgba(255,255,255,0.08)",
+          color: "rgba(255,255,255,0.85)",
+        }}
       >
-        {current?.icon ?? <Store className="w-5 h-5" />}
+        <span
+          className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+          style={open ? { background: `${current?.hex || "#94a3b8"}33` } : { background: "rgba(255,255,255,0.06)" }}
+        >
+          {current?.icon ?? <Store className="w-3.5 h-3.5" />}
+        </span>
+        <span className="text-[11px] font-medium tracking-wide whitespace-nowrap">
+          {current?.label ?? "Stores"}
+        </span>
         {/* Active dot indicator */}
         {value && value !== "all" && (
           <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black/70" />
