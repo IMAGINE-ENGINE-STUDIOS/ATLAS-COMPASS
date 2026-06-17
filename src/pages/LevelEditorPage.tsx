@@ -2215,6 +2215,11 @@ function TerrainPanel({
                 disabled={disabled}
                 onPatch={onPatch}
               />
+              <TerrainMaterialPanel
+                terrain={t}
+                disabled={disabled}
+                onPatch={onPatch}
+              />
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Wireframe</Label>
                 <Switch
