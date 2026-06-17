@@ -149,16 +149,7 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
               videoRef={(el) => { videoRef.current = el; }}
             />
           ) : (
-            <>
-              <img ref={imgRef} key={tick} src={imageSrc} alt={camera.name} crossOrigin="anonymous" className="w-full h-full object-contain" />
-              <button
-                onClick={enterFullscreen}
-                title="Fullscreen"
-                className="absolute bottom-2 right-2 p-1.5 rounded-md bg-black/70 hover:bg-black/90 border border-white/15 text-white"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </button>
-            </>
+            <img ref={imgRef} key={tick} src={imageSrc} alt={camera.name} crossOrigin="anonymous" className="w-full h-full object-contain" />
           )}
           <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-500/80 text-white text-[10px] font-bold tracking-wider">LIVE</div>
           {active && (
