@@ -38,6 +38,7 @@ import {
   SceneTransforms,
   BoundingSphere, HeadingPitchRange, Matrix4,
   ClippingPolygon, ClippingPolygonCollection,
+  CallbackProperty, ColorMaterialProperty, LabelStyle, HorizontalOrigin, VerticalOrigin,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -101,7 +102,35 @@ interface PlacedModel {
   createdAt: number;
   category?: string; // see MODEL_CATEGORIES
   cropRadius?: number; // meters — if >0, crops a circular hole in 3D tilesets under the model
+  cropBase?: CropBase;
 }
+
+/** Architectural base + editable voxel terrain that fills a cropped tile. */
+interface CropBase {
+  shape: "circle" | "square";
+  wireframe: boolean;
+  voxelMode: "click" | "brush";
+  brushRadius: number;   // m
+  brushStrength: number; // m per step
+  gridSize: number;      // cells per side (gridSize × gridSize)
+  cellSize: number;      // meters per cell (1m default)
+  heights: number[];     // length = gridSize * gridSize, meters
+}
+
+const DEFAULT_CROP_BASE = (radiusMeters: number): CropBase => {
+  const cellSize = 1;
+  const gridSize = Math.max(2, Math.ceil((radiusMeters * 2) / cellSize));
+  return {
+    shape: "circle",
+    wireframe: false,
+    voxelMode: "click",
+    brushRadius: 4,
+    brushStrength: 0.5,
+    gridSize,
+    cellSize,
+    heights: new Array(gridSize * gridSize).fill(0),
+  };
+};
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
 const MODELS_STORAGE_KEY = "nexus-spaceship-models";
@@ -2874,25 +2903,364 @@ function SpaceshipPage() {
     return () => window.removeEventListener("cesium-tileset-ready", onReady);
   }, [applyAllCrops]);
 
+  // ── Crop-base architectural pad: grey base + grid/ruler + editable voxel terrain ──
+  const cropBaseEntitiesRef = useRef<Map<string, any[]>>(new Map());
+  const [terrainEditing, setTerrainEditing] = useState(false);
+
+  const rebuildCropBaseForModel = useCallback((model: PlacedModel) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const map = cropBaseEntitiesRef.current;
+    // Clear previous
+    const prev = map.get(model.id) || [];
+    prev.forEach(e => { try { viewer.entities.remove(e); } catch {} });
+    map.set(model.id, []);
+    const out = map.get(model.id)!;
+
+    if (!model.cropRadius || model.cropRadius <= 0 || !model.cropBase) return;
+
+    const { shape, wireframe, gridSize, cellSize, heights } = model.cropBase;
+    const r = model.cropRadius;
+    const baseAlt = (model.alt ?? 0);
+    const metersPerDegLat = 111320;
+    const metersPerDegLng = 111320 * Math.cos(CesiumMath.toRadians(model.lat));
+    const dLat = (m: number) => m / metersPerDegLat;
+    const dLng = (m: number) => m / Math.max(1, metersPerDegLng);
+    const GREY = Color.fromCssColorString("rgba(140,140,148,1.0)");
+    const GRID_MINOR = Color.fromCssColorString("rgba(150,210,255,0.35)");
+    const GRID_MAJOR = Color.fromCssColorString("rgba(180,230,255,0.85)");
+    const AXIS = Color.fromCssColorString("rgba(0,220,255,1.0)");
+    const VOXEL = Color.fromCssColorString("rgba(160,160,168,1.0)");
+    const VOXEL_NEG = Color.fromCssColorString("rgba(60,90,120,0.95)");
+
+    // 1) Grey base — circle (N-gon) or square — clamped to ground
+    let basePositions: Cartesian3[];
+    if (shape === "circle") {
+      const segs = 64;
+      basePositions = [];
+      for (let i = 0; i < segs; i++) {
+        const theta = (i / segs) * Math.PI * 2;
+        basePositions.push(Cartesian3.fromDegrees(
+          model.lng + dLng(r * Math.cos(theta)),
+          model.lat + dLat(r * Math.sin(theta)),
+        ));
+      }
+    } else {
+      basePositions = [
+        Cartesian3.fromDegrees(model.lng - dLng(r), model.lat - dLat(r)),
+        Cartesian3.fromDegrees(model.lng + dLng(r), model.lat - dLat(r)),
+        Cartesian3.fromDegrees(model.lng + dLng(r), model.lat + dLat(r)),
+        Cartesian3.fromDegrees(model.lng - dLng(r), model.lat + dLat(r)),
+      ];
+    }
+    out.push(viewer.entities.add({
+      id: `cropbase-${model.id}-pad`,
+      polygon: {
+        hierarchy: basePositions as any,
+        material: GREY as any,
+        classificationType: ClassificationType.TERRAIN,
+        height: 0,
+      } as any,
+    }));
+
+    // 2) Wireframe overlay (grid + axis ruler) — only when enabled
+    if (wireframe) {
+      const halfR = r;
+      const major = 5;
+      // Minor + major lines across N/S and E/W
+      for (let m = -halfR; m <= halfR; m += cellSize) {
+        const isMajor = Math.abs(m % major) < 1e-6;
+        const mat = isMajor ? GRID_MAJOR : GRID_MINOR;
+        const width = isMajor ? 1.4 : 0.8;
+        // East-West line at offset m (north)
+        out.push(viewer.entities.add({
+          polyline: {
+            positions: [
+              Cartesian3.fromDegrees(model.lng - dLng(halfR), model.lat + dLat(m)),
+              Cartesian3.fromDegrees(model.lng + dLng(halfR), model.lat + dLat(m)),
+            ] as any,
+            width, material: mat as any, clampToGround: true,
+          } as any,
+        }));
+        // North-South line at offset m (east)
+        out.push(viewer.entities.add({
+          polyline: {
+            positions: [
+              Cartesian3.fromDegrees(model.lng + dLng(m), model.lat - dLat(halfR)),
+              Cartesian3.fromDegrees(model.lng + dLng(m), model.lat + dLat(halfR)),
+            ] as any,
+            width, material: mat as any, clampToGround: true,
+          } as any,
+        }));
+      }
+      // Axis through origin — bright cyan
+      out.push(viewer.entities.add({
+        polyline: {
+          positions: [
+            Cartesian3.fromDegrees(model.lng - dLng(halfR), model.lat),
+            Cartesian3.fromDegrees(model.lng + dLng(halfR), model.lat),
+          ] as any,
+          width: 2.2, material: AXIS as any, clampToGround: true,
+        } as any,
+      }));
+      out.push(viewer.entities.add({
+        polyline: {
+          positions: [
+            Cartesian3.fromDegrees(model.lng, model.lat - dLat(halfR)),
+            Cartesian3.fromDegrees(model.lng, model.lat + dLat(halfR)),
+          ] as any,
+          width: 2.2, material: AXIS as any, clampToGround: true,
+        } as any,
+      }));
+      // Ruler tick labels every 5 m on +X and +Y axes
+      for (let m = major; m <= halfR; m += major) {
+        out.push(viewer.entities.add({
+          position: Cartesian3.fromDegrees(model.lng + dLng(m), model.lat, baseAlt + 0.5),
+          label: {
+            text: `${m}m`, font: '600 10px -apple-system,system-ui,sans-serif',
+            fillColor: AXIS, outlineColor: Color.BLACK, outlineWidth: 2,
+            style: LabelStyle.FILL_AND_OUTLINE,
+            horizontalOrigin: HorizontalOrigin.CENTER,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+            scaleByDistance: { near: 80, nearValue: 1, far: 4000, farValue: 0.3 } as any,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          } as any,
+        }));
+        out.push(viewer.entities.add({
+          position: Cartesian3.fromDegrees(model.lng, model.lat + dLat(m), baseAlt + 0.5),
+          label: {
+            text: `${m}m`, font: '600 10px -apple-system,system-ui,sans-serif',
+            fillColor: AXIS, outlineColor: Color.BLACK, outlineWidth: 2,
+            style: LabelStyle.FILL_AND_OUTLINE,
+            horizontalOrigin: HorizontalOrigin.CENTER,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+            scaleByDistance: { near: 80, nearValue: 1, far: 4000, farValue: 0.3 } as any,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          } as any,
+        }));
+      }
+    }
+
+    // 3) Voxel terrain — only render non-zero cells as boxes
+    const halfGrid = gridSize / 2;
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        const h = heights[row * gridSize + col];
+        if (!h) continue;
+        const cx_m = (col - halfGrid + 0.5) * cellSize;
+        const cy_m = (row - halfGrid + 0.5) * cellSize;
+        // Skip cells outside the crop radius (circular pad)
+        if (shape === "circle" && Math.hypot(cx_m, cy_m) > r) continue;
+        const lng = model.lng + dLng(cx_m);
+        const lat = model.lat + dLat(cy_m);
+        const absH = Math.abs(h);
+        const pos = Cartesian3.fromDegrees(lng, lat, baseAlt + h / 2);
+        out.push(viewer.entities.add({
+          position: pos,
+          box: {
+            dimensions: new Cartesian3(cellSize * 0.98, cellSize * 0.98, absH) as any,
+            material: (h >= 0 ? VOXEL : VOXEL_NEG) as any,
+            outline: true, outlineColor: Color.fromCssColorString("rgba(40,50,60,0.8)") as any,
+          } as any,
+        }));
+      }
+    }
+    viewer.scene.requestRender();
+  }, []);
+
+  const applyAllCropBasesRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    applyAllCropBasesRef.current = () => {
+      const viewer = viewerRef.current;
+      if (!viewer || viewer.isDestroyed()) return;
+      // Remove bases for models that no longer exist or have no crop
+      const validIds = new Set(placedModels.filter(m => m.cropRadius && m.cropBase).map(m => m.id));
+      cropBaseEntitiesRef.current.forEach((ents, id) => {
+        if (!validIds.has(id)) {
+          ents.forEach(e => { try { viewer.entities.remove(e); } catch {} });
+          cropBaseEntitiesRef.current.delete(id);
+        }
+      });
+      placedModels.forEach(m => { if (m.cropRadius && m.cropBase) rebuildCropBaseForModel(m); });
+    };
+    applyAllCropBasesRef.current();
+  }, [placedModels, rebuildCropBaseForModel]);
+
+  // ── Voxel terrain editor: install pointer handler while terrainEditing on ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    if (!terrainEditing || !editingModel || !editingModel.cropBase || !editingModel.cropRadius) return;
+
+    const ssec = viewer.scene.screenSpaceCameraController;
+    const prevRotate = ssec.enableRotate;
+    const prevTilt = ssec.enableTilt;
+    const prevTrans = ssec.enableTranslate;
+    ssec.enableRotate = false;
+    ssec.enableTilt = false;
+    ssec.enableTranslate = false;
+
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    const metersPerDegLat = 111320;
+    const metersPerDegLng = 111320 * Math.cos(CesiumMath.toRadians(editingModel.lat));
+
+    const screenToCell = (screenPos: { x: number; y: number }) => {
+      const carto = viewer.camera.pickEllipsoid(new Cartesian2(screenPos.x, screenPos.y), viewer.scene.globe.ellipsoid);
+      if (!carto) return null;
+      const c = Cartographic.fromCartesian(carto);
+      const lat = CesiumMath.toDegrees(c.latitude);
+      const lng = CesiumMath.toDegrees(c.longitude);
+      const cb = editingModel.cropBase!;
+      const dx = (lng - editingModel.lng) * metersPerDegLng;
+      const dy = (lat - editingModel.lat) * metersPerDegLat;
+      const half = cb.gridSize / 2;
+      const col = Math.floor(dx / cb.cellSize + half);
+      const row = Math.floor(dy / cb.cellSize + half);
+      if (col < 0 || col >= cb.gridSize || row < 0 || row >= cb.gridSize) return null;
+      return { row, col, dx, dy };
+    };
+
+    const mutateHeights = (mutator: (heights: number[], cb: CropBase) => void) => {
+      setPlacedModels(prev => {
+        const updated = prev.map(m => {
+          if (m.id !== editingModel.id || !m.cropBase) return m;
+          const newH = m.cropBase.heights.slice();
+          mutator(newH, m.cropBase);
+          return { ...m, cropBase: { ...m.cropBase, heights: newH } };
+        });
+        savePlacedModels(updated);
+        return updated;
+      });
+      setEditingModel(curr => {
+        if (!curr || curr.id !== editingModel.id || !curr.cropBase) return curr;
+        const newH = curr.cropBase.heights.slice();
+        mutator(newH, curr.cropBase);
+        return { ...curr, cropBase: { ...curr.cropBase, heights: newH } };
+      });
+    };
+
+    let painting = false;
+    let shift = false;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Shift") shift = true; };
+    const onKeyUp = (e: KeyboardEvent) => { if (e.key === "Shift") shift = false; };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+
+    const paintAt = (screenPos: { x: number; y: number }) => {
+      const cb = editingModel.cropBase!;
+      const cell = screenToCell(screenPos);
+      if (!cell) return;
+      if (cb.voxelMode === "click") {
+        const delta = shift ? -1 : 1;
+        mutateHeights((h) => { h[cell.row * cb.gridSize + cell.col] += delta; });
+      } else {
+        const br = cb.brushRadius;
+        const strength = cb.brushStrength * (shift ? -1 : 1);
+        const cellsR = Math.ceil(br / cb.cellSize);
+        mutateHeights((h) => {
+          for (let dr = -cellsR; dr <= cellsR; dr++) {
+            for (let dc = -cellsR; dc <= cellsR; dc++) {
+              const r2 = cell.row + dr, c2 = cell.col + dc;
+              if (r2 < 0 || r2 >= cb.gridSize || c2 < 0 || c2 >= cb.gridSize) continue;
+              const d = Math.hypot(dr * cb.cellSize, dc * cb.cellSize);
+              if (d > br) continue;
+              const fall = 1 - d / br;
+              h[r2 * cb.gridSize + c2] += strength * fall;
+            }
+          }
+        });
+      }
+    };
+
+    handler.setInputAction((evt: any) => {
+      paintAt(evt.position);
+      if (editingModel.cropBase?.voxelMode === "brush") painting = true;
+    }, ScreenSpaceEventType.LEFT_DOWN);
+    handler.setInputAction(() => { painting = false; }, ScreenSpaceEventType.LEFT_UP);
+    handler.setInputAction((evt: any) => {
+      if (!painting) return;
+      paintAt(evt.endPosition);
+    }, ScreenSpaceEventType.MOUSE_MOVE);
+
+    return () => {
+      handler.destroy();
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      ssec.enableRotate = prevRotate;
+      ssec.enableTilt = prevTilt;
+      ssec.enableTranslate = prevTrans;
+    };
+  }, [terrainEditing, editingModel?.id, editingModel?.cropBase?.voxelMode, editingModel?.cropBase?.brushRadius, editingModel?.cropBase?.brushStrength, editingModel?.lat, editingModel?.lng]);
+
+  const handleCropBaseChange = useCallback((partial: Partial<CropBase>) => {
+    if (!editingModel) return;
+    setPlacedModels(prev => {
+      const updated = prev.map(m => {
+        if (m.id !== editingModel.id || !m.cropBase) return m;
+        return { ...m, cropBase: { ...m.cropBase, ...partial } };
+      });
+      savePlacedModels(updated);
+      return updated;
+    });
+    setEditingModel(curr => {
+      if (!curr || curr.id !== editingModel.id || !curr.cropBase) return curr;
+      return { ...curr, cropBase: { ...curr.cropBase, ...partial } };
+    });
+  }, [editingModel]);
+
+  const handleResetTerrain = useCallback(() => {
+    if (!editingModel?.cropBase) return;
+    const size = editingModel.cropBase.gridSize;
+    handleCropBaseChange({ heights: new Array(size * size).fill(0) });
+  }, [editingModel, handleCropBaseChange]);
+
   const handleCropTile = useCallback((radius: number) => {
     if (!editingModel) return;
     const r = Math.max(1, radius);
     setPlacedModels(prev => {
-      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: r } : m);
+      const updated = prev.map(m => {
+        if (m.id !== editingModel.id) return m;
+        // Preserve existing cropBase but resize the height field if the radius grew.
+        let cropBase = m.cropBase;
+        if (!cropBase) cropBase = DEFAULT_CROP_BASE(r);
+        else {
+          const newGrid = Math.max(2, Math.ceil((r * 2) / cropBase.cellSize));
+          if (newGrid !== cropBase.gridSize) {
+            const oldGrid = cropBase.gridSize;
+            const oldH = cropBase.heights;
+            const newH = new Array(newGrid * newGrid).fill(0);
+            const offset = Math.floor((newGrid - oldGrid) / 2);
+            for (let r2 = 0; r2 < oldGrid; r2++) {
+              for (let c2 = 0; c2 < oldGrid; c2++) {
+                const nr = r2 + offset, nc = c2 + offset;
+                if (nr >= 0 && nr < newGrid && nc >= 0 && nc < newGrid) {
+                  newH[nr * newGrid + nc] = oldH[r2 * oldGrid + c2];
+                }
+              }
+            }
+            cropBase = { ...cropBase, gridSize: newGrid, heights: newH };
+          }
+        }
+        return { ...m, cropRadius: r, cropBase };
+      });
       savePlacedModels(updated);
       return updated;
     });
-    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: r } : current);
+    setEditingModel(current => {
+      if (!current || current.id !== editingModel.id) return current;
+      const cropBase = current.cropBase ?? DEFAULT_CROP_BASE(r);
+      return { ...current, cropRadius: r, cropBase };
+    });
   }, [editingModel]);
 
   const handleUncropTile = useCallback(() => {
     if (!editingModel) return;
     setPlacedModels(prev => {
-      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: 0 } : m);
+      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: 0, cropBase: undefined } : m);
       savePlacedModels(updated);
       return updated;
     });
-    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: 0 } : current);
+    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: 0, cropBase: undefined } : current);
   }, [editingModel]);
 
   const placeModelOnGlobe = useCallback((model: PlacedModel, blobUrl: string) => {
@@ -4862,6 +5230,11 @@ function SpaceshipPage() {
           cropRadius={editingModel.cropRadius || 0}
           onCropTile={handleCropTile}
           onUncropTile={handleUncropTile}
+          cropBase={editingModel.cropBase}
+          onCropBaseChange={handleCropBaseChange}
+          onResetTerrain={handleResetTerrain}
+          terrainEditing={terrainEditing}
+          onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
         />
       )}
     </div>
