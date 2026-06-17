@@ -111,6 +111,7 @@ export default function LevelEditorPage() {
   const [selectedLightId, setSelectedLightId] = useState<string | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [snapSize, setSnapSize] = useState(0.5);
+  const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
 
   const snap = snapEnabled ? snapSize : 0;
 
@@ -470,6 +471,8 @@ export default function LevelEditorPage() {
             onSelect={setSelectedId}
             showGrid={showGrid}
             playing={playing}
+            editingPolygonId={editingPolygonId}
+            onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
             className="w-full h-full"
           />
         </main>
@@ -499,6 +502,10 @@ export default function LevelEditorPage() {
                   onPatch={(p) => patchObject(selectedObj.id, p)}
                   disabled={!isOwner}
                   snap={snap}
+                  editing={editingPolygonId === selectedObj.id}
+                  onToggleEdit={() =>
+                    setEditingPolygonId((cur) => (cur === selectedObj.id ? null : selectedObj.id))
+                  }
                 />
               )}
             </TabsContent>
