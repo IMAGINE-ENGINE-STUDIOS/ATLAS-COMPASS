@@ -3,25 +3,41 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Check, Code2, Copy, Search, X } from "lucide-react";
 
 /* ───────────────────────────────────────────────────────────
-   20 original icons — pure SVG, currentColor, 24x24, 1.6 stroke
-   Cohesive outline style with subtle accent fills.
+   20 original icons — generated with AI, monochrome line art
+   in a SpaceX / Apple SF Symbols register.
    ─────────────────────────────────────────────────────────── */
+import atlasImg      from "@/assets/icons/atlas.png";
+import spaceshipImg  from "@/assets/icons/spaceship.png";
+import voxelImg      from "@/assets/icons/voxel.png";
+import brushImg      from "@/assets/icons/brush.png";
+import poiImg        from "@/assets/icons/poi.png";
+import routeImg      from "@/assets/icons/route.png";
+import marketImg     from "@/assets/icons/market.png";
+import paymentsImg   from "@/assets/icons/payments.png";
+import signalImg     from "@/assets/icons/signal.png";
+import graphImg      from "@/assets/icons/graph.png";
+import compassImg    from "@/assets/icons/compass.png";
+import droneImg      from "@/assets/icons/drone.png";
+import cargoImg      from "@/assets/icons/cargo.png";
+import telemetryImg  from "@/assets/icons/telemetry.png";
+import networkImg    from "@/assets/icons/network.png";
+import layersImg     from "@/assets/icons/layers.png";
+import speedImg      from "@/assets/icons/speed.png";
+import terrainImg    from "@/assets/icons/terrain.png";
+import cameraImg     from "@/assets/icons/camera.png";
+import heatImg       from "@/assets/icons/heat.png";
 
-type IconProps = { className?: string };
-const base = "w-full h-full";
-const SVG = ({ className, children, ...rest }: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.6}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className || base}
-    {...rest}
-  >
-    {children}
-  </svg>
+const Glyph = ({ src, alt }: { src: string; alt: string }) => (
+  <img
+    src={src}
+    alt={alt}
+    width={512}
+    height={512}
+    loading="lazy"
+    draggable={false}
+    className="w-full h-full object-contain select-none"
+    style={{ filter: "invert(0)" }}
+  />
 );
 
 const AtlasOrbit = ({ className }: IconProps) => (
