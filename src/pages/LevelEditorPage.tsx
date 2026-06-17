@@ -15,6 +15,7 @@ import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
   SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
+  SceneTerrain, defaultTerrain,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { Button } from "@/components/ui/button";
@@ -1053,6 +1054,24 @@ export default function LevelEditorPage() {
                 </div>
                 <Switch checked={isPublic} onCheckedChange={setIsPublic} disabled={!isOwner} />
               </div>
+
+              <TerrainPanel
+                terrain={scene.terrain}
+                disabled={!isOwner}
+                onPatch={(p) =>
+                  updateScene((s) => {
+                    const base = s.terrain ?? defaultTerrain();
+                    s.terrain = { ...base, ...p } as SceneTerrain;
+                    return s;
+                  })
+                }
+                onEnable={(enabled) =>
+                  updateScene((s) => {
+                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
+                    return s;
+                  })
+                }
+              />
             </TabsContent>
           </Tabs>
         </aside>
@@ -1456,6 +1475,205 @@ function AnimationPanel({
           <p className="text-[10px] text-muted-foreground">{t.keyframes.length} keyframes</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ---------- terrain panel ---------- */
+
+function TerrainPanel({
+  terrain,
+  disabled,
+  onPatch,
+  onEnable,
+}: {
+  terrain?: SceneTerrain;
+  disabled?: boolean;
+  onPatch: (p: Partial<SceneTerrain>) => void;
+  onEnable: (enabled: boolean) => void;
+}) {
+  const t = terrain ?? { ...defaultTerrain(), enabled: false };
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onUpload = (file: File) => {
+    if (!file.name.match(/\.(glb|gltf)$/i)) {
+      toast.error("Upload a .glb or .gltf file");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      onPatch({
+        source: "model",
+        modelUrl: reader.result as string,
+        modelFileName: file.name,
+        enabled: true,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="space-y-2 pt-3 border-t border-border/40">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs flex items-center gap-1">
+          <Layers className="w-3 h-3" /> Terrain
+        </Label>
+        <Switch checked={t.enabled} onCheckedChange={onEnable} disabled={disabled} />
+      </div>
+      {t.enabled && (
+        <>
+          <div className="grid grid-cols-2 gap-1">
+            <Button
+              size="sm"
+              variant={t.source === "primitive" ? "secondary" : "ghost"}
+              className="h-7 text-[11px]"
+              onClick={() => onPatch({ source: "primitive" })}
+              disabled={disabled}
+            >
+              Geometry
+            </Button>
+            <Button
+              size="sm"
+              variant={t.source === "model" ? "secondary" : "ghost"}
+              className="h-7 text-[11px]"
+              onClick={() => onPatch({ source: "model" })}
+              disabled={disabled}
+            >
+              Model
+            </Button>
+          </div>
+
+          {t.source === "primitive" ? (
+            <>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Shape</Label>
+                <Select
+                  value={t.shape}
+                  onValueChange={(v) => onPatch({ shape: v as SceneTerrain["shape"] })}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plane" className="text-xs">Plane</SelectItem>
+                    <SelectItem value="box" className="text-xs">Box</SelectItem>
+                    <SelectItem value="sphere" className="text-xs">Sphere</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Size (W / H / D)</Label>
+                <div className="grid grid-cols-3 gap-1 mt-1">
+                  {([0, 1, 2] as const).map((i) => (
+                    <Input
+                      key={i}
+                      type="number"
+                      step={0.5}
+                      value={t.size[i]}
+                      onChange={(e) => {
+                        const v = [...t.size] as Vec3;
+                        v[i] = parseFloat(e.target.value) || 0;
+                        onPatch({ size: v });
+                      }}
+                      disabled={disabled}
+                      className="h-7 text-[11px]"
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs flex-1">Color</Label>
+                <Input
+                  type="color"
+                  value={rgbaToHex(t.color)}
+                  onChange={(e) => onPatch({ color: hexToRgba(e.target.value, t.color[3]) })}
+                  disabled={disabled}
+                  className="h-7 w-12 p-0.5"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Wireframe</Label>
+                <Switch
+                  checked={t.wireframe}
+                  onCheckedChange={(v) => onPatch({ wireframe: v })}
+                  disabled={disabled}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] w-full"
+                onClick={() => fileRef.current?.click()}
+                disabled={disabled}
+              >
+                <Upload className="w-3 h-3 mr-1" />
+                {t.modelFileName ? `Replace (${t.modelFileName})` : "Upload glTF terrain"}
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".glb,.gltf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUpload(f);
+                  e.target.value = "";
+                }}
+              />
+              {!t.modelUrl && (
+                <p className="text-[10px] text-muted-foreground italic">No model loaded.</p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Position</Label>
+            <div className="grid grid-cols-3 gap-1 mt-1">
+              {([0, 1, 2] as const).map((i) => (
+                <Input
+                  key={i}
+                  type="number"
+                  step={0.1}
+                  value={t.position[i]}
+                  onChange={(e) => {
+                    const v = [...t.position] as Vec3;
+                    v[i] = parseFloat(e.target.value) || 0;
+                    onPatch({ position: v });
+                  }}
+                  disabled={disabled}
+                  className="h-7 text-[11px]"
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <div>
+              <Label className="text-xs flex items-center gap-1">
+                <Magnet className="w-3 h-3" /> Snap objects to surface
+              </Label>
+              <p className="text-[10px] text-muted-foreground">Dragged objects stick to terrain</p>
+            </div>
+            <Switch
+              checked={t.snapToSurface}
+              onCheckedChange={(v) => onPatch({ snapToSurface: v })}
+              disabled={disabled}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs flex items-center gap-1">
+              {t.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} Visible
+            </Label>
+            <Switch
+              checked={t.visible}
+              onCheckedChange={(v) => onPatch({ visible: v })}
+              disabled={disabled}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

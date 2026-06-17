@@ -10,6 +10,7 @@ import type {
   ModelObject,
   SceneLight,
   AnimationTrack,
+  SceneTerrain,
 } from "@/lib/levelTypes";
 
 /* ---------- helpers ---------- */
@@ -162,6 +163,72 @@ function GLTFModelMesh({ obj, onSelect }: { obj: ModelObject; onSelect?: (id: st
         onSelect?.(obj.id);
       }}
     />
+  );
+}
+
+/* ---------- terrain ---------- */
+
+function TerrainModel({ url }: { url: string }) {
+  const gltf = useGLTF(url);
+  const cloned = useMemo(() => gltf.scene.clone(), [gltf]);
+  useEffect(() => {
+    cloned.traverse((c: any) => {
+      if (c.isMesh) {
+        c.receiveShadow = true;
+        c.userData.isTerrain = true;
+      }
+    });
+  }, [cloned]);
+  return <primitive object={cloned} />;
+}
+
+function RenderTerrain({ terrain }: { terrain: SceneTerrain }) {
+  if (!terrain.enabled || !terrain.visible) return null;
+  const [sx, sy, sz] = terrain.size;
+  const color = rgbaToColor(terrain.color);
+  const material = (
+    <meshStandardMaterial
+      color={color}
+      wireframe={terrain.wireframe}
+      transparent={terrain.color[3] < 1}
+      opacity={terrain.color[3]}
+      metalness={0.05}
+      roughness={0.95}
+      side={THREE.DoubleSide}
+    />
+  );
+  return (
+    <group
+      name="__terrain_root"
+      position={terrain.position}
+      rotation={terrain.rotation as any}
+      userData={{ isTerrain: true }}
+    >
+      {terrain.source === "model" && terrain.modelUrl ? (
+        <Suspense fallback={null}>
+          <TerrainModel url={terrain.modelUrl} />
+        </Suspense>
+      ) : terrain.shape === "plane" ? (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+          userData={{ isTerrain: true }}
+        >
+          <planeGeometry args={[sx, sz, Math.max(1, Math.round(sx)), Math.max(1, Math.round(sz))]} />
+          {material}
+        </mesh>
+      ) : terrain.shape === "box" ? (
+        <mesh receiveShadow userData={{ isTerrain: true }} position={[0, -sy / 2, 0]}>
+          <boxGeometry args={[sx, sy, sz]} />
+          {material}
+        </mesh>
+      ) : (
+        <mesh receiveShadow userData={{ isTerrain: true }}>
+          <sphereGeometry args={[sx / 2, 48, 32]} />
+          {material}
+        </mesh>
+      )}
+    </group>
   );
 }
 
@@ -320,6 +387,7 @@ export function LevelSceneContents({
           position={[0, 0, 0]}
         />
       )}
+      {scene.terrain?.enabled && <RenderTerrain terrain={scene.terrain} />}
       <group ref={groupRef} onPointerMissed={() => onSelect?.(null)}>
         {scene.objects.map((o) => (
           <group
@@ -353,6 +421,7 @@ export function LevelSceneContents({
           groupRef={groupRef}
           controlsRef={controlsRef}
           snap={snap}
+          snapToTerrain={!!scene.terrain?.enabled && !!scene.terrain?.snapToSurface}
           onCommit={(t) => onObjectTransform(selectedId, t)}
         />
       )}
@@ -419,6 +488,7 @@ function TransformGizmo({
   groupRef,
   controlsRef,
   snap,
+  snapToTerrain,
   onCommit,
 }: {
   targetId: string;
@@ -426,6 +496,7 @@ function TransformGizmo({
   groupRef: React.RefObject<THREE.Group>;
   controlsRef?: React.MutableRefObject<any>;
   snap?: number;
+  snapToTerrain?: boolean;
   onCommit: (t: {
     position: [number, number, number];
     rotation: [number, number, number];
@@ -433,15 +504,38 @@ function TransformGizmo({
   }) => void;
 }) {
   const [target, setTarget] = useState<THREE.Object3D | null>(null);
+  const tcRef = useRef<any>(null);
+  const { scene: r3fScene } = useThree();
   useEffect(() => {
     // Find the group named obj-<id> after render
     const t = groupRef.current?.getObjectByName(`obj-${targetId}`) ?? null;
     setTarget(t);
   }, [targetId, groupRef]);
 
+  // Surface snap: while dragging in translate mode, raycast straight down
+  // from above the target's XZ position onto the terrain mesh.
+  useEffect(() => {
+    const ctl = tcRef.current;
+    if (!ctl || !target) return;
+    const raycaster = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    const onChange = () => {
+      if (!snapToTerrain || mode !== "translate") return;
+      const terrainRoot = r3fScene.getObjectByName("__terrain_root");
+      if (!terrainRoot) return;
+      const origin = new THREE.Vector3(target.position.x, 1000, target.position.z);
+      raycaster.set(origin, down);
+      const hits = raycaster.intersectObject(terrainRoot, true);
+      if (hits.length) target.position.y = hits[0].point.y;
+    };
+    ctl.addEventListener("objectChange", onChange);
+    return () => ctl.removeEventListener("objectChange", onChange);
+  }, [target, snapToTerrain, mode, r3fScene]);
+
   if (!target) return null;
   return (
     <TransformControls
+      ref={tcRef}
       object={target as any}
       mode={mode}
       size={0.8}
@@ -453,6 +547,19 @@ function TransformGizmo({
       }}
       onMouseUp={() => {
         if (controlsRef?.current) controlsRef.current.enabled = true;
+        // Final surface-snap pass before commit
+        if (snapToTerrain && mode === "translate") {
+          const terrainRoot = r3fScene.getObjectByName("__terrain_root");
+          if (terrainRoot) {
+            const raycaster = new THREE.Raycaster();
+            raycaster.set(
+              new THREE.Vector3(target.position.x, 1000, target.position.z),
+              new THREE.Vector3(0, -1, 0),
+            );
+            const hits = raycaster.intersectObject(terrainRoot, true);
+            if (hits.length) target.position.y = hits[0].point.y;
+          }
+        }
         onCommit({
           position: [target.position.x, target.position.y, target.position.z],
           rotation: [target.rotation.x, target.rotation.y, target.rotation.z],

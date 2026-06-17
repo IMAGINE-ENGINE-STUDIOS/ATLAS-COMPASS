@@ -87,11 +87,42 @@ export interface SceneLayer {
   collapsed?: boolean;
 }
 
+export interface SceneTerrain {
+  enabled: boolean;
+  source: "primitive" | "model";
+  shape: "plane" | "box" | "sphere"; // used when source === "primitive"
+  size: Vec3;        // width / height / depth (or radius in x for sphere)
+  position: Vec3;
+  rotation: Vec3;
+  color: RGBA;
+  wireframe: boolean;
+  modelUrl?: string;
+  modelFileName?: string;
+  visible: boolean;
+  snapToSurface: boolean; // when true, dragged objects snap to terrain surface
+}
+
+export function defaultTerrain(): SceneTerrain {
+  return {
+    enabled: false,
+    source: "primitive",
+    shape: "plane",
+    size: [20, 1, 20],
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    color: [0.18, 0.22, 0.3, 1],
+    wireframe: false,
+    visible: true,
+    snapToSurface: true,
+  };
+}
+
 export interface LevelScene {
   objects: SceneObject[];
   lights: SceneLight[];
   animations: AnimationTrack[];
   layers?: SceneLayer[];
+  terrain?: SceneTerrain;
   environment: {
     background: string;
     ambient: number;
