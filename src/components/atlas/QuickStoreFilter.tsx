@@ -72,21 +72,37 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
           >
             <ChevronUp className="w-4 h-4" />
           </button>
-          <div className="flex flex-col gap-1 p-1.5 rounded-2xl bg-black/70 backdrop-blur-xl border border-white/[0.08] animate-fade-in max-h-[60vh] overflow-y-auto no-scrollbar">
+          <div className="flex flex-col gap-1.5 p-2 rounded-2xl bg-black/70 backdrop-blur-xl border border-white/[0.08] animate-fade-in max-h-[60vh] overflow-y-auto no-scrollbar">
             {options.map(opt => {
               const active = opt.key === value;
+              const hex = opt.hex || "#94a3b8";
               return (
                 <button
                   key={opt.key}
                   onClick={() => { onChange(opt.key); }}
                   title={opt.label}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                    active
-                      ? "bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
-                      : "text-white/70 hover:text-white hover:bg-white/[0.08] border border-transparent"
-                  }`}
+                  className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full transition-all backdrop-blur-xl"
+                  style={active ? {
+                    background: `${hex}22`,
+                    border: `1px solid ${hex}66`,
+                    boxShadow: `0 4px 20px ${hex}33`,
+                  } : {
+                    background: "transparent",
+                    border: "1px solid transparent",
+                  }}
                 >
-                  {opt.icon}
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    style={active ? { background: `${hex}33`, color: hex } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}
+                  >
+                    {opt.icon}
+                  </span>
+                  <span
+                    className="text-[11px] font-medium tracking-wide whitespace-nowrap"
+                    style={{ color: active ? hex : "rgba(255,255,255,0.7)" }}
+                  >
+                    {opt.label}
+                  </span>
                 </button>
               );
             })}
