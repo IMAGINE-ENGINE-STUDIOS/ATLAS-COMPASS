@@ -2210,16 +2210,11 @@ function TerrainPanel({
                   ))}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs flex-1">Color</Label>
-                <Input
-                  type="color"
-                  value={rgbaToHex(t.color)}
-                  onChange={(e) => onPatch({ color: hexToRgba(e.target.value, t.color[3]) })}
-                  disabled={disabled}
-                  className="h-7 w-12 p-0.5"
-                />
-              </div>
+              <TerrainAppearanceTabs
+                terrain={t}
+                disabled={disabled}
+                onPatch={onPatch}
+              />
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Wireframe</Label>
                 <Switch
