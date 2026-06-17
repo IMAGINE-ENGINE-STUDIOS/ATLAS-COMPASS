@@ -491,14 +491,21 @@ function PolygonEditOverlay({
 
   const worldPoints = useMemo(
     () =>
-      poly.points.map(([x, z]) => new THREE.Vector3(x, 0, z).applyMatrix4(objMatrix)),
-    [poly.points, objMatrix],
+      poly.points.map(([x, z]) =>
+        // Geometry has rotateX(-PI/2) applied, which maps shape vertex
+        // (sx, sy, 0) -> world-local (sx, 0, -sy). The top face of the
+        // extrusion sits at y = extrude, so lift handles to the top so
+        // they're visible on the corners of the box (with a tiny epsilon).
+        new THREE.Vector3(x, (poly.extrude || 0) + 0.01, -z).applyMatrix4(objMatrix),
+      ),
+    [poly.points, poly.extrude, objMatrix],
   );
 
   const beginDrag = (index: number, e: any) => {
     e.stopPropagation();
     if (controlsRef?.current) controlsRef.current.enabled = false;
-    const origin = new THREE.Vector3(0, 0, 0).applyMatrix4(objMatrix);
+    // Plane passes through the TOP face of the extrusion (matching handle Y)
+    const origin = new THREE.Vector3(0, (poly.extrude || 0) + 0.01, 0).applyMatrix4(objMatrix);
     const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
     const raycaster = new THREE.Raycaster();
@@ -512,7 +519,10 @@ function PolygonEditOverlay({
       const hit = new THREE.Vector3();
       if (!raycaster.ray.intersectPlane(plane, hit)) return;
       const local = hit.clone().applyMatrix4(invObjMatrix);
-      const next = poly.points.map((p, i) => (i === index ? [local.x, local.z] : p)) as Array<[number, number]>;
+      // Invert the geometry's rotateX(-PI/2): shape sy = -world-local z.
+      const next = poly.points.map((p, i) =>
+        i === index ? [local.x, -local.z] : p,
+      ) as Array<[number, number]>;
       onChange(next);
     };
     const onUp = () => {
@@ -555,8 +565,8 @@ function PolygonEditOverlay({
               onPointerDown={(e) => beginDrag(i, e)}
               renderOrder={999}
             >
-              <sphereGeometry args={[0.12, 16, 16]} />
-              <meshBasicMaterial color="#facc15" depthTest={false} />
+              <sphereGeometry args={[0.16, 20, 20]} />
+              <meshBasicMaterial color="#facc15" depthTest={false} depthWrite={false} toneMapped={false} />
             </mesh>
             {/* point index label */}
             <Html position={wp.clone().add(new THREE.Vector3(0, 0.25, 0)).toArray() as any} center distanceFactor={8} zIndexRange={[100, 0]}>
