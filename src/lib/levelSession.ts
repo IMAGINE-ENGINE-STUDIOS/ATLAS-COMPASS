@@ -29,6 +29,10 @@ function timeout<T>(ms: number, value: T): Promise<T> {
   return new Promise((resolve) => window.setTimeout(() => resolve(value), ms));
 }
 
+export function withTimeout<T>(promise: PromiseLike<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([Promise.resolve(promise), timeout(ms, fallback)]);
+}
+
 /**
  * Ensures a Supabase session exists so RLS policies referring to auth.uid()
  * succeed. If no session is present we sign in anonymously — each device gets
