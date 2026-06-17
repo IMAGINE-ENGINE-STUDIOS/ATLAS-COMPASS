@@ -716,7 +716,7 @@ export default function LevelEditorPage() {
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
           <LevelScene3D
-            scene={scene}
+            scene={renderedScene}
             selectedId={selectedId}
             onSelect={(oid) => {
               if (oid) selectObject(oid);
