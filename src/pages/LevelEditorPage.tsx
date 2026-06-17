@@ -354,6 +354,55 @@ export default function LevelEditorPage() {
       return s;
     });
 
+  /* ---------- layers ---------- */
+
+  const ensureLayers = (s: LevelScene) => {
+    if (!s.layers || s.layers.length === 0) s.layers = defaultLayers();
+    return s;
+  };
+  const addLayer = () =>
+    updateScene((s) => {
+      ensureLayers(s);
+      const n = (s.layers!.length) + 1;
+      const layer: SceneLayer = {
+        id: newId("lay"),
+        name: `Layer ${n}`,
+        color: ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#a855f7", "#14b8a6"][n % 6],
+        visible: true,
+      };
+      s.layers!.push(layer);
+      setCurrentLayerId(layer.id);
+      return s;
+    });
+  const removeLayer = (lid: string) =>
+    updateScene((s) => {
+      ensureLayers(s);
+      if (lid === DEFAULT_LAYER_ID) return s; // protect default
+      s.layers = s.layers!.filter((l) => l.id !== lid);
+      // reassign orphaned objects to the default layer
+      s.objects = s.objects.map((o) =>
+        o.layerId === lid ? ({ ...o, layerId: DEFAULT_LAYER_ID } as SceneObject) : o,
+      );
+      if (currentLayerId === lid) setCurrentLayerId(DEFAULT_LAYER_ID);
+      return s;
+    });
+  const patchLayer = (lid: string, patch: Partial<SceneLayer>) =>
+    updateScene((s) => {
+      ensureLayers(s);
+      const idx = s.layers!.findIndex((l) => l.id === lid);
+      if (idx >= 0) s.layers![idx] = { ...s.layers![idx], ...patch };
+      return s;
+    });
+  const assignObjectsToLayer = (oids: string[], lid: string) =>
+    updateScene((s) => {
+      ensureLayers(s);
+      const set = new Set(oids);
+      s.objects = s.objects.map((o) =>
+        set.has(o.id) ? ({ ...o, layerId: lid } as SceneObject) : o,
+      );
+      return s;
+    });
+
   /* ---------- glTF upload ---------- */
 
   const fileRef = useRef<HTMLInputElement>(null);
