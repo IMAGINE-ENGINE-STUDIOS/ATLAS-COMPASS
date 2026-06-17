@@ -278,85 +278,137 @@ const pinCanvasCache = new Map<string, string>();
 function createPinCanvas(icon: string, name: string, bgColor: string): string {
   const key = `${icon}|${name}|${bgColor}`;
   if (pinCanvasCache.has(key)) return pinCanvasCache.get(key)!;
-  
+
+  // Parse `r,g,b` out of the incoming `rgba(r,g,b,...)` (handles both
+  // closed `rgba(r,g,b,0.75)` and open `rgba(r,g,b,` forms).
+  const m = bgColor.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  const r0 = m ? +m[1] : 56, g0 = m ? +m[2] : 189, b0 = m ? +m[3] : 248;
+  const rgba = (a: number) => `rgba(${r0},${g0},${b0},${a})`;
+
   const dpr = 2;
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
-  
-  // Measure text — use SF-style system font
-  ctx.font = `600 ${13 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
-  const textWidth = ctx.measureText(name).width;
-  const iconWidth = 20 * dpr;
-  const padding = 12 * dpr;
+
+  // Layout — mirrors ModelLabelsOverlay single-pill style:
+  // pl-2 pr-3 py-1 + 20px circle + 6px gap + 11px text + leader line
+  const padL = 6 * dpr;
+  const padR = 10 * dpr;
+  const padY = 5 * dpr;
+  const circleD = 18 * dpr;
   const gap = 6 * dpr;
-  const pointerH = 10 * dpr;
-  const w = iconWidth + gap + textWidth + padding * 2;
-  const h = 32 * dpr;
-  const totalH = h + pointerH;
-  const r = 14 * dpr;
-  
-  canvas.width = w;
-  canvas.height = totalH;
-  
-  // Solid frosted glass background
-  ctx.beginPath();
-  ctx.moveTo(r, 0);
-  ctx.lineTo(w - r, 0);
-  ctx.quadraticCurveTo(w, 0, w, r);
-  ctx.lineTo(w, h - r);
-  ctx.quadraticCurveTo(w, h, w - r, h);
-  // Pointer triangle
-  ctx.lineTo(w / 2 + 7 * dpr, h);
-  ctx.lineTo(w / 2, totalH);
-  ctx.lineTo(w / 2 - 7 * dpr, h);
-  ctx.lineTo(r, h);
-  ctx.quadraticCurveTo(0, h, 0, h - r);
-  ctx.lineTo(0, r);
-  ctx.quadraticCurveTo(0, 0, r, 0);
-  ctx.closePath();
-  
-  // Solid opaque fill (iPhone-style frosted glass)
-  ctx.fillStyle = bgColor.replace(/[\d.]+\)$/, "0.88)");
-  ctx.fill();
-  
-  // Top-to-bottom sheen
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "rgba(255,255,255,0.30)");
-  grad.addColorStop(0.35, "rgba(255,255,255,0.08)");
-  grad.addColorStop(1, "rgba(0,0,0,0.05)");
-  ctx.fillStyle = grad;
-  ctx.fill();
-  
-  // Crisp border
-  ctx.strokeStyle = "rgba(255,255,255,0.35)";
-  ctx.lineWidth = 1.5 * dpr;
-  ctx.stroke();
-  
-  // Drop shadow effect (inner glow)
+  const leaderH = 10 * dpr;
+
+  const fontSpec = `500 ${11 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
+  ctx.font = fontSpec;
+  const textWidth = Math.ceil(ctx.measureText(name).width);
+
+  const contentH = circleD;
+  const pillH = contentH + padY * 2;
+  const pillW = padL + circleD + gap + textWidth + padR;
+  const radius = pillH / 2;
+
+  // Extra room on canvas for drop-shadow and leader line.
+  const shadowPad = 8 * dpr;
+  canvas.width = pillW + shadowPad * 2;
+  canvas.height = pillH + leaderH + shadowPad * 2;
+
+  const ox = shadowPad;
+  const oy = shadowPad;
+
+  // Soft accent glow under the pill.
   ctx.save();
-  ctx.globalCompositeOperation = "source-atop";
-  ctx.shadowColor = "rgba(0,0,0,0.3)";
-  ctx.shadowBlur = 6 * dpr;
+  ctx.shadowColor = rgba(0.33);
+  ctx.shadowBlur = 18 * dpr;
   ctx.shadowOffsetY = 3 * dpr;
-  ctx.fillStyle = "transparent";
+
+  // Rounded pill path.
+  ctx.beginPath();
+  ctx.moveTo(ox + radius, oy);
+  ctx.lineTo(ox + pillW - radius, oy);
+  ctx.quadraticCurveTo(ox + pillW, oy, ox + pillW, oy + radius);
+  ctx.lineTo(ox + pillW, oy + pillH - radius);
+  ctx.quadraticCurveTo(ox + pillW, oy + pillH, ox + pillW - radius, oy + pillH);
+  ctx.lineTo(ox + radius, oy + pillH);
+  ctx.quadraticCurveTo(ox, oy + pillH, ox, oy + pillH - radius);
+  ctx.lineTo(ox, oy + radius);
+  ctx.quadraticCurveTo(ox, oy, ox + radius, oy);
+  ctx.closePath();
+
+  // Accent-tinted glass fill (matches `${accent}22` in the React overlay).
+  ctx.fillStyle = rgba(0.16);
   ctx.fill();
   ctx.restore();
-  
-  // Icon emoji
-  ctx.font = `${15 * dpr}px -apple-system, BlinkMacSystemFont, sans-serif`;
+
+  // Subtle dark backdrop so accent text reads on bright tiles (mimics backdrop-blur).
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-over";
+  ctx.fillStyle = "rgba(15,20,28,0.55)";
+  ctx.beginPath();
+  ctx.moveTo(ox + radius, oy);
+  ctx.lineTo(ox + pillW - radius, oy);
+  ctx.quadraticCurveTo(ox + pillW, oy, ox + pillW, oy + radius);
+  ctx.lineTo(ox + pillW, oy + pillH - radius);
+  ctx.quadraticCurveTo(ox + pillW, oy + pillH, ox + pillW - radius, oy + pillH);
+  ctx.lineTo(ox + radius, oy + pillH);
+  ctx.quadraticCurveTo(ox, oy + pillH, ox, oy + pillH - radius);
+  ctx.lineTo(ox, oy + radius);
+  ctx.quadraticCurveTo(ox, oy, ox + radius, oy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Accent border (`${accent}66`).
+  ctx.strokeStyle = rgba(0.45);
+  ctx.lineWidth = 1 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(ox + radius, oy);
+  ctx.lineTo(ox + pillW - radius, oy);
+  ctx.quadraticCurveTo(ox + pillW, oy, ox + pillW, oy + radius);
+  ctx.lineTo(ox + pillW, oy + pillH - radius);
+  ctx.quadraticCurveTo(ox + pillW, oy + pillH, ox + pillW - radius, oy + pillH);
+  ctx.lineTo(ox + radius, oy + pillH);
+  ctx.quadraticCurveTo(ox, oy + pillH, ox, oy + pillH - radius);
+  ctx.lineTo(ox, oy + radius);
+  ctx.quadraticCurveTo(ox, oy, ox + radius, oy);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Accent-tinted icon circle (`${accent}33`).
+  const cx = ox + padL + circleD / 2;
+  const cy = oy + pillH / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, circleD / 2, 0, Math.PI * 2);
+  ctx.fillStyle = rgba(0.28);
+  ctx.fill();
+
+  // Icon glyph — text color matches accent so emoji stays vivid.
+  ctx.font = `${12 * dpr}px -apple-system, BlinkMacSystemFont, "Apple Color Emoji", sans-serif`;
+  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(icon, padding, h / 2);
-  
-  // Name text — crisp white with subtle shadow
-  ctx.font = `600 ${13 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
-  ctx.shadowColor = "rgba(0,0,0,0.4)";
-  ctx.shadowBlur = 2 * dpr;
-  ctx.shadowOffsetY = 1;
-  ctx.fillStyle = "white";
+  ctx.fillStyle = rgba(1);
+  ctx.fillText(icon, cx, cy + 0.5 * dpr);
+
+  // Label — accent color, like the overlay pill.
+  ctx.font = fontSpec;
+  ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText(name, padding + iconWidth + gap, h / 2);
-  ctx.shadowBlur = 0;
-  
+  ctx.fillStyle = rgba(1);
+  ctx.fillText(name, ox + padL + circleD + gap, cy);
+
+  // Leader line down to the anchor — matches the React overlay.
+  const lineX = canvas.width / 2;
+  const lineY0 = oy + pillH;
+  const lineY1 = lineY0 + leaderH;
+  const grad = ctx.createLinearGradient(lineX, lineY0, lineX, lineY1);
+  grad.addColorStop(0, rgba(0.7));
+  grad.addColorStop(1, rgba(0));
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(lineX, lineY0);
+  ctx.lineTo(lineX, lineY1);
+  ctx.stroke();
+
   const dataUrl = canvas.toDataURL("image/png");
   pinCanvasCache.set(key, dataUrl);
   return dataUrl;
