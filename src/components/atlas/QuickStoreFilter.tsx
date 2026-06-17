@@ -6,7 +6,10 @@ export type StoreFilterOption = {
   key: string;
   label: string;
   icon: ReactNode;
+  color?: string; // tailwind base color name fragment, e.g. "emerald"
+  hex?: string;   // border/glow hex
 };
+
 
 interface Props {
   options: StoreFilterOption[];
