@@ -62,7 +62,7 @@ const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string })
     loading="lazy"
     draggable={false}
     className="w-3.5 h-3.5 object-contain select-none"
-    style={{ filter: `invert(1) drop-shadow(0 0 4px ${hex}66)` }}
+    style={{ filter: `drop-shadow(0 0 4px ${hex}aa) drop-shadow(0 0 1px ${hex})` }}
   />
 );
 import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
