@@ -51,6 +51,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
+    "dxf-parser": "^1.1.2",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
     "hls.js": "^1.6.16",
@@ -68,6 +69,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.170.0",
+    "three-stdlib": "^2.32.0",
     "vaul": "^0.9.9",
     "vite-plugin-cesium": "^1.2.23",
     "zod": "^3.25.76"
