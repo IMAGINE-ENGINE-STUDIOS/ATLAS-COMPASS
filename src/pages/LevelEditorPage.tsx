@@ -1413,6 +1413,19 @@ function ObjectInspector({
           }
         />
       )}
+      {(obj.kind === "polygon" || obj.kind === "primitive" || obj.kind === "model") && (
+        <FacePaintPanel
+          obj={obj}
+          projectId={projectId}
+          active={facePaintActive}
+          selectedFaces={paintedFaces}
+          onToggleActive={onToggleFacePaint}
+          onClearSelection={onClearFacePaint}
+          onPatchFaceOverrides={(faceOverrides) => onPatch({ faceOverrides } as any)}
+          onPatchModelOverrides={(materialOverrides) => onPatch({ materialOverrides } as any)}
+          disabled={disabled}
+        />
+      )}
       {onDelete && (
         <Button
           size="sm"
