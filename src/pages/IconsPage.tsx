@@ -225,7 +225,7 @@ export default function IconsPage() {
           </p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 border-b border-white/[0.06]">
-            {filtered.map(({ name, tag, Icon }, idx) => {
+            {filtered.map(({ name, tag, src }, idx) => {
               const isActive = name === selected;
               const num = String(ICONS.findIndex((i) => i.name === name) + 1).padStart(3, "0");
               return (
@@ -244,10 +244,12 @@ export default function IconsPage() {
                   </span>
 
                   <span
-                    className="block transition-transform duration-300 group-hover:scale-110"
+                    className={`block transition-transform duration-300 group-hover:scale-110 ${
+                      isActive ? "invert" : ""
+                    }`}
                     style={{ width: SIZE_PX[size], height: SIZE_PX[size] }}
                   >
-                    <Icon />
+                    <Glyph src={src} alt={name} />
                   </span>
 
                   <span
@@ -268,9 +270,9 @@ export default function IconsPage() {
       <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.08] bg-black/90 backdrop-blur-2xl">
         <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center gap-6">
           {/* preview */}
-          <div className="ico-stage shrink-0 w-20 h-20 border border-white/[0.08] flex items-center justify-center">
-            <span className="block w-10 h-10 text-white">
-              <current.Icon />
+          <div className="shrink-0 w-20 h-20 border border-white/[0.08] flex items-center justify-center">
+            <span className="block w-12 h-12">
+              <Glyph src={current.src} alt={current.name} />
             </span>
           </div>
 
