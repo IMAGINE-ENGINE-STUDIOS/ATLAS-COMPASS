@@ -75,7 +75,7 @@ export function FacePaintPanel({
         const prev = cur[meshKey] || {};
         cur[meshKey] = {
           ...prev,
-          ...(patch.color ? { color: [patch.color[0], patch.color[1], patch.color[2]] } : {}),
+          ...(patch.color ? { color: [patch.color[0], patch.color[1], patch.color[2], patch.color[3] ?? 1] as RGBA } : {}),
           ...(patch.opacity != null ? { opacity: patch.opacity } : {}),
           ...(patch.textureUrl !== undefined ? { map: patch.textureUrl } : {}),
           ...(patch.repeat ? { repeat: patch.repeat } : {}),
