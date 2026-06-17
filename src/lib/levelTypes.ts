@@ -206,6 +206,17 @@ export interface SceneTerrain {
     /** World-unit displacement scale at full white (1.0). */
     scale: number;
   };
+  /** PBR material parameters applied to the terrain surface. */
+  material?: {
+    /** 0 = dielectric (plastic/wood/stone), 1 = pure metal. */
+    metalness: number;
+    /** 0 = mirror smooth, 1 = fully diffuse. */
+    roughness: number;
+    /** Multiplier on environment reflections (0–4). */
+    reflectivity: number;
+    /** Optional preset name for quick presets like plastic / metal / wood. */
+    preset?: "plastic" | "metal" | "wood" | "stone" | "glass" | "rubber" | "custom";
+  };
 }
 
 export function defaultTerrain(): SceneTerrain {

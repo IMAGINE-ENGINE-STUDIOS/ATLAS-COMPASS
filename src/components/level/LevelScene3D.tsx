@@ -542,6 +542,10 @@ function TerrainMaterial({
     displacement ? terrain.depthMap?.url : undefined,
     repeat,
   );
+  const mat = terrain.material;
+  const metalness = mat?.metalness ?? 0.05;
+  const roughness = mat?.roughness ?? 0.95;
+  const envMapIntensity = mat?.reflectivity ?? 1;
   return (
     <meshStandardMaterial
       color={map ? "#ffffff" : baseColor}
@@ -551,8 +555,9 @@ function TerrainMaterial({
       wireframe={terrain.wireframe}
       transparent={terrain.color[3] < 1}
       opacity={terrain.color[3]}
-      metalness={0.05}
-      roughness={0.95}
+      metalness={metalness}
+      roughness={roughness}
+      envMapIntensity={envMapIntensity}
       side={THREE.DoubleSide}
     />
   );
