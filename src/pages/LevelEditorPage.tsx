@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
   Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
-  SunMedium, FlashlightIcon as Spotlight,
+  SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
@@ -117,6 +117,38 @@ export default function LevelEditorPage() {
 
   const isOwner = userId && ownerId && userId === ownerId;
 
+  // ---------- undo/redo history ----------
+  const historyRef = useRef<{ past: LevelScene[]; future: LevelScene[] }>({ past: [], future: [] });
+  const [historyTick, setHistoryTick] = useState(0);
+  const HISTORY_LIMIT = 100;
+  const pushHistory = useCallback((prev: LevelScene) => {
+    const h = historyRef.current;
+    h.past.push(prev);
+    if (h.past.length > HISTORY_LIMIT) h.past.shift();
+    h.future = [];
+    setHistoryTick((t) => t + 1);
+  }, []);
+  const undo = useCallback(() => {
+    const h = historyRef.current;
+    if (!h.past.length) return;
+    setScene((cur) => {
+      const prev = h.past.pop()!;
+      h.future.push(cur);
+      setHistoryTick((t) => t + 1);
+      return prev;
+    });
+  }, []);
+  const redo = useCallback(() => {
+    const h = historyRef.current;
+    if (!h.future.length) return;
+    setScene((cur) => {
+      const next = h.future.pop()!;
+      h.past.push(cur);
+      setHistoryTick((t) => t + 1);
+      return next;
+    });
+  }, []);
+
   // load
   useEffect(() => {
     if (!id) return;
@@ -161,15 +193,26 @@ export default function LevelEditorPage() {
         e.preventDefault();
         save();
       }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+        e.preventDefault();
+        redo();
+      }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [save]);
+  }, [save, undo, redo]);
 
   /* ---------- scene mutators ---------- */
 
   const updateScene = (mut: (s: LevelScene) => LevelScene) =>
-    setScene((prev) => mut(structuredClone(prev)));
+    setScene((prev) => {
+      pushHistory(prev);
+      return mut(structuredClone(prev));
+    });
 
   const addObject = (o: SceneObject) =>
     updateScene((s) => {
@@ -303,6 +346,24 @@ export default function LevelEditorPage() {
           className="h-8 w-64 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold"
         />
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={undo}
+            disabled={historyRef.current.past.length === 0}
+            title="Undo (Ctrl/Cmd+Z)"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={redo}
+            disabled={historyRef.current.future.length === 0}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </Button>
           <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
             <button
               onClick={() => setSnapEnabled((v) => !v)}
@@ -493,6 +554,10 @@ export default function LevelEditorPage() {
                   onPatch={(p) => patchLight(selectedLight.id, p)}
                   disabled={!isOwner}
                   snap={snap}
+                  onDelete={() => {
+                    removeLight(selectedLight.id);
+                    setSelectedLightId(null);
+                  }}
                 />
               ) : !selectedObj ? (
                 <p className="text-xs text-muted-foreground italic">Select an object or light to edit</p>
@@ -506,6 +571,11 @@ export default function LevelEditorPage() {
                   onToggleEdit={() =>
                     setEditingPolygonId((cur) => (cur === selectedObj.id ? null : selectedObj.id))
                   }
+                  onDelete={() => {
+                    removeObject(selectedObj.id);
+                    if (selectedId === selectedObj.id) setSelectedId(null);
+                    if (editingPolygonId === selectedObj.id) setEditingPolygonId(null);
+                  }}
                 />
               )}
             </TabsContent>
@@ -641,7 +711,7 @@ function Vec3Field({
 }
 
 function ObjectInspector({
-  obj, onPatch, disabled, snap = 0, editing, onToggleEdit,
+  obj, onPatch, disabled, snap = 0, editing, onToggleEdit, onDelete,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -649,6 +719,7 @@ function ObjectInspector({
   snap?: number;
   editing?: boolean;
   onToggleEdit?: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -727,6 +798,17 @@ function ObjectInspector({
           <PolygonPointsEditor obj={obj} onChange={(points) => onPatch({ points } as any)} disabled={disabled} />
         </>
       )}
+      {onDelete && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="w-full h-8 text-[11px] mt-2"
+          disabled={disabled}
+          onClick={onDelete}
+        >
+          <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminate object
+        </Button>
+      )}
     </div>
   );
 }
@@ -790,8 +872,8 @@ function PolygonPointsEditor({
 /* ---------- animation panel ---------- */
 
 function LightInspector({
-  light, onPatch, disabled, snap = 0,
-}: { light: SceneLight; onPatch: (p: Partial<SceneLight>) => void; disabled?: boolean; snap?: number }) {
+  light, onPatch, disabled, snap = 0, onDelete,
+}: { light: SceneLight; onPatch: (p: Partial<SceneLight>) => void; disabled?: boolean; snap?: number; onDelete?: () => void }) {
   return (
     <div className="space-y-3">
       <div>
@@ -833,6 +915,17 @@ function LightInspector({
           <Label className="text-xs">Cast shadow</Label>
           <Switch checked={!!light.castShadow} onCheckedChange={(v) => onPatch({ castShadow: v })} disabled={disabled} />
         </div>
+      )}
+      {onDelete && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="w-full h-8 text-[11px] mt-2"
+          disabled={disabled}
+          onClick={onDelete}
+        >
+          <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminate light
+        </Button>
       )}
     </div>
   );
