@@ -6,12 +6,14 @@ import {
   Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
   Move3d, Rotate3d, Scaling,
+  Layers as LayersIcon, FolderPlus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
 import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
+  SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { Button } from "@/components/ui/button";
@@ -116,6 +118,7 @@ export default function LevelEditorPage() {
   const [snapSize, setSnapSize] = useState(0.5);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
+  const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
 
   const snap = snapEnabled ? snapSize : 0;
 
@@ -283,7 +286,11 @@ export default function LevelEditorPage() {
 
   const addObject = (o: SceneObject) =>
     updateScene((s) => {
-      s.objects.push(o);
+      if (!s.layers || s.layers.length === 0) s.layers = defaultLayers();
+      const targetLayer = s.layers.find((l) => l.id === currentLayerId)
+        ? currentLayerId
+        : s.layers[0].id;
+      s.objects.push({ ...o, layerId: o.layerId ?? targetLayer } as SceneObject);
       return s;
     });
 
@@ -347,6 +354,55 @@ export default function LevelEditorPage() {
       return s;
     });
 
+  /* ---------- layers ---------- */
+
+  const ensureLayers = (s: LevelScene) => {
+    if (!s.layers || s.layers.length === 0) s.layers = defaultLayers();
+    return s;
+  };
+  const addLayer = () =>
+    updateScene((s) => {
+      ensureLayers(s);
+      const n = (s.layers!.length) + 1;
+      const layer: SceneLayer = {
+        id: newId("lay"),
+        name: `Layer ${n}`,
+        color: ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#a855f7", "#14b8a6"][n % 6],
+        visible: true,
+      };
+      s.layers!.push(layer);
+      setCurrentLayerId(layer.id);
+      return s;
+    });
+  const removeLayer = (lid: string) =>
+    updateScene((s) => {
+      ensureLayers(s);
+      if (lid === DEFAULT_LAYER_ID) return s; // protect default
+      s.layers = s.layers!.filter((l) => l.id !== lid);
+      // reassign orphaned objects to the default layer
+      s.objects = s.objects.map((o) =>
+        o.layerId === lid ? ({ ...o, layerId: DEFAULT_LAYER_ID } as SceneObject) : o,
+      );
+      if (currentLayerId === lid) setCurrentLayerId(DEFAULT_LAYER_ID);
+      return s;
+    });
+  const patchLayer = (lid: string, patch: Partial<SceneLayer>) =>
+    updateScene((s) => {
+      ensureLayers(s);
+      const idx = s.layers!.findIndex((l) => l.id === lid);
+      if (idx >= 0) s.layers![idx] = { ...s.layers![idx], ...patch };
+      return s;
+    });
+  const assignObjectsToLayer = (oids: string[], lid: string) =>
+    updateScene((s) => {
+      ensureLayers(s);
+      const set = new Set(oids);
+      s.objects = s.objects.map((o) =>
+        set.has(o.id) ? ({ ...o, layerId: lid } as SceneObject) : o,
+      );
+      return s;
+    });
+
   /* ---------- glTF upload ---------- */
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -401,6 +457,20 @@ export default function LevelEditorPage() {
 
   const selectedObj = scene.objects.find((o) => o.id === selectedId);
   const selectedLight = scene.lights.find((l) => l.id === selectedLightId);
+
+  // Apply layer visibility to the rendered scene (objects in hidden layers
+  // become invisible). Memoised to avoid re-renders.
+  const renderedScene = useMemo(() => {
+    const layers = scene.layers && scene.layers.length ? scene.layers : defaultLayers();
+    const hidden = new Set(layers.filter((l) => !l.visible).map((l) => l.id));
+    if (hidden.size === 0) return scene;
+    return {
+      ...scene,
+      objects: scene.objects.map((o) =>
+        hidden.has(o.layerId ?? DEFAULT_LAYER_ID) ? { ...o, visible: false } : o,
+      ),
+    };
+  }, [scene]);
 
   if (loading) {
     return (
@@ -578,38 +648,119 @@ export default function LevelEditorPage() {
           </div>
 
           <div className="p-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Objects</p>
-            {scene.objects.length === 0 && (
-              <p className="text-xs text-muted-foreground italic">Empty scene</p>
-            )}
-            {scene.objects.map((o) => (
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Layers</p>
               <button
-                key={o.id}
-                onClick={(e) => { selectObject(o.id, e.ctrlKey || e.metaKey); }}
-                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
-                  selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
-                }`}
+                onClick={addLayer}
+                title="Add layer"
+                className="text-muted-foreground hover:text-foreground"
               >
-                {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
-                 o.kind === "polygon" ? <Pencil className="w-3 h-3" /> :
-                 <Layers className="w-3 h-3" />}
-                <span className="flex-1 truncate">{o.name}</span>
-                <Trash2
-                  className="w-3 h-3 opacity-60 hover:opacity-100 hover:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeObject(o.id);
-                    setSelectedIds((prev) => {
-                      const next = new Set(prev);
-                      next.delete(o.id);
-                      return next;
-                    });
-                    if (selectedId === o.id) setSelectedId(null);
-                    if (editingPolygonId === o.id) setEditingPolygonId(null);
-                  }}
-                />
+                <FolderPlus className="w-3.5 h-3.5" />
               </button>
-            ))}
+            </div>
+            {(() => {
+              const layers = scene.layers && scene.layers.length ? scene.layers : defaultLayers();
+              return layers.map((layer) => {
+                const items = scene.objects.filter(
+                  (o) => (o.layerId ?? DEFAULT_LAYER_ID) === layer.id,
+                );
+                const isActive = currentLayerId === layer.id;
+                return (
+                  <div key={layer.id} className="mb-2">
+                    <div
+                      className={`group flex items-center gap-1 px-1.5 py-1 rounded text-[11px] ${
+                        isActive ? "bg-muted/60" : "hover:bg-muted/30"
+                      }`}
+                    >
+                      <button
+                        onClick={() => patchLayer(layer.id, { collapsed: !layer.collapsed })}
+                        className="text-muted-foreground"
+                      >
+                        {layer.collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                      <span
+                        className="w-2 h-2 rounded-sm"
+                        style={{ background: layer.color ?? "#64748b" }}
+                      />
+                      <input
+                        value={layer.name}
+                        onChange={(e) => patchLayer(layer.id, { name: e.target.value })}
+                        onClick={() => setCurrentLayerId(layer.id)}
+                        className="flex-1 bg-transparent text-foreground outline-none border-0 px-1 py-0 h-5 text-[11px] focus:bg-background/60 rounded"
+                      />
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{items.length}</span>
+                      <button
+                        onClick={() => patchLayer(layer.id, { visible: !layer.visible })}
+                        title={layer.visible ? "Hide layer" : "Show layer"}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {layer.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                      </button>
+                      {layer.id !== DEFAULT_LAYER_ID && (
+                        <button
+                          onClick={() => removeLayer(layer.id)}
+                          title="Delete layer (objects move to Default)"
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    {!layer.collapsed && (
+                      <div className="ml-3 mt-0.5 border-l border-border/30 pl-2">
+                        {items.length === 0 && (
+                          <p className="text-[10px] text-muted-foreground/70 italic py-1">empty</p>
+                        )}
+                        {items.map((o) => (
+                          <div
+                            key={o.id}
+                            className={`group w-full px-1.5 py-1 rounded text-xs flex items-center gap-1.5 ${
+                              selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
+                            }`}
+                          >
+                            <button
+                              onClick={(e) => selectObject(o.id, e.ctrlKey || e.metaKey)}
+                              className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
+                            >
+                              {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
+                               o.kind === "polygon" ? <Pencil className="w-3 h-3" /> :
+                               <LayersIcon className="w-3 h-3" />}
+                              <span className="flex-1 truncate">{o.name}</span>
+                            </button>
+                            <select
+                              value={o.layerId ?? DEFAULT_LAYER_ID}
+                              onChange={(e) => assignObjectsToLayer([o.id], e.target.value)}
+                              title="Move to layer"
+                              className="opacity-0 group-hover:opacity-100 bg-background/60 border border-border/40 rounded text-[10px] px-1 py-0.5"
+                            >
+                              {layers.map((l) => (
+                                <option key={l.id} value={l.id}>{l.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeObject(o.id);
+                                setSelectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(o.id);
+                                  return next;
+                                });
+                                if (selectedId === o.id) setSelectedId(null);
+                                if (editingPolygonId === o.id) setEditingPolygonId(null);
+                              }}
+                              className="opacity-60 hover:opacity-100 hover:text-destructive"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
 
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
             {scene.lights.map((l) => (
@@ -646,7 +797,7 @@ export default function LevelEditorPage() {
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
           <LevelScene3D
-            scene={scene}
+            scene={renderedScene}
             selectedId={selectedId}
             onSelect={(oid) => {
               if (oid) selectObject(oid);

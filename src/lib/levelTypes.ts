@@ -10,6 +10,7 @@ export interface BaseObject {
   rotation: Vec3; // euler in radians
   scale: Vec3;
   visible: boolean;
+  layerId?: string; // optional; falls back to default layer
 }
 
 export interface PrimitiveObject extends BaseObject {
@@ -76,15 +77,32 @@ export interface AnimationTrack {
   duration: number;
 }
 
+export interface SceneLayer {
+  id: string;
+  name: string;
+  color?: string; // hex chip color
+  visible: boolean;
+  locked?: boolean;
+  collapsed?: boolean;
+}
+
 export interface LevelScene {
   objects: SceneObject[];
   lights: SceneLight[];
   animations: AnimationTrack[];
+  layers?: SceneLayer[];
   environment: {
     background: string;
     ambient: number;
     fog?: { color: string; near: number; far: number };
   };
+}
+
+export const DEFAULT_LAYER_ID = "layer_default";
+export function defaultLayers(): SceneLayer[] {
+  return [
+    { id: DEFAULT_LAYER_ID, name: "Default", color: "#64748b", visible: true },
+  ];
 }
 
 export const EMPTY_SCENE: LevelScene = {
@@ -101,6 +119,7 @@ export const EMPTY_SCENE: LevelScene = {
     },
   ],
   animations: [],
+  layers: defaultLayers(),
   environment: { background: "#0b0f1a", ambient: 0.4 },
 };
 
