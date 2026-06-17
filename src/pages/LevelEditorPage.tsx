@@ -10,7 +10,7 @@ import {
   Unlock, Mountain,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureLevelSession } from "@/lib/levelSession";
+import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
 import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
@@ -246,11 +246,15 @@ export default function LevelEditorPage() {
       // steal the browser auth lock and keep the editor stuck on Loading….
       const uid = await ensureLevelSession({ allowAnonymous: false });
       setUserId(uid);
-      const { data, error } = await supabase
-        .from("levels")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const { data, error } = await withTimeout(
+        supabase
+          .from("levels")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle(),
+        5000,
+        { data: null, error: new Error("Level request timed out") },
+      );
       if (error || !data) {
         toast.error(error?.message ?? "Level not found");
         navigate("/levels");

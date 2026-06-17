@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureLevelSession } from "@/lib/levelSession";
+import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { EMPTY_SCENE } from "@/lib/levelTypes";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,12 +26,16 @@ export default function LevelsListPage() {
 
   useEffect(() => {
     (async () => {
-      const uid = await ensureLevelSession();
+      const uid = await ensureLevelSession({ allowAnonymous: false });
       setUserId(uid);
-      const { data, error } = await supabase
-        .from("levels")
-        .select("id,name,description,thumbnail_url,is_public,updated_at,owner_id")
-        .order("updated_at", { ascending: false });
+      const { data, error } = await withTimeout(
+        supabase
+          .from("levels")
+          .select("id,name,description,thumbnail_url,is_public,updated_at,owner_id")
+          .order("updated_at", { ascending: false }),
+        5000,
+        { data: null, error: new Error("Levels request timed out") },
+      );
       if (error) toast.error(error.message);
       else setLevels((data ?? []) as LevelRow[]);
       setLoading(false);
