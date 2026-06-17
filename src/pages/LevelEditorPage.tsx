@@ -982,6 +982,8 @@ export default function LevelEditorPage() {
                   onToggleEdit={() =>
                     setEditingPolygonId((cur) => (cur === selectedObj.id ? null : selectedObj.id))
                   }
+                  addingPoint={addingPointMode}
+                  onToggleAddPoint={() => setAddingPointMode((v) => !v)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
