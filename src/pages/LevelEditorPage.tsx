@@ -293,7 +293,9 @@ export default function LevelEditorPage() {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        const oids = Array.from(selectedIds);
+        const oids = Array.from(selectedIds).filter(
+          (oid) => !isObjectLocked(scene.objects.find((o) => o.id === oid)),
+        );
         const lids = Array.from(selectedLightIds);
         if (oids.length) {
           removeObjects(oids);
