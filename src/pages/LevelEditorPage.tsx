@@ -6,6 +6,7 @@ import {
   Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
   Move3d, Rotate3d, Scaling,
+  Layers as LayersIcon, FolderPlus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
