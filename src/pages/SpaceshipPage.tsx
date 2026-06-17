@@ -109,9 +109,12 @@ interface PlacedModel {
 interface CropBase {
   shape: "circle" | "square";
   wireframe: boolean;
-  voxelMode: "click" | "brush";
+  /** Active terrain brush operation. */
+  tool: "raise" | "lower" | "smooth" | "flatten";
   brushRadius: number;   // m
   brushStrength: number; // m per step
+  /** Target height (m) used by the flatten tool. */
+  flattenHeight: number;
   gridSize: number;      // cells per side (gridSize × gridSize)
   cellSize: number;      // meters per cell (1m default)
   heights: number[];     // length = gridSize * gridSize, meters
@@ -123,9 +126,10 @@ const DEFAULT_CROP_BASE = (radiusMeters: number): CropBase => {
   return {
     shape: "circle",
     wireframe: false,
-    voxelMode: "click",
+    tool: "raise",
     brushRadius: 4,
     brushStrength: 0.5,
+    flattenHeight: 0,
     gridSize,
     cellSize,
     heights: new Array(gridSize * gridSize).fill(0),
