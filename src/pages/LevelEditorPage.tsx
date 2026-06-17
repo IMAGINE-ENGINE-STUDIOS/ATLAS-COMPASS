@@ -2700,6 +2700,107 @@ function TerrainAppearanceTabs({
   );
 }
 
+/* ---------- terrain PBR material panel ---------- */
+
+function TerrainMaterialPanel({
+  terrain,
+  disabled,
+  onPatch,
+}: {
+  terrain: SceneTerrain;
+  disabled?: boolean;
+  onPatch: (p: Partial<SceneTerrain>) => void;
+}) {
+  const m = terrain.material ?? {
+    metalness: 0.05,
+    roughness: 0.95,
+    reflectivity: 1,
+    preset: "custom" as const,
+  };
+  const patchMat = (p: Partial<NonNullable<SceneTerrain["material"]>>) =>
+    onPatch({ material: { ...m, ...p, preset: "custom" } });
+  return (
+    <div className="space-y-2 rounded-md border border-border/40 bg-background/40 p-2">
+      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        Material preset
+      </Label>
+      <div className="grid grid-cols-3 gap-1">
+        {(Object.keys(MATERIAL_PRESETS) as Array<keyof typeof MATERIAL_PRESETS>)
+          .filter((k) => k !== "custom")
+          .map((key) => {
+            const p = MATERIAL_PRESETS[key];
+            return (
+              <Button
+                key={key}
+                size="sm"
+                variant={m.preset === key ? "secondary" : "ghost"}
+                className="h-7 text-[10px]"
+                onClick={() =>
+                  onPatch({
+                    material: {
+                      metalness: p.metalness,
+                      roughness: p.roughness,
+                      reflectivity: p.reflectivity,
+                      preset: key,
+                    },
+                  })
+                }
+                disabled={disabled}
+              >
+                {p.label}
+              </Button>
+            );
+          })}
+      </div>
+
+      {([
+        { key: "metalness", label: "Metalness", min: 0, max: 1, step: 0.01 },
+        { key: "roughness", label: "Roughness", min: 0, max: 1, step: 0.01 },
+        { key: "reflectivity", label: "Reflection", min: 0, max: 4, step: 0.05 },
+      ] as const).map((row) => {
+        const val = (m as any)[row.key] as number;
+        return (
+          <div key={row.key}>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                {row.label}
+              </Label>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {val.toFixed(2)}
+              </span>
+            </div>
+            <Slider
+              value={[val]}
+              min={row.min}
+              max={row.max}
+              step={row.step}
+              onValueChange={(v) => patchMat({ [row.key]: v[0] } as any)}
+              disabled={disabled}
+            />
+          </div>
+        );
+      })}
+
+      <div>
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Shininess
+        </Label>
+        <Slider
+          value={[1 - m.roughness]}
+          min={0}
+          max={1}
+          step={0.01}
+          onValueChange={(v) => patchMat({ roughness: 1 - v[0] })}
+          disabled={disabled}
+        />
+        <p className="text-[10px] text-muted-foreground italic mt-1">
+          Reflection picks up the scene's HDRI / environment lighting.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================
  * HDRIPanel
  * Lets the user import .hdr/.exr files (HDRI packs) as image-based
