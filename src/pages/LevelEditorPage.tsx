@@ -898,6 +898,12 @@ export default function LevelEditorPage() {
             scene={renderedScene}
             selectedId={selectedId}
             onSelect={(oid) => {
+              if (editingPolygonId) {
+                // While spline editing is active, keep the editing polygon
+                // selected and ignore clicks on other objects / empty space.
+                if (oid === editingPolygonId) return;
+                return;
+              }
               if (oid) selectObject(oid);
               else {
                 setSelectedIds(new Set());
@@ -910,7 +916,10 @@ export default function LevelEditorPage() {
             playing={playing}
             snap={snap}
             selectedLightId={selectedLightId}
-            onSelectLight={(lid) => selectLight(lid)}
+            onSelectLight={(lid) => {
+              if (editingPolygonId) return;
+              selectLight(lid);
+            }}
             editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
             addingPolygonPoint={addingPointMode && !!editingPolygonId}
