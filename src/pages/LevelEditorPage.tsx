@@ -622,7 +622,22 @@ export default function LevelEditorPage() {
           >
             <MapPin className="w-3.5 h-3.5 mr-1" /> Place on Atlas
           </Button>
-          <Button size="sm" onClick={save} disabled={!isOwner || saving}>
+          <span
+            className={`text-[11px] ${
+              autosaveStatus === "saving" || autosaveStatus === "dirty"
+                ? "text-amber-400"
+                : autosaveStatus === "error"
+                ? "text-destructive"
+                : "text-muted-foreground"
+            }`}
+            title="All changes are saved automatically"
+          >
+            {autosaveStatus === "saving" ? "Saving…" :
+             autosaveStatus === "dirty" ? "Unsaved" :
+             autosaveStatus === "error" ? "Save failed" :
+             autosaveStatus === "saved" ? "Saved" : ""}
+          </span>
+          <Button size="sm" onClick={() => save()} disabled={!isOwner || saving}>
             {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
             Save
           </Button>
