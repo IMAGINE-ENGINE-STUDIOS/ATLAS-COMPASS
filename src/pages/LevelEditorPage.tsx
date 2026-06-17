@@ -1221,6 +1221,16 @@ export default function LevelEditorPage() {
                     return s;
                   })
                 }
+                sculpt={{
+                  active: sculptActive,
+                  tool: sculptTool,
+                  radius: sculptRadius,
+                  strength: sculptStrength,
+                  setActive: setSculptActive,
+                  setTool: setSculptTool,
+                  setRadius: setSculptRadius,
+                  setStrength: setSculptStrength,
+                }}
               />
             </TabsContent>
 
