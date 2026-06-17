@@ -321,7 +321,12 @@ function getFavicon(website: string | undefined, onReady?: (img: HTMLImageElemen
     (faviconWaiters.get(host) || []).forEach(fn => fn(null));
     faviconWaiters.delete(host);
   };
-  img.src = `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
+  // DuckDuckGo's icon service returns `Access-Control-Allow-Origin: *`, so the
+  // image loads cleanly under crossOrigin="anonymous" and the canvas/WebGL
+  // texture stays untainted. Google's s2/favicons doesn't reliably send CORS
+  // headers, which would cause the load to fail and the pin to fall back to
+  // the category icon.
+  img.src = `https://icons.duckduckgo.com/ip3/${host}.ico`;
   return null;
 }
 
