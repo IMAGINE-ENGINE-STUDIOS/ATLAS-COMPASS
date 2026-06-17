@@ -1004,6 +1004,7 @@ export default function LevelEditorPage() {
           <LevelScene3D
             scene={renderedScene}
             selectedId={selectedId}
+            facePaint={facePaintState}
             onSelect={(oid) => {
               if (editingPolygonId) {
                 // While spline editing is active, keep the editing polygon
