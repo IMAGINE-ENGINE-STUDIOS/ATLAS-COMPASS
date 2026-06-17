@@ -1740,11 +1740,15 @@ function PolygonEditOverlay({
       </line>
       {/* hover ghost handle in add-point mode */}
       {addingPoint && hoverInsert && (() => {
-        const wp = new THREE.Vector3(
-          hoverInsert.local[0],
-          (poly.extrude || 0) + 0.02,
-          -hoverInsert.local[1],
-        ).applyMatrix4(objMatrix);
+        // Prefer the real world hit (works for top/bottom/side faces),
+        // and fall back to the top-plane projection for empty-space hovers.
+        const wp = hoverInsert.world
+          ? new THREE.Vector3(...hoverInsert.world)
+          : new THREE.Vector3(
+              hoverInsert.local[0],
+              (poly.extrude || 0) + 0.02,
+              -hoverInsert.local[1],
+            ).applyMatrix4(objMatrix);
         return (
           <mesh position={wp.toArray() as any} renderOrder={1000}>
             <sphereGeometry args={[0.07, 16, 16]} />
