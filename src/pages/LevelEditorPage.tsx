@@ -1394,6 +1394,11 @@ export default function LevelEditorPage() {
               <Label className="text-xs">Scale</Label>
               <Input value={placeScale} onChange={(e) => setPlaceScale(e.target.value)} />
             </div>
+            <LocationMapPreview
+              lat={parseFloat(placeLat)}
+              lng={parseFloat(placeLng)}
+              className="h-48 w-full rounded-lg overflow-hidden border border-white/10"
+            />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPlaceDialogOpen(false)}>Cancel</Button>
@@ -1403,6 +1408,17 @@ export default function LevelEditorPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Atlas location viewport */}
+      {currentPlacement && showLocationViewport && (
+        <LocationViewport
+          lat={currentPlacement.lat}
+          lng={currentPlacement.lng}
+          onClose={() => setShowLocationViewport(false)}
+          onOpenAtlas={() => navigate(`/atlas?lat=${currentPlacement.lat}&lng=${currentPlacement.lng}`)}
+          onPickManually={() => setPlaceDialogOpen(true)}
+        />
+      )}
     </div>
   );
 }
