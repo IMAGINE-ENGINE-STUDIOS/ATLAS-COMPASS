@@ -119,6 +119,7 @@ export default function LevelEditorPage() {
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [snapSize, setSnapSize] = useState(0.5);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
+  const [addingPointMode, setAddingPointMode] = useState<boolean>(false);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
 
@@ -912,6 +913,8 @@ export default function LevelEditorPage() {
             onSelectLight={(lid) => selectLight(lid)}
             editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
+            addingPolygonPoint={addingPointMode && !!editingPolygonId}
+            onAddingPointHandled={() => setAddingPointMode(false)}
             transformMode={selectedObjectLocked ? null : transformMode}
             onObjectTransform={(oid, t) => {
               const o = scene.objects.find((x) => x.id === oid);
@@ -979,6 +982,8 @@ export default function LevelEditorPage() {
                   onToggleEdit={() =>
                     setEditingPolygonId((cur) => (cur === selectedObj.id ? null : selectedObj.id))
                   }
+                  addingPoint={addingPointMode}
+                  onToggleAddPoint={() => setAddingPointMode((v) => !v)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
@@ -1144,7 +1149,7 @@ function Vec3Field({
 }
 
 function ObjectInspector({
-  obj, onPatch, disabled, snap = 0, editing, onToggleEdit, onDelete,
+  obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -1152,6 +1157,8 @@ function ObjectInspector({
   snap?: number;
   editing?: boolean;
   onToggleEdit?: () => void;
+  addingPoint?: boolean;
+  onToggleAddPoint?: () => void;
   onDelete?: () => void;
 }) {
   return (
@@ -1228,7 +1235,13 @@ function ObjectInspector({
                 onChange={(e) => onPatch({ topColor: hexToRgba(e.target.value) } as any)} className="h-8 w-full p-1" />
             </div>
           </div>
-          <PolygonPointsEditor obj={obj} onChange={(points) => onPatch({ points } as any)} disabled={disabled} />
+          <PolygonPointsEditor
+            obj={obj}
+            onChange={(points) => onPatch({ points } as any)}
+            disabled={disabled}
+            addingPoint={addingPoint}
+            onToggleAddPoint={onToggleAddPoint}
+          />
         </>
       )}
       {onDelete && (
@@ -1247,20 +1260,27 @@ function ObjectInspector({
 }
 
 function PolygonPointsEditor({
-  obj, onChange, disabled,
-}: { obj: PolygonObject; onChange: (pts: Array<[number, number]>) => void; disabled?: boolean }) {
+  obj, onChange, disabled, addingPoint, onToggleAddPoint,
+}: {
+  obj: PolygonObject;
+  onChange: (pts: Array<[number, number]>) => void;
+  disabled?: boolean;
+  addingPoint?: boolean;
+  onToggleAddPoint?: () => void;
+}) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <Label className="text-xs">Spline points</Label>
         <Button
           size="sm"
-          variant="ghost"
+          variant={addingPoint ? "default" : "ghost"}
           className="h-6 px-2 text-[10px]"
           disabled={disabled}
-          onClick={() => onChange([...obj.points, [0, 0]])}
+          onClick={onToggleAddPoint}
+          title="Click an edge of the polygon to insert a new point"
         >
-          <Plus className="w-3 h-3" /> Add
+          <Plus className="w-3 h-3" /> {addingPoint ? "Click edge…" : "Add"}
         </Button>
       </div>
       <div className="space-y-1 max-h-40 overflow-y-auto">

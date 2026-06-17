@@ -450,6 +450,8 @@ export interface LevelSceneProps {
   snap?: number;
   selectedLightId?: string | null;
   onSelectLight?: (id: string) => void;
+  addingPolygonPoint?: boolean;
+  onAddingPointHandled?: () => void;
 }
 
 /**
@@ -473,6 +475,8 @@ export function LevelSceneContents({
   snap,
   selectedLightId,
   onSelectLight,
+  addingPolygonPoint,
+  onAddingPointHandled,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -558,6 +562,8 @@ export function LevelSceneContents({
             poly={poly}
             controlsRef={controlsRef}
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
+            addingPoint={!!addingPolygonPoint}
+            onAddingPointHandled={onAddingPointHandled}
           />
         );
       })()}
@@ -698,12 +704,21 @@ function PolygonEditOverlay({
   poly,
   controlsRef,
   onChange,
+  addingPoint,
+  onAddingPointHandled,
 }: {
   poly: PolygonObject;
   controlsRef?: React.MutableRefObject<any>;
   onChange: (pts: Array<[number, number]>) => void;
+  addingPoint?: boolean;
+  onAddingPointHandled?: () => void;
 }) {
   const { camera, gl } = useThree();
+  // Hover preview for add-point-on-edge mode: insertion index + local 2D coord.
+  const [hoverInsert, setHoverInsert] = useState<{
+    index: number; // insert AFTER this segment start index
+    local: [number, number]; // shape-space (lx, lz_shape) — same units as poly.points
+  } | null>(null);
   const dragRef = useRef<{
     index: number;
     plane: THREE.Plane;
@@ -792,6 +807,73 @@ function PolygonEditOverlay({
     };
   }, [controlsRef]);
 
+  // Add-point-on-edge mode: track cursor over the top-face plane and snap a
+  // ghost insertion handle to the nearest edge. Click commits the new point.
+  useEffect(() => {
+    if (!addingPoint) {
+      setHoverInsert(null);
+      return;
+    }
+    const canvas = gl.domElement;
+    const planeY = (poly.extrude || 0) + 0.01;
+    const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
+    const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const hit = new THREE.Vector3();
+
+    const computeNearest = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+      const local = hit.clone().applyMatrix4(invObjMatrix);
+      // shape coords: lx = local.x, ly = -local.z
+      const px = local.x, py = -local.z;
+      const segCount = poly.closed ? poly.points.length : poly.points.length - 1;
+      let best = { dist: Infinity, index: 0, point: [px, py] as [number, number] };
+      for (let i = 0; i < segCount; i++) {
+        const a = poly.points[i];
+        const b = poly.points[(i + 1) % poly.points.length];
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        const len2 = dx * dx + dy * dy || 1e-6;
+        const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2));
+        const sx = a[0] + dx * t, sy = a[1] + dy * t;
+        const d = Math.hypot(px - sx, py - sy);
+        if (d < best.dist) best = { dist: d, index: i, point: [sx, sy] };
+      }
+      return best;
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      const r = computeNearest(ev.clientX, ev.clientY);
+      if (r) setHoverInsert({ index: r.index, local: r.point });
+    };
+    const onClick = (ev: MouseEvent) => {
+      const r = computeNearest(ev.clientX, ev.clientY);
+      if (!r) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+      const next = [...poly.points];
+      next.splice(r.index + 1, 0, r.point);
+      onChange(next as Array<[number, number]>);
+      onAddingPointHandled?.();
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") onAddingPointHandled?.();
+    };
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("click", onClick, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("click", onClick, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [addingPoint, gl, camera, poly.points, poly.closed, poly.extrude, objMatrix, invObjMatrix, onChange, onAddingPointHandled]);
+
   return (
     <group>
       {/* outline + handles (top ring) */}
@@ -808,9 +890,16 @@ function PolygonEditOverlay({
             <mesh
               position={wp.toArray() as any}
               onPointerDown={(e) => beginDrag(i, "top", e)}
+              onContextMenu={(e: any) => {
+                e.stopPropagation();
+                e.nativeEvent?.preventDefault?.();
+                if (poly.points.length > 3) {
+                  onChange(poly.points.filter((_, j) => j !== i));
+                }
+              }}
               renderOrder={999}
             >
-              <sphereGeometry args={[0.16, 20, 20]} />
+              <sphereGeometry args={[0.055, 16, 16]} />
               <meshBasicMaterial color="#facc15" depthTest={false} depthWrite={false} toneMapped={false} />
             </mesh>
             {/* point index label */}
@@ -845,9 +934,16 @@ function PolygonEditOverlay({
             key={`bot-${i}`}
             position={wp.toArray() as any}
             onPointerDown={(e) => beginDrag(i, "bottom", e)}
+            onContextMenu={(e: any) => {
+              e.stopPropagation();
+              e.nativeEvent?.preventDefault?.();
+              if (poly.points.length > 3) {
+                onChange(poly.points.filter((_, j) => j !== i));
+              }
+            }}
             renderOrder={999}
           >
-            <sphereGeometry args={[0.13, 16, 16]} />
+            <sphereGeometry args={[0.045, 14, 14]} />
             <meshBasicMaterial color="#f97316" depthTest={false} depthWrite={false} toneMapped={false} />
           </mesh>
         ))}
@@ -884,6 +980,20 @@ function PolygonEditOverlay({
         />
         <lineBasicMaterial attach="material" color="#facc15" depthTest={false} transparent opacity={0.9} />
       </line>
+      {/* hover ghost handle in add-point mode */}
+      {addingPoint && hoverInsert && (() => {
+        const wp = new THREE.Vector3(
+          hoverInsert.local[0],
+          (poly.extrude || 0) + 0.02,
+          -hoverInsert.local[1],
+        ).applyMatrix4(objMatrix);
+        return (
+          <mesh position={wp.toArray() as any} renderOrder={1000}>
+            <sphereGeometry args={[0.07, 16, 16]} />
+            <meshBasicMaterial color="#22c55e" depthTest={false} depthWrite={false} toneMapped={false} transparent opacity={0.9} />
+          </mesh>
+        );
+      })()}
     </group>
   );
 }
