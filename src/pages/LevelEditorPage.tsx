@@ -792,30 +792,6 @@ export default function LevelEditorPage() {
         </div>
       </header>
 
-      {/* Terrain dropdown */}
-      {terrainOpen && (
-        <div className="border-b border-border/40 bg-card/80 backdrop-blur-xl px-4 py-2 z-10">
-          <TerrainPanel
-            terrain={scene.terrain}
-            disabled={!isOwner}
-            onPatch={(p) =>
-              updateScene((s) => {
-                const base = s.terrain ?? defaultTerrain();
-                s.terrain = { ...base, ...p } as SceneTerrain;
-                return s;
-              })
-            }
-            onEnable={(enabled) =>
-              updateScene((s) => {
-                s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
-                return s;
-              })
-            }
-          />
-        </div>
-      )}
-
-      <div className="flex-1 grid grid-cols-[260px_1fr_320px] min-h-0">
         {/* Left: outline */}
         <aside className="border-r border-border/40 bg-card/40 overflow-y-auto">
           <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
@@ -1133,8 +1109,9 @@ export default function LevelEditorPage() {
         {/* Right: inspector */}
         <aside className="border-l border-border/40 bg-card/40 overflow-y-auto">
           <Tabs defaultValue="object" className="w-full">
-            <TabsList className="w-full rounded-none grid grid-cols-3">
+            <TabsList className="w-full rounded-none grid grid-cols-4">
               <TabsTrigger value="object" className="text-[11px]">Object</TabsTrigger>
+              <TabsTrigger value="terrain" className="text-[11px]">Terrain</TabsTrigger>
               <TabsTrigger value="anim" className="text-[11px]">Animate</TabsTrigger>
               <TabsTrigger value="level" className="text-[11px]">Level</TabsTrigger>
             </TabsList>
