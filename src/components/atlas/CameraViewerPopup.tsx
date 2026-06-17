@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, RefreshCw, Radio, Camera, Video, Square, Pause, Play, Film, Maximize2 } from "lucide-react";
+import { X, RefreshCw, Radio, Camera, Video, Square, Pause, Play, Film } from "lucide-react";
 import type { TrafficCamera } from "./IntelligencePanel";
 import { cameraRecordings, formatDuration, type CameraRecording } from "@/lib/camera-recordings";
 import InlineVideoPlayer from "./InlineVideoPlayer";
