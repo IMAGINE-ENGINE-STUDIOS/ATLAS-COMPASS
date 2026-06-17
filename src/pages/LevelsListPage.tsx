@@ -4,6 +4,7 @@ import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { EMPTY_SCENE } from "@/lib/levelTypes";
+import { createLocalLevel, deleteLocalLevel, getLocalLevelOwnerId, isLocalLevelId, listLocalLevels } from "@/lib/localLevels";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -27,7 +28,10 @@ export default function LevelsListPage() {
   useEffect(() => {
     (async () => {
       const uid = await ensureLevelSession({ allowAnonymous: false });
-      setUserId(uid);
+      setUserId(uid ?? getLocalLevelOwnerId());
+      const localLevels = listLocalLevels();
+      setLevels(localLevels);
+      setLoading(false);
       const { data, error } = await withTimeout(
         supabase
           .from("levels")
@@ -36,32 +40,44 @@ export default function LevelsListPage() {
         5000,
         { data: null, error: { message: "Levels request timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
       );
-      if (error) toast.error(error.message);
-      else setLevels((data ?? []) as LevelRow[]);
-      setLoading(false);
+      if (error) console.warn("[levels] backend list failed", error.message);
+      else setLevels([...localLevels, ...((data ?? []) as LevelRow[])]);
     })();
   }, []);
 
   const createLevel = async () => {
-    const uid = userId ?? (await ensureLevelSession());
+    const uid = await ensureLevelSession({ allowAnonymous: false });
     if (!uid) {
-      toast.error("Could not create a session");
+      const local = createLocalLevel(EMPTY_SCENE);
+      navigate(`/level/${local.id}`);
       return;
     }
-    const { data, error } = await supabase
-      .from("levels")
-      .insert({ owner_id: uid, name: "Untitled Level", scene: EMPTY_SCENE as any })
-      .select("id")
-      .single();
+    const { data, error } = await withTimeout(
+      supabase
+        .from("levels")
+        .insert({ owner_id: uid, name: "Untitled Level", scene: EMPTY_SCENE as any })
+        .select("id")
+        .single(),
+      5000,
+      { data: null, error: { message: "Level creation timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
+    );
     if (error || !data) {
-      toast.error(error?.message ?? "Failed to create level");
-      return;
+      toast.error("Backend is unreachable, creating a local draft");
+      const local = createLocalLevel(EMPTY_SCENE);
+      navigate(`/level/${local.id}`);
+    } else {
+      navigate(`/level/${data.id}`);
     }
-    navigate(`/level/${data.id}`);
   };
 
   const deleteLevel = async (id: string) => {
     if (!confirm("Delete this level? This cannot be undone.")) return;
+    if (isLocalLevelId(id)) {
+      deleteLocalLevel(id);
+      setLevels((prev) => prev.filter((l) => l.id !== id));
+      toast.success("Level deleted");
+      return;
+    }
     const { error } = await supabase.from("levels").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setLevels((prev) => prev.filter((l) => l.id !== id));
