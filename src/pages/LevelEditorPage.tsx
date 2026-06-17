@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
-  Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
+  Loader2, Globe2, Lock as LockIcon, ChevronDown, ChevronRight, Pencil, Magnet,
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
