@@ -2565,16 +2565,17 @@ function LocationMapPreview({ lat, lng, className }: { lat: number; lng: number;
 }
 
 function LocationViewport({
-  lat, lng, onClose, onOpenAtlas, onPickManually,
+  lat, lng, onClose, onOpenAtlas, onPickManually, onMove,
 }: {
   lat: number;
   lng: number;
   onClose: () => void;
   onOpenAtlas: () => void;
   onPickManually: () => void;
+  onMove?: (lat: number, lng: number) => void;
 }) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-72 rounded-xl border border-white/10 bg-background/85 backdrop-blur-md shadow-2xl overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-50 w-80 rounded-xl border border-white/10 bg-background/85 backdrop-blur-md shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center gap-1.5 min-w-0">
           <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -2603,7 +2604,7 @@ function LocationViewport({
           </Button>
         </div>
       </div>
-      <LocationMapPreview lat={lat} lng={lng} className="h-44 w-full" />
+      <AtlasMiniMap lat={lat} lng={lng} onChange={onMove} className="h-52 w-full" />
       <button
         onClick={onPickManually}
         className="w-full px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 border-t border-white/10 text-left transition-colors"
