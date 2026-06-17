@@ -23,6 +23,7 @@ import {
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
+import AtlasMiniMap from "@/components/level/AtlasMiniMap";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
