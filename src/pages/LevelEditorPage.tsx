@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
+import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
 import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
@@ -256,7 +257,7 @@ export default function LevelEditorPage() {
       setDescription(data.description ?? "");
       setIsPublic(data.is_public);
       setOwnerId(data.owner_id);
-      setScene({ ...EMPTY_SCENE, ...(data.scene as any) });
+      setScene(rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(data.scene as any) }));
       setLoading(false);
     })();
   }, [id, navigate]);
@@ -269,9 +270,10 @@ export default function LevelEditorPage() {
       if (!id || !isOwner) return;
       setSaving(true);
       setAutosaveStatus("saving");
+      const persistable = stripHdriBlobs(id, scene);
       const { error } = await supabase
         .from("levels")
-        .update({ name, description, is_public: isPublic, scene: scene as any })
+        .update({ name, description, is_public: isPublic, scene: persistable as any })
         .eq("id", id);
       setSaving(false);
       if (error) {
