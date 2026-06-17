@@ -10,7 +10,7 @@ import {
   Unlock, Mountain,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureLevelSession } from "@/lib/levelSession";
+import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
 import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
@@ -242,23 +242,19 @@ export default function LevelEditorPage() {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      // Don't let a stuck auth-refresh block the editor from loading.
-      // If the session call hasn't resolved in 4s, proceed without it
-      // (RLS will simply deny writes on public levels viewed anonymously).
-      const sessionPromise = ensureLevelSession().catch((e) => {
-        console.warn("[level] session init failed", e);
-        return null;
-      });
-      const uid = await Promise.race<string | null>([
-        sessionPromise,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
-      ]);
+      // Read the cached/current user only; creating or refreshing auth here can
+      // steal the browser auth lock and keep the editor stuck on Loading….
+      const uid = await ensureLevelSession({ allowAnonymous: false });
       setUserId(uid);
-      const { data, error } = await supabase
-        .from("levels")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const { data, error } = await withTimeout(
+        supabase
+          .from("levels")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle(),
+        5000,
+        { data: null, error: { message: "Level request timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
+      );
       if (error || !data) {
         toast.error(error?.message ?? "Level not found");
         navigate("/levels");
