@@ -771,11 +771,19 @@ export default function LevelEditorPage() {
                       >
                         {layer.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                       </button>
+                      <button
+                        onClick={() => patchLayer(layer.id, { locked: !layer.locked })}
+                        title={layer.locked ? "Unlock layer" : "Lock layer"}
+                        className={layer.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground"}
+                      >
+                        {layer.locked ? <Unlock className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />}
+                      </button>
                       {layer.id !== DEFAULT_LAYER_ID && (
                         <button
                           onClick={() => removeLayer(layer.id)}
                           title="Delete layer (objects move to Default)"
-                          className="text-muted-foreground hover:text-destructive"
+                          className="text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:hover:text-muted-foreground"
+                          disabled={!!layer.locked}
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
