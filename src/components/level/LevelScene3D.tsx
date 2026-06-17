@@ -319,6 +319,9 @@ export function LevelSceneContents({
           <group
             key={o.id}
             name={`obj-${o.id}`}
+            position={o.position}
+            rotation={o.rotation as any}
+            scale={o.scale}
             onDoubleClick={(e) => {
               e.stopPropagation();
               (e as any).nativeEvent?.preventDefault?.();
