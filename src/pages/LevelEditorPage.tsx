@@ -517,6 +517,19 @@ export default function LevelEditorPage() {
     };
   }, [scene]);
 
+  // Lock helpers — an object is locked if it or its layer is locked.
+  const layerLockMap = useMemo(() => {
+    const m = new Map<string, boolean>();
+    (scene.layers ?? defaultLayers()).forEach((l) => m.set(l.id, !!l.locked));
+    return m;
+  }, [scene.layers]);
+  const isObjectLocked = useCallback(
+    (o: SceneObject | undefined | null) =>
+      !!o && (!!o.locked || !!layerLockMap.get(o.layerId ?? DEFAULT_LAYER_ID)),
+    [layerLockMap],
+  );
+  const selectedObjectLocked = isObjectLocked(scene.objects.find((o) => o.id === selectedId));
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
