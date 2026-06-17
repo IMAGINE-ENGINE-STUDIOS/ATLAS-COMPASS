@@ -148,8 +148,25 @@ export default function IconsPage() {
             Index
           </Link>
           <span className="mono text-[10px] uppercase tracking-[0.32em] text-white/30 hidden md:inline">
-            Atlas / Iconography / v1.0
+            Atlas / Iconography / {SECTIONS[section].label}
           </span>
+          <div className="ml-4 flex items-center gap-1">
+            {(Object.keys(SECTIONS) as SectionKey[]).map((k) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setSection(k);
+                  setSelected(SECTIONS[k].icons[0].name);
+                  setQuery("");
+                }}
+                className={`mono text-[10px] uppercase tracking-[0.2em] h-7 px-3 transition-colors ${
+                  section === k ? "text-black bg-white" : "text-white/55 hover:text-white"
+                }`}
+              >
+                {SECTIONS[k].label}
+              </button>
+            ))}
+          </div>
           <div className="ml-auto mono text-[10px] uppercase tracking-[0.28em] text-white/40">
             {String(filtered.length).padStart(3, "0")} / {String(ICONS.length).padStart(3, "0")}
           </div>
