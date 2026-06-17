@@ -3187,10 +3187,41 @@ function SpaceshipPage() {
     const metersPerDegLat = 111320;
     const metersPerDegLng = 111320 * Math.cos(CesiumMath.toRadians(editingModel.lat));
 
+    // ── Brush cursor: a glowing ring that follows the mouse over the pad ──
+    const brushCursor = viewer.entities.add({
+      id: `terrain-brush-cursor-${editingModel.id}`,
+      position: Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, editingModel.alt || 0),
+      ellipse: {
+        semiMajorAxis: editingModel.cropBase.brushRadius,
+        semiMinorAxis: editingModel.cropBase.brushRadius,
+        material: Color.fromCssColorString("rgba(245,158,11,0.18)") as any,
+        outline: true,
+        outlineColor: Color.fromCssColorString("rgba(245,158,11,0.95)") as any,
+        outlineWidth: 2,
+        height: (editingModel.alt || 0) + 0.05,
+        classificationType: ClassificationType.TERRAIN,
+      } as any,
+      point: {
+        pixelSize: 6,
+        color: Color.fromCssColorString("rgba(245,158,11,1)") as any,
+        outlineColor: Color.WHITE,
+        outlineWidth: 1,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      } as any,
+      show: false,
+    });
+
+    const pickWorld = (screenPos: { x: number; y: number }) => {
+      const sp = new Cartesian2(screenPos.x, screenPos.y);
+      let world = viewer.scene.pickPosition(sp);
+      if (!world) world = viewer.camera.pickEllipsoid(sp, viewer.scene.globe.ellipsoid) || undefined;
+      return world || null;
+    };
+
     const screenToCell = (screenPos: { x: number; y: number }) => {
-      const carto = viewer.camera.pickEllipsoid(new Cartesian2(screenPos.x, screenPos.y), viewer.scene.globe.ellipsoid);
-      if (!carto) return null;
-      const c = Cartographic.fromCartesian(carto);
+      const world = pickWorld(screenPos);
+      if (!world) return null;
+      const c = Cartographic.fromCartesian(world);
       const lat = CesiumMath.toDegrees(c.latitude);
       const lng = CesiumMath.toDegrees(c.longitude);
       const cb = editingModel.cropBase!;
@@ -3200,7 +3231,7 @@ function SpaceshipPage() {
       const col = Math.floor(dx / cb.cellSize + half);
       const row = Math.floor(dy / cb.cellSize + half);
       if (col < 0 || col >= cb.gridSize || row < 0 || row >= cb.gridSize) return null;
-      return { row, col, dx, dy };
+      return { row, col, dx, dy, lat, lng };
     };
 
     const mutateHeights = (mutator: (heights: number[], cb: CropBase) => void) => {
@@ -3291,12 +3322,21 @@ function SpaceshipPage() {
     }, ScreenSpaceEventType.LEFT_DOWN);
     handler.setInputAction(() => { painting = false; }, ScreenSpaceEventType.LEFT_UP);
     handler.setInputAction((evt: any) => {
-      if (!painting) return;
-      paintAt(evt.endPosition);
+      // Update brush cursor position every move so the user sees where they will paint.
+      const world = pickWorld(evt.endPosition);
+      if (world) {
+        brushCursor.position = world as any;
+        brushCursor.show = true as any;
+        viewer.scene.requestRender();
+      } else {
+        brushCursor.show = false as any;
+      }
+      if (painting) paintAt(evt.endPosition);
     }, ScreenSpaceEventType.MOUSE_MOVE);
 
     return () => {
       handler.destroy();
+      try { viewer.entities.remove(brushCursor); } catch {}
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       ssec.enableRotate = prevRotate;
