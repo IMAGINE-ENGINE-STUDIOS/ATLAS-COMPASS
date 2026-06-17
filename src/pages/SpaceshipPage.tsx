@@ -109,9 +109,12 @@ interface PlacedModel {
 interface CropBase {
   shape: "circle" | "square";
   wireframe: boolean;
-  voxelMode: "click" | "brush";
+  /** Active terrain brush operation. */
+  tool: "raise" | "lower" | "smooth" | "flatten";
   brushRadius: number;   // m
   brushStrength: number; // m per step
+  /** Target height (m) used by the flatten tool. */
+  flattenHeight: number;
   gridSize: number;      // cells per side (gridSize × gridSize)
   cellSize: number;      // meters per cell (1m default)
   heights: number[];     // length = gridSize * gridSize, meters
@@ -123,9 +126,10 @@ const DEFAULT_CROP_BASE = (radiusMeters: number): CropBase => {
   return {
     shape: "circle",
     wireframe: false,
-    voxelMode: "click",
+    tool: "raise",
     brushRadius: 4,
     brushStrength: 0.5,
+    flattenHeight: 0,
     gridSize,
     cellSize,
     heights: new Array(gridSize * gridSize).fill(0),
@@ -3150,31 +3154,61 @@ function SpaceshipPage() {
       const cb = editingModel.cropBase!;
       const cell = screenToCell(screenPos);
       if (!cell) return;
-      if (cb.voxelMode === "click") {
-        const delta = shift ? -1 : 1;
-        mutateHeights((h) => { h[cell.row * cb.gridSize + cell.col] += delta; });
-      } else {
-        const br = cb.brushRadius;
-        const strength = cb.brushStrength * (shift ? -1 : 1);
-        const cellsR = Math.ceil(br / cb.cellSize);
-        mutateHeights((h) => {
-          for (let dr = -cellsR; dr <= cellsR; dr++) {
-            for (let dc = -cellsR; dc <= cellsR; dc++) {
-              const r2 = cell.row + dr, c2 = cell.col + dc;
-              if (r2 < 0 || r2 >= cb.gridSize || c2 < 0 || c2 >= cb.gridSize) continue;
-              const d = Math.hypot(dr * cb.cellSize, dc * cb.cellSize);
-              if (d > br) continue;
-              const fall = 1 - d / br;
-              h[r2 * cb.gridSize + c2] += strength * fall;
+      const br = cb.brushRadius;
+      const baseStrength = cb.brushStrength;
+      const tool = cb.tool ?? "raise";
+      // Shift swaps raise<->lower for muscle-memory inversion.
+      const effectiveTool: CropBase["tool"] =
+        shift && tool === "raise" ? "lower"
+        : shift && tool === "lower" ? "raise"
+        : tool;
+      const cellsR = Math.ceil(br / cb.cellSize);
+      const gs = cb.gridSize;
+      mutateHeights((h) => {
+        for (let dr = -cellsR; dr <= cellsR; dr++) {
+          for (let dc = -cellsR; dc <= cellsR; dc++) {
+            const r2 = cell.row + dr, c2 = cell.col + dc;
+            if (r2 < 0 || r2 >= gs || c2 < 0 || c2 >= gs) continue;
+            const d = Math.hypot(dr * cb.cellSize, dc * cb.cellSize);
+            if (d > br) continue;
+            const fall = 1 - d / br;
+            const idx = r2 * gs + c2;
+            switch (effectiveTool) {
+              case "raise":
+                h[idx] += baseStrength * fall;
+                break;
+              case "lower":
+                h[idx] -= baseStrength * fall;
+                break;
+              case "flatten": {
+                const target = cb.flattenHeight ?? 0;
+                const mix = Math.min(1, baseStrength * fall);
+                h[idx] = h[idx] * (1 - mix) + target * mix;
+                break;
+              }
+              case "smooth": {
+                let sum = 0, count = 0;
+                for (let nr = -1; nr <= 1; nr++) {
+                  for (let nc = -1; nc <= 1; nc++) {
+                    const rr = r2 + nr, cc = c2 + nc;
+                    if (rr < 0 || rr >= gs || cc < 0 || cc >= gs) continue;
+                    sum += h[rr * gs + cc]; count++;
+                  }
+                }
+                const avg = count > 0 ? sum / count : h[idx];
+                const mix = Math.min(1, baseStrength * fall);
+                h[idx] = h[idx] * (1 - mix) + avg * mix;
+                break;
+              }
             }
           }
-        });
-      }
+        }
+      });
     };
 
     handler.setInputAction((evt: any) => {
       paintAt(evt.position);
-      if (editingModel.cropBase?.voxelMode === "brush") painting = true;
+      painting = true;
     }, ScreenSpaceEventType.LEFT_DOWN);
     handler.setInputAction(() => { painting = false; }, ScreenSpaceEventType.LEFT_UP);
     handler.setInputAction((evt: any) => {
@@ -3190,7 +3224,7 @@ function SpaceshipPage() {
       ssec.enableTilt = prevTilt;
       ssec.enableTranslate = prevTrans;
     };
-  }, [terrainEditing, editingModel?.id, editingModel?.cropBase?.voxelMode, editingModel?.cropBase?.brushRadius, editingModel?.cropBase?.brushStrength, editingModel?.lat, editingModel?.lng]);
+  }, [terrainEditing, editingModel?.id, editingModel?.cropBase?.tool, editingModel?.cropBase?.brushRadius, editingModel?.cropBase?.brushStrength, editingModel?.cropBase?.flattenHeight, editingModel?.lat, editingModel?.lng]);
 
   const handleCropBaseChange = useCallback((partial: Partial<CropBase>) => {
     if (!editingModel) return;
