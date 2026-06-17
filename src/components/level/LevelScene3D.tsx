@@ -49,9 +49,6 @@ function PrimitiveMesh({
 
   return (
     <mesh
-      position={obj.position}
-      rotation={obj.rotation as any}
-      scale={obj.scale}
       visible={obj.visible}
       geometry={geom}
       castShadow
@@ -137,9 +134,6 @@ function PolygonMesh({
 
   return (
     <mesh
-      position={obj.position}
-      rotation={obj.rotation as any}
-      scale={obj.scale}
       visible={obj.visible}
       geometry={geometry}
       material={materials}
@@ -162,9 +156,6 @@ function GLTFModelMesh({ obj, onSelect }: { obj: ModelObject; onSelect?: (id: st
   return (
     <primitive
       object={gltf.scene.clone()}
-      position={obj.position}
-      rotation={obj.rotation as any}
-      scale={obj.scale}
       visible={obj.visible}
       onClick={(e: any) => {
         e.stopPropagation();
