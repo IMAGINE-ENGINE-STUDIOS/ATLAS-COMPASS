@@ -16,6 +16,7 @@ import {
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
   SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
   SceneTerrain, defaultTerrain,
+  ModelMaterialOverride,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import {
+  importModelFile,
+  convertCadViaAps,
+  extOf,
+  isCadFormat,
+  isNativeFormat,
+  NATIVE_FORMATS,
+  CAD_FORMATS,
+} from "@/lib/model-import";
+import { GLTFLoader } from "three-stdlib";
 
 function rgbaToHex(c: RGBA): string {
   const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
@@ -455,28 +466,65 @@ export default function LevelEditorPage() {
   /* ---------- glTF upload ---------- */
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const cadFileRef = useRef<HTMLInputElement>(null);
+  const [cadConverting, setCadConverting] = useState(false);
+
+  const addImportedAsObject = (
+    imported: { url: string; sourceFormat: string; fileName: string },
+  ) => {
+    const obj: ModelObject = {
+      id: newId("obj"),
+      kind: "model",
+      name: imported.fileName.replace(/\.[^.]+$/, ""),
+      url: imported.url,
+      fileName: imported.fileName,
+      sourceFormat: imported.sourceFormat,
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+    };
+    addObject(obj);
+  };
+
   const onUploadModel = async (file: File) => {
-    if (!file.name.match(/\.(glb|gltf)$/i)) {
-      toast.error("Upload a .glb or .gltf file");
+    const ext = extOf(file.name);
+    if (!isNativeFormat(ext)) {
+      toast.error(
+        `Use the CAD button for .${ext}. Native formats: ${NATIVE_FORMATS.map((e) => "." + e).join(", ")}`,
+      );
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = reader.result as string;
-      const obj: ModelObject = {
-        id: newId("obj"),
-        kind: "model",
-        name: file.name.replace(/\.(glb|gltf)$/i, ""),
-        url,
-        fileName: file.name,
-        position: [0, 0, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
-        visible: true,
-      };
-      addObject(obj);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const imported = await importModelFile(file);
+      addImportedAsObject(imported);
+      toast.success(`Imported ${file.name}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to import model");
+    }
+  };
+
+  const onUploadCad = async (file: File) => {
+    const ext = extOf(file.name);
+    if (!isCadFormat(ext)) {
+      toast.error(
+        `Use the model button for .${ext}. CAD formats handled here: ${CAD_FORMATS.map((e) => "." + e).join(", ")}`,
+      );
+      return;
+    }
+    setCadConverting(true);
+    const tid = toast.loading(`Converting ${file.name} via Autodesk Platform Services…`);
+    try {
+      const imported = await convertCadViaAps(file, (fn, opts) =>
+        supabase.functions.invoke(fn, opts) as any,
+      );
+      addImportedAsObject(imported);
+      toast.success(`Imported ${file.name}`, { id: tid });
+    } catch (e: any) {
+      toast.error(e?.message || "Conversion failed", { id: tid });
+    } finally {
+      setCadConverting(false);
+    }
   };
 
   /* ---------- place on atlas ---------- */
@@ -688,17 +736,49 @@ export default function LevelEditorPage() {
               </Button>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-1">
-              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => fileRef.current?.click()}>
-                <Upload className="w-3.5 h-3.5 mr-1" /> glTF
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[11px]"
+                onClick={() => fileRef.current?.click()}
+                title={`Native: ${NATIVE_FORMATS.map((e) => "." + e).join(", ")}`}
+              >
+                <Upload className="w-3.5 h-3.5 mr-1" /> Model
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[11px]"
+                onClick={() => cadFileRef.current?.click()}
+                disabled={cadConverting}
+                title={`CAD via Autodesk APS: ${CAD_FORMATS.map((e) => "." + e).join(", ")}`}
+              >
+                {cadConverting ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5 mr-1" />
+                )}
+                CAD
               </Button>
               <input
                 ref={fileRef}
                 type="file"
-                accept=".glb,.gltf"
+                accept={NATIVE_FORMATS.map((e) => "." + e).join(",")}
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) onUploadModel(f);
+                  e.target.value = "";
+                }}
+              />
+              <input
+                ref={cadFileRef}
+                type="file"
+                accept={CAD_FORMATS.map((e) => "." + e).join(",")}
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadCad(f);
                   e.target.value = "";
                 }}
               />
@@ -1256,6 +1336,15 @@ function ObjectInspector({
           />
         </>
       )}
+      {obj.kind === "model" && (
+        <ModelMaterialEditor
+          obj={obj}
+          disabled={disabled}
+          onPatch={(materialOverrides) =>
+            onPatch({ materialOverrides } as any)
+          }
+        />
+      )}
       {onDelete && (
         <Button
           size="sm"
@@ -1329,6 +1418,331 @@ function PolygonPointsEditor({
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------ Model material / texture editor ------------------ */
+
+function useModelMeshNames(url: string): string[] {
+  const [names, setNames] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const loader = new GLTFLoader();
+    loader.load(
+      url,
+      (gltf) => {
+        if (cancelled) return;
+        const out: string[] = [];
+        let i = 0;
+        gltf.scene.traverse((n: any) => {
+          if (n.isMesh) out.push(n.name || `mesh_${i++}`);
+        });
+        // de-dup while preserving order
+        const seen = new Set<string>();
+        setNames(out.filter((n) => (seen.has(n) ? false : (seen.add(n), true))));
+      },
+      undefined,
+      () => { if (!cancelled) setNames([]); },
+    );
+    return () => { cancelled = true; };
+  }, [url]);
+  return names;
+}
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(r.error);
+    r.onload = () => resolve(r.result as string);
+    r.readAsDataURL(file);
+  });
+}
+
+function TextureSlot({
+  label, value, disabled, onChange,
+}: {
+  label: string;
+  value?: string;
+  disabled?: boolean;
+  onChange: (next: string | undefined) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex items-center gap-1">
+      <Label className="text-[10px] w-16 shrink-0">{label}</Label>
+      <div className="w-7 h-7 rounded border border-border bg-muted/30 overflow-hidden shrink-0">
+        {value && <img src={value} alt={label} className="w-full h-full object-cover" />}
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-6 text-[10px] px-2 flex-1"
+        disabled={disabled}
+        onClick={() => inputRef.current?.click()}
+      >
+        {value ? "Replace" : "Upload"}
+      </Button>
+      {value && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 w-6 p-0 text-muted-foreground"
+          disabled={disabled}
+          onClick={() => onChange(undefined)}
+          title="Remove"
+        >
+          <Trash2 className="w-3 h-3" />
+        </Button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          try {
+            onChange(await readFileAsDataURL(f));
+          } catch {
+            toast.error("Failed to read image");
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function ModelMaterialEditor({
+  obj, disabled, onPatch,
+}: {
+  obj: ModelObject;
+  disabled?: boolean;
+  onPatch: (next: Record<string, ModelMaterialOverride>) => void;
+}) {
+  const meshNames = useModelMeshNames(obj.url);
+  const overrides = obj.materialOverrides || {};
+  const [openMesh, setOpenMesh] = useState<string | null>(null);
+
+  const updateOverride = (
+    meshName: string,
+    patch: Partial<ModelMaterialOverride>,
+  ) => {
+    const next: Record<string, ModelMaterialOverride> = { ...overrides };
+    const merged = { ...(next[meshName] || {}), ...patch };
+    // Drop entry entirely if nothing meaningful is set.
+    const empty =
+      merged.color == null &&
+      merged.metalness == null &&
+      merged.roughness == null &&
+      merged.opacity == null &&
+      merged.map == null &&
+      merged.normalMap == null &&
+      merged.roughnessMap == null &&
+      merged.repeat == null &&
+      merged.offset == null &&
+      merged.rotation == null;
+    if (empty) delete next[meshName];
+    else next[meshName] = merged;
+    onPatch(next);
+  };
+
+  const resetMesh = (meshName: string) => {
+    const next = { ...overrides };
+    delete next[meshName];
+    onPatch(next);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs">Materials</Label>
+        <span className="text-[10px] text-muted-foreground">
+          {obj.sourceFormat ? `.${obj.sourceFormat} · ` : ""}
+          {meshNames.length} mesh{meshNames.length === 1 ? "" : "es"}
+        </span>
+      </div>
+      {meshNames.length === 0 && (
+        <p className="text-[10px] text-muted-foreground">Reading meshes…</p>
+      )}
+      <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
+        {meshNames.map((name) => {
+          const ov = overrides[name] || {};
+          const isOpen = openMesh === name;
+          const hasOverride = !!overrides[name];
+          return (
+            <div key={name} className="border border-border rounded">
+              <button
+                className="w-full flex items-center justify-between px-2 py-1.5 text-[11px] hover:bg-accent/40"
+                onClick={() => setOpenMesh(isOpen ? null : name)}
+              >
+                <span className="flex items-center gap-1 truncate">
+                  {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  <span className="truncate">{name}</span>
+                </span>
+                {hasOverride && (
+                  <span className="text-[9px] uppercase tracking-wider text-primary">edited</span>
+                )}
+              </button>
+              {isOpen && (
+                <div className="p-2 space-y-2 border-t border-border">
+                  <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                    <Label className="text-[10px]">Color</Label>
+                    <Input
+                      type="color"
+                      value={ov.color ? rgbaToHex(ov.color) : "#cccccc"}
+                      disabled={disabled}
+                      onChange={(e) =>
+                        updateOverride(name, { color: hexToRgba(e.target.value, ov.opacity ?? 1) })
+                      }
+                      className="h-7 w-full p-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">
+                      Metalness {(ov.metalness ?? 0.1).toFixed(2)}
+                    </Label>
+                    <Slider
+                      value={[ov.metalness ?? 0.1]}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      disabled={disabled}
+                      onValueChange={([v]) => updateOverride(name, { metalness: v })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">
+                      Roughness {(ov.roughness ?? 0.8).toFixed(2)}
+                    </Label>
+                    <Slider
+                      value={[ov.roughness ?? 0.8]}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      disabled={disabled}
+                      onValueChange={([v]) => updateOverride(name, { roughness: v })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">
+                      Opacity {(ov.opacity ?? 1).toFixed(2)}
+                    </Label>
+                    <Slider
+                      value={[ov.opacity ?? 1]}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      disabled={disabled}
+                      onValueChange={([v]) => updateOverride(name, { opacity: v })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <TextureSlot
+                      label="Albedo"
+                      value={ov.map}
+                      disabled={disabled}
+                      onChange={(map) => updateOverride(name, { map })}
+                    />
+                    <TextureSlot
+                      label="Normal"
+                      value={ov.normalMap}
+                      disabled={disabled}
+                      onChange={(normalMap) => updateOverride(name, { normalMap })}
+                    />
+                    <TextureSlot
+                      label="Roughness"
+                      value={ov.roughnessMap}
+                      disabled={disabled}
+                      onChange={(roughnessMap) => updateOverride(name, { roughnessMap })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px]">Tile U {(ov.repeat?.[0] ?? 1).toFixed(2)}</Label>
+                      <Slider
+                        value={[ov.repeat?.[0] ?? 1]}
+                        min={0.1}
+                        max={16}
+                        step={0.1}
+                        disabled={disabled}
+                        onValueChange={([v]) =>
+                          updateOverride(name, { repeat: [v, ov.repeat?.[1] ?? 1] })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Tile V {(ov.repeat?.[1] ?? 1).toFixed(2)}</Label>
+                      <Slider
+                        value={[ov.repeat?.[1] ?? 1]}
+                        min={0.1}
+                        max={16}
+                        step={0.1}
+                        disabled={disabled}
+                        onValueChange={([v]) =>
+                          updateOverride(name, { repeat: [ov.repeat?.[0] ?? 1, v] })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Offset U {(ov.offset?.[0] ?? 0).toFixed(2)}</Label>
+                      <Slider
+                        value={[ov.offset?.[0] ?? 0]}
+                        min={-1}
+                        max={1}
+                        step={0.01}
+                        disabled={disabled}
+                        onValueChange={([v]) =>
+                          updateOverride(name, { offset: [v, ov.offset?.[1] ?? 0] })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Offset V {(ov.offset?.[1] ?? 0).toFixed(2)}</Label>
+                      <Slider
+                        value={[ov.offset?.[1] ?? 0]}
+                        min={-1}
+                        max={1}
+                        step={0.01}
+                        disabled={disabled}
+                        onValueChange={([v]) =>
+                          updateOverride(name, { offset: [ov.offset?.[0] ?? 0, v] })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">
+                      Rotation {(((ov.rotation ?? 0) * 180) / Math.PI).toFixed(0)}°
+                    </Label>
+                    <Slider
+                      value={[ov.rotation ?? 0]}
+                      min={-Math.PI}
+                      max={Math.PI}
+                      step={0.05}
+                      disabled={disabled}
+                      onValueChange={([v]) => updateOverride(name, { rotation: v })}
+                    />
+                  </div>
+                  {hasOverride && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full h-7 text-[10px]"
+                      disabled={disabled}
+                      onClick={() => resetMesh(name)}
+                    >
+                      <Undo2 className="w-3 h-3 mr-1" /> Reset to original
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -235,9 +235,61 @@ function PolygonMesh({
 
 function GLTFModelMesh({ obj, onSelect }: { obj: ModelObject; onSelect?: (id: string) => void }) {
   const gltf = useGLTF(obj.url);
+  // Clone once per url so each instance owns its own materials and the
+  // override pass can mutate them without leaking across instances.
+  const root = useMemo(() => gltf.scene.clone(true), [gltf]);
+
+  // Apply per-mesh material overrides. We assign each mesh a stable key
+  // (mesh.name or fallback) and stash the ORIGINAL material in userData
+  // so toggling overrides off restores the look.
+  useEffect(() => {
+    const overrides = obj.materialOverrides || {};
+    let i = 0;
+    root.traverse((n: any) => {
+      if (!n.isMesh) return;
+      const key = n.name || `mesh_${i++}`;
+      n.userData.__meshKey = key;
+      n.userData.__objId = obj.id;
+      if (!n.userData.__origMat) n.userData.__origMat = n.material;
+
+      const ov = overrides[key];
+      if (!ov) {
+        n.material = n.userData.__origMat;
+        return;
+      }
+
+      // Always work on a clone so the original survives untouched.
+      const base: any = n.userData.__origMat;
+      const mat = (base?.clone?.() ?? new THREE.MeshStandardMaterial()) as any;
+      if (ov.color) mat.color = new THREE.Color(ov.color[0], ov.color[1], ov.color[2]);
+      if (ov.opacity != null) {
+        mat.opacity = ov.opacity;
+        mat.transparent = ov.opacity < 1;
+      }
+      if (ov.metalness != null && "metalness" in mat) mat.metalness = ov.metalness;
+      if (ov.roughness != null && "roughness" in mat) mat.roughness = ov.roughness;
+
+      const loadMap = (url?: string) => {
+        if (!url) return undefined;
+        const t = new THREE.TextureLoader().load(url);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        if (ov.repeat) t.repeat.set(ov.repeat[0], ov.repeat[1]);
+        if (ov.offset) t.offset.set(ov.offset[0], ov.offset[1]);
+        if (ov.rotation) t.rotation = ov.rotation;
+        t.center.set(0.5, 0.5);
+        return t;
+      };
+      if (ov.map !== undefined) mat.map = loadMap(ov.map);
+      if (ov.normalMap !== undefined) mat.normalMap = loadMap(ov.normalMap);
+      if (ov.roughnessMap !== undefined) mat.roughnessMap = loadMap(ov.roughnessMap);
+      mat.needsUpdate = true;
+      n.material = mat;
+    });
+  }, [root, obj.id, obj.materialOverrides]);
+
   return (
     <primitive
-      object={gltf.scene.clone()}
+      object={root}
       visible={obj.visible}
       onClick={(e: any) => {
         e.stopPropagation();

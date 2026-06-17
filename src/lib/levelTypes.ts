@@ -52,6 +52,38 @@ export interface ModelObject extends BaseObject {
   kind: "model";
   url: string; // glb/gltf url (data url or storage url)
   fileName?: string;
+  /**
+   * Original source format BEFORE conversion to glTF. Useful for the UI
+   * (badge / re-export) and for round-tripping through the APS pipeline.
+   * Examples: "glb", "gltf", "obj", "fbx", "stl", "dae", "3ds", "ply",
+   * "dxf", "skp", "step", "iges", "ifc", "rvt", "max".
+   */
+  sourceFormat?: string;
+  /**
+   * Per-mesh material overrides keyed by mesh.name (or a stable index
+   * fallback "mesh_<n>" when names collide / are empty). When a mesh has
+   * an entry, the GLTFModelMesh applies the override on top of the
+   * loader's original PBR material — original is preserved untouched in
+   * memory so removing the override restores the look.
+   */
+  materialOverrides?: Record<string, ModelMaterialOverride>;
+}
+
+export interface ModelMaterialOverride {
+  color?: RGBA;
+  metalness?: number;
+  roughness?: number;
+  opacity?: number;
+  /** Albedo / base color map, stored as a data URL. */
+  map?: string;
+  normalMap?: string;
+  roughnessMap?: string;
+  /** UV tiling (default [1, 1]). */
+  repeat?: [number, number];
+  /** UV offset (default [0, 0]). */
+  offset?: [number, number];
+  /** UV rotation in radians (default 0). */
+  rotation?: number;
 }
 
 export type SceneObject = PrimitiveObject | PolygonObject | ModelObject;
