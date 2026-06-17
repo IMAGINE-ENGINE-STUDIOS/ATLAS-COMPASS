@@ -139,6 +139,12 @@ export default function LevelEditorPage() {
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
   const [terrainOpen, setTerrainOpen] = useState(false);
 
+  // Terrain sculpting tool state
+  const [sculptActive, setSculptActive] = useState(false);
+  const [sculptTool, setSculptTool] = useState<"lift" | "dig" | "smooth" | "flatten">("lift");
+  const [sculptRadius, setSculptRadius] = useState(2);
+  const [sculptStrength, setSculptStrength] = useState(0.3);
+
   // Face-paint mode: when active, clicks on the selected object's faces add
   // to `paintedFaces` (Shift = additive). The inspector panel writes the
   // chosen color/texture into the object's `faceOverrides`.
