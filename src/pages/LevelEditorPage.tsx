@@ -1260,20 +1260,27 @@ function ObjectInspector({
 }
 
 function PolygonPointsEditor({
-  obj, onChange, disabled,
-}: { obj: PolygonObject; onChange: (pts: Array<[number, number]>) => void; disabled?: boolean }) {
+  obj, onChange, disabled, addingPoint, onToggleAddPoint,
+}: {
+  obj: PolygonObject;
+  onChange: (pts: Array<[number, number]>) => void;
+  disabled?: boolean;
+  addingPoint?: boolean;
+  onToggleAddPoint?: () => void;
+}) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <Label className="text-xs">Spline points</Label>
         <Button
           size="sm"
-          variant="ghost"
+          variant={addingPoint ? "default" : "ghost"}
           className="h-6 px-2 text-[10px]"
           disabled={disabled}
-          onClick={() => onChange([...obj.points, [0, 0]])}
+          onClick={onToggleAddPoint}
+          title="Click an edge of the polygon to insert a new point"
         >
-          <Plus className="w-3 h-3" /> Add
+          <Plus className="w-3 h-3" /> {addingPoint ? "Click edge…" : "Add"}
         </Button>
       </div>
       <div className="space-y-1 max-h-40 overflow-y-auto">
