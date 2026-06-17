@@ -115,6 +115,7 @@ export default function LevelEditorPage() {
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [snapSize, setSnapSize] = useState(0.5);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
+  const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
 
   const snap = snapEnabled ? snapSize : 0;
 
