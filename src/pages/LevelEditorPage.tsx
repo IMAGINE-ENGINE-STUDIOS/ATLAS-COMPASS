@@ -1314,6 +1314,25 @@ export default function LevelEditorPage() {
                   })
                 }
               />
+              <GlobalIlluminationPanel
+                gi={scene.environment.gi}
+                disabled={!isOwner}
+                onChange={(updater) =>
+                  updateScene((s) => {
+                    const current = s.environment.gi ?? {
+                      enabled: true,
+                      skyColor: "#87ceeb",
+                      groundColor: "#3d5c3d",
+                      hemisphereIntensity: 0.6,
+                      contactShadows: true,
+                      contactOpacity: 0.4,
+                      contactBlur: 2.5,
+                    };
+                    s.environment.gi = updater(current);
+                    return s;
+                  })
+                }
+              />
               <div className="flex items-center justify-between pt-2 border-t border-border/40">
                 <div>
                   <Label className="text-xs flex items-center gap-1">
