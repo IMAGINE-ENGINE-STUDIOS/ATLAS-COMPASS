@@ -269,7 +269,9 @@ export default function IconsPage() {
                 key={k}
                 onClick={() => {
                   setSection(k);
-                  setSelected(SECTIONS[k].icons[0].name);
+                  if (SECTIONS[k].icons.length > 0) {
+                    setSelected(SECTIONS[k].icons[0].name);
+                  }
                   setQuery("");
                 }}
                 className={`mono text-[10px] uppercase tracking-[0.2em] h-7 px-3 transition-colors ${
