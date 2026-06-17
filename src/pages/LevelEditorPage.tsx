@@ -1109,6 +1109,23 @@ export default function LevelEditorPage() {
               if (isObjectLocked(o)) return;
               patchObject(oid, t as any);
             }}
+            sculpt={{
+              active: sculptActive && !!scene.terrain?.enabled &&
+                scene.terrain.source === "primitive" && scene.terrain.shape === "plane",
+              tool: sculptTool,
+              radius: sculptRadius,
+              strength: sculptStrength,
+              commit: (heights) =>
+                updateScene((s) => {
+                  const base = s.terrain ?? defaultTerrain();
+                  const N = base.heightmap?.resolution ?? 64;
+                  s.terrain = {
+                    ...base,
+                    heightmap: { resolution: N, data: heights },
+                  };
+                  return s;
+                }),
+            }}
             className="w-full h-full"
           />
         </main>
