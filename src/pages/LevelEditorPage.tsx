@@ -794,12 +794,14 @@ export default function LevelEditorPage() {
                         {items.length === 0 && (
                           <p className="text-[10px] text-muted-foreground/70 italic py-1">empty</p>
                         )}
-                        {items.map((o) => (
+                        {items.map((o) => {
+                          const objLocked = isObjectLocked(o);
+                          return (
                           <div
                             key={o.id}
                             className={`group w-full px-1.5 py-1 rounded text-xs flex items-center gap-1.5 ${
                               selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
-                            }`}
+                            } ${objLocked ? "opacity-80" : ""}`}
                           >
                             <button
                               onClick={(e) => selectObject(o.id, e.ctrlKey || e.metaKey)}
@@ -821,8 +823,16 @@ export default function LevelEditorPage() {
                               ))}
                             </select>
                             <button
+                              onClick={(e) => { e.stopPropagation(); patchObject(o.id, { locked: !o.locked } as any); }}
+                              title={o.locked ? "Unlock object" : "Lock object"}
+                              className={o.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"}
+                            >
+                              {o.locked ? <Unlock className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />}
+                            </button>
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                if (objLocked) return;
                                 removeObject(o.id);
                                 setSelectedIds((prev) => {
                                   const next = new Set(prev);
@@ -832,12 +842,15 @@ export default function LevelEditorPage() {
                                 if (selectedId === o.id) setSelectedId(null);
                                 if (editingPolygonId === o.id) setEditingPolygonId(null);
                               }}
-                              className="opacity-60 hover:opacity-100 hover:text-destructive"
+                              disabled={objLocked}
+                              title={objLocked ? "Object is locked" : "Delete"}
+                              className="opacity-60 hover:opacity-100 hover:text-destructive disabled:opacity-20 disabled:hover:text-muted-foreground"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
