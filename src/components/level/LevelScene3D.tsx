@@ -2,6 +2,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
+import { RGBELoader } from "three-stdlib";
+import { EXRLoader } from "three-stdlib";
 import type {
   LevelScene,
   SceneObject,
@@ -11,6 +13,7 @@ import type {
   SceneLight,
   AnimationTrack,
   SceneTerrain,
+  HDRIEnvironment as HDRIEnvironmentCfg,
 } from "@/lib/levelTypes";
 
 /* ---------- helpers ---------- */
@@ -622,7 +625,13 @@ export function LevelSceneContents({
   const handleFocus = (id: string) => onSelect?.(id);
   return (
     <>
-      <color attach="background" args={[scene.environment.background]} />
+      {/* HDRI takes over the background when asBackground is on; otherwise solid color. */}
+      {!(scene.environment.hdri && scene.environment.hdri.asBackground && scene.environment.hdri.activeId) && (
+        <color attach="background" args={[scene.environment.background]} />
+      )}
+      {scene.environment.hdri && scene.environment.hdri.activeId && (
+        <HDRIEnvironmentRuntime cfg={scene.environment.hdri} />
+      )}
       {!skipAmbient && <ambientLight intensity={scene.environment.ambient} />}
       {scene.lights.map((l) => (
         <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} />
@@ -739,7 +748,10 @@ export default function LevelScene3D(
           onFocusHandled={() => setFocusReq(null)}
           controlsRef={controlsRef}
         />
-        <Environment preset="city" />
+          {/* Fall back to a neutral studio preset only when the user hasn't supplied an HDRI. */}
+          {!(rest.scene.environment.hdri && rest.scene.environment.hdri.activeId) && (
+            <Environment preset="city" />
+          )}
       </Suspense>
       <OrbitControls ref={controlsRef} makeDefault enableDamping />
     </Canvas>
