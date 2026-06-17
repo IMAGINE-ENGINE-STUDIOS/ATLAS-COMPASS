@@ -684,6 +684,20 @@ export interface LevelSceneProps {
     id: string,
     heights: { top?: number[]; bottom?: number[] },
   ) => void;
+  /**
+   * Atomic multi-field patch for a polygon — used when a single drag must
+   * update points + bottomOffsets together (e.g. moving only the top ring
+   * while pinning the bottom in place).
+   */
+  onPolygonPatch?: (
+    id: string,
+    patch: {
+      points?: Array<[number, number]>;
+      bottomOffsets?: Array<[number, number]>;
+      pointHeights?: number[];
+      bottomHeights?: number[];
+    },
+  ) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
@@ -714,6 +728,7 @@ export function LevelSceneContents({
   onPolygonPointsChange,
   onPolygonOffsetsChange,
   onPolygonHeightsChange,
+  onPolygonPatch,
   transformMode,
   onObjectTransform,
   snap,
@@ -814,6 +829,7 @@ export function LevelSceneContents({
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
             onOffsetsChange={(offs) => onPolygonOffsetsChange?.(poly.id, offs)}
             onHeightsChange={(h) => onPolygonHeightsChange?.(poly.id, h)}
+            onPatch={(p) => onPolygonPatch?.(poly.id, p)}
             addingPoint={!!addingPolygonPoint}
             onAddingPointHandled={onAddingPointHandled}
           />
@@ -961,6 +977,7 @@ function PolygonEditOverlay({
   onChange,
   onOffsetsChange,
   onHeightsChange,
+  onPatch,
   addingPoint,
   onAddingPointHandled,
 }: {
@@ -969,6 +986,12 @@ function PolygonEditOverlay({
   onChange: (pts: Array<[number, number]>) => void;
   onOffsetsChange?: (offsets: Array<[number, number]>) => void;
   onHeightsChange?: (h: { top?: number[]; bottom?: number[] }) => void;
+  onPatch?: (p: {
+    points?: Array<[number, number]>;
+    bottomOffsets?: Array<[number, number]>;
+    pointHeights?: number[];
+    bottomHeights?: number[];
+  }) => void;
   addingPoint?: boolean;
   onAddingPointHandled?: () => void;
 }) {
@@ -976,6 +999,9 @@ function PolygonEditOverlay({
   // Index of the bottom (orange) handle currently armed for offset drag
   // via double-click. Cleared on pointer-up or Escape.
   const [armedOffsetIndex, setArmedOffsetIndex] = useState<number | null>(null);
+  // Index of the top (yellow) handle armed for INDEPENDENT drag — a drag
+  // that moves only the top ring while pinning the bottom in place.
+  const [armedTopIndex, setArmedTopIndex] = useState<number | null>(null);
   // Hover preview for add-point-on-edge mode: insertion index + local 2D coord.
   const [hoverInsert, setHoverInsert] = useState<{
     index: number; // insert AFTER this segment start index
@@ -1028,10 +1054,14 @@ function PolygonEditOverlay({
   // Disarm offset mode when the polygon being edited changes.
   useEffect(() => {
     setArmedOffsetIndex(null);
+    setArmedTopIndex(null);
   }, [poly.id]);
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") setArmedOffsetIndex(null);
+      if (ev.key === "Escape") {
+        setArmedOffsetIndex(null);
+        setArmedTopIndex(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1074,6 +1104,55 @@ function PolygonEditOverlay({
       window.removeEventListener("pointerup", onUp);
       if (controlsRef?.current) controlsRef.current.enabled = true;
       setArmedOffsetIndex(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  // Begin an INDEPENDENT TOP drag (armed via double-click on a yellow
+  // handle). Mutates poly.points[index] AND simultaneously rewrites
+  // poly.bottomOffsets[index] so the bottom corner stays anchored where
+  // it currently is. This is the symmetric counterpart of beginOffsetDrag.
+  const beginIndependentTopDrag = (index: number, e: any) => {
+    e.stopPropagation();
+    if (controlsRef?.current) controlsRef.current.enabled = false;
+    const planeY = (poly.extrude || 0) + (poly.pointHeights?.[index] || 0) + 0.01;
+    const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
+    const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const canvas = gl.domElement;
+    // Capture the bottom corner's current XZ in shape-space — we must keep
+    // it fixed across the whole drag.
+    const [origTx, origTz] = poly.points[index];
+    const [origOx, origOz] = poly.bottomOffsets?.[index] || [0, 0];
+    const bottomFixedX = origTx + origOx;
+    const bottomFixedZ = origTz + origOz;
+    const onMove = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, hit)) return;
+      const local = hit.clone().applyMatrix4(invObjMatrix);
+      const newTx = local.x, newTz = -local.z;
+      const nextPoints = poly.points.map((p, i) =>
+        i === index ? [newTx, newTz] : p,
+      ) as Array<[number, number]>;
+      const nextOffsets = poly.points.map((_, i) =>
+        i === index
+          ? [bottomFixedX - newTx, bottomFixedZ - newTz]
+          : (poly.bottomOffsets?.[i] || [0, 0]),
+      ) as Array<[number, number]>;
+      onPatch?.({ points: nextPoints, bottomOffsets: nextOffsets });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (controlsRef?.current) controlsRef.current.enabled = true;
+      setArmedTopIndex(null);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -1272,7 +1351,17 @@ function PolygonEditOverlay({
             {/* draggable handle */}
             <mesh
               position={wp.toArray() as any}
-              onPointerDown={(e) => beginDrag(i, "top", e)}
+              onPointerDown={(e) => {
+                if (armedTopIndex === i && hasExtrude) {
+                  beginIndependentTopDrag(i, e);
+                } else {
+                  beginDrag(i, "top", e);
+                }
+              }}
+              onDoubleClick={(e: any) => {
+                e.stopPropagation();
+                if (hasExtrude) setArmedTopIndex(i);
+              }}
               onContextMenu={(e: any) => {
                 e.stopPropagation();
                 e.nativeEvent?.preventDefault?.();
@@ -1283,8 +1372,27 @@ function PolygonEditOverlay({
               renderOrder={999}
             >
               <sphereGeometry args={[0.055, 16, 16]} />
-              <meshBasicMaterial color="#facc15" depthTest={false} depthWrite={false} toneMapped={false} />
+              <meshBasicMaterial
+                color={armedTopIndex === i ? "#22c55e" : "#facc15"}
+                depthTest={false}
+                depthWrite={false}
+                toneMapped={false}
+              />
             </mesh>
+            {armedTopIndex === i && (
+              <mesh position={wp.toArray() as any} renderOrder={998}>
+                <ringGeometry args={[0.09, 0.12, 24]} />
+                <meshBasicMaterial
+                  color="#22c55e"
+                  depthTest={false}
+                  depthWrite={false}
+                  toneMapped={false}
+                  transparent
+                  opacity={0.9}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+            )}
             {/* point index label */}
             <Html position={wp.clone().add(new THREE.Vector3(0, 0.25, 0)).toArray() as any} center distanceFactor={8} zIndexRange={[100, 0]}>
               <div style={{
