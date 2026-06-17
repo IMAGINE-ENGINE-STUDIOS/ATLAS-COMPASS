@@ -178,6 +178,16 @@ export interface SceneTerrain {
   modelFileName?: string;
   visible: boolean;
   snapToSurface: boolean; // when true, dragged objects snap to terrain surface
+  /**
+   * Optional sculpted heightmap for the `plane` primitive shape. Stores a
+   * (resolution+1) × (resolution+1) grid of per-vertex height offsets along
+   * the plane normal (local Z, which becomes world Y after the plane's
+   * -PI/2 X rotation).
+   */
+  heightmap?: {
+    resolution: number;
+    data: number[];
+  };
 }
 
 export function defaultTerrain(): SceneTerrain {
