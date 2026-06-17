@@ -736,17 +736,49 @@ export default function LevelEditorPage() {
               </Button>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-1">
-              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => fileRef.current?.click()}>
-                <Upload className="w-3.5 h-3.5 mr-1" /> glTF
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[11px]"
+                onClick={() => fileRef.current?.click()}
+                title={`Native: ${NATIVE_FORMATS.map((e) => "." + e).join(", ")}`}
+              >
+                <Upload className="w-3.5 h-3.5 mr-1" /> Model
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[11px]"
+                onClick={() => cadFileRef.current?.click()}
+                disabled={cadConverting}
+                title={`CAD via Autodesk APS: ${CAD_FORMATS.map((e) => "." + e).join(", ")}`}
+              >
+                {cadConverting ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5 mr-1" />
+                )}
+                CAD
               </Button>
               <input
                 ref={fileRef}
                 type="file"
-                accept=".glb,.gltf"
+                accept={NATIVE_FORMATS.map((e) => "." + e).join(",")}
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) onUploadModel(f);
+                  e.target.value = "";
+                }}
+              />
+              <input
+                ref={cadFileRef}
+                type="file"
+                accept={CAD_FORMATS.map((e) => "." + e).join(",")}
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadCad(f);
                   e.target.value = "";
                 }}
               />
