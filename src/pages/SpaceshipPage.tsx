@@ -69,6 +69,7 @@ import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/comp
 import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
 import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery";
 import SearchResultsPanel from "@/components/atlas/SearchResultsPanel";
+import GlyphIcon from "@/components/atlas/GlyphIcon";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
@@ -3739,7 +3740,7 @@ function SpaceshipPage() {
                   </GlassPanel>
                 </Link>
                 <GlassPanel className="px-4 py-2.5 flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-primary" />
+                  <GlyphIcon name="atlas" alt="Atlas" className="w-4 h-4 sm:w-[18px] sm:h-[18px]" glow="#22d3ee" />
                   <span className="text-sm font-bold text-white">ATLAS</span>
                   <span className="text-xs text-white/70 font-mono">ATLAS</span>
                 </GlassPanel>
@@ -3751,21 +3752,21 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Toggle Buildings On/Off"
                   >
-                    <Eye className="w-4 h-4" />
+                    <GlyphIcon name="layers" alt="Toggle Buildings" glow={showBuildings ? "#22d3ee" : undefined} />
                   </button>
                   <button
                     onClick={resetView}
                     className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
                     title="Global View"
                   >
-                    <Globe className="w-4 h-4" />
+                    <GlyphIcon name="compass" alt="Global View" />
                   </button>
                   <button
                     onClick={() => setPoisPanelOpen(!poisPanelOpen)}
                     className={`p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
                     title="Interest Points"
                   >
-                    <MapPin className="w-4 h-4" />
+                    <GlyphIcon name="poi" alt="Interest Points" glow={poisPanelOpen ? "#facc15" : undefined} />
                   </button>
                   {/* Tile Brush Toggle */}
                   <button
@@ -3773,7 +3774,7 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
                     title="Tile Brush — Place 3D Models"
                   >
-                    <Paintbrush className="w-4 h-4" />
+                    <GlyphIcon name="brush" alt="Tile Brush" glow={brushMode ? "#34d399" : undefined} />
                   </button>
                   {/* Directions Toggle */}
                   <button
@@ -3781,7 +3782,7 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
                     title="Directions & Routes"
                   >
-                    <Route className="w-4 h-4" />
+                    <GlyphIcon name="route" alt="Directions" glow={directionsOpen ? "#60a5fa" : undefined} />
                   </button>
                   {/* Trade Routes Toggle (merged cargo routes + live traffic) */}
                   <button
@@ -3793,7 +3794,7 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
                     title="Trade Routes"
                   >
-                   <Ship className="w-4 h-4" />
+                    <GlyphIcon name="cargo" alt="Trade Routes" glow={showCargoRoutes ? "#fbbf24" : undefined} />
                   </button>
                   {/* Uber Direct Delivery */}
                   <button
@@ -3801,7 +3802,7 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Uber Direct Delivery"
                   >
-                    <Truck className="w-4 h-4" />
+                    <GlyphIcon name="speed" alt="Delivery" glow={deliveryPanelOpen ? "#22d3ee" : undefined} />
                   </button>
                   {/* Marketplace Pins Toggle */}
                   <button
@@ -3809,7 +3810,7 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
                     title="Marketplace Products"
                   >
-                    <ShoppingBag className="w-4 h-4" />
+                    <GlyphIcon name="market" alt="Marketplace" glow={showMarketplacePins ? "#a78bfa" : undefined} />
                   </button>
                   {/* Intelligence — Traffic Cameras */}
                   <button
@@ -3817,7 +3818,7 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Intelligence — Live Traffic Cameras"
                   >
-                    <Cctv className="w-4 h-4" />
+                    <GlyphIcon name="camera" alt="Traffic Cameras" glow={intelligenceOpen ? "#f87171" : undefined} />
                   </button>
                   {/* Recordings Gallery */}
                   <button
@@ -3825,7 +3826,7 @@ function SpaceshipPage() {
                     className={`p-1.5 rounded-lg transition-colors ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Camera recordings gallery"
                   >
-                    <Film className="w-4 h-4" />
+                    <GlyphIcon name="telemetry" alt="Recordings" glow={recordingsOpen ? "#f87171" : undefined} />
                   </button>
                   <button
                     onClick={toggleFullscreen}
