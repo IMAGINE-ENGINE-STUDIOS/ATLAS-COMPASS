@@ -1128,7 +1128,11 @@ export function LevelSceneContents({
       {scene.environment.hdri && scene.environment.hdri.activeId && (
         <HDRIEnvironmentRuntime cfg={scene.environment.hdri} />
       )}
-      {!skipAmbient && <ambientLight intensity={scene.environment.ambient} />}
+      {scene.environment.gi?.enabled ? (
+        <GlobalIllumination gi={scene.environment.gi} />
+      ) : (
+        !skipAmbient && <ambientLight intensity={scene.environment.ambient} />
+      )}
       {scene.lights.map((l) => (
         <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} />
       ))}
