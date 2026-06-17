@@ -562,6 +562,8 @@ export function LevelSceneContents({
             poly={poly}
             controlsRef={controlsRef}
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
+            addingPoint={!!addingPolygonPoint}
+            onAddingPointHandled={onAddingPointHandled}
           />
         );
       })()}
