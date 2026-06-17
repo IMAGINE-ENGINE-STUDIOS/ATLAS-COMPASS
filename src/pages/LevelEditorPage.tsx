@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
   Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
-  SunMedium, Spotlight,
+  SunMedium, FlashlightIcon as Spotlight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
@@ -606,8 +606,9 @@ export default function LevelEditorPage() {
 /* ---------- inspector ---------- */
 
 function Vec3Field({
-  label, value, onChange, step = 0.1, disabled,
-}: { label: string; value: Vec3; onChange: (v: Vec3) => void; step?: number; disabled?: boolean }) {
+  label, value, onChange, step = 0.1, disabled, snap = 0,
+}: { label: string; value: Vec3; onChange: (v: Vec3) => void; step?: number; disabled?: boolean; snap?: number }) {
+  const snapVal = (n: number) => (snap > 0 ? Math.round(n / snap) * snap : n);
   return (
     <div>
       <Label className="text-xs">{label}</Label>
@@ -616,12 +617,12 @@ function Vec3Field({
           <Input
             key={axis}
             type="number"
-            step={step}
+            step={snap > 0 ? snap : step}
             value={value[i]}
             disabled={disabled}
             onChange={(e) => {
               const v = [...value] as Vec3;
-              v[i] = parseFloat(e.target.value) || 0;
+              v[i] = snapVal(parseFloat(e.target.value) || 0);
               onChange(v);
             }}
             className="h-7 text-[11px]"
@@ -633,15 +634,15 @@ function Vec3Field({
 }
 
 function ObjectInspector({
-  obj, onPatch, disabled,
-}: { obj: SceneObject; onPatch: (p: Partial<SceneObject>) => void; disabled?: boolean }) {
+  obj, onPatch, disabled, snap = 0,
+}: { obj: SceneObject; onPatch: (p: Partial<SceneObject>) => void; disabled?: boolean; snap?: number }) {
   return (
     <div className="space-y-3">
       <div>
         <Label className="text-xs">Name</Label>
         <Input value={obj.name} disabled={disabled} onChange={(e) => onPatch({ name: e.target.value } as any)} className="h-7 text-xs" />
       </div>
-      <Vec3Field label="Position" value={obj.position} onChange={(position) => onPatch({ position } as any)} disabled={disabled} />
+      <Vec3Field label="Position" value={obj.position} onChange={(position) => onPatch({ position } as any)} disabled={disabled} snap={snap} />
       <Vec3Field label="Rotation (rad)" value={obj.rotation} onChange={(rotation) => onPatch({ rotation } as any)} step={0.05} disabled={disabled} />
       <Vec3Field label="Scale" value={obj.scale} onChange={(scale) => onPatch({ scale } as any)} disabled={disabled} />
 
