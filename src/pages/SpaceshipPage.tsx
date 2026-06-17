@@ -3749,7 +3749,7 @@ function SpaceshipPage() {
               <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
                   <button
                     onClick={toggleBuildings}
-                    className={`p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Toggle Buildings On/Off"
                   >
                     <GlyphIcon name="layers" alt="Toggle Buildings" glow={showBuildings ? "#22d3ee" : undefined} />
@@ -3763,7 +3763,7 @@ function SpaceshipPage() {
                   </button>
                   <button
                     onClick={() => setPoisPanelOpen(!poisPanelOpen)}
-                    className={`p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
                     title="Interest Points"
                   >
                     <GlyphIcon name="poi" alt="Interest Points" glow={poisPanelOpen ? "#facc15" : undefined} />
@@ -3771,7 +3771,7 @@ function SpaceshipPage() {
                   {/* Tile Brush Toggle */}
                   <button
                     onClick={() => { setBrushMode(!brushMode); setBrushPanelOpen(!brushMode); }}
-                    className={`p-1.5 rounded-lg transition-colors ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
                     title="Tile Brush — Place 3D Models"
                   >
                     <GlyphIcon name="brush" alt="Tile Brush" glow={brushMode ? "#34d399" : undefined} />
@@ -3779,7 +3779,7 @@ function SpaceshipPage() {
                   {/* Directions Toggle */}
                   <button
                     onClick={() => setDirectionsOpen(!directionsOpen)}
-                    className={`p-1.5 rounded-lg transition-colors ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
                     title="Directions & Routes"
                   >
                     <GlyphIcon name="route" alt="Directions" glow={directionsOpen ? "#60a5fa" : undefined} />
@@ -3791,7 +3791,7 @@ function SpaceshipPage() {
                       setShowCargoRoutes(next);
                       setShowLiveTraffic(next);
                     }}
-                    className={`p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
                     title="Trade Routes"
                   >
                     <GlyphIcon name="cargo" alt="Trade Routes" glow={showCargoRoutes ? "#fbbf24" : undefined} />
@@ -3799,7 +3799,7 @@ function SpaceshipPage() {
                   {/* Uber Direct Delivery */}
                   <button
                     onClick={() => setDeliveryPanelOpen(!deliveryPanelOpen)}
-                    className={`p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Uber Direct Delivery"
                   >
                     <GlyphIcon name="speed" alt="Delivery" glow={deliveryPanelOpen ? "#22d3ee" : undefined} />
@@ -3807,7 +3807,7 @@ function SpaceshipPage() {
                   {/* Marketplace Pins Toggle */}
                   <button
                     onClick={() => setShowMarketplacePins(!showMarketplacePins)}
-                    className={`p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
                     title="Marketplace Products"
                   >
                     <GlyphIcon name="market" alt="Marketplace" glow={showMarketplacePins ? "#a78bfa" : undefined} />
@@ -3815,7 +3815,7 @@ function SpaceshipPage() {
                   {/* Intelligence — Traffic Cameras */}
                   <button
                     onClick={() => setIntelligenceOpen(o => !o)}
-                    className={`p-1.5 rounded-lg transition-colors ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Intelligence — Live Traffic Cameras"
                   >
                     <GlyphIcon name="camera" alt="Traffic Cameras" glow={intelligenceOpen ? "#f87171" : undefined} />
@@ -3823,7 +3823,7 @@ function SpaceshipPage() {
                   {/* Recordings Gallery */}
                   <button
                     onClick={() => setRecordingsOpen(o => !o)}
-                    className={`p-1.5 rounded-lg transition-colors ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Camera recordings gallery"
                   >
                     <GlyphIcon name="telemetry" alt="Recordings" glow={recordingsOpen ? "#f87171" : undefined} />
