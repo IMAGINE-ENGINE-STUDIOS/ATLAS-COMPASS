@@ -980,6 +980,20 @@ function PolygonEditOverlay({
         />
         <lineBasicMaterial attach="material" color="#facc15" depthTest={false} transparent opacity={0.9} />
       </line>
+      {/* hover ghost handle in add-point mode */}
+      {addingPoint && hoverInsert && (() => {
+        const wp = new THREE.Vector3(
+          hoverInsert.local[0],
+          (poly.extrude || 0) + 0.02,
+          -hoverInsert.local[1],
+        ).applyMatrix4(objMatrix);
+        return (
+          <mesh position={wp.toArray() as any} renderOrder={1000}>
+            <sphereGeometry args={[0.07, 16, 16]} />
+            <meshBasicMaterial color="#22c55e" depthTest={false} depthWrite={false} toneMapped={false} transparent opacity={0.9} />
+          </mesh>
+        );
+      })()}
     </group>
   );
 }
