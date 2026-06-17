@@ -960,6 +960,7 @@ function PolygonEditOverlay({
   controlsRef,
   onChange,
   onOffsetsChange,
+  onHeightsChange,
   addingPoint,
   onAddingPointHandled,
 }: {
@@ -967,6 +968,7 @@ function PolygonEditOverlay({
   controlsRef?: React.MutableRefObject<any>;
   onChange: (pts: Array<[number, number]>) => void;
   onOffsetsChange?: (offsets: Array<[number, number]>) => void;
+  onHeightsChange?: (h: { top?: number[]; bottom?: number[] }) => void;
   addingPoint?: boolean;
   onAddingPointHandled?: () => void;
 }) {
