@@ -589,16 +589,7 @@ function SculptablePlane({ terrain }: { terrain: SceneTerrain }) {
       userData={{ isTerrain: true }}
       geometry={geom}
     >
-      <meshStandardMaterial
-        color={rgbaToColor(terrain.color)}
-        wireframe={terrain.wireframe}
-        transparent={terrain.color[3] < 1}
-        opacity={terrain.color[3]}
-        metalness={0.05}
-        roughness={0.95}
-        side={THREE.DoubleSide}
-        flatShading={false}
-      />
+      <TerrainMaterial terrain={terrain} displacement />
     </mesh>
   );
 }
