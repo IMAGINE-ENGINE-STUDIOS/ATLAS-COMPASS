@@ -61,7 +61,7 @@ const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string })
     height={20}
     loading="lazy"
     draggable={false}
-    className="w-4 h-4 sm:w-3.5 sm:h-3.5 object-contain select-none shrink-0"
+    className="w-7 h-7 sm:w-7 sm:h-7 object-contain select-none shrink-0"
     style={{ filter: `drop-shadow(0 0 4px ${hex}aa) drop-shadow(0 0 1px ${hex})` }}
   />
 );
@@ -3729,7 +3729,7 @@ function SpaceshipPage() {
                   </GlassPanel>
                 </Link>
                 <GlassPanel className="px-4 py-2.5 flex items-center gap-2">
-                  <GlyphIcon name="atlas" alt="Atlas" className="w-4 h-4 sm:w-[18px] sm:h-[18px]" glow="#22d3ee" />
+                  <GlyphIcon name="atlas" alt="Atlas" glow="#22d3ee" />
                   <span className="text-sm font-bold text-white">ATLAS</span>
                   <span className="text-xs text-white/70 font-mono">ATLAS</span>
                 </GlassPanel>
