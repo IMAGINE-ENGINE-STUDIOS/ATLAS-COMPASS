@@ -885,10 +885,14 @@ export default function LevelEditorPage() {
             }}
             showGrid={showGrid}
             playing={playing}
-            editingPolygonId={editingPolygonId}
+            editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
-            transformMode={transformMode}
-            onObjectTransform={(oid, t) => patchObject(oid, t as any)}
+            transformMode={selectedObjectLocked ? null : transformMode}
+            onObjectTransform={(oid, t) => {
+              const o = scene.objects.find((x) => x.id === oid);
+              if (isObjectLocked(o)) return;
+              patchObject(oid, t as any);
+            }}
             className="w-full h-full"
           />
         </main>
