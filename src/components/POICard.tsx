@@ -1,6 +1,7 @@
 import { Navigation, MapPin, Phone, Globe, Truck, Copy, Check, ShoppingBag, Route } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import CompanyFavicon from "@/components/CompanyFavicon";
 
 export interface POIData {
   id?: string | number;
@@ -76,9 +77,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
   };
 
   if (compact) {
-    const logo = logoForWebsite(poi.website);
     const service = serviceWord(poi.category);
-    const initial = (poi.name?.[0] || "?").toUpperCase();
     return (
       <button
         onClick={() => (onSelect || onNavigate)?.(poi)}
@@ -88,20 +87,7 @@ export default function POICard({ poi, onNavigate, onSelect, onDirections, onDel
             : "bg-secondary/20 border border-border/20 hover:bg-primary/10 hover:border-primary/20"
         }`}
       >
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${
-          isGlass ? "bg-black/75 border border-white/[0.06]" : "bg-primary/10"
-        }`}>
-          {logo ? (
-            <img
-              src={logo}
-              alt=""
-              className="w-6 h-6 object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
-          ) : (
-            <span className={`text-xs font-bold ${isGlass ? "text-white/70" : "text-foreground"}`}>{initial}</span>
-          )}
-        </div>
+        <CompanyFavicon website={poi.website} category={poi.category} size={36} />
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-semibold truncate ${isGlass ? "text-white" : "text-foreground"}`}>{poi.name}</p>
           <div className="flex items-center gap-1.5 mt-0.5">

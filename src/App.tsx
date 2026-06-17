@@ -15,6 +15,7 @@ import ProjectsPage from "@/pages/ProjectsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import DeliveryPage from "@/pages/DeliveryPage";
 import SpaceshipPage from "@/pages/SpaceshipPage";
+import IconsPage from "@/pages/IconsPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/atlas" element={<SpaceshipPage />} />
           <Route path="/explore" element={<SpaceshipPage />} />
           <Route path="/landing" element={<LandingPage />} />
+          <Route path="/icons" element={<IconsPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
