@@ -246,7 +246,7 @@ export default function IconsPage() {
 
                   <span
                     className={`block transition-transform duration-300 group-hover:scale-110 ${
-                      isActive || lightCell ? "invert" : ""
+                      isActive || lightCell ? "" : "invert"
                     }`}
                     style={{ width: SIZE_PX[size], height: SIZE_PX[size] }}
                   >
@@ -272,7 +272,7 @@ export default function IconsPage() {
         <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center gap-6">
           {/* preview */}
           <div className="shrink-0 w-20 h-20 border border-white/[0.08] flex items-center justify-center">
-            <span className="block w-12 h-12">
+            <span className="block w-12 h-12 invert">
               <Glyph src={current.src} alt={current.name} />
             </span>
           </div>
