@@ -1109,6 +1109,55 @@ function PolygonEditOverlay({
     window.addEventListener("pointerup", onUp);
   };
 
+  // Begin an INDEPENDENT TOP drag (armed via double-click on a yellow
+  // handle). Mutates poly.points[index] AND simultaneously rewrites
+  // poly.bottomOffsets[index] so the bottom corner stays anchored where
+  // it currently is. This is the symmetric counterpart of beginOffsetDrag.
+  const beginIndependentTopDrag = (index: number, e: any) => {
+    e.stopPropagation();
+    if (controlsRef?.current) controlsRef.current.enabled = false;
+    const planeY = (poly.extrude || 0) + (poly.pointHeights?.[index] || 0) + 0.01;
+    const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
+    const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const canvas = gl.domElement;
+    // Capture the bottom corner's current XZ in shape-space — we must keep
+    // it fixed across the whole drag.
+    const [origTx, origTz] = poly.points[index];
+    const [origOx, origOz] = poly.bottomOffsets?.[index] || [0, 0];
+    const bottomFixedX = origTx + origOx;
+    const bottomFixedZ = origTz + origOz;
+    const onMove = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, hit)) return;
+      const local = hit.clone().applyMatrix4(invObjMatrix);
+      const newTx = local.x, newTz = -local.z;
+      const nextPoints = poly.points.map((p, i) =>
+        i === index ? [newTx, newTz] : p,
+      ) as Array<[number, number]>;
+      const nextOffsets = poly.points.map((_, i) =>
+        i === index
+          ? [bottomFixedX - newTx, bottomFixedZ - newTz]
+          : (poly.bottomOffsets?.[i] || [0, 0]),
+      ) as Array<[number, number]>;
+      onPatch?.({ points: nextPoints, bottomOffsets: nextOffsets });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (controlsRef?.current) controlsRef.current.enabled = true;
+      setArmedTopIndex(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   const beginDrag = (index: number, ring: "top" | "bottom", e: any) => {
     e.stopPropagation();
     if (controlsRef?.current) controlsRef.current.enabled = false;
