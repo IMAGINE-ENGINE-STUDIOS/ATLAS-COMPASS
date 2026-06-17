@@ -102,6 +102,7 @@ export default function LevelEditorPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [scene, setScene] = useState<LevelScene>(EMPTY_SCENE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [playing, setPlaying] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
@@ -109,6 +110,7 @@ export default function LevelEditorPage() {
   const [placeLng, setPlaceLng] = useState("-73.9855");
   const [placeScale, setPlaceScale] = useState("1");
   const [selectedLightId, setSelectedLightId] = useState<string | null>(null);
+  const [selectedLightIds, setSelectedLightIds] = useState<Set<string>>(new Set());
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [snapSize, setSnapSize] = useState(0.5);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
@@ -116,6 +118,44 @@ export default function LevelEditorPage() {
   const snap = snapEnabled ? snapSize : 0;
 
   const isOwner = userId && ownerId && userId === ownerId;
+
+  const selectObject = (oid: string, multi = false) => {
+    if (multi) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(oid)) next.delete(oid);
+        else next.add(oid);
+        return next;
+      });
+      setSelectedId(oid);
+      setSelectedLightIds(new Set());
+      setSelectedLightId(null);
+    } else {
+      setSelectedIds(new Set([oid]));
+      setSelectedId(oid);
+      setSelectedLightIds(new Set());
+      setSelectedLightId(null);
+    }
+  };
+
+  const selectLight = (lid: string, multi = false) => {
+    if (multi) {
+      setSelectedLightIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(lid)) next.delete(lid);
+        else next.add(lid);
+        return next;
+      });
+      setSelectedLightId(lid);
+      setSelectedIds(new Set());
+      setSelectedId(null);
+    } else {
+      setSelectedLightIds(new Set([lid]));
+      setSelectedLightId(lid);
+      setSelectedIds(new Set());
+      setSelectedId(null);
+    }
+  };
 
   // ---------- undo/redo history ----------
   const historyRef = useRef<{ past: LevelScene[]; future: LevelScene[] }>({ past: [], future: [] });
@@ -186,7 +226,7 @@ export default function LevelEditorPage() {
     else toast.success("Saved");
   }, [id, name, description, isPublic, scene, isOwner]);
 
-  // Cmd/Ctrl+S
+  // keyboard shortcuts
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
@@ -201,10 +241,26 @@ export default function LevelEditorPage() {
         e.preventDefault();
         redo();
       }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        const oids = Array.from(selectedIds);
+        const lids = Array.from(selectedLightIds);
+        if (oids.length) {
+          removeObjects(oids);
+          setSelectedIds(new Set());
+          setSelectedId(null);
+          if (editingPolygonId && oids.includes(editingPolygonId)) setEditingPolygonId(null);
+        }
+        if (lids.length) {
+          removeLights(lids);
+          setSelectedLightIds(new Set());
+          setSelectedLightId(null);
+        }
+      }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [save, undo, redo]);
+  }, [save, undo, redo, selectedIds, selectedLightIds, editingPolygonId]);
 
   /* ---------- scene mutators ---------- */
 
@@ -227,6 +283,13 @@ export default function LevelEditorPage() {
       return s;
     });
 
+  const removeObjects = (oids: string[]) =>
+    updateScene((s) => {
+      s.objects = s.objects.filter((o) => !oids.includes(o.id));
+      s.animations = s.animations.filter((a) => !oids.includes(a.targetId));
+      return s;
+    });
+
   const patchObject = (oid: string, patch: Partial<SceneObject>) =>
     updateScene((s) => {
       const idx = s.objects.findIndex((o) => o.id === oid);
@@ -242,6 +305,11 @@ export default function LevelEditorPage() {
   const removeLight = (lid: string) =>
     updateScene((s) => {
       s.lights = s.lights.filter((l) => l.id !== lid);
+      return s;
+    });
+  const removeLights = (lids: string[]) =>
+    updateScene((s) => {
+      s.lights = s.lights.filter((l) => !lids.includes(l.id));
       return s;
     });
   const patchLight = (lid: string, patch: Partial<SceneLight>) =>
@@ -451,19 +519,19 @@ export default function LevelEditorPage() {
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-3 mb-1">Lights</p>
             <div className="grid grid-cols-4 gap-1">
               <Button size="sm" variant="ghost" className="h-8 px-1" title="Directional"
-                onClick={() => { const l = makeLight("directional"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                onClick={() => { const l = makeLight("directional"); addLight(l); selectLight(l.id); }}>
                 <SunMedium className="w-3.5 h-3.5" />
               </Button>
               <Button size="sm" variant="ghost" className="h-8 px-1" title="Point"
-                onClick={() => { const l = makeLight("point"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                onClick={() => { const l = makeLight("point"); addLight(l); selectLight(l.id); }}>
                 <Lightbulb className="w-3.5 h-3.5" />
               </Button>
               <Button size="sm" variant="ghost" className="h-8 px-1" title="Spot"
-                onClick={() => { const l = makeLight("spot"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                onClick={() => { const l = makeLight("spot"); addLight(l); selectLight(l.id); }}>
                 <Spotlight className="w-3.5 h-3.5" />
               </Button>
               <Button size="sm" variant="ghost" className="h-8 px-1" title="Ambient"
-                onClick={() => { const l = makeLight("ambient"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                onClick={() => { const l = makeLight("ambient"); addLight(l); selectLight(l.id); }}>
                 <Sun className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -477,9 +545,9 @@ export default function LevelEditorPage() {
             {scene.objects.map((o) => (
               <button
                 key={o.id}
-                onClick={() => { setSelectedId(o.id); setSelectedLightId(null); }}
+                onClick={(e) => { selectObject(o.id, e.ctrlKey || e.metaKey); }}
                 className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
-                  selectedId === o.id ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
+                  selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
                 }`}
               >
                 {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
@@ -491,7 +559,13 @@ export default function LevelEditorPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     removeObject(o.id);
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(o.id);
+                      return next;
+                    });
                     if (selectedId === o.id) setSelectedId(null);
+                    if (editingPolygonId === o.id) setEditingPolygonId(null);
                   }}
                 />
               </button>
@@ -501,9 +575,9 @@ export default function LevelEditorPage() {
             {scene.lights.map((l) => (
               <button
                 key={l.id}
-                onClick={() => { setSelectedLightId(l.id); setSelectedId(null); }}
+                onClick={(e) => { selectLight(l.id, e.ctrlKey || e.metaKey); }}
                 className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
-                  selectedLightId === l.id ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
+                  selectedLightIds.has(l.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
                 }`}
               >
                 {l.kind === "directional" ? <SunMedium className="w-3 h-3" /> :
@@ -516,6 +590,11 @@ export default function LevelEditorPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     removeLight(l.id);
+                    setSelectedLightIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(l.id);
+                      return next;
+                    });
                     if (selectedLightId === l.id) setSelectedLightId(null);
                   }}
                 />
@@ -529,7 +608,15 @@ export default function LevelEditorPage() {
           <LevelScene3D
             scene={scene}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={(oid) => {
+              if (oid) selectObject(oid);
+              else {
+                setSelectedIds(new Set());
+                setSelectedId(null);
+                setSelectedLightIds(new Set());
+                setSelectedLightId(null);
+              }
+            }}
             showGrid={showGrid}
             playing={playing}
             editingPolygonId={editingPolygonId}
@@ -548,7 +635,17 @@ export default function LevelEditorPage() {
             </TabsList>
 
             <TabsContent value="object" className="p-3 space-y-3 m-0">
-              {selectedLight ? (
+              {selectedLightIds.size > 1 ? (
+                <MultiLightInspector
+                  count={selectedLightIds.size}
+                  onDelete={() => {
+                    removeLights(Array.from(selectedLightIds));
+                    setSelectedLightIds(new Set());
+                    setSelectedLightId(null);
+                  }}
+                  disabled={!isOwner}
+                />
+              ) : selectedLight ? (
                 <LightInspector
                   light={selectedLight}
                   onPatch={(p) => patchLight(selectedLight.id, p)}
@@ -556,12 +653,26 @@ export default function LevelEditorPage() {
                   snap={snap}
                   onDelete={() => {
                     removeLight(selectedLight.id);
+                    setSelectedLightIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(selectedLight.id);
+                      return next;
+                    });
                     setSelectedLightId(null);
                   }}
                 />
-              ) : !selectedObj ? (
-                <p className="text-xs text-muted-foreground italic">Select an object or light to edit</p>
-              ) : (
+              ) : selectedIds.size > 1 ? (
+                <MultiObjectInspector
+                  count={selectedIds.size}
+                  onDelete={() => {
+                    removeObjects(Array.from(selectedIds));
+                    setSelectedIds(new Set());
+                    setSelectedId(null);
+                    setEditingPolygonId(null);
+                  }}
+                  disabled={!isOwner}
+                />
+              ) : selectedObj ? (
                 <ObjectInspector
                   obj={selectedObj}
                   onPatch={(p) => patchObject(selectedObj.id, p)}
@@ -573,10 +684,17 @@ export default function LevelEditorPage() {
                   }
                   onDelete={() => {
                     removeObject(selectedObj.id);
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(selectedObj.id);
+                      return next;
+                    });
                     if (selectedId === selectedObj.id) setSelectedId(null);
                     if (editingPolygonId === selectedObj.id) setEditingPolygonId(null);
                   }}
                 />
+              ) : (
+                <p className="text-xs text-muted-foreground italic">Select an object or light to edit</p>
               )}
             </TabsContent>
 
@@ -869,6 +987,28 @@ function PolygonPointsEditor({
   );
 }
 
+function MultiObjectInspector({
+  count, onDelete, disabled,
+}: { count: number; onDelete?: () => void; disabled?: boolean }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium">{count} objects selected</p>
+      <p className="text-xs text-muted-foreground">Ctrl/Cmd-click objects in the outline to multi-select. Press Delete or Backspace to remove all selected.</p>
+      {onDelete && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="w-full h-8 text-[11px] mt-2"
+          disabled={disabled}
+          onClick={onDelete}
+        >
+          <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminate {count} objects
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /* ---------- animation panel ---------- */
 
 function LightInspector({
@@ -925,6 +1065,28 @@ function LightInspector({
           onClick={onDelete}
         >
           <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminate light
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function MultiLightInspector({
+  count, onDelete, disabled,
+}: { count: number; onDelete?: () => void; disabled?: boolean }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium">{count} lights selected</p>
+      <p className="text-xs text-muted-foreground">Ctrl/Cmd-click lights in the outline to multi-select. Press Delete or Backspace to remove all selected.</p>
+      {onDelete && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="w-full h-8 text-[11px] mt-2"
+          disabled={disabled}
+          onClick={onDelete}
+        >
+          <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminate {count} lights
         </Button>
       )}
     </div>
