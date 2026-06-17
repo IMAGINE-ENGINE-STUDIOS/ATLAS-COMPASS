@@ -86,8 +86,111 @@ const FILTER_ICONS: { name: string; tag: string; src: string }[] = [
 const SECTIONS = {
   glyphs: { label: "Glyphs",  icons: GLYPH_ICONS },
   filters:{ label: "Filters", icons: FILTER_ICONS },
+  fonts:  { label: "Font",    icons: [] as { name: string; tag: string; src: string }[] },
 } as const;
 type SectionKey = keyof typeof SECTIONS;
+
+/* ───────── Typography specimens ───────── */
+type FontSpec = {
+  name: string;
+  tag: string;
+  stack: string;
+  weight: number;
+  tracking: string;
+  sample: string;
+  caption: string;
+  italic?: boolean;
+  transform?: "uppercase" | "none";
+  size: string; // clamp()
+};
+
+const FONTS: FontSpec[] = [
+  {
+    name: "Atlas Display",
+    tag: "display-ultralight",
+    stack: '"SF Pro Display",-apple-system,BlinkMacSystemFont,system-ui,sans-serif',
+    weight: 200,
+    tracking: "-0.04em",
+    sample: "Iconography.",
+    caption: "SF Pro Display · 200 · Hero",
+    size: "clamp(56px, 9vw, 132px)",
+  },
+  {
+    name: "Editorial Serif",
+    tag: "serif-italic",
+    stack: '"Cormorant Garamond","Playfair Display",Georgia,serif',
+    weight: 300,
+    tracking: "-0.02em",
+    sample: "A monochrome system.",
+    caption: "Serif · 300 italic · Editorial",
+    italic: true,
+    size: "clamp(40px, 6vw, 88px)",
+  },
+  {
+    name: "Brutalist Caps",
+    tag: "brutalist",
+    stack: '"SF Pro Display",-apple-system,system-ui,sans-serif',
+    weight: 800,
+    tracking: "-0.02em",
+    sample: "GROUND CONTROL",
+    caption: "Display · 800 · Compressed",
+    transform: "uppercase",
+    size: "clamp(40px, 7vw, 96px)",
+  },
+  {
+    name: "Telemetry Mono",
+    tag: "mono-tnum",
+    stack: '"SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace',
+    weight: 500,
+    tracking: "0.02em",
+    sample: "40.7128° N · 74.0060° W",
+    caption: "Mono · 500 · Tabular",
+    size: "clamp(20px, 2.4vw, 32px)",
+  },
+  {
+    name: "Tracking Label",
+    tag: "label-mono",
+    stack: '"SF Mono","JetBrains Mono",ui-monospace,monospace',
+    weight: 500,
+    tracking: "0.32em",
+    sample: "SERIES — 020",
+    caption: "Mono · 500 · Eyebrow / 0.32em",
+    transform: "uppercase",
+    size: "clamp(11px, 1vw, 13px)",
+  },
+  {
+    name: "Body Refined",
+    tag: "body",
+    stack: '"SF Pro Text",-apple-system,BlinkMacSystemFont,system-ui,sans-serif',
+    weight: 400,
+    tracking: "-0.005em",
+    sample:
+      "Engineered for instrumentation, telemetry and the control surfaces of the Atlas suite.",
+    caption: "Text · 400 · Body 14/22",
+    size: "14px",
+  },
+  {
+    name: "Numeric Readout",
+    tag: "numeric",
+    stack: '"SF Mono","JetBrains Mono",ui-monospace,monospace',
+    weight: 300,
+    tracking: "-0.02em",
+    sample: "01 / 020",
+    caption: "Mono · 300 · Readout",
+    size: "clamp(48px, 6vw, 84px)",
+  },
+  {
+    name: "Whisper",
+    tag: "whisper",
+    stack: '"Cormorant Garamond",Georgia,serif',
+    weight: 300,
+    tracking: "0.04em",
+    sample: "a quiet system",
+    caption: "Serif · 300 italic · Lowercase",
+    italic: true,
+    size: "clamp(28px, 3.6vw, 52px)",
+  },
+];
 
 export default function IconsPage() {
   const [section, setSection] = useState<SectionKey>("glyphs");
@@ -100,6 +203,8 @@ export default function IconsPage() {
   const SIZE_PX = { S: 22, M: 32, L: 48 } as const;
 
   const ICONS = SECTIONS[section].icons;
+
+  const isFonts = section === "fonts";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -130,6 +235,14 @@ export default function IconsPage() {
           '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,system-ui,sans-serif',
       }}
     >
+      {/* Editorial / specimen fonts */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300;1,500&family=Playfair+Display:ital,wght@0,400;1,400&family=JetBrains+Mono:wght@300;500&display=swap"
+        rel="stylesheet"
+      />
+
       <style>{`
         .mono { font-family: "SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-feature-settings: "tnum","ss01"; }
         .hairline-grid > * + * { border-left: 1px solid rgba(255,255,255,0.06); }
@@ -168,7 +281,9 @@ export default function IconsPage() {
             ))}
           </div>
           <div className="ml-auto mono text-[10px] uppercase tracking-[0.28em] text-white/40">
-            {String(filtered.length).padStart(3, "0")} / {String(ICONS.length).padStart(3, "0")}
+            {isFonts
+              ? `${String(FONTS.length).padStart(3, "0")} / ${String(FONTS.length).padStart(3, "0")}`
+              : `${String(filtered.length).padStart(3, "0")} / ${String(ICONS.length).padStart(3, "0")}`}
           </div>
         </div>
       </header>
