@@ -164,7 +164,33 @@ export interface LevelScene {
     background: string;
     ambient: number;
     fog?: { color: string; near: number; far: number };
+    /** HDRI environment / image-based lighting. */
+    hdri?: HDRIEnvironment;
   };
+}
+
+/** A single HDRI map (high-dynamic-range equirectangular image). */
+export interface HDRIMap {
+  id: string;
+  name: string;
+  /** Data URL or remote URL to the .hdr or .exr file. */
+  url: string;
+  /** File extension, used to pick the right loader. */
+  ext: "hdr" | "exr";
+}
+
+/** Active HDRI environment configuration. A "pack" is just a list of HDRIs the user can switch between. */
+export interface HDRIEnvironment {
+  /** Available HDRIs in the user's pack. */
+  maps: HDRIMap[];
+  /** Currently active map id (must match one of `maps[].id`). */
+  activeId?: string;
+  /** Light contribution multiplier (drei/three `environmentIntensity`). */
+  intensity: number;
+  /** Y-axis rotation of both environment + background, in radians. */
+  rotation: number;
+  /** When true, the HDRI is also drawn as the scene background. */
+  asBackground: boolean;
 }
 
 export const DEFAULT_LAYER_ID = "layer_default";
