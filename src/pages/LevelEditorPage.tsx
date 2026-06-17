@@ -1299,6 +1299,7 @@ function Vec3Field({
 
 function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
+  projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -1309,6 +1310,11 @@ function ObjectInspector({
   addingPoint?: boolean;
   onToggleAddPoint?: () => void;
   onDelete?: () => void;
+  projectId: string;
+  facePaintActive: boolean;
+  paintedFaces: Set<string>;
+  onToggleFacePaint: () => void;
+  onClearFacePaint: () => void;
 }) {
   return (
     <div className="space-y-3">
