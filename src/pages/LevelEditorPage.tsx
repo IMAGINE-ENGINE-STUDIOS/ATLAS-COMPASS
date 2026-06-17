@@ -27,6 +27,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import {
+  importModelFile,
+  convertCadViaAps,
+  extOf,
+  isCadFormat,
+  isNativeFormat,
+  NATIVE_FORMATS,
+  CAD_FORMATS,
+} from "@/lib/model-import";
+import { GLTFLoader } from "three-stdlib";
 
 function rgbaToHex(c: RGBA): string {
   const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
