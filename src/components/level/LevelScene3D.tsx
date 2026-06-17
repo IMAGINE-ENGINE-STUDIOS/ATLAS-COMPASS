@@ -1242,8 +1242,8 @@ function LevelScene3DInner(
           {!(rest.scene.environment.hdri && rest.scene.environment.hdri.activeId) && (
             <Environment preset="city" />
           )}
-        </SceneErrorBoundary>
-      </Suspense>
+        </Suspense>
+      </SceneErrorBoundary>
       <OrbitControls ref={controlsRef} makeDefault enableDamping />
     </Canvas>
   );
