@@ -34,7 +34,7 @@ export default function LevelsListPage() {
           .select("id,name,description,thumbnail_url,is_public,updated_at,owner_id")
           .order("updated_at", { ascending: false }),
         5000,
-        { data: null, error: { message: "Levels request timed out", details: "", hint: "", code: "TIMEOUT" } as any },
+        { data: null, error: { message: "Levels request timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
       );
       if (error) toast.error(error.message);
       else setLevels((data ?? []) as LevelRow[]);
