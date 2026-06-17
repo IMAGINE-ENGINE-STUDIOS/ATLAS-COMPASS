@@ -7,7 +7,7 @@ import {
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
-  Unlock,
+  Unlock, Mountain,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
@@ -136,6 +136,7 @@ export default function LevelEditorPage() {
   const [addingPointMode, setAddingPointMode] = useState<boolean>(false);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
+  const [terrainOpen, setTerrainOpen] = useState(false);
 
   // Face-paint mode: when active, clicks on the selected object's faces add
   // to `paintedFaces` (Shift = additive). The inspector panel writes the
@@ -637,6 +638,15 @@ export default function LevelEditorPage() {
         <div className="ml-auto flex items-center gap-2">
           <Button
             size="sm"
+            variant={terrainOpen ? "secondary" : "ghost"}
+            onClick={() => setTerrainOpen((v) => !v)}
+            disabled={!isOwner}
+            title="Terrain"
+          >
+            <Mountain className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
             variant="ghost"
             onClick={undo}
             disabled={historyRef.current.past.length === 0}
@@ -739,6 +749,29 @@ export default function LevelEditorPage() {
           </Button>
         </div>
       </header>
+
+      {/* Terrain dropdown */}
+      {terrainOpen && (
+        <div className="border-b border-border/40 bg-card/80 backdrop-blur-xl px-4 py-2 z-10">
+          <TerrainPanel
+            terrain={scene.terrain}
+            disabled={!isOwner}
+            onPatch={(p) =>
+              updateScene((s) => {
+                const base = s.terrain ?? defaultTerrain();
+                s.terrain = { ...base, ...p } as SceneTerrain;
+                return s;
+              })
+            }
+            onEnable={(enabled) =>
+              updateScene((s) => {
+                s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
+                return s;
+              })
+            }
+          />
+        </div>
+      )}
 
       <div className="flex-1 grid grid-cols-[260px_1fr_320px] min-h-0">
         {/* Left: outline */}
@@ -1004,29 +1037,6 @@ export default function LevelEditorPage() {
 
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
-          {/* Terrain toolbar at top of viewport */}
-          <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none">
-            <div className="pointer-events-auto inline-flex">
-              <TerrainPanel
-                terrain={scene.terrain}
-                disabled={!isOwner}
-                onPatch={(p) =>
-                  updateScene((s) => {
-                    const base = s.terrain ?? defaultTerrain();
-                    s.terrain = { ...base, ...p } as SceneTerrain;
-                    return s;
-                  })
-                }
-                onEnable={(enabled) =>
-                  updateScene((s) => {
-                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
-                    return s;
-                  })
-                }
-              />
-            </div>
-          </div>
-
           <LevelScene3D
             scene={renderedScene}
             selectedId={selectedId}
