@@ -1,10 +1,10 @@
-let loadingPromise: Promise<typeof google> | null = null;
+let loadingPromise: Promise<any> | null = null;
 
 /**
  * Loads the Google Maps JS API exactly once and resolves with the global
  * `google` namespace. Uses the Lovable-managed referrer-restricted browser key.
  */
-export function loadGoogleMaps(): Promise<typeof google> {
+export function loadGoogleMaps(): Promise<any> {
   if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
   if ((window as any).google?.maps?.Map) return Promise.resolve((window as any).google);
   if (loadingPromise) return loadingPromise;
