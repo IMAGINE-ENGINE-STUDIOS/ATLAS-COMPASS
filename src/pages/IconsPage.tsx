@@ -65,8 +65,8 @@ const ICONS: { name: string; tag: string; src: string }[] = [
 
 export default function IconsPage() {
   const [query, setQuery] = useState("");
-  const [weight, setWeight] = useState(1.4);
   const [size, setSize] = useState<"S" | "M" | "L">("M");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selected, setSelected] = useState<string>(ICONS[0].name);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -99,13 +99,9 @@ export default function IconsPage() {
       style={{
         fontFamily:
           '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,system-ui,sans-serif',
-        // override svg attribute stroke-width via CSS variable for live weight control
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ["--sw" as any]: weight,
       }}
     >
       <style>{`
-        .ico-stage svg { stroke-width: var(--sw, 1.4) !important; }
         .mono { font-family: "SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-feature-settings: "tnum","ss01"; }
         .hairline-grid > * + * { border-left: 1px solid rgba(255,255,255,0.06); }
         @media (max-width: 639px){ .hairline-grid > * + * { border-left: 0; } }
@@ -154,11 +150,11 @@ export default function IconsPage() {
               <div className="mt-0.5">Grid</div>
             </div>
             <div>
-              <div className="text-white/85 text-[11px]">{weight.toFixed(2)}</div>
-              <div className="mt-0.5">Stroke</div>
+              <div className="text-white/85 text-[11px]">512px</div>
+              <div className="mt-0.5">Master</div>
             </div>
             <div>
-              <div className="text-white/85 text-[11px]">SVG · 1c</div>
+              <div className="text-white/85 text-[11px]">PNG · 1c</div>
               <div className="mt-0.5">Format</div>
             </div>
           </div>
@@ -184,19 +180,20 @@ export default function IconsPage() {
             )}
           </label>
 
-          {/* weight slider */}
-          <div className="flex items-center gap-3 px-5 h-14 min-w-[220px]">
-            <span className="mono text-[10px] uppercase tracking-[0.24em] text-white/45">Stroke</span>
-            <input
-              type="range"
-              min={0.6}
-              max={2.4}
-              step={0.1}
-              value={weight}
-              onChange={(e) => setWeight(parseFloat(e.target.value))}
-              className="flex-1 accent-white h-px"
-            />
-            <span className="mono text-[10px] text-white/70 w-8 text-right">{weight.toFixed(1)}</span>
+          {/* theme segmented */}
+          <div className="flex items-center gap-1 px-5 h-14">
+            <span className="mono text-[10px] uppercase tracking-[0.24em] text-white/45 mr-2">Theme</span>
+            {(["dark", "light"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTheme(t)}
+                className={`mono text-[10px] uppercase tracking-[0.2em] h-7 px-2.5 transition-colors ${
+                  theme === t ? "text-black bg-white" : "text-white/55 hover:text-white"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
 
           {/* size segmented */}
@@ -228,12 +225,17 @@ export default function IconsPage() {
             {filtered.map(({ name, tag, src }, idx) => {
               const isActive = name === selected;
               const num = String(ICONS.findIndex((i) => i.name === name) + 1).padStart(3, "0");
+              const lightCell = theme === "light";
               return (
                 <button
                   key={name}
                   onClick={() => setSelected(name)}
-                  className={`ico-stage group relative aspect-square border-t border-l border-white/[0.06] -mr-px -mb-px flex flex-col items-center justify-center transition-colors ${
-                    isActive ? "bg-white text-black" : "text-white/85 hover:bg-white/[0.04] hover:text-white"
+                  className={`group relative aspect-square border-t border-l border-white/[0.06] -mr-px -mb-px flex flex-col items-center justify-center transition-colors ${
+                    isActive
+                      ? "bg-white text-black"
+                      : lightCell
+                        ? "bg-white/[0.96] text-black hover:bg-white"
+                        : "text-white/85 hover:bg-white/[0.04] hover:text-white"
                   }`}
                   style={{ animation: `io-rise 0.4s ${idx * 12}ms both ease-out` }}
                 >
@@ -245,7 +247,7 @@ export default function IconsPage() {
 
                   <span
                     className={`block transition-transform duration-300 group-hover:scale-110 ${
-                      isActive ? "invert" : ""
+                      isActive || lightCell ? "invert" : ""
                     }`}
                     style={{ width: SIZE_PX[size], height: SIZE_PX[size] }}
                   >
