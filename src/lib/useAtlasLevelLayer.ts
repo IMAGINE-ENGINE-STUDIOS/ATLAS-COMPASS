@@ -78,12 +78,23 @@ export function useAtlasLevelLayer(
     }
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
-    handler.setInputAction((click: any) => {
+    const onPick = (click: any) => {
       const picked = viewer.scene.pick(click.position);
       if (defined(picked) && picked.id && (picked.id as any)._levelPlacement) {
-        onOpenLevel((picked.id as any)._levelPlacement);
+        const p = (picked.id as any)._levelPlacement as LevelPlacement;
+        // Fly the camera to the placement so the user sees it framed,
+        // then hand control back to the host page (which will navigate).
+        try {
+          viewer.camera.flyTo({
+            destination: Cartesian3.fromDegrees(p.lng, p.lat, 800),
+            duration: 1.0,
+          });
+        } catch {}
+        onOpenLevel(p);
       }
-    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+    };
+    handler.setInputAction(onPick, ScreenSpaceEventType.LEFT_CLICK);
+    handler.setInputAction(onPick, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
     return () => {
       for (const e of added) {
