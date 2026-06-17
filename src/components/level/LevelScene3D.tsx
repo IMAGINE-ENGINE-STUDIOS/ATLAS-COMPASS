@@ -1065,7 +1065,7 @@ function PolygonEditOverlay({
   addingPoint?: boolean;
   onAddingPointHandled?: () => void;
 }) {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene: r3fScene } = useThree();
   // Index of the bottom (orange) handle currently armed for offset drag
   // via double-click. Cleared on pointer-up or Escape.
   const [armedOffsetIndex, setArmedOffsetIndex] = useState<number | null>(null);
