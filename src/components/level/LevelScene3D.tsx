@@ -878,7 +878,7 @@ function FacePickerOverlay({
   objectId: string;
   toggle: (key: string, add: boolean) => void;
 }) {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene: r3fScene } = useThree();
   useEffect(() => {
     const canvas = gl.domElement;
     const raycaster = new THREE.Raycaster();
