@@ -311,7 +311,19 @@ export const EMPTY_SCENE: LevelScene = {
   ],
   animations: [],
   layers: defaultLayers(),
-  environment: { background: "#0b0f1a", ambient: 0.4 },
+  environment: {
+    background: "#0b0f1a",
+    ambient: 0.4,
+    gi: {
+      enabled: true,
+      skyColor: "#87ceeb",
+      groundColor: "#3d5c3d",
+      hemisphereIntensity: 0.6,
+      contactShadows: true,
+      contactOpacity: 0.4,
+      contactBlur: 2.5,
+    },
+  },
 };
 
 export function newId(prefix: string): string {
