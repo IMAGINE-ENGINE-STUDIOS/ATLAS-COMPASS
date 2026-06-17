@@ -794,6 +794,17 @@ function ObjectInspector({
           <PolygonPointsEditor obj={obj} onChange={(points) => onPatch({ points } as any)} disabled={disabled} />
         </>
       )}
+      {onDelete && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="w-full h-8 text-[11px] mt-2"
+          disabled={disabled}
+          onClick={onDelete}
+        >
+          <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminate object
+        </Button>
+      )}
     </div>
   );
 }
