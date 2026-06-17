@@ -2210,16 +2210,11 @@ function TerrainPanel({
                   ))}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs flex-1">Color</Label>
-                <Input
-                  type="color"
-                  value={rgbaToHex(t.color)}
-                  onChange={(e) => onPatch({ color: hexToRgba(e.target.value, t.color[3]) })}
-                  disabled={disabled}
-                  className="h-7 w-12 p-0.5"
-                />
-              </div>
+              <TerrainAppearanceTabs
+                terrain={t}
+                disabled={disabled}
+                onPatch={onPatch}
+              />
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Wireframe</Label>
                 <Switch
@@ -2440,6 +2435,255 @@ function TerrainPanel({
         </>
       )}
     </div>
+  );
+}
+
+/* ---------- terrain appearance (color / texture) ---------- */
+
+function TerrainAppearanceTabs({
+  terrain,
+  disabled,
+  onPatch,
+}: {
+  terrain: SceneTerrain;
+  disabled?: boolean;
+  onPatch: (p: Partial<SceneTerrain>) => void;
+}) {
+  const [tab, setTab] = useState<"color" | "texture">(
+    terrain.texture?.url ? "texture" : "color",
+  );
+  const imgRef = useRef<HTMLInputElement>(null);
+  const depthRef = useRef<HTMLInputElement>(null);
+
+  const readFile = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+
+  const onUpload = async (
+    file: File | undefined,
+    kind: "texture" | "depthMap",
+  ) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Upload an image file (PNG, JPG, WebP, EXR…)");
+      return;
+    }
+    try {
+      const url = await readFile(file);
+      if (kind === "texture") {
+        onPatch({
+          texture: {
+            url,
+            name: file.name,
+            repeat: terrain.texture?.repeat ?? 1,
+          },
+        });
+      } else {
+        onPatch({
+          depthMap: {
+            url,
+            name: file.name,
+            scale: terrain.depthMap?.scale ?? 0.5,
+          },
+        });
+      }
+    } catch (e) {
+      toast.error(`Failed to read ${file.name}`);
+    }
+  };
+
+  return (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as "color" | "texture")}>
+      <TabsList className="grid grid-cols-2 h-7 w-full">
+        <TabsTrigger value="color" className="text-[11px]">Color</TabsTrigger>
+        <TabsTrigger value="texture" className="text-[11px]">Texture</TabsTrigger>
+      </TabsList>
+      <TabsContent value="color" className="mt-2 m-0">
+        <div className="flex items-center gap-2">
+          <Label className="text-xs flex-1">Base color</Label>
+          <Input
+            type="color"
+            value={rgbaToHex(terrain.color)}
+            onChange={(e) =>
+              onPatch({ color: hexToRgba(e.target.value, terrain.color[3]) })
+            }
+            disabled={disabled}
+            className="h-7 w-12 p-0.5"
+          />
+        </div>
+      </TabsContent>
+      <TabsContent value="texture" className="mt-2 m-0 space-y-2">
+        {/* ---- Color / albedo image ---- */}
+        <div>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Surface image
+          </Label>
+          <div className="flex items-center gap-2 mt-1">
+            {terrain.texture?.url ? (
+              <img
+                src={terrain.texture.url}
+                alt={terrain.texture.name}
+                className="w-10 h-10 rounded object-cover border border-border/40"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded border border-dashed border-border/40 bg-background/40" />
+            )}
+            <div className="flex-1 min-w-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] w-full"
+                onClick={() => imgRef.current?.click()}
+                disabled={disabled}
+              >
+                <Upload className="w-3 h-3 mr-1" />
+                <span className="truncate">
+                  {terrain.texture?.name ?? "Upload texture"}
+                </span>
+              </Button>
+              {terrain.texture && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[10px] w-full text-muted-foreground"
+                  onClick={() => onPatch({ texture: undefined })}
+                  disabled={disabled}
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
+          </div>
+          <input
+            ref={imgRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              onUpload(e.target.files?.[0], "texture");
+              e.target.value = "";
+            }}
+          />
+        </div>
+
+        {/* ---- Depth / displacement map ---- */}
+        <div>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Depth map (optional)
+          </Label>
+          <div className="flex items-center gap-2 mt-1">
+            {terrain.depthMap?.url ? (
+              <img
+                src={terrain.depthMap.url}
+                alt={terrain.depthMap.name}
+                className="w-10 h-10 rounded object-cover border border-border/40 grayscale"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded border border-dashed border-border/40 bg-background/40" />
+            )}
+            <div className="flex-1 min-w-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] w-full"
+                onClick={() => depthRef.current?.click()}
+                disabled={disabled}
+              >
+                <Upload className="w-3 h-3 mr-1" />
+                <span className="truncate">
+                  {terrain.depthMap?.name ?? "Upload depth / height map"}
+                </span>
+              </Button>
+              {terrain.depthMap && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[10px] w-full text-muted-foreground"
+                  onClick={() => onPatch({ depthMap: undefined })}
+                  disabled={disabled}
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
+          </div>
+          <input
+            ref={depthRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              onUpload(e.target.files?.[0], "depthMap");
+              e.target.value = "";
+            }}
+          />
+          {terrain.shape !== "plane" && terrain.depthMap && (
+            <p className="text-[10px] text-amber-400/80 italic mt-1">
+              Depth only displaces the Plane shape (needs subdivisions).
+            </p>
+          )}
+        </div>
+
+        {/* ---- Tiling ---- */}
+        {terrain.texture && (
+          <div>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Tile repeat
+              </Label>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {(terrain.texture.repeat ?? 1).toFixed(1)}×
+              </span>
+            </div>
+            <Slider
+              value={[terrain.texture.repeat ?? 1]}
+              min={1}
+              max={32}
+              step={0.5}
+              onValueChange={(v) =>
+                onPatch({
+                  texture: { ...terrain.texture!, repeat: v[0] },
+                })
+              }
+              disabled={disabled}
+            />
+          </div>
+        )}
+
+        {/* ---- Displacement strength ---- */}
+        {terrain.depthMap && terrain.shape === "plane" && (
+          <div>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Depth strength
+              </Label>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {(terrain.depthMap.scale ?? 0.5).toFixed(2)}
+              </span>
+            </div>
+            <Slider
+              value={[terrain.depthMap.scale ?? 0.5]}
+              min={0}
+              max={5}
+              step={0.05}
+              onValueChange={(v) =>
+                onPatch({
+                  depthMap: { ...terrain.depthMap!, scale: v[0] },
+                })
+              }
+              disabled={disabled}
+            />
+            <p className="text-[10px] text-muted-foreground italic mt-1">
+              Pick a high heightmap resolution in the sculpt panel for smoother results.
+            </p>
+          </div>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }
 

@@ -458,18 +458,6 @@ function TerrainModel({ url }: { url: string }) {
 function RenderTerrain({ terrain }: { terrain: SceneTerrain }) {
   if (!terrain.enabled || !terrain.visible) return null;
   const [sx, sy, sz] = terrain.size;
-  const color = rgbaToColor(terrain.color);
-  const material = (
-    <meshStandardMaterial
-      color={color}
-      wireframe={terrain.wireframe}
-      transparent={terrain.color[3] < 1}
-      opacity={terrain.color[3]}
-      metalness={0.05}
-      roughness={0.95}
-      side={THREE.DoubleSide}
-    />
-  );
   return (
     <group
       name="__terrain_root"
@@ -486,15 +474,87 @@ function RenderTerrain({ terrain }: { terrain: SceneTerrain }) {
       ) : terrain.shape === "box" ? (
         <mesh receiveShadow userData={{ isTerrain: true }} position={[0, -sy / 2, 0]}>
           <boxGeometry args={[sx, sy, sz]} />
-          {material}
+          <TerrainMaterial terrain={terrain} displacement={false} />
         </mesh>
       ) : (
         <mesh receiveShadow userData={{ isTerrain: true }}>
           <sphereGeometry args={[sx / 2, 48, 32]} />
-          {material}
+          <TerrainMaterial terrain={terrain} displacement={false} />
         </mesh>
       )}
     </group>
+  );
+}
+
+/* ---------- terrain material (color + texture + depth) ---------- */
+
+function useImageTexture(url?: string, repeat = 1): THREE.Texture | null {
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    if (!url) {
+      setTex(null);
+      return;
+    }
+    const loader = new THREE.TextureLoader();
+    let cancelled = false;
+    loader.load(
+      url,
+      (t) => {
+        if (cancelled) {
+          t.dispose();
+          return;
+        }
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(repeat, repeat);
+        t.anisotropy = 8;
+        t.needsUpdate = true;
+        setTex(t);
+      },
+      undefined,
+      (err) => console.warn("[terrain] texture load failed", err),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+  // Keep repeat reactive without reloading the texture
+  useEffect(() => {
+    if (!tex) return;
+    tex.repeat.set(repeat, repeat);
+    tex.needsUpdate = true;
+  }, [tex, repeat]);
+  useEffect(() => () => { tex?.dispose(); }, [tex]);
+  return tex;
+}
+
+function TerrainMaterial({
+  terrain,
+  displacement,
+}: {
+  terrain: SceneTerrain;
+  /** Allow displacementMap to actually displace geometry (plane only). */
+  displacement?: boolean;
+}) {
+  const baseColor = rgbaToColor(terrain.color);
+  const repeat = terrain.texture?.repeat ?? 1;
+  const map = useImageTexture(terrain.texture?.url, repeat);
+  const dispMap = useImageTexture(
+    displacement ? terrain.depthMap?.url : undefined,
+    repeat,
+  );
+  return (
+    <meshStandardMaterial
+      color={map ? "#ffffff" : baseColor}
+      map={map ?? undefined}
+      displacementMap={dispMap ?? undefined}
+      displacementScale={displacement ? terrain.depthMap?.scale ?? 0 : 0}
+      wireframe={terrain.wireframe}
+      transparent={terrain.color[3] < 1}
+      opacity={terrain.color[3]}
+      metalness={0.05}
+      roughness={0.95}
+      side={THREE.DoubleSide}
+    />
   );
 }
 
@@ -529,16 +589,7 @@ function SculptablePlane({ terrain }: { terrain: SceneTerrain }) {
       userData={{ isTerrain: true }}
       geometry={geom}
     >
-      <meshStandardMaterial
-        color={rgbaToColor(terrain.color)}
-        wireframe={terrain.wireframe}
-        transparent={terrain.color[3] < 1}
-        opacity={terrain.color[3]}
-        metalness={0.05}
-        roughness={0.95}
-        side={THREE.DoubleSide}
-        flatShading={false}
-      />
+      <TerrainMaterial terrain={terrain} displacement />
     </mesh>
   );
 }

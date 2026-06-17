@@ -188,6 +188,24 @@ export interface SceneTerrain {
     resolution: number;
     data: number[];
   };
+  /** Optional surface texture (color map) applied to the terrain material. */
+  texture?: {
+    url: string;
+    name: string;
+    /** UV tiling repeat (uniform on both axes). */
+    repeat: number;
+  };
+  /**
+   * Optional depth / displacement map. Drives `meshStandardMaterial`'s
+   * `displacementMap` so brighter pixels push vertices up. Only visibly
+   * effective on the `plane` primitive (which has enough subdivisions).
+   */
+  depthMap?: {
+    url: string;
+    name: string;
+    /** World-unit displacement scale at full white (1.0). */
+    scale: number;
+  };
 }
 
 export function defaultTerrain(): SceneTerrain {
