@@ -17,6 +17,7 @@ import {
   SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
   SceneTerrain, defaultTerrain,
   ModelMaterialOverride,
+  HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { Button } from "@/components/ui/button";
