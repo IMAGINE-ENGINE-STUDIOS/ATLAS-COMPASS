@@ -977,6 +977,7 @@ function PolygonEditOverlay({
   onChange,
   onOffsetsChange,
   onHeightsChange,
+  onPatch,
   addingPoint,
   onAddingPointHandled,
 }: {
@@ -985,6 +986,12 @@ function PolygonEditOverlay({
   onChange: (pts: Array<[number, number]>) => void;
   onOffsetsChange?: (offsets: Array<[number, number]>) => void;
   onHeightsChange?: (h: { top?: number[]; bottom?: number[] }) => void;
+  onPatch?: (p: {
+    points?: Array<[number, number]>;
+    bottomOffsets?: Array<[number, number]>;
+    pointHeights?: number[];
+    bottomHeights?: number[];
+  }) => void;
   addingPoint?: boolean;
   onAddingPointHandled?: () => void;
 }) {
@@ -992,6 +999,9 @@ function PolygonEditOverlay({
   // Index of the bottom (orange) handle currently armed for offset drag
   // via double-click. Cleared on pointer-up or Escape.
   const [armedOffsetIndex, setArmedOffsetIndex] = useState<number | null>(null);
+  // Index of the top (yellow) handle armed for INDEPENDENT drag — a drag
+  // that moves only the top ring while pinning the bottom in place.
+  const [armedTopIndex, setArmedTopIndex] = useState<number | null>(null);
   // Hover preview for add-point-on-edge mode: insertion index + local 2D coord.
   const [hoverInsert, setHoverInsert] = useState<{
     index: number; // insert AFTER this segment start index
