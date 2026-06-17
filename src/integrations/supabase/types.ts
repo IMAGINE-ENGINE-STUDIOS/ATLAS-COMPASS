@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      atlas_level_placements: {
+        Row: {
+          altitude: number
+          created_at: string
+          heading: number
+          id: string
+          lat: number
+          level_id: string
+          lng: number
+          owner_id: string
+          scale: number
+          updated_at: string
+        }
+        Insert: {
+          altitude?: number
+          created_at?: string
+          heading?: number
+          id?: string
+          lat: number
+          level_id: string
+          lng: number
+          owner_id: string
+          scale?: number
+          updated_at?: string
+        }
+        Update: {
+          altitude?: number
+          created_at?: string
+          heading?: number
+          id?: string
+          lat?: number
+          level_id?: string
+          lng?: number
+          owner_id?: string
+          scale?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atlas_level_placements_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "levels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       camera_catalog: {
         Row: {
           country: string | null
@@ -91,6 +138,45 @@ export type Database = {
           last_sync_at?: string | null
           source_name?: string
           sync_duration_ms?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      levels: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          name: string
+          owner_id: string
+          scene: Json
+          shared_with: string[]
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name?: string
+          owner_id: string
+          scene?: Json
+          shared_with?: string[]
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name?: string
+          owner_id?: string
+          scene?: Json
+          shared_with?: string[]
+          thumbnail_url?: string | null
           updated_at?: string
         }
         Relationships: []

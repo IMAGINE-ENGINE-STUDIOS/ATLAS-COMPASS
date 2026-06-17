@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 // CSS-only animations — no framer-motion in this heavy page
 import {
   ArrowLeft, Search, MapPin, Mountain, Building2, Navigation,
@@ -44,6 +44,7 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
+import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
 import filterAllPng     from "@/assets/icons/filter-all.png";
 import filterFoodPng    from "@/assets/icons/filter-food.png";
 import filterCafePng    from "@/assets/icons/filter-cafe.png";
@@ -543,12 +544,20 @@ function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   // Restore previously persisted UI state (if any)
   const savedUI = (() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}"); } catch { return {}; }
   })();
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // LEVEL placements on Atlas — double-click a pin to open the Level page
+  useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
+    const name = p.levels?.name ?? "this Level";
+    if (window.confirm(`Open Level "${name}"?`)) {
+      navigate(`/level/${p.level_id}`);
+    }
+  }, [navigate]));
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);

@@ -1,0 +1,773 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
+  Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
+  Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { ensureLevelSession } from "@/lib/levelSession";
+import {
+  EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
+  PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
+} from "@/lib/levelTypes";
+import LevelScene3D from "@/components/level/LevelScene3D";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
+
+function rgbaToHex(c: RGBA): string {
+  const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
+  return `#${to(c[0])}${to(c[1])}${to(c[2])}`;
+}
+function hexToRgba(hex: string, a = 1): RGBA {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.slice(0, 2), 16) / 255,
+    parseInt(h.slice(2, 4), 16) / 255,
+    parseInt(h.slice(4, 6), 16) / 255,
+    a,
+  ];
+}
+
+function makePrimitive(shape: PrimitiveObject["shape"]): PrimitiveObject {
+  return {
+    id: newId("obj"),
+    kind: "primitive",
+    name: shape[0].toUpperCase() + shape.slice(1),
+    shape,
+    position: [0, 0.5, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    visible: true,
+    color: [0.4, 0.6, 1, 1],
+    metalness: 0.1,
+    roughness: 0.6,
+  };
+}
+
+function makePolygon(): PolygonObject {
+  return {
+    id: newId("obj"),
+    kind: "polygon",
+    name: "Polygon",
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    visible: true,
+    points: [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ],
+    extrude: 1,
+    bevel: 0,
+    closed: true,
+    fillColor: [0.6, 0.7, 0.9, 1],
+    sideColor: [0.5, 0.55, 0.7, 1],
+    topColor: [0.7, 0.75, 0.95, 1],
+  };
+}
+
+function makeLight(kind: SceneLight["kind"]): SceneLight {
+  return {
+    id: newId("lgt"),
+    name: kind[0].toUpperCase() + kind.slice(1) + " Light",
+    kind,
+    position: [4, 6, 4],
+    color: [1, 1, 1, 1],
+    intensity: kind === "ambient" ? 0.4 : 1,
+    castShadow: kind !== "ambient",
+  };
+}
+
+export default function LevelEditorPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [name, setName] = useState("Untitled Level");
+  const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [scene, setScene] = useState<LevelScene>(EMPTY_SCENE);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
+  const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
+  const [placeLat, setPlaceLat] = useState("40.7580");
+  const [placeLng, setPlaceLng] = useState("-73.9855");
+  const [placeScale, setPlaceScale] = useState("1");
+
+  const isOwner = userId && ownerId && userId === ownerId;
+
+  // load
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      const uid = await ensureLevelSession();
+      setUserId(uid);
+      const { data, error } = await supabase
+        .from("levels")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error || !data) {
+        toast.error(error?.message ?? "Level not found");
+        navigate("/levels");
+        return;
+      }
+      setName(data.name);
+      setDescription(data.description ?? "");
+      setIsPublic(data.is_public);
+      setOwnerId(data.owner_id);
+      setScene({ ...EMPTY_SCENE, ...(data.scene as any) });
+      setLoading(false);
+    })();
+  }, [id, navigate]);
+
+  const save = useCallback(async () => {
+    if (!id || !isOwner) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("levels")
+      .update({ name, description, is_public: isPublic, scene: scene as any })
+      .eq("id", id);
+    setSaving(false);
+    if (error) toast.error(error.message);
+    else toast.success("Saved");
+  }, [id, name, description, isPublic, scene, isOwner]);
+
+  // Cmd/Ctrl+S
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        save();
+      }
+    };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [save]);
+
+  /* ---------- scene mutators ---------- */
+
+  const updateScene = (mut: (s: LevelScene) => LevelScene) =>
+    setScene((prev) => mut(structuredClone(prev)));
+
+  const addObject = (o: SceneObject) =>
+    updateScene((s) => {
+      s.objects.push(o);
+      return s;
+    });
+
+  const removeObject = (oid: string) =>
+    updateScene((s) => {
+      s.objects = s.objects.filter((o) => o.id !== oid);
+      s.animations = s.animations.filter((a) => a.targetId !== oid);
+      return s;
+    });
+
+  const patchObject = (oid: string, patch: Partial<SceneObject>) =>
+    updateScene((s) => {
+      const idx = s.objects.findIndex((o) => o.id === oid);
+      if (idx >= 0) s.objects[idx] = { ...s.objects[idx], ...patch } as SceneObject;
+      return s;
+    });
+
+  const addLight = (l: SceneLight) =>
+    updateScene((s) => {
+      s.lights.push(l);
+      return s;
+    });
+  const removeLight = (lid: string) =>
+    updateScene((s) => {
+      s.lights = s.lights.filter((l) => l.id !== lid);
+      return s;
+    });
+  const patchLight = (lid: string, patch: Partial<SceneLight>) =>
+    updateScene((s) => {
+      const idx = s.lights.findIndex((l) => l.id === lid);
+      if (idx >= 0) s.lights[idx] = { ...s.lights[idx], ...patch };
+      return s;
+    });
+
+  const addTrack = (t: AnimationTrack) =>
+    updateScene((s) => {
+      s.animations.push(t);
+      return s;
+    });
+  const removeTrack = (tid: string) =>
+    updateScene((s) => {
+      s.animations = s.animations.filter((a) => a.id !== tid);
+      return s;
+    });
+  const patchTrack = (tid: string, patch: Partial<AnimationTrack>) =>
+    updateScene((s) => {
+      const idx = s.animations.findIndex((a) => a.id === tid);
+      if (idx >= 0) s.animations[idx] = { ...s.animations[idx], ...patch };
+      return s;
+    });
+
+  /* ---------- glTF upload ---------- */
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const onUploadModel = async (file: File) => {
+    if (!file.name.match(/\.(glb|gltf)$/i)) {
+      toast.error("Upload a .glb or .gltf file");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result as string;
+      const obj: ModelObject = {
+        id: newId("obj"),
+        kind: "model",
+        name: file.name.replace(/\.(glb|gltf)$/i, ""),
+        url,
+        fileName: file.name,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+      };
+      addObject(obj);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  /* ---------- place on atlas ---------- */
+
+  const placeOnAtlas = async () => {
+    if (!id || !userId) return;
+    const lat = parseFloat(placeLat);
+    const lng = parseFloat(placeLng);
+    const sc = parseFloat(placeScale) || 1;
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      toast.error("Invalid coordinates");
+      return;
+    }
+    const { error } = await supabase.from("atlas_level_placements").insert({
+      owner_id: userId,
+      level_id: id,
+      lat,
+      lng,
+      scale: sc,
+    });
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Placed on Atlas");
+      setPlaceDialogOpen(false);
+    }
+  };
+
+  const selectedObj = scene.objects.find((o) => o.id === selectedId);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      {/* Top bar */}
+      <header className="border-b border-border/40 backdrop-blur-xl bg-background/60 px-4 py-2 flex items-center gap-3 z-10">
+        <Link to="/levels" className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <Layers className="w-4 h-4 text-primary" />
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={!isOwner}
+          className="h-8 w-64 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold"
+        />
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setShowGrid((v) => !v)} title="Toggle grid">
+            {showGrid ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setPlaying((p) => !p)} title="Play / Pause">
+            {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPlaceDialogOpen(true)}
+            disabled={!isOwner}
+            title="Place on Atlas"
+          >
+            <MapPin className="w-3.5 h-3.5 mr-1" /> Place on Atlas
+          </Button>
+          <Button size="sm" onClick={save} disabled={!isOwner || saving}>
+            {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+            Save
+          </Button>
+        </div>
+      </header>
+
+      <div className="flex-1 grid grid-cols-[260px_1fr_320px] min-h-0">
+        {/* Left: outline */}
+        <aside className="border-r border-border/40 bg-card/40 overflow-y-auto">
+          <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Add</p>
+            <div className="grid grid-cols-3 gap-1">
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePrimitive("box"))}>
+                <Box className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePrimitive("sphere"))}>
+                <Circle className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePrimitive("plane"))}>
+                <Square className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePrimitive("cylinder"))}>
+                <Cylinder className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePrimitive("cone"))}>
+                <Cone className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePolygon())} title="Polygon (spline)">
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-1">
+              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => fileRef.current?.click()}>
+                <Upload className="w-3.5 h-3.5 mr-1" /> glTF
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".glb,.gltf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadModel(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => addLight(makeLight("point"))}>
+                <Lightbulb className="w-3.5 h-3.5 mr-1" /> Light
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Objects</p>
+            {scene.objects.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">Empty scene</p>
+            )}
+            {scene.objects.map((o) => (
+              <button
+                key={o.id}
+                onClick={() => setSelectedId(o.id)}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
+                  selectedId === o.id ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
+                }`}
+              >
+                {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
+                 o.kind === "polygon" ? <Pencil className="w-3 h-3" /> :
+                 <Layers className="w-3 h-3" />}
+                <span className="flex-1 truncate">{o.name}</span>
+                <Trash2
+                  className="w-3 h-3 opacity-60 hover:opacity-100 hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeObject(o.id);
+                    if (selectedId === o.id) setSelectedId(null);
+                  }}
+                />
+              </button>
+            ))}
+
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
+            {scene.lights.map((l) => (
+              <div key={l.id} className="px-2 py-1.5 rounded text-xs flex items-center gap-2 hover:bg-muted/40">
+                <Sun className="w-3 h-3" />
+                <span className="flex-1 truncate">{l.name}</span>
+                <Trash2
+                  className="w-3 h-3 opacity-60 hover:opacity-100 hover:text-destructive cursor-pointer"
+                  onClick={() => removeLight(l.id)}
+                />
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        {/* Center: viewport */}
+        <main className="relative bg-slate-950">
+          <LevelScene3D
+            scene={scene}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            showGrid={showGrid}
+            playing={playing}
+            className="w-full h-full"
+          />
+        </main>
+
+        {/* Right: inspector */}
+        <aside className="border-l border-border/40 bg-card/40 overflow-y-auto">
+          <Tabs defaultValue="object" className="w-full">
+            <TabsList className="w-full rounded-none grid grid-cols-3">
+              <TabsTrigger value="object" className="text-[11px]">Object</TabsTrigger>
+              <TabsTrigger value="anim" className="text-[11px]">Animate</TabsTrigger>
+              <TabsTrigger value="level" className="text-[11px]">Level</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="object" className="p-3 space-y-3 m-0">
+              {!selectedObj ? (
+                <p className="text-xs text-muted-foreground italic">Select an object to edit</p>
+              ) : (
+                <ObjectInspector
+                  obj={selectedObj}
+                  onPatch={(p) => patchObject(selectedObj.id, p)}
+                  disabled={!isOwner}
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent value="anim" className="p-3 space-y-3 m-0">
+              <AnimationPanel
+                scene={scene}
+                onAdd={(t) => addTrack(t)}
+                onRemove={removeTrack}
+                onPatch={patchTrack}
+                disabled={!isOwner}
+              />
+            </TabsContent>
+
+            <TabsContent value="level" className="p-3 space-y-3 m-0">
+              <div className="space-y-2">
+                <Label className="text-xs">Description</Label>
+                <Input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={!isOwner}
+                  placeholder="Short description…"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Background</Label>
+                <Input
+                  type="color"
+                  value={scene.environment.background}
+                  onChange={(e) =>
+                    updateScene((s) => {
+                      s.environment.background = e.target.value;
+                      return s;
+                    })
+                  }
+                  disabled={!isOwner}
+                  className="h-8 w-full p-1"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Ambient {scene.environment.ambient.toFixed(2)}</Label>
+                <Slider
+                  value={[scene.environment.ambient]}
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  onValueChange={([v]) =>
+                    updateScene((s) => {
+                      s.environment.ambient = v;
+                      return s;
+                    })
+                  }
+                  disabled={!isOwner}
+                />
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                <div>
+                  <Label className="text-xs flex items-center gap-1">
+                    {isPublic ? <Globe2 className="w-3 h-3" /> : <Lock className="w-3 h-3" />} Public
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground">Anyone can view this Level</p>
+                </div>
+                <Switch checked={isPublic} onCheckedChange={setIsPublic} disabled={!isOwner} />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </aside>
+      </div>
+
+      {/* Place on atlas dialog */}
+      <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Place Level on Atlas</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Latitude</Label>
+                <Input value={placeLat} onChange={(e) => setPlaceLat(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">Longitude</Label>
+                <Input value={placeLng} onChange={(e) => setPlaceLng(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Scale</Label>
+              <Input value={placeScale} onChange={(e) => setPlaceScale(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPlaceDialogOpen(false)}>Cancel</Button>
+            <Button onClick={placeOnAtlas}>
+              <MapPin className="w-3.5 h-3.5 mr-1" /> Place
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/* ---------- inspector ---------- */
+
+function Vec3Field({
+  label, value, onChange, step = 0.1, disabled,
+}: { label: string; value: Vec3; onChange: (v: Vec3) => void; step?: number; disabled?: boolean }) {
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <div className="grid grid-cols-3 gap-1 mt-1">
+        {(["X", "Y", "Z"] as const).map((axis, i) => (
+          <Input
+            key={axis}
+            type="number"
+            step={step}
+            value={value[i]}
+            disabled={disabled}
+            onChange={(e) => {
+              const v = [...value] as Vec3;
+              v[i] = parseFloat(e.target.value) || 0;
+              onChange(v);
+            }}
+            className="h-7 text-[11px]"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ObjectInspector({
+  obj, onPatch, disabled,
+}: { obj: SceneObject; onPatch: (p: Partial<SceneObject>) => void; disabled?: boolean }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">Name</Label>
+        <Input value={obj.name} disabled={disabled} onChange={(e) => onPatch({ name: e.target.value } as any)} className="h-7 text-xs" />
+      </div>
+      <Vec3Field label="Position" value={obj.position} onChange={(position) => onPatch({ position } as any)} disabled={disabled} />
+      <Vec3Field label="Rotation (rad)" value={obj.rotation} onChange={(rotation) => onPatch({ rotation } as any)} step={0.05} disabled={disabled} />
+      <Vec3Field label="Scale" value={obj.scale} onChange={(scale) => onPatch({ scale } as any)} disabled={disabled} />
+
+      {obj.kind === "primitive" && (
+        <>
+          <div>
+            <Label className="text-xs">Color</Label>
+            <Input
+              type="color"
+              value={rgbaToHex(obj.color)}
+              disabled={disabled}
+              onChange={(e) => onPatch({ color: hexToRgba(e.target.value, obj.color[3]) } as any)}
+              className="h-8 w-full p-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Metalness {obj.metalness.toFixed(2)}</Label>
+            <Slider value={[obj.metalness]} min={0} max={1} step={0.05} disabled={disabled}
+              onValueChange={([v]) => onPatch({ metalness: v } as any)} />
+          </div>
+          <div>
+            <Label className="text-xs">Roughness {obj.roughness.toFixed(2)}</Label>
+            <Slider value={[obj.roughness]} min={0} max={1} step={0.05} disabled={disabled}
+              onValueChange={([v]) => onPatch({ roughness: v } as any)} />
+          </div>
+        </>
+      )}
+
+      {obj.kind === "polygon" && (
+        <>
+          <div>
+            <Label className="text-xs">Extrude {obj.extrude.toFixed(2)}</Label>
+            <Slider value={[obj.extrude]} min={0} max={20} step={0.1} disabled={disabled}
+              onValueChange={([v]) => onPatch({ extrude: v } as any)} />
+          </div>
+          <div>
+            <Label className="text-xs">Bevel {obj.bevel.toFixed(2)}</Label>
+            <Slider value={[obj.bevel]} min={0} max={0.5} step={0.01} disabled={disabled}
+              onValueChange={([v]) => onPatch({ bevel: v } as any)} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-[10px]">Fill</Label>
+              <Input type="color" value={rgbaToHex(obj.fillColor)} disabled={disabled}
+                onChange={(e) => onPatch({ fillColor: hexToRgba(e.target.value) } as any)} className="h-8 w-full p-1" />
+            </div>
+            <div>
+              <Label className="text-[10px]">Sides</Label>
+              <Input type="color" value={rgbaToHex(obj.sideColor)} disabled={disabled}
+                onChange={(e) => onPatch({ sideColor: hexToRgba(e.target.value) } as any)} className="h-8 w-full p-1" />
+            </div>
+            <div>
+              <Label className="text-[10px]">Top</Label>
+              <Input type="color" value={rgbaToHex(obj.topColor)} disabled={disabled}
+                onChange={(e) => onPatch({ topColor: hexToRgba(e.target.value) } as any)} className="h-8 w-full p-1" />
+            </div>
+          </div>
+          <PolygonPointsEditor obj={obj} onChange={(points) => onPatch({ points } as any)} disabled={disabled} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function PolygonPointsEditor({
+  obj, onChange, disabled,
+}: { obj: PolygonObject; onChange: (pts: Array<[number, number]>) => void; disabled?: boolean }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-xs">Spline points</Label>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px]"
+          disabled={disabled}
+          onClick={() => onChange([...obj.points, [0, 0]])}
+        >
+          <Plus className="w-3 h-3" /> Add
+        </Button>
+      </div>
+      <div className="space-y-1 max-h-40 overflow-y-auto">
+        {obj.points.map((p, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-1 items-center">
+            <Input
+              type="number"
+              step={0.1}
+              value={p[0]}
+              disabled={disabled}
+              onChange={(e) => {
+                const next = obj.points.map((x, j) => (j === i ? [parseFloat(e.target.value) || 0, x[1]] : x)) as Array<[number, number]>;
+                onChange(next);
+              }}
+              className="h-6 text-[10px]"
+            />
+            <Input
+              type="number"
+              step={0.1}
+              value={p[1]}
+              disabled={disabled}
+              onChange={(e) => {
+                const next = obj.points.map((x, j) => (j === i ? [x[0], parseFloat(e.target.value) || 0] : x)) as Array<[number, number]>;
+                onChange(next);
+              }}
+              className="h-6 text-[10px]"
+            />
+            <button
+              disabled={disabled}
+              onClick={() => onChange(obj.points.filter((_, j) => j !== i))}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- animation panel ---------- */
+
+function AnimationPanel({
+  scene, onAdd, onRemove, onPatch, disabled,
+}: {
+  scene: LevelScene;
+  onAdd: (t: AnimationTrack) => void;
+  onRemove: (id: string) => void;
+  onPatch: (id: string, patch: Partial<AnimationTrack>) => void;
+  disabled?: boolean;
+}) {
+  const [target, setTarget] = useState<string>("");
+
+  const addTrack = () => {
+    if (!target) {
+      toast.error("Pick a target object first");
+      return;
+    }
+    const obj = scene.objects.find((o) => o.id === target);
+    if (!obj) return;
+    onAdd({
+      id: newId("anim"),
+      name: `Animate ${obj.name}`,
+      targetId: target,
+      duration: 2,
+      loop: true,
+      keyframes: [
+        { t: 0, position: obj.position, rotation: obj.rotation, scale: obj.scale },
+        { t: 2, position: [obj.position[0], obj.position[1] + 1, obj.position[2]], rotation: obj.rotation, scale: obj.scale },
+      ],
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Select value={target} onValueChange={setTarget}>
+          <SelectTrigger className="h-8 text-xs flex-1">
+            <SelectValue placeholder="Target object" />
+          </SelectTrigger>
+          <SelectContent>
+            {scene.objects.map((o) => (
+              <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" onClick={addTrack} disabled={disabled}>
+          <Plus className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      {scene.animations.length === 0 && (
+        <p className="text-xs text-muted-foreground italic">No tracks. Press Play (top-right) to preview.</p>
+      )}
+
+      {scene.animations.map((t) => (
+        <div key={t.id} className="border border-border/40 rounded p-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <Film className="w-3 h-3 text-primary" />
+            <Input value={t.name} disabled={disabled} onChange={(e) => onPatch(t.id, { name: e.target.value })} className="h-6 text-[11px] flex-1" />
+            <Trash2 className="w-3 h-3 cursor-pointer text-muted-foreground hover:text-destructive" onClick={() => onRemove(t.id)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px]">Duration</Label>
+            <Input type="number" step={0.1} value={t.duration} disabled={disabled} onChange={(e) => onPatch(t.id, { duration: parseFloat(e.target.value) || 1 })} className="h-6 text-[11px] w-16" />
+            <Label className="text-[10px] ml-auto">Loop</Label>
+            <Switch checked={t.loop} onCheckedChange={(v) => onPatch(t.id, { loop: v })} disabled={disabled} />
+          </div>
+          <p className="text-[10px] text-muted-foreground">{t.keyframes.length} keyframes</p>
+        </div>
+      ))}
+    </div>
+  );
+}
