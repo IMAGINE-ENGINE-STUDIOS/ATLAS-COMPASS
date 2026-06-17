@@ -219,17 +219,61 @@ export default function LevelEditorPage() {
     })();
   }, [id, navigate]);
 
-  const save = useCallback(async () => {
-    if (!id || !isOwner) return;
-    setSaving(true);
-    const { error } = await supabase
-      .from("levels")
-      .update({ name, description, is_public: isPublic, scene: scene as any })
-      .eq("id", id);
-    setSaving(false);
-    if (error) toast.error(error.message);
-    else toast.success("Saved");
-  }, [id, name, description, isPublic, scene, isOwner]);
+  const lastSavedAtRef = useRef<number>(0);
+  const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
+
+  const save = useCallback(
+    async (opts: { silent?: boolean } = {}) => {
+      if (!id || !isOwner) return;
+      setSaving(true);
+      setAutosaveStatus("saving");
+      const { error } = await supabase
+        .from("levels")
+        .update({ name, description, is_public: isPublic, scene: scene as any })
+        .eq("id", id);
+      setSaving(false);
+      if (error) {
+        setAutosaveStatus("error");
+        toast.error(error.message);
+      } else {
+        lastSavedAtRef.current = Date.now();
+        setAutosaveStatus("saved");
+        if (!opts.silent) toast.success("Saved");
+      }
+    },
+    [id, name, description, isPublic, scene, isOwner],
+  );
+
+  // -------- Autosave: persist every change so nothing is lost --------
+  // Skip the initial load (when scene is hydrated from the server) by
+  // gating on `loading` and a small ready ref.
+  const autosaveReadyRef = useRef(false);
+  useEffect(() => {
+    if (loading) return;
+    // First post-load render — mark ready but don't save (no changes yet).
+    if (!autosaveReadyRef.current) {
+      autosaveReadyRef.current = true;
+      return;
+    }
+    if (!isOwner) return;
+    setAutosaveStatus("dirty");
+    const t = window.setTimeout(() => {
+      save({ silent: true });
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [scene, name, description, isPublic, loading, isOwner, save]);
+
+  // Best-effort flush on tab close / navigation so the last edit isn't lost.
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      if (autosaveStatus === "dirty" || autosaveStatus === "saving") {
+        // fire-and-forget; not awaited, but Supabase will keep the fetch alive
+        save({ silent: true });
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [autosaveStatus, save]);
 
   // keyboard shortcuts
   useEffect(() => {
@@ -578,7 +622,22 @@ export default function LevelEditorPage() {
           >
             <MapPin className="w-3.5 h-3.5 mr-1" /> Place on Atlas
           </Button>
-          <Button size="sm" onClick={save} disabled={!isOwner || saving}>
+          <span
+            className={`text-[11px] ${
+              autosaveStatus === "saving" || autosaveStatus === "dirty"
+                ? "text-amber-400"
+                : autosaveStatus === "error"
+                ? "text-destructive"
+                : "text-muted-foreground"
+            }`}
+            title="All changes are saved automatically"
+          >
+            {autosaveStatus === "saving" ? "Saving…" :
+             autosaveStatus === "dirty" ? "Unsaved" :
+             autosaveStatus === "error" ? "Save failed" :
+             autosaveStatus === "saved" ? "Saved" : ""}
+          </span>
+          <Button size="sm" onClick={() => save()} disabled={!isOwner || saving}>
             {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
             Save
           </Button>
