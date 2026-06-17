@@ -2,6 +2,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
+import { RGBELoader } from "three-stdlib";
+import { EXRLoader } from "three-stdlib";
 import type {
   LevelScene,
   SceneObject,
@@ -11,12 +13,76 @@ import type {
   SceneLight,
   AnimationTrack,
   SceneTerrain,
+  HDRIEnvironment as HDRIEnvironmentCfg,
 } from "@/lib/levelTypes";
 
 /* ---------- helpers ---------- */
 
 function rgbaToColor([r, g, b]: [number, number, number, number]) {
   return new THREE.Color(r, g, b);
+}
+
+/* ---------- HDRI environment ----------
+ * Loads the active HDRI (.hdr/.exr) and binds it to scene.environment (and
+ * optionally scene.background). Restores previous values on unmount/swap so
+ * removing an HDRI cleanly falls back to the drei <Environment preset>.
+ */
+function HDRIEnvironmentRuntime({ cfg }: { cfg: HDRIEnvironmentCfg }) {
+  const { scene, gl } = useThree();
+  const active = cfg.maps.find((m) => m.id === cfg.activeId);
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setTex(null);
+      return;
+    }
+    let cancelled = false;
+    const Loader: any = active.ext === "exr" ? EXRLoader : RGBELoader;
+    const loader = new Loader();
+    loader.load(
+      active.url,
+      (t: THREE.Texture) => {
+        if (cancelled) {
+          t.dispose();
+          return;
+        }
+        t.mapping = THREE.EquirectangularReflectionMapping;
+        // Pre-filter via PMREM for correct PBR reflections
+        const pmrem = new THREE.PMREMGenerator(gl);
+        const target = pmrem.fromEquirectangular(t);
+        t.dispose();
+        pmrem.dispose();
+        setTex(target.texture);
+      },
+      undefined,
+      (err: unknown) => console.warn("HDRI load failed", err),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.id, active?.url, active?.ext, gl]);
+
+  useEffect(() => {
+    if (!tex) return;
+    const prevEnv = scene.environment;
+    const prevBg = scene.background;
+    scene.environment = tex;
+    if (cfg.asBackground) scene.background = tex;
+    // three r155+ exposes these; guard for older typings.
+    (scene as any).environmentIntensity = cfg.intensity;
+    (scene as any).backgroundIntensity = cfg.intensity;
+    const rot = new THREE.Euler(0, cfg.rotation, 0);
+    (scene as any).environmentRotation = rot;
+    (scene as any).backgroundRotation = rot;
+    return () => {
+      scene.environment = prevEnv;
+      scene.background = prevBg;
+    };
+  }, [tex, cfg.asBackground, cfg.intensity, cfg.rotation, scene]);
+
+  useEffect(() => () => { tex?.dispose(); }, [tex]);
+  return null;
 }
 
 /* ---------- objects ---------- */
@@ -622,7 +688,13 @@ export function LevelSceneContents({
   const handleFocus = (id: string) => onSelect?.(id);
   return (
     <>
-      <color attach="background" args={[scene.environment.background]} />
+      {/* HDRI takes over the background when asBackground is on; otherwise solid color. */}
+      {!(scene.environment.hdri && scene.environment.hdri.asBackground && scene.environment.hdri.activeId) && (
+        <color attach="background" args={[scene.environment.background]} />
+      )}
+      {scene.environment.hdri && scene.environment.hdri.activeId && (
+        <HDRIEnvironmentRuntime cfg={scene.environment.hdri} />
+      )}
       {!skipAmbient && <ambientLight intensity={scene.environment.ambient} />}
       {scene.lights.map((l) => (
         <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} />
@@ -739,7 +811,10 @@ export default function LevelScene3D(
           onFocusHandled={() => setFocusReq(null)}
           controlsRef={controlsRef}
         />
-        <Environment preset="city" />
+          {/* Fall back to a neutral studio preset only when the user hasn't supplied an HDRI. */}
+          {!(rest.scene.environment.hdri && rest.scene.environment.hdri.activeId) && (
+            <Environment preset="city" />
+          )}
       </Suspense>
       <OrbitControls ref={controlsRef} makeDefault enableDamping />
     </Canvas>
