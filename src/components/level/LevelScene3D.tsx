@@ -602,17 +602,24 @@ function PolygonEditOverlay({
   }, [poly.position, poly.rotation, poly.scale]);
   const invObjMatrix = useMemo(() => objMatrix.clone().invert(), [objMatrix]);
 
-  const worldPoints = useMemo(
+  // Top corners (extruded prism top face) and bottom corners (the spline
+  // baseline). Both rings are rendered as draggable handles so every
+  // corner of the geometry is visible and controllable.
+  const topPoints = useMemo(
     () =>
       poly.points.map(([x, z]) =>
-        // Geometry has rotateX(-PI/2) applied, which maps shape vertex
-        // (sx, sy, 0) -> world-local (sx, 0, -sy). The top face of the
-        // extrusion sits at y = extrude, so lift handles to the top so
-        // they're visible on the corners of the box (with a tiny epsilon).
         new THREE.Vector3(x, (poly.extrude || 0) + 0.01, -z).applyMatrix4(objMatrix),
       ),
     [poly.points, poly.extrude, objMatrix],
   );
+  const bottomPoints = useMemo(
+    () =>
+      poly.points.map(([x, z]) =>
+        new THREE.Vector3(x, -0.01, -z).applyMatrix4(objMatrix),
+      ),
+    [poly.points, objMatrix],
+  );
+  const hasExtrude = (poly.extrude || 0) > 0.001;
 
   const beginDrag = (index: number, e: any) => {
     e.stopPropagation();
