@@ -684,6 +684,20 @@ export interface LevelSceneProps {
     id: string,
     heights: { top?: number[]; bottom?: number[] },
   ) => void;
+  /**
+   * Atomic multi-field patch for a polygon — used when a single drag must
+   * update points + bottomOffsets together (e.g. moving only the top ring
+   * while pinning the bottom in place).
+   */
+  onPolygonPatch?: (
+    id: string,
+    patch: {
+      points?: Array<[number, number]>;
+      bottomOffsets?: Array<[number, number]>;
+      pointHeights?: number[];
+      bottomHeights?: number[];
+    },
+  ) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
@@ -714,6 +728,7 @@ export function LevelSceneContents({
   onPolygonPointsChange,
   onPolygonOffsetsChange,
   onPolygonHeightsChange,
+  onPolygonPatch,
   transformMode,
   onObjectTransform,
   snap,
@@ -814,6 +829,7 @@ export function LevelSceneContents({
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
             onOffsetsChange={(offs) => onPolygonOffsetsChange?.(poly.id, offs)}
             onHeightsChange={(h) => onPolygonHeightsChange?.(poly.id, h)}
+            onPatch={(p) => onPolygonPatch?.(poly.id, p)}
             addingPoint={!!addingPolygonPoint}
             onAddingPointHandled={onAddingPointHandled}
           />
