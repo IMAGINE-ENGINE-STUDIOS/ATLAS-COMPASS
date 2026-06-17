@@ -565,8 +565,8 @@ function PolygonEditOverlay({
               onPointerDown={(e) => beginDrag(i, e)}
               renderOrder={999}
             >
-              <sphereGeometry args={[0.12, 16, 16]} />
-              <meshBasicMaterial color="#facc15" depthTest={false} />
+              <sphereGeometry args={[0.16, 20, 20]} />
+              <meshBasicMaterial color="#facc15" depthTest={false} depthWrite={false} toneMapped={false} />
             </mesh>
             {/* point index label */}
             <Html position={wp.clone().add(new THREE.Vector3(0, 0.25, 0)).toArray() as any} center distanceFactor={8} zIndexRange={[100, 0]}>
