@@ -5380,7 +5380,7 @@ function SpaceshipPage() {
 
               <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+                  <img src={eyePng} alt="Eye" width={16} height={16} className="w-3.5 h-3.5 sm:w-4 sm:h-4 object-contain shrink-0" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
                     <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">{formatAlt(cameraAlt)}</p>
