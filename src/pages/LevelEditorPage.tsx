@@ -136,6 +136,7 @@ export default function LevelEditorPage() {
   const [addingPointMode, setAddingPointMode] = useState<boolean>(false);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
+  const [terrainOpen, setTerrainOpen] = useState(false);
 
   // Face-paint mode: when active, clicks on the selected object's faces add
   // to `paintedFaces` (Shift = additive). The inspector panel writes the
