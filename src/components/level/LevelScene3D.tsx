@@ -1076,6 +1076,7 @@ function PolygonEditOverlay({
   const [hoverInsert, setHoverInsert] = useState<{
     index: number; // insert AFTER this segment start index
     local: [number, number]; // shape-space (lx, lz_shape) — same units as poly.points
+    world?: [number, number, number]; // optional world-space hit position for the ghost
   } | null>(null);
   const dragRef = useRef<{
     index: number;
