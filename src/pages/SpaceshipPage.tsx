@@ -2106,11 +2106,21 @@ function SpaceshipPage() {
           // High-quality glassmorphic pin at real coordinates
           const bgColor = colorMap[amenity] || "rgba(0,212,255,0.65)";
           const truncName = tags.name.length > 20 ? tags.name.slice(0, 18) + "…" : tags.name;
+          const website = tags.website || tags["contact:website"] || undefined;
+          const favicon = getFavicon(website, (img) => {
+            // Once the favicon loads asynchronously, refresh this pin's image.
+            if (!img || viewer.isDestroyed()) return;
+            const ent = viewer.entities.getById(entityId);
+            if (ent && ent.billboard) {
+              (ent.billboard as any).image = createPinCanvas(icon, truncName, bgColor, img);
+              viewer.scene.requestRender();
+            }
+          });
           const entity = viewer.entities.add({
             id: entityId,
             position: Cartesian3.fromDegrees(_lng, _lat, 0),
             billboard: {
-              image: createPinCanvas(icon, truncName, bgColor),
+              image: createPinCanvas(icon, truncName, bgColor, favicon),
               verticalOrigin: 1, // BOTTOM
               pixelOffset: new Cartesian2(0, 0),
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
