@@ -179,16 +179,32 @@ export default function SearchResultsPanel(p: Props) {
       </div>
 
       {/* Category chips */}
-      <div className="flex gap-1 overflow-x-auto no-scrollbar px-2 py-2 border-b border-white/[0.04]">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-2 py-2 border-b border-white/[0.04]">
         {p.categories.map((c) => {
           const active = (c.key === "all" && !p.activeCategory) || c.key === p.activeCategory;
+          const hex = c.hex || "#94a3b8";
           return (
             <button
               key={c.key}
               onClick={() => p.onCategoryChange(c.key)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all border ${active ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-black/40 text-white/70 border-white/[0.06] hover:bg-black/60"}`}
+              className="flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all backdrop-blur-xl"
+              style={active ? {
+                background: `${hex}22`,
+                border: `1px solid ${hex}66`,
+                boxShadow: `0 4px 20px ${hex}33`,
+                color: hex,
+              } : {
+                background: "rgba(0,0,0,0.4)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.7)",
+              }}
             >
-              {c.icon}
+              <span
+                className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                style={active ? { background: `${hex}33`, color: hex } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}
+              >
+                {c.icon}
+              </span>
               {c.label}
             </button>
           );
