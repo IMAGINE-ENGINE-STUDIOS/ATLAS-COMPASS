@@ -44,6 +44,27 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
+import filterAllPng     from "@/assets/icons/filter-all.png";
+import filterFoodPng    from "@/assets/icons/filter-food.png";
+import filterCafePng    from "@/assets/icons/filter-cafe.png";
+import filterGroceryPng from "@/assets/icons/filter-grocery.png";
+import filterShopsPng   from "@/assets/icons/filter-shops.png";
+import filterHotelsPng  from "@/assets/icons/filter-hotels.png";
+import filterFuelPng    from "@/assets/icons/filter-fuel.png";
+import filterHealthPng  from "@/assets/icons/filter-health.png";
+
+const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string }) => (
+  <img
+    src={src}
+    alt={alt}
+    width={20}
+    height={20}
+    loading="lazy"
+    draggable={false}
+    className="w-3.5 h-3.5 object-contain select-none"
+    style={{ filter: `invert(1) drop-shadow(0 0 4px ${hex}66)` }}
+  />
+);
 import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
 import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
 import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery";
@@ -605,14 +626,14 @@ function SpaceshipPage() {
   ]);
 
   const GEO_CATEGORIES = [
-    { key: "all", label: "All", icon: <Layers className="w-3.5 h-3.5" />, color: "slate", hex: "#94a3b8" },
-    { key: "restaurant", label: "Food", icon: <UtensilsCrossed className="w-3.5 h-3.5" />, color: "rose", hex: "#fb7185" },
-    { key: "cafe", label: "Café", icon: <Coffee className="w-3.5 h-3.5" />, color: "amber", hex: "#f59e0b" },
-    { key: "supermarket", label: "Grocery", icon: <ShoppingCart className="w-3.5 h-3.5" />, color: "emerald", hex: "#34d399" },
-    { key: "shop", label: "Shops", icon: <Store className="w-3.5 h-3.5" />, color: "violet", hex: "#a78bfa" },
-    { key: "hotel", label: "Hotels", icon: <Hotel className="w-3.5 h-3.5" />, color: "sky", hex: "#38bdf8" },
-    { key: "fuel", label: "Fuel", icon: <Fuel className="w-3.5 h-3.5" />, color: "orange", hex: "#fb923c" },
-    { key: "health", label: "Health", icon: <Stethoscope className="w-3.5 h-3.5" />, color: "teal", hex: "#2dd4bf" },
+    { key: "all",         label: "All",     icon: <FilterPng src={filterAllPng}     alt="All"     hex="#94a3b8" />, color: "slate",   hex: "#94a3b8" },
+    { key: "restaurant",  label: "Food",    icon: <FilterPng src={filterFoodPng}    alt="Food"    hex="#fb7185" />, color: "rose",    hex: "#fb7185" },
+    { key: "cafe",        label: "Café",    icon: <FilterPng src={filterCafePng}    alt="Cafe"    hex="#f59e0b" />, color: "amber",   hex: "#f59e0b" },
+    { key: "supermarket", label: "Grocery", icon: <FilterPng src={filterGroceryPng} alt="Grocery" hex="#34d399" />, color: "emerald", hex: "#34d399" },
+    { key: "shop",        label: "Shops",   icon: <FilterPng src={filterShopsPng}   alt="Shops"   hex="#a78bfa" />, color: "violet",  hex: "#a78bfa" },
+    { key: "hotel",       label: "Hotels",  icon: <FilterPng src={filterHotelsPng}  alt="Hotels"  hex="#38bdf8" />, color: "sky",     hex: "#38bdf8" },
+    { key: "fuel",        label: "Fuel",    icon: <FilterPng src={filterFuelPng}    alt="Fuel"    hex="#fb923c" />, color: "orange",  hex: "#fb923c" },
+    { key: "health",      label: "Health",  icon: <FilterPng src={filterHealthPng}  alt="Health"  hex="#2dd4bf" />, color: "teal",    hex: "#2dd4bf" },
   ];
   const GEO_RADIUS_OPTIONS = [1, 3, 5, 10, 25, 50];
 

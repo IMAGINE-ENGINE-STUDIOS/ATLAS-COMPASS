@@ -27,6 +27,16 @@ import terrainImg    from "@/assets/icons/terrain.png";
 import cameraImg     from "@/assets/icons/camera.png";
 import heatImg       from "@/assets/icons/heat.png";
 
+/* Store filter icons */
+import filterAllImg     from "@/assets/icons/filter-all.png";
+import filterFoodImg    from "@/assets/icons/filter-food.png";
+import filterCafeImg    from "@/assets/icons/filter-cafe.png";
+import filterGroceryImg from "@/assets/icons/filter-grocery.png";
+import filterShopsImg   from "@/assets/icons/filter-shops.png";
+import filterHotelsImg  from "@/assets/icons/filter-hotels.png";
+import filterFuelImg    from "@/assets/icons/filter-fuel.png";
+import filterHealthImg  from "@/assets/icons/filter-health.png";
+
 const Glyph = ({ src, alt }: { src: string; alt: string }) => (
   <img
     src={src}
@@ -39,7 +49,7 @@ const Glyph = ({ src, alt }: { src: string; alt: string }) => (
   />
 );
 
-const ICONS: { name: string; tag: string; src: string }[] = [
+const GLYPH_ICONS: { name: string; tag: string; src: string }[] = [
   { name: "Atlas",         tag: "atlas",        src: atlasImg },
   { name: "Spaceship",     tag: "spaceship",    src: spaceshipImg },
   { name: "Voxel",         tag: "voxel",        src: voxelImg },
@@ -62,14 +72,34 @@ const ICONS: { name: string; tag: string; src: string }[] = [
   { name: "Pulse",         tag: "heat",         src: heatImg },
 ];
 
+const FILTER_ICONS: { name: string; tag: string; src: string }[] = [
+  { name: "All",     tag: "all",     src: filterAllImg },
+  { name: "Food",    tag: "food",    src: filterFoodImg },
+  { name: "Café",    tag: "cafe",    src: filterCafeImg },
+  { name: "Grocery", tag: "grocery", src: filterGroceryImg },
+  { name: "Shops",   tag: "shops",   src: filterShopsImg },
+  { name: "Hotels",  tag: "hotels",  src: filterHotelsImg },
+  { name: "Fuel",    tag: "fuel",    src: filterFuelImg },
+  { name: "Health",  tag: "health",  src: filterHealthImg },
+];
+
+const SECTIONS = {
+  glyphs: { label: "Glyphs",  icons: GLYPH_ICONS },
+  filters:{ label: "Filters", icons: FILTER_ICONS },
+} as const;
+type SectionKey = keyof typeof SECTIONS;
+
 export default function IconsPage() {
+  const [section, setSection] = useState<SectionKey>("glyphs");
   const [query, setQuery] = useState("");
   const [size, setSize] = useState<"S" | "M" | "L">("M");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [selected, setSelected] = useState<string>(ICONS[0].name);
+  const [selected, setSelected] = useState<string>(GLYPH_ICONS[0].name);
   const [copied, setCopied] = useState<string | null>(null);
 
   const SIZE_PX = { S: 22, M: 32, L: 48 } as const;
+
+  const ICONS = SECTIONS[section].icons;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -77,7 +107,7 @@ export default function IconsPage() {
     return ICONS.filter(
       (i) => i.name.toLowerCase().includes(q) || i.tag.toLowerCase().includes(q),
     );
-  }, [query]);
+  }, [query, ICONS]);
 
   const current = ICONS.find((i) => i.name === selected) || ICONS[0];
 
@@ -118,8 +148,25 @@ export default function IconsPage() {
             Index
           </Link>
           <span className="mono text-[10px] uppercase tracking-[0.32em] text-white/30 hidden md:inline">
-            Atlas / Iconography / v1.0
+            Atlas / Iconography / {SECTIONS[section].label}
           </span>
+          <div className="ml-4 flex items-center gap-1">
+            {(Object.keys(SECTIONS) as SectionKey[]).map((k) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setSection(k);
+                  setSelected(SECTIONS[k].icons[0].name);
+                  setQuery("");
+                }}
+                className={`mono text-[10px] uppercase tracking-[0.2em] h-7 px-3 transition-colors ${
+                  section === k ? "text-black bg-white" : "text-white/55 hover:text-white"
+                }`}
+              >
+                {SECTIONS[k].label}
+              </button>
+            ))}
+          </div>
           <div className="ml-auto mono text-[10px] uppercase tracking-[0.28em] text-white/40">
             {String(filtered.length).padStart(3, "0")} / {String(ICONS.length).padStart(3, "0")}
           </div>
