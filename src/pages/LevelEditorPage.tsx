@@ -1004,6 +1004,29 @@ export default function LevelEditorPage() {
 
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
+          {/* Terrain toolbar at top of viewport */}
+          <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none">
+            <div className="pointer-events-auto inline-flex">
+              <TerrainPanel
+                terrain={scene.terrain}
+                disabled={!isOwner}
+                onPatch={(p) =>
+                  updateScene((s) => {
+                    const base = s.terrain ?? defaultTerrain();
+                    s.terrain = { ...base, ...p } as SceneTerrain;
+                    return s;
+                  })
+                }
+                onEnable={(enabled) =>
+                  updateScene((s) => {
+                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
+                    return s;
+                  })
+                }
+              />
+            </div>
+          </div>
+
           <LevelScene3D
             scene={renderedScene}
             selectedId={selectedId}
