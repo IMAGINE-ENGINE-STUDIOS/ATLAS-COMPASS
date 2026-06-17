@@ -26,6 +26,8 @@ import speedImg      from "@/assets/icons/speed.png";
 import terrainImg    from "@/assets/icons/terrain.png";
 import cameraImg     from "@/assets/icons/camera.png";
 import heatImg       from "@/assets/icons/heat.png";
+import eyeImg        from "@/assets/icons/eye.png";
+import targetImg     from "@/assets/icons/target.png";
 
 /* Store filter icons */
 import filterAllImg     from "@/assets/icons/filter-all.png";
@@ -70,6 +72,8 @@ const GLYPH_ICONS: { name: string; tag: string; src: string }[] = [
   { name: "Peak",          tag: "terrain",      src: terrainImg },
   { name: "Lens",          tag: "camera",       src: cameraImg },
   { name: "Pulse",         tag: "heat",         src: heatImg },
+  { name: "Eye",           tag: "eye",          src: eyeImg },
+  { name: "Target",        tag: "target",       src: targetImg },
 ];
 
 const FILTER_ICONS: { name: string; tag: string; src: string }[] = [
