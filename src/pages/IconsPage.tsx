@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Check, Copy } from "lucide-react";
+import { ArrowLeft, Check, Code2, Copy, Search, X } from "lucide-react";
 
 /* ───────────────────────────────────────────────────────────
    20 original icons — pure SVG, currentColor, 24x24, 1.6 stroke
@@ -214,84 +214,274 @@ const ICONS: { name: string; tag: string; Icon: React.FC<IconProps> }[] = [
 ];
 
 export default function IconsPage() {
+  const [query, setQuery] = useState("");
+  const [weight, setWeight] = useState(1.4);
+  const [size, setSize] = useState<"S" | "M" | "L">("M");
+  const [selected, setSelected] = useState<string>(ICONS[0].name);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const copyName = (name: string) => {
-    navigator.clipboard.writeText(name);
-    setCopied(name);
-    setTimeout(() => setCopied(null), 1100);
+  const SIZE_PX = { S: 22, M: 32, L: 48 } as const;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return ICONS;
+    return ICONS.filter(
+      (i) => i.name.toLowerCase().includes(q) || i.tag.toLowerCase().includes(q),
+    );
+  }, [query]);
+
+  const current = ICONS.find((i) => i.name === selected) || ICONS[0];
+
+  const copy = async (label: string, text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 1200);
   };
+
+  const jsxSnippet = (name: string) =>
+    `<${name.replace(/\s+/g, "")} className="w-6 h-6" />`;
+  const importSnippet = (name: string) =>
+    `import { ${name.replace(/\s+/g, "")} } from "@/icons";`;
 
   return (
     <main
-      className="min-h-screen w-full bg-[#06070b] text-white"
-      style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}
+      className="min-h-screen w-full bg-black text-white selection:bg-white selection:text-black"
+      style={{
+        fontFamily:
+          '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,system-ui,sans-serif',
+        // override svg attribute stroke-width via CSS variable for live weight control
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ["--sw" as any]: weight,
+      }}
     >
-      {/* Background glow */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(60% 50% at 50% 0%, rgba(56,189,248,0.12), transparent 70%), radial-gradient(40% 40% at 80% 100%, rgba(167,139,250,0.10), transparent 70%)",
-        }}
-      />
+      <style>{`
+        .ico-stage svg { stroke-width: var(--sw, 1.4) !important; }
+        .mono { font-family: "SF Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-feature-settings: "tnum","ss01"; }
+        .hairline-grid > * + * { border-left: 1px solid rgba(255,255,255,0.06); }
+        @media (max-width: 639px){ .hairline-grid > * + * { border-left: 0; } }
+        @keyframes io-rise { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
+      `}</style>
 
-      <header className="max-w-6xl mx-auto px-6 pt-10 pb-8">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back
-        </Link>
-
-        <h1 className="mt-6 text-4xl md:text-5xl font-semibold tracking-tight">
-          Icon Library
-        </h1>
-        <p className="mt-2 text-sm text-white/55 max-w-xl">
-          Twenty original glyphs designed in-house for the Atlas suite. Pure SVG,
-          24×24 grid, 1.6 stroke, inherits <code className="text-white/80">currentColor</code>.
-        </p>
+      {/* Top bar */}
+      <header className="sticky top-0 z-30 bg-black/85 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center gap-6">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-[11px] mono uppercase tracking-[0.2em] text-white/55 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            Index
+          </Link>
+          <span className="mono text-[10px] uppercase tracking-[0.32em] text-white/30 hidden md:inline">
+            Atlas / Iconography / v1.0
+          </span>
+          <div className="ml-auto mono text-[10px] uppercase tracking-[0.28em] text-white/40">
+            {String(filtered.length).padStart(3, "0")} / {String(ICONS.length).padStart(3, "0")}
+          </div>
+        </div>
       </header>
 
-      <section className="max-w-6xl mx-auto px-6 pb-24">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {ICONS.map(({ name, tag, Icon }) => (
-            <button
-              key={name}
-              onClick={() => copyName(name)}
-              className="group relative aspect-square rounded-2xl border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 transition-all p-4 flex flex-col items-center justify-between text-center backdrop-blur-xl"
-            >
-              <div className="flex-1 w-full flex items-center justify-center text-white/85 group-hover:text-white transition-colors">
-                <span className="w-10 h-10 block">
-                  <Icon />
-                </span>
-              </div>
-              <div className="w-full">
-                <p className="text-[11px] font-medium text-white/90 truncate">{name}</p>
-                <p className="text-[9px] uppercase tracking-[0.14em] text-white/35 mt-0.5">
-                  {tag}
-                </p>
-              </div>
-              <span
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white/60"
-                aria-hidden
-              >
-                {copied === name ? (
-                  <Check className="w-3 h-3 text-emerald-400" />
-                ) : (
-                  <Copy className="w-3 h-3" />
-                )}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-8 text-[10px] uppercase tracking-[0.18em] text-white/30">
-          {ICONS.length} icons · click to copy name
+      {/* Hero */}
+      <section className="max-w-[1400px] mx-auto px-6 pt-20 pb-14">
+        <p className="mono text-[10px] uppercase tracking-[0.4em] text-white/40">
+          Series — 020
         </p>
+        <h1
+          className="mt-6 text-[clamp(56px,11vw,168px)] leading-[0.88] tracking-[-0.04em]"
+          style={{ fontWeight: 200 }}
+        >
+          Iconography.
+        </h1>
+        <div className="mt-8 grid md:grid-cols-2 gap-8 max-w-4xl">
+          <p className="text-sm text-white/55 leading-relaxed">
+            A monochrome system of twenty primitives drawn on a single
+            twenty-four pixel grid. Engineered for instrumentation, telemetry
+            and the control surfaces of the Atlas suite.
+          </p>
+          <div className="mono text-[10px] uppercase tracking-[0.28em] text-white/40 grid grid-cols-3 gap-4">
+            <div>
+              <div className="text-white/85 text-[11px]">24×24</div>
+              <div className="mt-0.5">Grid</div>
+            </div>
+            <div>
+              <div className="text-white/85 text-[11px]">{weight.toFixed(2)}</div>
+              <div className="mt-0.5">Stroke</div>
+            </div>
+            <div>
+              <div className="text-white/85 text-[11px]">SVG · 1c</div>
+              <div className="mt-0.5">Format</div>
+            </div>
+          </div>
+        </div>
       </section>
+
+      {/* Controls */}
+      <section className="max-w-[1400px] mx-auto px-6">
+        <div className="border-y border-white/[0.06] hairline-grid grid grid-cols-1 sm:grid-cols-[1fr_auto_auto]">
+          {/* search */}
+          <label className="flex items-center gap-3 px-5 h-14">
+            <Search className="w-3.5 h-3.5 text-white/40" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search glyphs…"
+              className="flex-1 bg-transparent outline-none text-sm placeholder:text-white/30 text-white"
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="text-white/40 hover:text-white">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </label>
+
+          {/* weight slider */}
+          <div className="flex items-center gap-3 px-5 h-14 min-w-[220px]">
+            <span className="mono text-[10px] uppercase tracking-[0.24em] text-white/45">Stroke</span>
+            <input
+              type="range"
+              min={0.6}
+              max={2.4}
+              step={0.1}
+              value={weight}
+              onChange={(e) => setWeight(parseFloat(e.target.value))}
+              className="flex-1 accent-white h-px"
+            />
+            <span className="mono text-[10px] text-white/70 w-8 text-right">{weight.toFixed(1)}</span>
+          </div>
+
+          {/* size segmented */}
+          <div className="flex items-center gap-1 px-5 h-14">
+            <span className="mono text-[10px] uppercase tracking-[0.24em] text-white/45 mr-2">Size</span>
+            {(["S", "M", "L"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setSize(s)}
+                className={`mono text-[10px] uppercase tracking-[0.2em] w-7 h-7 transition-colors ${
+                  size === s ? "text-black bg-white" : "text-white/55 hover:text-white"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Grid */}
+      <section className="max-w-[1400px] mx-auto px-6 pb-40">
+        {filtered.length === 0 ? (
+          <p className="mono text-[11px] uppercase tracking-[0.24em] text-white/40 py-24 text-center">
+            No glyphs match “{query}”.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 border-b border-white/[0.06]">
+            {filtered.map(({ name, tag, Icon }, idx) => {
+              const isActive = name === selected;
+              const num = String(ICONS.findIndex((i) => i.name === name) + 1).padStart(3, "0");
+              return (
+                <button
+                  key={name}
+                  onClick={() => setSelected(name)}
+                  className={`ico-stage group relative aspect-square border-t border-l border-white/[0.06] -mr-px -mb-px flex flex-col items-center justify-center transition-colors ${
+                    isActive ? "bg-white text-black" : "text-white/85 hover:bg-white/[0.04] hover:text-white"
+                  }`}
+                  style={{ animation: `io-rise 0.4s ${idx * 12}ms both ease-out` }}
+                >
+                  <span
+                    className="mono text-[9px] uppercase tracking-[0.22em] absolute top-2 left-2 opacity-50"
+                  >
+                    {num}
+                  </span>
+
+                  <span
+                    className="block transition-transform duration-300 group-hover:scale-110"
+                    style={{ width: SIZE_PX[size], height: SIZE_PX[size] }}
+                  >
+                    <Icon />
+                  </span>
+
+                  <span
+                    className={`mono text-[9px] uppercase tracking-[0.22em] absolute bottom-2 right-2 transition-opacity ${
+                      isActive ? "opacity-100" : "opacity-0 group-hover:opacity-60"
+                    }`}
+                  >
+                    {tag}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Detail rail */}
+      <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.08] bg-black/90 backdrop-blur-2xl">
+        <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center gap-6">
+          {/* preview */}
+          <div className="ico-stage shrink-0 w-20 h-20 border border-white/[0.08] flex items-center justify-center">
+            <span className="block w-10 h-10 text-white">
+              <current.Icon />
+            </span>
+          </div>
+
+          {/* meta */}
+          <div className="min-w-0 flex-1">
+            <p className="mono text-[10px] uppercase tracking-[0.28em] text-white/40">
+              {String(ICONS.findIndex((i) => i.name === current.name) + 1).padStart(3, "0")} · {current.tag}
+            </p>
+            <h3 className="mt-1 text-2xl tracking-tight" style={{ fontWeight: 300 }}>
+              {current.name}
+            </h3>
+          </div>
+
+          {/* actions */}
+          <div className="hidden sm:flex items-center gap-2">
+            <CopyChip
+              label="Name"
+              copied={copied === "name"}
+              onClick={() => copy("name", current.name)}
+            />
+            <CopyChip
+              label="JSX"
+              icon={<Code2 className="w-3 h-3" />}
+              copied={copied === "jsx"}
+              onClick={() => copy("jsx", jsxSnippet(current.name))}
+            />
+            <CopyChip
+              label="Import"
+              icon={<Code2 className="w-3 h-3" />}
+              copied={copied === "import"}
+              onClick={() => copy("import", importSnippet(current.name))}
+            />
+          </div>
+        </div>
+      </aside>
     </main>
+  );
+}
+
+function CopyChip({
+  label,
+  copied,
+  onClick,
+  icon,
+}: {
+  label: string;
+  copied: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`mono inline-flex items-center gap-1.5 px-3 h-8 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
+        copied
+          ? "border-white bg-white text-black"
+          : "border-white/15 text-white/70 hover:border-white/60 hover:text-white"
+      }`}
+    >
+      {copied ? <Check className="w-3 h-3" /> : icon || <Copy className="w-3 h-3" />}
+      {copied ? "Copied" : label}
+    </button>
   );
 }
