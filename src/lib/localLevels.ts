@@ -77,8 +77,13 @@ export function updateLocalLevel(id: string, patch: Partial<Omit<LocalLevelRecor
   const index = levels.findIndex((level) => level.id === id);
   if (index < 0) return false;
   levels[index] = { ...levels[index], ...patch, updated_at: new Date().toISOString() };
-  writeLocalLevels(levels);
-  return true;
+  try {
+    writeLocalLevels(levels);
+    return true;
+  } catch (err) {
+    console.warn("[localLevels] write failed", err);
+    return false;
+  }
 }
 
 export function deleteLocalLevel(id: string) {
