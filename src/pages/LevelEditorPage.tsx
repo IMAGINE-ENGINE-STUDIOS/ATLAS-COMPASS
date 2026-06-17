@@ -2147,3 +2147,207 @@ function TerrainPanel({
     </div>
   );
 }
+
+/* ============================================================
+ * HDRIPanel
+ * Lets the user import .hdr/.exr files (HDRI packs) as image-based
+ * lighting + background for the level. Multiple HDRIs can be uploaded
+ * and switched between; intensity, Y-rotation and "use as background"
+ * are tweakable per scene.
+ * ========================================================== */
+function HDRIPanel({
+  hdri,
+  disabled,
+  onChange,
+}: {
+  hdri?: HDRIEnvironmentCfg;
+  disabled?: boolean;
+  onChange: (updater: (cur: HDRIEnvironmentCfg) => HDRIEnvironmentCfg | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cfg: HDRIEnvironmentCfg = hdri ?? {
+    maps: [],
+    intensity: 1,
+    rotation: 0,
+    asBackground: true,
+  };
+
+  const readAsDataURL = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const added: HDRIMap[] = [];
+    for (const file of Array.from(files)) {
+      const lower = file.name.toLowerCase();
+      const ext: "hdr" | "exr" = lower.endsWith(".exr") ? "exr" : "hdr";
+      if (!lower.endsWith(".hdr") && !lower.endsWith(".exr")) {
+        toast.error(`${file.name}: only .hdr and .exr are supported`);
+        continue;
+      }
+      try {
+        const url = await readAsDataURL(file);
+        added.push({
+          id: newId("hdri"),
+          name: file.name.replace(/\.(hdr|exr)$/i, ""),
+          url,
+          ext,
+        });
+      } catch (e) {
+        toast.error(`Failed to read ${file.name}`);
+      }
+    }
+    if (added.length === 0) return;
+    onChange((cur) => ({
+      ...cur,
+      maps: [...cur.maps, ...added],
+      activeId: cur.activeId ?? added[0].id,
+    }));
+    toast.success(`Imported ${added.length} HDRI${added.length > 1 ? "s" : ""}`);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const removeMap = (id: string) => {
+    onChange((cur) => {
+      const maps = cur.maps.filter((m) => m.id !== id);
+      if (maps.length === 0) return null;
+      return {
+        ...cur,
+        maps,
+        activeId: cur.activeId === id ? maps[0].id : cur.activeId,
+      };
+    });
+  };
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border/40">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs flex items-center gap-1">
+          <SunMedium className="w-3 h-3" /> HDRI environment
+        </Label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload className="w-3 h-3 mr-1" /> Import .hdr / .exr
+        </Button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".hdr,.exr,image/vnd.radiance,image/x-exr"
+          multiple
+          hidden
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      </div>
+
+      {cfg.maps.length === 0 ? (
+        <p className="text-[10px] text-muted-foreground">
+          Drop a HDRI pack (.hdr / .exr) here to light the scene with image-based lighting.
+        </p>
+      ) : (
+        <>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Active HDRI</Label>
+            <Select
+              value={cfg.activeId ?? ""}
+              onValueChange={(v) =>
+                onChange((cur) => ({ ...cur, activeId: v || undefined }))
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="Select HDRI" />
+              </SelectTrigger>
+              <SelectContent>
+                {cfg.maps.map((m) => (
+                  <SelectItem key={m.id} value={m.id} className="text-xs">
+                    {m.name} <span className="opacity-50">.{m.ext}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[10px]">Intensity {cfg.intensity.toFixed(2)}</Label>
+            <Slider
+              value={[cfg.intensity]}
+              min={0}
+              max={4}
+              step={0.05}
+              onValueChange={([v]) => onChange((cur) => ({ ...cur, intensity: v }))}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[10px]">
+              Rotation {((cfg.rotation * 180) / Math.PI).toFixed(0)}°
+            </Label>
+            <Slider
+              value={[cfg.rotation]}
+              min={-Math.PI}
+              max={Math.PI}
+              step={Math.PI / 180}
+              onValueChange={([v]) => onChange((cur) => ({ ...cur, rotation: v }))}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px]">Use as background</Label>
+            <Switch
+              checked={cfg.asBackground}
+              onCheckedChange={(v) => onChange((cur) => ({ ...cur, asBackground: v }))}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="space-y-1 pt-1">
+            <Label className="text-[10px] text-muted-foreground">Pack ({cfg.maps.length})</Label>
+            <div className="max-h-32 overflow-auto space-y-1 pr-1">
+              {cfg.maps.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex items-center gap-1 px-1.5 py-1 rounded text-[11px] ${
+                    cfg.activeId === m.id ? "bg-primary/10" : "hover:bg-muted/40"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    className="flex-1 text-left truncate"
+                    onClick={() => onChange((cur) => ({ ...cur, activeId: m.id }))}
+                    disabled={disabled}
+                    title={m.name}
+                  >
+                    {m.name}
+                  </button>
+                  <span className="opacity-50 text-[10px]">.{m.ext}</span>
+                  <button
+                    type="button"
+                    className="opacity-60 hover:opacity-100"
+                    onClick={() => removeMap(m.id)}
+                    disabled={disabled}
+                    title="Remove"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
