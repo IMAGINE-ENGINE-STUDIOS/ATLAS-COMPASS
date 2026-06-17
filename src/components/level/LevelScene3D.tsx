@@ -823,9 +823,16 @@ function PolygonEditOverlay({
             <mesh
               position={wp.toArray() as any}
               onPointerDown={(e) => beginDrag(i, "top", e)}
+              onContextMenu={(e: any) => {
+                e.stopPropagation();
+                e.nativeEvent?.preventDefault?.();
+                if (poly.points.length > 3) {
+                  onChange(poly.points.filter((_, j) => j !== i));
+                }
+              }}
               renderOrder={999}
             >
-              <sphereGeometry args={[0.16, 20, 20]} />
+              <sphereGeometry args={[0.055, 16, 16]} />
               <meshBasicMaterial color="#facc15" depthTest={false} depthWrite={false} toneMapped={false} />
             </mesh>
             {/* point index label */}
@@ -860,9 +867,16 @@ function PolygonEditOverlay({
             key={`bot-${i}`}
             position={wp.toArray() as any}
             onPointerDown={(e) => beginDrag(i, "bottom", e)}
+            onContextMenu={(e: any) => {
+              e.stopPropagation();
+              e.nativeEvent?.preventDefault?.();
+              if (poly.points.length > 3) {
+                onChange(poly.points.filter((_, j) => j !== i));
+              }
+            }}
             renderOrder={999}
           >
-            <sphereGeometry args={[0.13, 16, 16]} />
+            <sphereGeometry args={[0.045, 14, 14]} />
             <meshBasicMaterial color="#f97316" depthTest={false} depthWrite={false} toneMapped={false} />
           </mesh>
         ))}
