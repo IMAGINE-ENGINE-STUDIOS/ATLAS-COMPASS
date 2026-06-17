@@ -36,7 +36,6 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
   const [tick, setTick] = useState(0);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const stageRef = useRef<HTMLDivElement | null>(null);
   const refreshRate = Math.max(camera.refreshRate ?? 10, 1);
   const stream = isStream(camera.streamUrl);
 
@@ -62,17 +61,6 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
   }, [stream, refreshRate]);
 
   const imageSrc = `${PROXY_URL}?url=${encodeURIComponent(camera.imageUrl)}&_t=${tick}`;
-
-  const enterFullscreen = async () => {
-    const el = stageRef.current;
-    if (!el) return;
-    const anyEl = el as any;
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else if (el.requestFullscreen) await el.requestFullscreen();
-      else if (anyEl.webkitRequestFullscreen) anyEl.webkitRequestFullscreen();
-    } catch {}
-  };
 
   const takeScreenshot = async () => {
     const canvas = document.createElement("canvas");
@@ -141,7 +129,7 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div ref={stageRef} className="aspect-video bg-black relative">
+        <div className="aspect-video bg-black relative">
           {stream && camera.streamUrl ? (
             <InlineVideoPlayer
               src={camera.streamUrl}
