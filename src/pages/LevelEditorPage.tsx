@@ -638,6 +638,15 @@ export default function LevelEditorPage() {
         <div className="ml-auto flex items-center gap-2">
           <Button
             size="sm"
+            variant={terrainOpen ? "secondary" : "ghost"}
+            onClick={() => setTerrainOpen((v) => !v)}
+            disabled={!isOwner}
+            title="Terrain"
+          >
+            <Mountain className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
             variant="ghost"
             onClick={undo}
             disabled={historyRef.current.past.length === 0}
