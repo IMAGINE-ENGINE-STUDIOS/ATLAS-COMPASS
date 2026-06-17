@@ -1336,6 +1336,15 @@ function ObjectInspector({
           />
         </>
       )}
+      {obj.kind === "model" && (
+        <ModelMaterialEditor
+          obj={obj}
+          disabled={disabled}
+          onPatch={(materialOverrides) =>
+            onPatch({ materialOverrides } as any)
+          }
+        />
+      )}
       {onDelete && (
         <Button
           size="sm"
