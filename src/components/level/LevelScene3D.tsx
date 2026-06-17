@@ -418,12 +418,14 @@ function TransformGizmo({
   mode,
   groupRef,
   controlsRef,
+  snap,
   onCommit,
 }: {
   targetId: string;
   mode: "translate" | "rotate" | "scale";
   groupRef: React.RefObject<THREE.Group>;
   controlsRef?: React.MutableRefObject<any>;
+  snap?: number;
   onCommit: (t: {
     position: [number, number, number];
     rotation: [number, number, number];
@@ -443,6 +445,9 @@ function TransformGizmo({
       object={target as any}
       mode={mode}
       size={0.8}
+      translationSnap={snap && snap > 0 ? snap : null}
+      rotationSnap={snap && snap > 0 ? Math.PI / 12 : null}
+      scaleSnap={snap && snap > 0 ? snap : null}
       onMouseDown={() => {
         if (controlsRef?.current) controlsRef.current.enabled = false;
       }}
