@@ -44,29 +44,71 @@ function HDRIEnvironmentRuntime({ cfg }: { cfg: HDRIEnvironmentCfg }) {
       setTex(null);
       return;
     }
+    // Skip placeholder URLs left behind when a level is restored without its
+    // local HDRI blob (e.g. opened in a different browser, or after the
+    // per-level HDRI cache was evicted). Trying to fetch "local:<id>" throws
+    // "Failed to fetch" repeatedly and used to spam the canvas.
+    if (!active.url || active.url.startsWith("local:")) {
+      console.warn("[hdri] active map has no usable URL — re-upload to restore lighting");
+      setTex(null);
+      return;
+    }
     let cancelled = false;
+    let blobUrl: string | null = null;
+    // Huge data: URLs (>~10MB) can fail `fetch()` with "Failed to fetch" in
+    // Chromium. Convert to a Blob URL first — Blob URLs always load cleanly
+    // and also free the giant base64 string from the loader pipeline.
+    let urlToLoad = active.url;
+    if (active.url.startsWith("data:")) {
+      try {
+        const [meta, b64] = active.url.split(",", 2);
+        const mime = meta.match(/data:([^;]+)/)?.[1] ?? "application/octet-stream";
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+        urlToLoad = blobUrl;
+      } catch (e) {
+        console.warn("[hdri] failed to convert data URL to blob", e);
+      }
+    }
     const Loader: any = active.ext === "exr" ? EXRLoader : RGBELoader;
     const loader = new Loader();
     loader.load(
-      active.url,
+      urlToLoad,
       (t: THREE.Texture) => {
         if (cancelled) {
           t.dispose();
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
           return;
         }
-        t.mapping = THREE.EquirectangularReflectionMapping;
-        // Pre-filter via PMREM for correct PBR reflections
-        const pmrem = new THREE.PMREMGenerator(gl);
-        const target = pmrem.fromEquirectangular(t);
-        t.dispose();
-        pmrem.dispose();
-        setTex(target.texture);
+        try {
+          t.mapping = THREE.EquirectangularReflectionMapping;
+          // Pre-filter via PMREM for correct PBR reflections
+          const pmrem = new THREE.PMREMGenerator(gl);
+          const target = pmrem.fromEquirectangular(t);
+          t.dispose();
+          pmrem.dispose();
+          setTex(target.texture);
+        } catch (err) {
+          // PMREM can throw if the WebGL context is lost mid-load. Don't
+          // tear down the React tree — fall back to no environment map.
+          console.warn("[hdri] PMREM filtering failed", err);
+          t.dispose();
+          setTex(null);
+        } finally {
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
+        }
       },
       undefined,
-      (err: unknown) => console.warn("HDRI load failed", err),
+      (err: unknown) => {
+        console.warn("HDRI load failed", err);
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+      },
     );
     return () => {
       cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [active?.id, active?.url, active?.ext, gl]);
 
