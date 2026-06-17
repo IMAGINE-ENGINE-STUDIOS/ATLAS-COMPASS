@@ -246,7 +246,7 @@ export default function IconsPage() {
 
                   <span
                     className={`block transition-transform duration-300 group-hover:scale-110 ${
-                      isActive || lightCell ? "invert" : ""
+                      isActive || lightCell ? "" : "invert"
                     }`}
                     style={{ width: SIZE_PX[size], height: SIZE_PX[size] }}
                   >
