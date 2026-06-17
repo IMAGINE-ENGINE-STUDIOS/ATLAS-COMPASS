@@ -1348,50 +1348,205 @@ function PolygonEditOverlay({
       return;
     }
     const canvas = gl.domElement;
-    const planeY = (poly.extrude || 0) + 0.01;
-    const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
-    const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
-    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
-    const hit = new THREE.Vector3();
 
-    const computeNearest = (clientX: number, clientY: number) => {
+    // Resolve insertion data from a screen-space point. We raycast against
+    // the polygon's actual mesh (which has per-face material groups + a
+    // userData.__faceKeys map) so the user can insert points by clicking
+    // ANY edge — top spline, bottom spline, or vertical side seam.
+    const computeInsertion = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
       ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
       ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(ndc, camera);
-      if (!raycaster.ray.intersectPlane(plane, hit)) return null;
-      const local = hit.clone().applyMatrix4(invObjMatrix);
-      // shape coords: lx = local.x, ly = -local.z
-      const px = local.x, py = -local.z;
-      const segCount = poly.closed ? poly.points.length : poly.points.length - 1;
-      let best = { dist: Infinity, index: 0, point: [px, py] as [number, number] };
-      for (let i = 0; i < segCount; i++) {
-        const a = poly.points[i];
-        const b = poly.points[(i + 1) % poly.points.length];
-        const dx = b[0] - a[0], dy = b[1] - a[1];
-        const len2 = dx * dx + dy * dy || 1e-6;
-        const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2));
-        const sx = a[0] + dx * t, sy = a[1] + dy * t;
-        const d = Math.hypot(px - sx, py - sy);
-        if (d < best.dist) best = { dist: d, index: i, point: [sx, sy] };
+      const target = r3fScene.getObjectByName(`obj-${poly.id}`);
+      const N = poly.points.length;
+      const segCount = poly.closed ? N : N - 1;
+      const tH = poly.pointHeights || [];
+      const bH = poly.bottomHeights || [];
+      const offs = poly.bottomOffsets || [];
+
+      // Helper: nearest segment on a given ring (2D in shape coords),
+      // returns {index, t, sx, sy} for the closest projection.
+      const nearestOnRing = (
+        ring: Array<[number, number]>,
+        px: number,
+        py: number,
+      ) => {
+        let best = { dist: Infinity, index: 0, t: 0, sx: px, sy: py };
+        for (let i = 0; i < segCount; i++) {
+          const a = ring[i];
+          const b = ring[(i + 1) % N];
+          const dx = b[0] - a[0], dy = b[1] - a[1];
+          const len2 = dx * dx + dy * dy || 1e-6;
+          const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2));
+          const sx = a[0] + dx * t, sy = a[1] + dy * t;
+          const d = Math.hypot(px - sx, py - sy);
+          if (d < best.dist) best = { dist: d, index: i, t, sx, sy };
+        }
+        return best;
+      };
+      const topRing = poly.points;
+      const botRing: Array<[number, number]> = poly.points.map(([x, z], i) => {
+        const [ox, oz] = offs[i] || [0, 0];
+        return [x + ox, z + oz];
+      });
+
+      // First try the actual mesh — gives us face key + exact 3D hit.
+      if (target) {
+        const hits = raycaster.intersectObject(target, true);
+        const hit = hits.find(
+          (h) => (h.object as any).userData?.__faceKeys && (h.object as any).userData?.__objId === poly.id,
+        );
+        if (hit && hit.point) {
+          const local = hit.point.clone().applyMatrix4(invObjMatrix);
+          const px = local.x, py = -local.z, hY = local.y;
+          const key = resolveFaceKeyFromHit(hit);
+
+          if (key === "bottom") {
+            const r = nearestOnRing(botRing, px, py);
+            // Insertion XZ on bottom: use projected point. Derive the new
+            // top XZ by undoing the interpolated offset so the new top
+            // vertex still sits along the top ring's straight edge.
+            const offA = offs[r.index] || [0, 0];
+            const offB = offs[(r.index + 1) % N] || [0, 0];
+            const newOff: [number, number] = [
+              offA[0] + (offB[0] - offA[0]) * r.t,
+              offA[1] + (offB[1] - offA[1]) * r.t,
+            ];
+            const topA = poly.points[r.index];
+            const topB = poly.points[(r.index + 1) % N];
+            const newTopXZ: [number, number] = [
+              topA[0] + (topB[0] - topA[0]) * r.t,
+              topA[1] + (topB[1] - topA[1]) * r.t,
+            ];
+            const newTopH = (tH[r.index] || 0) + ((tH[(r.index + 1) % N] || 0) - (tH[r.index] || 0)) * r.t;
+            return {
+              source: "bottom" as const,
+              index: r.index,
+              local: newTopXZ,
+              world: hit.point.toArray() as [number, number, number],
+              newOffset: newOff,
+              newTopHeight: newTopH,
+              newBottomHeight: hY,
+            };
+          }
+
+          if (key && key.startsWith("side_")) {
+            const i = parseInt(key.slice(5), 10);
+            // Project the hit onto side i's top edge to get the param t.
+            const a = poly.points[i];
+            const b = poly.points[(i + 1) % N];
+            const dx = b[0] - a[0], dy = b[1] - a[1];
+            const len2 = dx * dx + dy * dy || 1e-6;
+            const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2));
+            const newTopXZ: [number, number] = [a[0] + dx * t, a[1] + dy * t];
+            const offA = offs[i] || [0, 0];
+            const offB = offs[(i + 1) % N] || [0, 0];
+            const newOff: [number, number] = [
+              offA[0] + (offB[0] - offA[0]) * t,
+              offA[1] + (offB[1] - offA[1]) * t,
+            ];
+            const newTopH = (tH[i] || 0) + ((tH[(i + 1) % N] || 0) - (tH[i] || 0)) * t;
+            const newBotH = (bH[i] || 0) + ((bH[(i + 1) % N] || 0) - (bH[i] || 0)) * t;
+            return {
+              source: "side" as const,
+              index: i,
+              local: newTopXZ,
+              world: hit.point.toArray() as [number, number, number],
+              newOffset: newOff,
+              newTopHeight: newTopH,
+              newBottomHeight: newBotH,
+            };
+          }
+
+          // top cap / flat — existing behavior, but also derive the new
+          // top height from the click's Y so dome-shaped tops can grow.
+          const r = nearestOnRing(topRing, px, py);
+          const newTopH = hY - (poly.extrude || 0);
+          const offA = offs[r.index] || [0, 0];
+          const offB = offs[(r.index + 1) % N] || [0, 0];
+          const newOff: [number, number] = [
+            offA[0] + (offB[0] - offA[0]) * r.t,
+            offA[1] + (offB[1] - offA[1]) * r.t,
+          ];
+          const newBotH = (bH[r.index] || 0) + ((bH[(r.index + 1) % N] || 0) - (bH[r.index] || 0)) * r.t;
+          return {
+            source: "top" as const,
+            index: r.index,
+            local: [r.sx, r.sy] as [number, number],
+            world: hit.point.toArray() as [number, number, number],
+            newOffset: newOff,
+            newTopHeight: newTopH,
+            newBottomHeight: newBotH,
+          };
+        }
       }
-      return best;
+
+      // Fallback to the original top-plane raycast (handles empty space
+      // hovering — keeps the old UX working even when the cursor is off
+      // the mesh).
+      const planeY = (poly.extrude || 0) + 0.01;
+      const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
+      const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+      const planeHit = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, planeHit)) return null;
+      const local = planeHit.clone().applyMatrix4(invObjMatrix);
+      const r = nearestOnRing(topRing, local.x, -local.z);
+      const offA = offs[r.index] || [0, 0];
+      const offB = offs[(r.index + 1) % N] || [0, 0];
+      return {
+        source: "top" as const,
+        index: r.index,
+        local: [r.sx, r.sy] as [number, number],
+        world: planeHit.toArray() as [number, number, number],
+        newOffset: [
+          offA[0] + (offB[0] - offA[0]) * r.t,
+          offA[1] + (offB[1] - offA[1]) * r.t,
+        ] as [number, number],
+        newTopHeight: (tH[r.index] || 0) + ((tH[(r.index + 1) % N] || 0) - (tH[r.index] || 0)) * r.t,
+        newBottomHeight: (bH[r.index] || 0) + ((bH[(r.index + 1) % N] || 0) - (bH[r.index] || 0)) * r.t,
+      };
     };
 
     const onMove = (ev: PointerEvent) => {
-      const r = computeNearest(ev.clientX, ev.clientY);
-      if (r) setHoverInsert({ index: r.index, local: r.point });
+      const r = computeInsertion(ev.clientX, ev.clientY);
+      if (r) setHoverInsert({ index: r.index, local: r.local, world: r.world });
     };
     const onClick = (ev: MouseEvent) => {
-      const r = computeNearest(ev.clientX, ev.clientY);
+      const r = computeInsertion(ev.clientX, ev.clientY);
       if (!r) return;
       ev.stopPropagation();
       ev.preventDefault();
-      const next = [...poly.points];
-      next.splice(r.index + 1, 0, r.point);
-      onChange(next as Array<[number, number]>);
+      const at = r.index + 1;
+      const nextPoints = [...poly.points];
+      nextPoints.splice(at, 0, r.local);
+      const N = poly.points.length;
+      const padArr = (arr: number[] | undefined, fill = 0) => {
+        const out = Array.from({ length: N }, (_, i) => arr?.[i] ?? fill);
+        return out;
+      };
+      const padOffs = (arr: Array<[number, number]> | undefined) => {
+        return Array.from({ length: N }, (_, i) => arr?.[i] ?? [0, 0]) as Array<[number, number]>;
+      };
+      const nextOffsets = padOffs(poly.bottomOffsets);
+      nextOffsets.splice(at, 0, r.newOffset);
+      const nextTopH = padArr(poly.pointHeights);
+      nextTopH.splice(at, 0, r.newTopHeight);
+      const nextBotH = padArr(poly.bottomHeights);
+      nextBotH.splice(at, 0, r.newBottomHeight);
+      if (onPatch) {
+        onPatch({
+          points: nextPoints as Array<[number, number]>,
+          bottomOffsets: nextOffsets,
+          pointHeights: nextTopH,
+          bottomHeights: nextBotH,
+        });
+      } else {
+        onChange(nextPoints as Array<[number, number]>);
+      }
       onAddingPointHandled?.();
     };
     const onKey = (ev: KeyboardEvent) => {
@@ -1405,7 +1560,7 @@ function PolygonEditOverlay({
       canvas.removeEventListener("click", onClick, true);
       window.removeEventListener("keydown", onKey);
     };
-  }, [addingPoint, gl, camera, poly.points, poly.closed, poly.extrude, objMatrix, invObjMatrix, onChange, onAddingPointHandled]);
+  }, [addingPoint, gl, camera, r3fScene, poly.id, poly.points, poly.closed, poly.extrude, poly.bottomOffsets, poly.pointHeights, poly.bottomHeights, objMatrix, invObjMatrix, onChange, onPatch, onAddingPointHandled]);
 
   return (
     <group>
