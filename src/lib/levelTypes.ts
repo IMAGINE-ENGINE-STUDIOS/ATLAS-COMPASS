@@ -246,6 +246,22 @@ export interface LevelScene {
     fog?: { color: string; near: number; far: number };
     /** HDRI environment / image-based lighting. */
     hdri?: HDRIEnvironment;
+    /** Global illumination approximation (hemisphere + contact shadows). */
+    gi?: {
+      enabled: boolean;
+      /** Sky hemisphere color (default #87ceeb). */
+      skyColor: string;
+      /** Ground hemisphere color (default #3d5c3d). */
+      groundColor: string;
+      /** Intensity of the hemisphere light. */
+      hemisphereIntensity: number;
+      /** Render cheap contact-shadow overlay for AO-like grounding. */
+      contactShadows: boolean;
+      /** Opacity of the contact-shadow plane (0–1). */
+      contactOpacity: number;
+      /** Blur radius of the contact shadows (0–10). */
+      contactBlur: number;
+    };
   };
 }
 
