@@ -3,7 +3,8 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
-  Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil
+  Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
+  SunMedium, Spotlight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
@@ -107,6 +108,11 @@ export default function LevelEditorPage() {
   const [placeLat, setPlaceLat] = useState("40.7580");
   const [placeLng, setPlaceLng] = useState("-73.9855");
   const [placeScale, setPlaceScale] = useState("1");
+  const [selectedLightId, setSelectedLightId] = useState<string | null>(null);
+  const [snapEnabled, setSnapEnabled] = useState(false);
+  const [snapSize, setSnapSize] = useState(0.5);
+
+  const snap = snapEnabled ? snapSize : 0;
 
   const isOwner = userId && ownerId && userId === ownerId;
 
@@ -271,6 +277,7 @@ export default function LevelEditorPage() {
   };
 
   const selectedObj = scene.objects.find((o) => o.id === selectedId);
+  const selectedLight = scene.lights.find((l) => l.id === selectedLightId);
 
   if (loading) {
     return (
@@ -295,6 +302,27 @@ export default function LevelEditorPage() {
           className="h-8 w-64 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold"
         />
         <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
+            <button
+              onClick={() => setSnapEnabled((v) => !v)}
+              className={`flex items-center gap-1 text-[11px] ${snapEnabled ? "text-primary" : "text-muted-foreground"}`}
+              title="Toggle snap to grid"
+            >
+              <Magnet className="w-3.5 h-3.5" /> Snap
+            </button>
+            {snapEnabled && (
+              <Select value={String(snapSize)} onValueChange={(v) => setSnapSize(parseFloat(v))}>
+                <SelectTrigger className="h-6 w-16 text-[11px] px-1 border-transparent bg-transparent">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[0.1, 0.25, 0.5, 1, 2, 5].map((v) => (
+                    <SelectItem key={v} value={String(v)} className="text-xs">{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <Button size="sm" variant="ghost" onClick={() => setShowGrid((v) => !v)} title="Toggle grid">
             {showGrid ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
           </Button>
@@ -357,8 +385,24 @@ export default function LevelEditorPage() {
                   e.target.value = "";
                 }}
               />
-              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => addLight(makeLight("point"))}>
-                <Lightbulb className="w-3.5 h-3.5 mr-1" /> Light
+            </div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-3 mb-1">Lights</p>
+            <div className="grid grid-cols-4 gap-1">
+              <Button size="sm" variant="ghost" className="h-8 px-1" title="Directional"
+                onClick={() => { const l = makeLight("directional"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                <SunMedium className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-1" title="Point"
+                onClick={() => { const l = makeLight("point"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                <Lightbulb className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-1" title="Spot"
+                onClick={() => { const l = makeLight("spot"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                <Spotlight className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-1" title="Ambient"
+                onClick={() => { const l = makeLight("ambient"); addLight(l); setSelectedLightId(l.id); setSelectedId(null); }}>
+                <Sun className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
@@ -371,7 +415,7 @@ export default function LevelEditorPage() {
             {scene.objects.map((o) => (
               <button
                 key={o.id}
-                onClick={() => setSelectedId(o.id)}
+                onClick={() => { setSelectedId(o.id); setSelectedLightId(null); }}
                 className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
                   selectedId === o.id ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
                 }`}
@@ -393,14 +437,27 @@ export default function LevelEditorPage() {
 
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
             {scene.lights.map((l) => (
-              <div key={l.id} className="px-2 py-1.5 rounded text-xs flex items-center gap-2 hover:bg-muted/40">
-                <Sun className="w-3 h-3" />
+              <button
+                key={l.id}
+                onClick={() => { setSelectedLightId(l.id); setSelectedId(null); }}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
+                  selectedLightId === l.id ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
+                }`}
+              >
+                {l.kind === "directional" ? <SunMedium className="w-3 h-3" /> :
+                 l.kind === "spot" ? <Spotlight className="w-3 h-3" /> :
+                 l.kind === "ambient" ? <Sun className="w-3 h-3" /> :
+                 <Lightbulb className="w-3 h-3" />}
                 <span className="flex-1 truncate">{l.name}</span>
                 <Trash2
                   className="w-3 h-3 opacity-60 hover:opacity-100 hover:text-destructive cursor-pointer"
-                  onClick={() => removeLight(l.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeLight(l.id);
+                    if (selectedLightId === l.id) setSelectedLightId(null);
+                  }}
                 />
-              </div>
+              </button>
             ))}
           </div>
         </aside>
@@ -427,13 +484,21 @@ export default function LevelEditorPage() {
             </TabsList>
 
             <TabsContent value="object" className="p-3 space-y-3 m-0">
-              {!selectedObj ? (
-                <p className="text-xs text-muted-foreground italic">Select an object to edit</p>
+              {selectedLight ? (
+                <LightInspector
+                  light={selectedLight}
+                  onPatch={(p) => patchLight(selectedLight.id, p)}
+                  disabled={!isOwner}
+                  snap={snap}
+                />
+              ) : !selectedObj ? (
+                <p className="text-xs text-muted-foreground italic">Select an object or light to edit</p>
               ) : (
                 <ObjectInspector
                   obj={selectedObj}
                   onPatch={(p) => patchObject(selectedObj.id, p)}
                   disabled={!isOwner}
+                  snap={snap}
                 />
               )}
             </TabsContent>
