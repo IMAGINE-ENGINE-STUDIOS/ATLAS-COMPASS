@@ -38,6 +38,19 @@ export interface PolygonObject extends BaseObject {
   // is non-zero, the polygon mesh is built as a custom prism whose top and
   // bottom contours differ — useful for tapered/skewed shapes.
   bottomOffsets?: Array<[number, number]>;
+  /**
+   * Per-point vertical offset for the TOP ring (yellow handles). Index aligns
+   * with `points`. When omitted or 0, the top vertex sits at y = `extrude`
+   * (or y = 0 when the polygon is flat). Allows splines to slide on the
+   * vertical axis to create ramps / non-planar tops.
+   */
+  pointHeights?: number[];
+  /**
+   * Per-point vertical offset for the BOTTOM ring (orange handles). When
+   * omitted or 0, the bottom vertex sits at y = 0. Only meaningful when
+   * `extrude > 0`.
+   */
+  bottomHeights?: number[];
   extrude: number; // 0 = flat, >0 = extruded prism
   bevel: number;
   closed: boolean;

@@ -1006,6 +1006,12 @@ export default function LevelEditorPage() {
             onPolygonOffsetsChange={(oid, bottomOffsets) =>
               patchObject(oid, { bottomOffsets } as any)
             }
+            onPolygonHeightsChange={(oid, h) => {
+              const patch: any = {};
+              if (h.top) patch.pointHeights = h.top;
+              if (h.bottom) patch.bottomHeights = h.bottom;
+              patchObject(oid, patch);
+            }}
             addingPolygonPoint={addingPointMode && !!editingPolygonId}
             onAddingPointHandled={() => setAddingPointMode(false)}
             transformMode={selectedObjectLocked ? null : transformMode}

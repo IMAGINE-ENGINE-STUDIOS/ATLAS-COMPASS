@@ -154,12 +154,20 @@ function PolygonMesh({
         ? obj.points.map(([x, z]) => new THREE.Vector2(x, z))
         : [new THREE.Vector2(-0.5, -0.5), new THREE.Vector2(0.5, -0.5), new THREE.Vector2(0, 0.5)],
     );
-    const hasOffset =
-      obj.extrude > 0 &&
+    const hasXZOffset =
       !!obj.bottomOffsets &&
       obj.bottomOffsets.some(
         (o) => o && (Math.abs(o[0]) > 1e-6 || Math.abs(o[1]) > 1e-6),
       );
+    const hasTopHeights =
+      !!obj.pointHeights && obj.pointHeights.some((h) => Math.abs(h || 0) > 1e-6);
+    const hasBottomHeights =
+      !!obj.bottomHeights && obj.bottomHeights.some((h) => Math.abs(h || 0) > 1e-6);
+    // Use the custom builder whenever any per-vertex deformation exists, OR
+    // whenever the polygon is extruded and we need independent rings.
+    const hasOffset =
+      obj.extrude > 0 && (hasXZOffset || hasTopHeights || hasBottomHeights);
+    const hasFlatHeights = obj.extrude <= 0 && hasTopHeights;
     let geom: THREE.BufferGeometry;
     if (hasOffset) {
       // Custom prism with non-shared vertices so each face gets its own
@@ -168,14 +176,16 @@ function PolygonMesh({
       const N = obj.points.length;
       const top = obj.points;
       const offs = obj.bottomOffsets || [];
+      const tH = obj.pointHeights || [];
+      const bH = obj.bottomHeights || [];
       const topV = (i: number): [number, number, number] => {
         const [x, z] = top[i];
-        return [x, obj.extrude, -z];
+        return [x, obj.extrude + (tH[i] || 0), -z];
       };
       const botV = (i: number): [number, number, number] => {
         const [x, z] = top[i];
         const [ox, oz] = offs[i] || [0, 0];
-        return [x + ox, 0, -(z + oz)];
+        return [x + ox, (bH[i] || 0), -(z + oz)];
       };
       const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
       const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
@@ -231,6 +241,34 @@ function PolygonMesh({
       geom.addGroup(0, capCount, 0);
       geom.addGroup(capCount, sideCount, 1);
       geom.computeVertexNormals();
+    } else if (hasFlatHeights) {
+      // Flat (non-extruded) polygon with per-vertex Y — build a single
+      // triangulated cap whose vertices ride the spline's heights.
+      const top = obj.points;
+      const tH = obj.pointHeights || [];
+      const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
+      const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
+      const positions: number[] = [];
+      const uvs: number[] = [];
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const [x, z] of top) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+      }
+      const spanX = Math.max(maxX - minX, 1e-6);
+      const spanZ = Math.max(maxZ - minZ, 1e-6);
+      for (const t of tris) {
+        for (const i of [t[0], t[1], t[2]]) {
+          const [x, z] = top[i];
+          positions.push(x, tH[i] || 0, -z);
+          uvs.push((x - minX) / spanX, (z - minZ) / spanZ);
+        }
+      }
+      geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      geom.addGroup(0, positions.length / 3, 0);
+      geom.computeVertexNormals();
     } else {
       geom =
         obj.extrude > 0
@@ -278,7 +316,7 @@ function PolygonMesh({
         }),
       ],
     };
-  }, [obj.points, obj.bottomOffsets, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
+  }, [obj.points, obj.bottomOffsets, obj.pointHeights, obj.bottomHeights, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
 
   return (
     <mesh
@@ -642,6 +680,10 @@ export interface LevelSceneProps {
   editingPolygonId?: string | null;
   onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
   onPolygonOffsetsChange?: (id: string, offsets: Array<[number, number]>) => void;
+  onPolygonHeightsChange?: (
+    id: string,
+    heights: { top?: number[]; bottom?: number[] },
+  ) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
@@ -671,6 +713,7 @@ export function LevelSceneContents({
   editingPolygonId,
   onPolygonPointsChange,
   onPolygonOffsetsChange,
+  onPolygonHeightsChange,
   transformMode,
   onObjectTransform,
   snap,
@@ -770,6 +813,7 @@ export function LevelSceneContents({
             controlsRef={controlsRef}
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
             onOffsetsChange={(offs) => onPolygonOffsetsChange?.(poly.id, offs)}
+            onHeightsChange={(h) => onPolygonHeightsChange?.(poly.id, h)}
             addingPoint={!!addingPolygonPoint}
             onAddingPointHandled={onAddingPointHandled}
           />
@@ -916,6 +960,7 @@ function PolygonEditOverlay({
   controlsRef,
   onChange,
   onOffsetsChange,
+  onHeightsChange,
   addingPoint,
   onAddingPointHandled,
 }: {
@@ -923,6 +968,7 @@ function PolygonEditOverlay({
   controlsRef?: React.MutableRefObject<any>;
   onChange: (pts: Array<[number, number]>) => void;
   onOffsetsChange?: (offsets: Array<[number, number]>) => void;
+  onHeightsChange?: (h: { top?: number[]; bottom?: number[] }) => void;
   addingPoint?: boolean;
   onAddingPointHandled?: () => void;
 }) {
@@ -962,18 +1008,20 @@ function PolygonEditOverlay({
   // corner of the geometry is visible and controllable.
   const topPoints = useMemo(
     () =>
-      poly.points.map(([x, z]) =>
-        new THREE.Vector3(x, (poly.extrude || 0) + 0.01, -z).applyMatrix4(objMatrix),
-      ),
-    [poly.points, poly.extrude, objMatrix],
+      poly.points.map(([x, z], i) => {
+        const h = poly.pointHeights?.[i] || 0;
+        return new THREE.Vector3(x, (poly.extrude || 0) + h + 0.01, -z).applyMatrix4(objMatrix);
+      }),
+    [poly.points, poly.pointHeights, poly.extrude, objMatrix],
   );
   const bottomPoints = useMemo(
     () =>
       poly.points.map(([x, z], i) => {
         const o = poly.bottomOffsets?.[i] || [0, 0];
-        return new THREE.Vector3(x + o[0], -0.01, -(z + o[1])).applyMatrix4(objMatrix);
+        const h = poly.bottomHeights?.[i] || 0;
+        return new THREE.Vector3(x + o[0], h - 0.01, -(z + o[1])).applyMatrix4(objMatrix);
       }),
-    [poly.points, poly.bottomOffsets, objMatrix],
+    [poly.points, poly.bottomOffsets, poly.bottomHeights, objMatrix],
   );
   const hasExtrude = (poly.extrude || 0) > 0.001;
 
@@ -1034,8 +1082,72 @@ function PolygonEditOverlay({
   const beginDrag = (index: number, ring: "top" | "bottom", e: any) => {
     e.stopPropagation();
     if (controlsRef?.current) controlsRef.current.enabled = false;
+    const verticalMode = !!(e.shiftKey || e.nativeEvent?.shiftKey);
+    if (verticalMode) {
+      // Drag along the object's local Y axis. Build a vertical plane that
+      // contains the handle and faces the camera (best precision).
+      const handleWorld =
+        ring === "top"
+          ? topPoints[index].clone()
+          : bottomPoints[index].clone();
+      const yAxisWorld = new THREE.Vector3(0, 1, 0)
+        .transformDirection(objMatrix)
+        .normalize();
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      // Plane normal: perpendicular to Y axis, as parallel to camera view as possible.
+      let n = new THREE.Vector3().crossVectors(yAxisWorld, camDir).normalize();
+      if (n.lengthSq() < 1e-4) n = new THREE.Vector3(1, 0, 0);
+      n.crossVectors(n, yAxisWorld).normalize(); // ensure n is perp to Y
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, handleWorld);
+      const raycaster = new THREE.Raycaster();
+      const ndc = new THREE.Vector2();
+      const canvas = gl.domElement;
+      const startH =
+        (ring === "top"
+          ? poly.pointHeights?.[index]
+          : poly.bottomHeights?.[index]) || 0;
+      // Convert handle's starting local Y into a reference.
+      const startLocal = handleWorld.clone().applyMatrix4(invObjMatrix);
+      const baseY = startLocal.y; // current local Y of the handle (includes startH offset)
+      const onMove = (ev: PointerEvent) => {
+        const rect = canvas.getBoundingClientRect();
+        ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+        ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(ndc, camera);
+        const hit = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(plane, hit)) return;
+        const local = hit.clone().applyMatrix4(invObjMatrix);
+        const delta = local.y - baseY;
+        const newH = startH + delta;
+        if (ring === "top") {
+          const next: number[] = poly.points.map((_, i) =>
+            i === index ? newH : (poly.pointHeights?.[i] || 0),
+          );
+          onHeightsChange?.({ top: next });
+        } else {
+          const next: number[] = poly.points.map((_, i) =>
+            i === index ? newH : (poly.bottomHeights?.[i] || 0),
+          );
+          onHeightsChange?.({ bottom: next });
+        }
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        if (controlsRef?.current) controlsRef.current.enabled = true;
+        dragRef.current = null;
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      dragRef.current = { index, plane, onMove, onUp };
+      return;
+    }
     // Drag plane sits at the handle's face so the cursor stays under it.
-    const planeY = ring === "top" ? (poly.extrude || 0) + 0.01 : -0.01;
+    const planeY =
+      ring === "top"
+        ? (poly.extrude || 0) + (poly.pointHeights?.[index] || 0) + 0.01
+        : (poly.bottomHeights?.[index] || 0) - 0.01;
     const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
     const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
