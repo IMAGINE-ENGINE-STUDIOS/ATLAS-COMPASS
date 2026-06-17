@@ -16,6 +16,7 @@ import {
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
   SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
   SceneTerrain, defaultTerrain,
+  ModelMaterialOverride,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { Button } from "@/components/ui/button";
@@ -465,28 +466,65 @@ export default function LevelEditorPage() {
   /* ---------- glTF upload ---------- */
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const cadFileRef = useRef<HTMLInputElement>(null);
+  const [cadConverting, setCadConverting] = useState(false);
+
+  const addImportedAsObject = (
+    imported: { url: string; sourceFormat: string; fileName: string },
+  ) => {
+    const obj: ModelObject = {
+      id: newId("obj"),
+      kind: "model",
+      name: imported.fileName.replace(/\.[^.]+$/, ""),
+      url: imported.url,
+      fileName: imported.fileName,
+      sourceFormat: imported.sourceFormat,
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+    };
+    addObject(obj);
+  };
+
   const onUploadModel = async (file: File) => {
-    if (!file.name.match(/\.(glb|gltf)$/i)) {
-      toast.error("Upload a .glb or .gltf file");
+    const ext = extOf(file.name);
+    if (!isNativeFormat(ext)) {
+      toast.error(
+        `Use the CAD button for .${ext}. Native formats: ${NATIVE_FORMATS.map((e) => "." + e).join(", ")}`,
+      );
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = reader.result as string;
-      const obj: ModelObject = {
-        id: newId("obj"),
-        kind: "model",
-        name: file.name.replace(/\.(glb|gltf)$/i, ""),
-        url,
-        fileName: file.name,
-        position: [0, 0, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
-        visible: true,
-      };
-      addObject(obj);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const imported = await importModelFile(file);
+      addImportedAsObject(imported);
+      toast.success(`Imported ${file.name}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to import model");
+    }
+  };
+
+  const onUploadCad = async (file: File) => {
+    const ext = extOf(file.name);
+    if (!isCadFormat(ext)) {
+      toast.error(
+        `Use the model button for .${ext}. CAD formats handled here: ${CAD_FORMATS.map((e) => "." + e).join(", ")}`,
+      );
+      return;
+    }
+    setCadConverting(true);
+    const tid = toast.loading(`Converting ${file.name} via Autodesk Platform Services…`);
+    try {
+      const imported = await convertCadViaAps(file, (fn, opts) =>
+        supabase.functions.invoke(fn, opts) as any,
+      );
+      addImportedAsObject(imported);
+      toast.success(`Imported ${file.name}`, { id: tid });
+    } catch (e: any) {
+      toast.error(e?.message || "Conversion failed", { id: tid });
+    } finally {
+      setCadConverting(false);
+    }
   };
 
   /* ---------- place on atlas ---------- */
