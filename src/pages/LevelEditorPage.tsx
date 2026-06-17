@@ -868,8 +868,8 @@ function PolygonPointsEditor({
 /* ---------- animation panel ---------- */
 
 function LightInspector({
-  light, onPatch, disabled, snap = 0,
-}: { light: SceneLight; onPatch: (p: Partial<SceneLight>) => void; disabled?: boolean; snap?: number }) {
+  light, onPatch, disabled, snap = 0, onDelete,
+}: { light: SceneLight; onPatch: (p: Partial<SceneLight>) => void; disabled?: boolean; snap?: number; onDelete?: () => void }) {
   return (
     <div className="space-y-3">
       <div>
@@ -911,6 +911,17 @@ function LightInspector({
           <Label className="text-xs">Cast shadow</Label>
           <Switch checked={!!light.castShadow} onCheckedChange={(v) => onPatch({ castShadow: v })} disabled={disabled} />
         </div>
+      )}
+      {onDelete && (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="w-full h-8 text-[11px] mt-2"
+          disabled={disabled}
+          onClick={onDelete}
+        >
+          <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminate light
+        </Button>
       )}
     </div>
   );
