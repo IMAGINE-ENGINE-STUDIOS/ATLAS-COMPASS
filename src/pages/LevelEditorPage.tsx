@@ -554,6 +554,10 @@ export default function LevelEditorPage() {
                   onPatch={(p) => patchLight(selectedLight.id, p)}
                   disabled={!isOwner}
                   snap={snap}
+                  onDelete={() => {
+                    removeLight(selectedLight.id);
+                    setSelectedLightId(null);
+                  }}
                 />
               ) : !selectedObj ? (
                 <p className="text-xs text-muted-foreground italic">Select an object or light to edit</p>
