@@ -488,7 +488,11 @@ function RenderTerrain({ terrain }: { terrain: SceneTerrain }) {
 
 /* ---------- terrain material (color + texture + depth) ---------- */
 
-function useImageTexture(url?: string, repeat = 1): THREE.Texture | null {
+function useImageTexture(
+  url?: string,
+  repeat = 1,
+  colorSpace: "srgb" | "linear" = "srgb",
+): THREE.Texture | null {
   const [tex, setTex] = useState<THREE.Texture | null>(null);
   useEffect(() => {
     if (!url) {
@@ -496,6 +500,7 @@ function useImageTexture(url?: string, repeat = 1): THREE.Texture | null {
       return;
     }
     const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
     let cancelled = false;
     loader.load(
       url,
@@ -507,6 +512,11 @@ function useImageTexture(url?: string, repeat = 1): THREE.Texture | null {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
         t.repeat.set(repeat, repeat);
         t.anisotropy = 8;
+        // Color (albedo) maps must declare sRGB so three.js linearises them
+        // correctly — without this the texture renders dim or invisible
+        // against a white base color in r152+.
+        (t as any).colorSpace =
+          colorSpace === "srgb" ? (THREE as any).SRGBColorSpace : (THREE as any).LinearSRGBColorSpace;
         t.needsUpdate = true;
         setTex(t);
       },
@@ -516,7 +526,7 @@ function useImageTexture(url?: string, repeat = 1): THREE.Texture | null {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, colorSpace]);
   // Keep repeat reactive without reloading the texture
   useEffect(() => {
     if (!tex) return;
@@ -537,10 +547,12 @@ function TerrainMaterial({
 }) {
   const baseColor = rgbaToColor(terrain.color);
   const repeat = terrain.texture?.repeat ?? 1;
-  const map = useImageTexture(terrain.texture?.url, repeat);
+  const map = useImageTexture(terrain.texture?.url, repeat, "srgb");
+  // Depth maps are luminance data, not color — keep them in linear space.
   const dispMap = useImageTexture(
     displacement ? terrain.depthMap?.url : undefined,
     repeat,
+    "linear",
   );
   const mat = terrain.material;
   const metalness = mat?.metalness ?? 0.05;
@@ -548,6 +560,10 @@ function TerrainMaterial({
   const envMapIntensity = mat?.reflectivity ?? 1;
   return (
     <meshStandardMaterial
+      // Force three.js to rebuild the material when map presence flips so the
+      // shader picks up the new uniforms instead of silently keeping the
+      // map-less program.
+      key={`${terrain.texture?.url ? "tex" : "no"}-${terrain.depthMap?.url ? "depth" : "flat"}`}
       color={map ? "#ffffff" : baseColor}
       map={map ?? undefined}
       displacementMap={dispMap ?? undefined}

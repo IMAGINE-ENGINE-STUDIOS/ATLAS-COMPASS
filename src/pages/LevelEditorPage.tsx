@@ -2729,34 +2729,33 @@ function TerrainMaterialPanel({
       <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
         Material preset
       </Label>
-      <div className="grid grid-cols-3 gap-1">
-        {(Object.keys(MATERIAL_PRESETS) as Array<keyof typeof MATERIAL_PRESETS>)
-          .filter((k) => k !== "custom")
-          .map((key) => {
-            const p = MATERIAL_PRESETS[key];
-            return (
-              <Button
-                key={key}
-                size="sm"
-                variant={m.preset === key ? "secondary" : "ghost"}
-                className="h-7 text-[10px]"
-                onClick={() =>
-                  onPatch({
-                    material: {
-                      metalness: p.metalness,
-                      roughness: p.roughness,
-                      reflectivity: p.reflectivity,
-                      preset: key,
-                    },
-                  })
-                }
-                disabled={disabled}
-              >
-                {p.label}
-              </Button>
-            );
-          })}
-      </div>
+      <Select
+        value={m.preset ?? "custom"}
+        onValueChange={(v) => {
+          const key = v as keyof typeof MATERIAL_PRESETS;
+          const p = MATERIAL_PRESETS[key];
+          onPatch({
+            material: {
+              metalness: p.metalness,
+              roughness: p.roughness,
+              reflectivity: p.reflectivity,
+              preset: key,
+            },
+          });
+        }}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-7 text-[11px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(MATERIAL_PRESETS) as Array<keyof typeof MATERIAL_PRESETS>).map((key) => (
+            <SelectItem key={key} value={key} className="text-xs">
+              {MATERIAL_PRESETS[key].label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {([
         { key: "metalness", label: "Metalness", min: 0, max: 1, step: 0.01 },
