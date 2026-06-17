@@ -906,6 +906,7 @@ export default function LevelEditorPage() {
             }}
             showGrid={showGrid}
             playing={playing}
+            snap={snap}
             editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
             transformMode={selectedObjectLocked ? null : transformMode}
