@@ -96,47 +96,74 @@ function PolygonMesh({
       );
     let geom: THREE.BufferGeometry;
     if (hasOffset) {
-      // Custom prism: top ring uses poly.points; bottom ring uses
-      // (x + ox, z + oz) per index. Triangulate the (top) contour and
-      // reuse the same triangle list (flipped) for the bottom cap; build
-      // quad sides between corresponding indices.
+      // Custom prism with non-shared vertices so each face gets its own
+      // flat normals (no smoothed shading across cap/side seams that
+      // shows up as visible "stripes" on plain white textures).
       const N = obj.points.length;
       const top = obj.points;
       const offs = obj.bottomOffsets || [];
-      const positions: number[] = [];
-      // Coordinate space matches the rotated default geometry below:
-      // shape (x, z) -> world-local (x, y, -z).
-      for (let i = 0; i < N; i++) {
+      const topV = (i: number): [number, number, number] => {
         const [x, z] = top[i];
-        positions.push(x, obj.extrude, -z);
-      }
-      for (let i = 0; i < N; i++) {
+        return [x, obj.extrude, -z];
+      };
+      const botV = (i: number): [number, number, number] => {
         const [x, z] = top[i];
         const [ox, oz] = offs[i] || [0, 0];
-        positions.push(x + ox, 0, -(z + oz));
-      }
+        return [x + ox, 0, -(z + oz)];
+      };
       const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
       const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
-      const indices: number[] = [];
+      const capPositions: number[] = [];
+      const capUvs: number[] = [];
+      // bbox for cap UVs
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const [x, z] of top) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+      }
+      const spanX = Math.max(maxX - minX, 1e-6);
+      const spanZ = Math.max(maxZ - minZ, 1e-6);
+      const pushCapVert = (p: [number, number, number], uv: [number, number]) => {
+        capPositions.push(p[0], p[1], p[2]);
+        capUvs.push(uv[0], uv[1]);
+      };
       // top cap
-      for (const t of tris) indices.push(t[0], t[1], t[2]);
-      // bottom cap (reverse winding, offset by N)
-      for (const t of tris) indices.push(N + t[0], N + t[2], N + t[1]);
-      const sideStart = indices.length;
-      // sides — quad per edge
+      for (const t of tris) {
+        for (const i of [t[0], t[1], t[2]]) {
+          const [x, z] = top[i];
+          pushCapVert(topV(i), [(x - minX) / spanX, (z - minZ) / spanZ]);
+        }
+      }
+      // bottom cap (reverse winding)
+      for (const t of tris) {
+        for (const i of [t[0], t[2], t[1]]) {
+          const [x, z] = top[i];
+          pushCapVert(botV(i), [(x - minX) / spanX, 1 - (z - minZ) / spanZ]);
+        }
+      }
+      const sidePositions: number[] = [];
+      const sideUvs: number[] = [];
       for (let i = 0; i < N; i++) {
         const j = (i + 1) % N;
-        indices.push(i, j, N + j);
-        indices.push(i, N + j, N + i);
+        const a = topV(i), b = topV(j), c = botV(j), d = botV(i);
+        const dx = b[0] - a[0], dz = b[2] - a[2];
+        const segLen = Math.hypot(dx, dz);
+        // tri 1: a, b, c
+        sidePositions.push(...a, ...b, ...c);
+        sideUvs.push(0, 1, segLen, 1, segLen, 0);
+        // tri 2: a, c, d
+        sidePositions.push(...a, ...c, ...d);
+        sideUvs.push(0, 1, segLen, 0, 0, 0);
       }
+      const allPositions = capPositions.concat(sidePositions);
+      const allUvs = capUvs.concat(sideUvs);
       geom = new THREE.BufferGeometry();
-      geom.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(positions, 3),
-      );
-      geom.setIndex(indices);
-      geom.addGroup(0, sideStart, 0);
-      geom.addGroup(sideStart, indices.length - sideStart, 1);
+      geom.setAttribute("position", new THREE.Float32BufferAttribute(allPositions, 3));
+      geom.setAttribute("uv", new THREE.Float32BufferAttribute(allUvs, 2));
+      const capCount = capPositions.length / 3;
+      const sideCount = sidePositions.length / 3;
+      geom.addGroup(0, capCount, 0);
+      geom.addGroup(capCount, sideCount, 1);
       geom.computeVertexNormals();
     } else {
       geom =
@@ -150,7 +177,9 @@ function PolygonMesh({
             })
           : new THREE.ShapeGeometry(shape);
       geom.rotateX(-Math.PI / 2); // make spline lay on XZ plane
-      geom.computeVertexNormals();
+      // Don't recompute normals — ExtrudeGeometry already provides
+      // per-face flat normals on the sides; recomputing averages them
+      // across shared vertices and causes visible shading stripes.
     }
 
     // Two material groups: 0 = caps (top/bottom), 1 = sides
