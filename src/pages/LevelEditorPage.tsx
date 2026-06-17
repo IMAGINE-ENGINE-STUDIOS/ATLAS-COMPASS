@@ -2440,6 +2440,19 @@ function TerrainPanel({
 
 /* ---------- terrain appearance (color / texture) ---------- */
 
+const MATERIAL_PRESETS: Record<
+  NonNullable<SceneTerrain["material"]>["preset"] & string,
+  { metalness: number; roughness: number; reflectivity: number; label: string }
+> = {
+  plastic: { metalness: 0.0, roughness: 0.45, reflectivity: 1.0, label: "Plastic" },
+  metal:   { metalness: 1.0, roughness: 0.25, reflectivity: 1.6, label: "Metal" },
+  wood:    { metalness: 0.0, roughness: 0.85, reflectivity: 0.6, label: "Wood" },
+  stone:   { metalness: 0.05, roughness: 0.95, reflectivity: 0.5, label: "Stone" },
+  glass:   { metalness: 0.0, roughness: 0.05, reflectivity: 2.5, label: "Glass" },
+  rubber:  { metalness: 0.0, roughness: 1.0, reflectivity: 0.2, label: "Rubber" },
+  custom:  { metalness: 0.05, roughness: 0.95, reflectivity: 1.0, label: "Custom" },
+};
+
 function TerrainAppearanceTabs({
   terrain,
   disabled,
