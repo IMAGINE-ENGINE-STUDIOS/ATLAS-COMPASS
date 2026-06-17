@@ -450,6 +450,8 @@ export interface LevelSceneProps {
   snap?: number;
   selectedLightId?: string | null;
   onSelectLight?: (id: string) => void;
+  addingPolygonPoint?: boolean;
+  onAddingPointHandled?: () => void;
 }
 
 /**
@@ -473,6 +475,8 @@ export function LevelSceneContents({
   snap,
   selectedLightId,
   onSelectLight,
+  addingPolygonPoint,
+  onAddingPointHandled,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
