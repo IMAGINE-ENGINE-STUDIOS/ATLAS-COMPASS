@@ -88,18 +88,70 @@ function PolygonMesh({
         ? obj.points.map(([x, z]) => new THREE.Vector2(x, z))
         : [new THREE.Vector2(-0.5, -0.5), new THREE.Vector2(0.5, -0.5), new THREE.Vector2(0, 0.5)],
     );
-    const geom =
-      obj.extrude > 0
-        ? new THREE.ExtrudeGeometry(shape, {
-            depth: obj.extrude,
-            bevelEnabled: obj.bevel > 0,
-            bevelSize: obj.bevel,
-            bevelThickness: obj.bevel,
-            bevelSegments: 2,
-          })
-        : new THREE.ShapeGeometry(shape);
-    geom.rotateX(-Math.PI / 2); // make spline lay on XZ plane
-    geom.computeVertexNormals();
+    const hasOffset =
+      obj.extrude > 0 &&
+      !!obj.bottomOffsets &&
+      obj.bottomOffsets.some(
+        (o) => o && (Math.abs(o[0]) > 1e-6 || Math.abs(o[1]) > 1e-6),
+      );
+    let geom: THREE.BufferGeometry;
+    if (hasOffset) {
+      // Custom prism: top ring uses poly.points; bottom ring uses
+      // (x + ox, z + oz) per index. Triangulate the (top) contour and
+      // reuse the same triangle list (flipped) for the bottom cap; build
+      // quad sides between corresponding indices.
+      const N = obj.points.length;
+      const top = obj.points;
+      const offs = obj.bottomOffsets || [];
+      const positions: number[] = [];
+      // Coordinate space matches the rotated default geometry below:
+      // shape (x, z) -> world-local (x, y, -z).
+      for (let i = 0; i < N; i++) {
+        const [x, z] = top[i];
+        positions.push(x, obj.extrude, -z);
+      }
+      for (let i = 0; i < N; i++) {
+        const [x, z] = top[i];
+        const [ox, oz] = offs[i] || [0, 0];
+        positions.push(x + ox, 0, -(z + oz));
+      }
+      const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
+      const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
+      const indices: number[] = [];
+      // top cap
+      for (const t of tris) indices.push(t[0], t[1], t[2]);
+      // bottom cap (reverse winding, offset by N)
+      for (const t of tris) indices.push(N + t[0], N + t[2], N + t[1]);
+      const sideStart = indices.length;
+      // sides — quad per edge
+      for (let i = 0; i < N; i++) {
+        const j = (i + 1) % N;
+        indices.push(i, j, N + j);
+        indices.push(i, N + j, N + i);
+      }
+      geom = new THREE.BufferGeometry();
+      geom.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3),
+      );
+      geom.setIndex(indices);
+      geom.addGroup(0, sideStart, 0);
+      geom.addGroup(sideStart, indices.length - sideStart, 1);
+      geom.computeVertexNormals();
+    } else {
+      geom =
+        obj.extrude > 0
+          ? new THREE.ExtrudeGeometry(shape, {
+              depth: obj.extrude,
+              bevelEnabled: obj.bevel > 0,
+              bevelSize: obj.bevel,
+              bevelThickness: obj.bevel,
+              bevelSegments: 2,
+            })
+          : new THREE.ShapeGeometry(shape);
+      geom.rotateX(-Math.PI / 2); // make spline lay on XZ plane
+      geom.computeVertexNormals();
+    }
 
     // Two material groups: 0 = caps (top/bottom), 1 = sides
     if (obj.extrude > 0) {
@@ -131,7 +183,7 @@ function PolygonMesh({
         }),
       ],
     };
-  }, [obj.points, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
+  }, [obj.points, obj.bottomOffsets, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
 
   return (
     <mesh
@@ -442,6 +494,7 @@ export interface LevelSceneProps {
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
   editingPolygonId?: string | null;
   onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
+  onPolygonOffsetsChange?: (id: string, offsets: Array<[number, number]>) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
@@ -470,6 +523,7 @@ export function LevelSceneContents({
   controlsRef,
   editingPolygonId,
   onPolygonPointsChange,
+  onPolygonOffsetsChange,
   transformMode,
   onObjectTransform,
   snap,
@@ -562,6 +616,7 @@ export function LevelSceneContents({
             poly={poly}
             controlsRef={controlsRef}
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
+            onOffsetsChange={(offs) => onPolygonOffsetsChange?.(poly.id, offs)}
             addingPoint={!!addingPolygonPoint}
             onAddingPointHandled={onAddingPointHandled}
           />
@@ -704,16 +759,21 @@ function PolygonEditOverlay({
   poly,
   controlsRef,
   onChange,
+  onOffsetsChange,
   addingPoint,
   onAddingPointHandled,
 }: {
   poly: PolygonObject;
   controlsRef?: React.MutableRefObject<any>;
   onChange: (pts: Array<[number, number]>) => void;
+  onOffsetsChange?: (offsets: Array<[number, number]>) => void;
   addingPoint?: boolean;
   onAddingPointHandled?: () => void;
 }) {
   const { camera, gl } = useThree();
+  // Index of the bottom (orange) handle currently armed for offset drag
+  // via double-click. Cleared on pointer-up or Escape.
+  const [armedOffsetIndex, setArmedOffsetIndex] = useState<number | null>(null);
   // Hover preview for add-point-on-edge mode: insertion index + local 2D coord.
   const [hoverInsert, setHoverInsert] = useState<{
     index: number; // insert AFTER this segment start index
@@ -753,12 +813,67 @@ function PolygonEditOverlay({
   );
   const bottomPoints = useMemo(
     () =>
-      poly.points.map(([x, z]) =>
-        new THREE.Vector3(x, -0.01, -z).applyMatrix4(objMatrix),
-      ),
-    [poly.points, objMatrix],
+      poly.points.map(([x, z], i) => {
+        const o = poly.bottomOffsets?.[i] || [0, 0];
+        return new THREE.Vector3(x + o[0], -0.01, -(z + o[1])).applyMatrix4(objMatrix);
+      }),
+    [poly.points, poly.bottomOffsets, objMatrix],
   );
   const hasExtrude = (poly.extrude || 0) > 0.001;
+
+  // Disarm offset mode when the polygon being edited changes.
+  useEffect(() => {
+    setArmedOffsetIndex(null);
+  }, [poly.id]);
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") setArmedOffsetIndex(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Begin a bottom-offset drag (armed via double-click on an orange handle).
+  // Mutates poly.bottomOffsets[index] instead of poly.points[index] so the
+  // bottom corner moves independently of its yellow top counterpart.
+  const beginOffsetDrag = (index: number, e: any) => {
+    e.stopPropagation();
+    if (controlsRef?.current) controlsRef.current.enabled = false;
+    const origin = new THREE.Vector3(0, -0.01, 0).applyMatrix4(objMatrix);
+    const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const canvas = gl.domElement;
+    const onMove = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, hit)) return;
+      const local = hit.clone().applyMatrix4(invObjMatrix);
+      const sx = local.x, sy = -local.z;
+      const [tx, tz] = poly.points[index];
+      const next: Array<[number, number]> = [];
+      for (let i = 0; i < poly.points.length; i++) {
+        next.push(
+          i === index
+            ? [sx - tx, sy - tz]
+            : (poly.bottomOffsets?.[i] || [0, 0]),
+        );
+      }
+      onOffsetsChange?.(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (controlsRef?.current) controlsRef.current.enabled = true;
+      setArmedOffsetIndex(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   const beginDrag = (index: number, ring: "top" | "bottom", e: any) => {
     e.stopPropagation();
@@ -930,22 +1045,63 @@ function PolygonEditOverlay({
       {/* bottom ring handles (only meaningful when extruded) */}
       {hasExtrude &&
         bottomPoints.map((wp, i) => (
-          <mesh
-            key={`bot-${i}`}
-            position={wp.toArray() as any}
-            onPointerDown={(e) => beginDrag(i, "bottom", e)}
-            onContextMenu={(e: any) => {
-              e.stopPropagation();
-              e.nativeEvent?.preventDefault?.();
-              if (poly.points.length > 3) {
-                onChange(poly.points.filter((_, j) => j !== i));
-              }
-            }}
-            renderOrder={999}
-          >
-            <sphereGeometry args={[0.045, 14, 14]} />
-            <meshBasicMaterial color="#f97316" depthTest={false} depthWrite={false} toneMapped={false} />
-          </mesh>
+          <group key={`bot-${i}`}>
+            <mesh
+              position={wp.toArray() as any}
+              onPointerDown={(e) => {
+                if (armedOffsetIndex === i) {
+                  beginOffsetDrag(i, e);
+                } else {
+                  beginDrag(i, "bottom", e);
+                }
+              }}
+              onDoubleClick={(e: any) => {
+                e.stopPropagation();
+                setArmedOffsetIndex(i);
+              }}
+              onContextMenu={(e: any) => {
+                e.stopPropagation();
+                e.nativeEvent?.preventDefault?.();
+                // Right-click on an armed/offset handle clears its offset;
+                // otherwise removes the spline point entirely.
+                const o = poly.bottomOffsets?.[i];
+                if (o && (Math.abs(o[0]) > 1e-6 || Math.abs(o[1]) > 1e-6)) {
+                  const next = poly.points.map((_, j) =>
+                    j === i ? [0, 0] : (poly.bottomOffsets?.[j] || [0, 0]),
+                  ) as Array<[number, number]>;
+                  onOffsetsChange?.(next);
+                  setArmedOffsetIndex(null);
+                  return;
+                }
+                if (poly.points.length > 3) {
+                  onChange(poly.points.filter((_, j) => j !== i));
+                }
+              }}
+              renderOrder={999}
+            >
+              <sphereGeometry args={[0.045, 14, 14]} />
+              <meshBasicMaterial
+                color={armedOffsetIndex === i ? "#22c55e" : "#f97316"}
+                depthTest={false}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+            {armedOffsetIndex === i && (
+              <mesh position={wp.toArray() as any} renderOrder={998}>
+                <ringGeometry args={[0.08, 0.11, 24]} />
+                <meshBasicMaterial
+                  color="#22c55e"
+                  depthTest={false}
+                  depthWrite={false}
+                  toneMapped={false}
+                  transparent
+                  opacity={0.9}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+            )}
+          </group>
         ))}
       {/* edge lines: top ring, bottom ring, and verticals connecting them */}
       <line>
