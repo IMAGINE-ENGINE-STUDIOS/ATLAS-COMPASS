@@ -154,12 +154,20 @@ function PolygonMesh({
         ? obj.points.map(([x, z]) => new THREE.Vector2(x, z))
         : [new THREE.Vector2(-0.5, -0.5), new THREE.Vector2(0.5, -0.5), new THREE.Vector2(0, 0.5)],
     );
-    const hasOffset =
-      obj.extrude > 0 &&
+    const hasXZOffset =
       !!obj.bottomOffsets &&
       obj.bottomOffsets.some(
         (o) => o && (Math.abs(o[0]) > 1e-6 || Math.abs(o[1]) > 1e-6),
       );
+    const hasTopHeights =
+      !!obj.pointHeights && obj.pointHeights.some((h) => Math.abs(h || 0) > 1e-6);
+    const hasBottomHeights =
+      !!obj.bottomHeights && obj.bottomHeights.some((h) => Math.abs(h || 0) > 1e-6);
+    // Use the custom builder whenever any per-vertex deformation exists, OR
+    // whenever the polygon is extruded and we need independent rings.
+    const hasOffset =
+      obj.extrude > 0 && (hasXZOffset || hasTopHeights || hasBottomHeights);
+    const hasFlatHeights = obj.extrude <= 0 && hasTopHeights;
     let geom: THREE.BufferGeometry;
     if (hasOffset) {
       // Custom prism with non-shared vertices so each face gets its own
@@ -168,14 +176,16 @@ function PolygonMesh({
       const N = obj.points.length;
       const top = obj.points;
       const offs = obj.bottomOffsets || [];
+      const tH = obj.pointHeights || [];
+      const bH = obj.bottomHeights || [];
       const topV = (i: number): [number, number, number] => {
         const [x, z] = top[i];
-        return [x, obj.extrude, -z];
+        return [x, obj.extrude + (tH[i] || 0), -z];
       };
       const botV = (i: number): [number, number, number] => {
         const [x, z] = top[i];
         const [ox, oz] = offs[i] || [0, 0];
-        return [x + ox, 0, -(z + oz)];
+        return [x + ox, (bH[i] || 0), -(z + oz)];
       };
       const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
       const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
@@ -231,6 +241,34 @@ function PolygonMesh({
       geom.addGroup(0, capCount, 0);
       geom.addGroup(capCount, sideCount, 1);
       geom.computeVertexNormals();
+    } else if (hasFlatHeights) {
+      // Flat (non-extruded) polygon with per-vertex Y — build a single
+      // triangulated cap whose vertices ride the spline's heights.
+      const top = obj.points;
+      const tH = obj.pointHeights || [];
+      const contour2D = top.map(([x, z]) => new THREE.Vector2(x, z));
+      const tris = THREE.ShapeUtils.triangulateShape(contour2D, []);
+      const positions: number[] = [];
+      const uvs: number[] = [];
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const [x, z] of top) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+      }
+      const spanX = Math.max(maxX - minX, 1e-6);
+      const spanZ = Math.max(maxZ - minZ, 1e-6);
+      for (const t of tris) {
+        for (const i of [t[0], t[1], t[2]]) {
+          const [x, z] = top[i];
+          positions.push(x, tH[i] || 0, -z);
+          uvs.push((x - minX) / spanX, (z - minZ) / spanZ);
+        }
+      }
+      geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      geom.addGroup(0, positions.length / 3, 0);
+      geom.computeVertexNormals();
     } else {
       geom =
         obj.extrude > 0
@@ -278,7 +316,7 @@ function PolygonMesh({
         }),
       ],
     };
-  }, [obj.points, obj.bottomOffsets, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
+  }, [obj.points, obj.bottomOffsets, obj.pointHeights, obj.bottomHeights, obj.extrude, obj.bevel, obj.fillColor, obj.sideColor, obj.topColor]);
 
   return (
     <mesh
