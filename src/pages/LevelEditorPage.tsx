@@ -661,6 +661,8 @@ export default function LevelEditorPage() {
             playing={playing}
             editingPolygonId={editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
+            transformMode={transformMode}
+            onObjectTransform={(oid, t) => patchObject(oid, t as any)}
             className="w-full h-full"
           />
         </main>
