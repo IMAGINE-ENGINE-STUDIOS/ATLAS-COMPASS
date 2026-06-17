@@ -44,6 +44,27 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
+import filterAllPng     from "@/assets/icons/filter-all.png";
+import filterFoodPng    from "@/assets/icons/filter-food.png";
+import filterCafePng    from "@/assets/icons/filter-cafe.png";
+import filterGroceryPng from "@/assets/icons/filter-grocery.png";
+import filterShopsPng   from "@/assets/icons/filter-shops.png";
+import filterHotelsPng  from "@/assets/icons/filter-hotels.png";
+import filterFuelPng    from "@/assets/icons/filter-fuel.png";
+import filterHealthPng  from "@/assets/icons/filter-health.png";
+
+const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string }) => (
+  <img
+    src={src}
+    alt={alt}
+    width={20}
+    height={20}
+    loading="lazy"
+    draggable={false}
+    className="w-3.5 h-3.5 object-contain select-none"
+    style={{ filter: `invert(1) drop-shadow(0 0 4px ${hex}66)` }}
+  />
+);
 import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
 import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
 import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery";
