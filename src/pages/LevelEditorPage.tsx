@@ -174,6 +174,27 @@ export default function LevelEditorPage() {
     if (!facePaintActive) setPaintedFaces(new Set());
   }, [facePaintActive, selectedId]);
 
+  // Load most recent Atlas placement so we can preview its location.
+  useEffect(() => {
+    if (!id || !userId || isLocalLevelId(id)) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("atlas_level_placements")
+        .select("lat,lng,scale")
+        .eq("level_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      setCurrentPlacement({ lat: Number(data.lat), lng: Number(data.lng), scale: Number(data.scale ?? 1) });
+      setPlaceLat(String(data.lat));
+      setPlaceLng(String(data.lng));
+      setPlaceScale(String(data.scale ?? 1));
+    })();
+    return () => { cancelled = true; };
+  }, [id, userId]);
+
   const snap = snapEnabled ? snapSize : 0;
 
   const isOwner = userId && ownerId && userId === ownerId;
