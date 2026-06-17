@@ -1,7 +1,7 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls } from "@react-three/drei";
+import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import { RGBELoader } from "three-stdlib";
 import { EXRLoader } from "three-stdlib";
