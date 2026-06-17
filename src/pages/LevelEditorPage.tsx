@@ -660,9 +660,6 @@ export default function LevelEditorPage() {
             </div>
             {(() => {
               const layers = scene.layers && scene.layers.length ? scene.layers : defaultLayers();
-              if (scene.objects.length === 0) {
-                return <p className="text-xs text-muted-foreground italic mb-3">Empty scene</p>;
-              }
               return layers.map((layer) => {
                 const items = scene.objects.filter(
                   (o) => (o.layerId ?? DEFAULT_LAYER_ID) === layer.id,
