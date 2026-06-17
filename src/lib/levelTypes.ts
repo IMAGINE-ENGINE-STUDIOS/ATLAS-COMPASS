@@ -33,6 +33,11 @@ export interface PolygonObject extends BaseObject {
   kind: "polygon";
   // 2D spline points in XZ plane (Y is extrusion height direction)
   points: Array<[number, number]>;
+  // Optional per-point offset of the BOTTOM ring (orange handles) from the
+  // TOP ring (yellow handles). Same shape units as `points`. When any entry
+  // is non-zero, the polygon mesh is built as a custom prism whose top and
+  // bottom contours differ — useful for tapered/skewed shapes.
+  bottomOffsets?: Array<[number, number]>;
   extrude: number; // 0 = flat, >0 = extruded prism
   bevel: number;
   closed: boolean;
