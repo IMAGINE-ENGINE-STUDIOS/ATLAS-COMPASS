@@ -439,14 +439,7 @@ function RenderTerrain({ terrain }: { terrain: SceneTerrain }) {
           <TerrainModel url={terrain.modelUrl} />
         </Suspense>
       ) : terrain.shape === "plane" ? (
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          receiveShadow
-          userData={{ isTerrain: true }}
-        >
-          <planeGeometry args={[sx, sz, Math.max(1, Math.round(sx)), Math.max(1, Math.round(sz))]} />
-          {material}
-        </mesh>
+        <SculptablePlane terrain={terrain} />
       ) : terrain.shape === "box" ? (
         <mesh receiveShadow userData={{ isTerrain: true }} position={[0, -sy / 2, 0]}>
           <boxGeometry args={[sx, sy, sz]} />
@@ -458,6 +451,236 @@ function RenderTerrain({ terrain }: { terrain: SceneTerrain }) {
           {material}
         </mesh>
       )}
+    </group>
+  );
+}
+
+/**
+ * Subdividable plane that can carry a sculpted heightmap. Vertex Z (which
+ * becomes world Y after the parent group's -PI/2 X rotation) is driven from
+ * `terrain.heightmap.data`. The mesh is named `__terrain_plane` so the
+ * sculpt overlay can find and mutate it directly.
+ */
+function SculptablePlane({ terrain }: { terrain: SceneTerrain }) {
+  const [sx, , sz] = terrain.size;
+  const N = Math.max(2, Math.min(256, terrain.heightmap?.resolution ?? 64));
+  const geom = useMemo(() => new THREE.PlaneGeometry(sx, sz, N, N), [sx, sz, N]);
+  useEffect(() => () => geom.dispose(), [geom]);
+  useEffect(() => {
+    const pos = geom.attributes.position as THREE.BufferAttribute;
+    const arr = pos.array as Float32Array;
+    const data = terrain.heightmap?.data;
+    const has = data && data.length === pos.count;
+    for (let i = 0; i < pos.count; i++) {
+      arr[i * 3 + 2] = has ? data![i] : 0;
+    }
+    pos.needsUpdate = true;
+    geom.computeVertexNormals();
+  }, [geom, terrain.heightmap?.data]);
+  return (
+    <mesh
+      name="__terrain_plane"
+      rotation={[-Math.PI / 2, 0, 0]}
+      receiveShadow
+      castShadow
+      userData={{ isTerrain: true }}
+      geometry={geom}
+    >
+      <meshStandardMaterial
+        color={rgbaToColor(terrain.color)}
+        wireframe={terrain.wireframe}
+        transparent={terrain.color[3] < 1}
+        opacity={terrain.color[3]}
+        metalness={0.05}
+        roughness={0.95}
+        side={THREE.DoubleSide}
+        flatShading={false}
+      />
+    </mesh>
+  );
+}
+
+/* ---------- terrain sculpt overlay ---------- */
+
+export interface TerrainSculptConfig {
+  active: boolean;
+  tool: "lift" | "dig" | "smooth" | "flatten";
+  radius: number;
+  strength: number;
+  commit: (heights: number[]) => void;
+}
+
+function TerrainSculptOverlay({
+  sculpt,
+  controlsRef,
+}: {
+  sculpt: TerrainSculptConfig;
+  controlsRef?: React.MutableRefObject<any>;
+}) {
+  const { camera, gl, scene: r3fScene } = useThree();
+  const [brush, setBrush] = useState<{ p: [number, number, number] } | null>(null);
+  const downRef = useRef(false);
+  const flattenZRef = useRef(0);
+  // Keep latest sculpt config accessible from stable event handlers
+  const cfgRef = useRef(sculpt);
+  useEffect(() => { cfgRef.current = sculpt; }, [sculpt]);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const v = new THREE.Vector3();
+
+    const getPlane = (): THREE.Mesh | null =>
+      (r3fScene.getObjectByName("__terrain_plane") as THREE.Mesh) ?? null;
+
+    const pick = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const plane = getPlane();
+      if (!plane) return null;
+      const hits = raycaster.intersectObject(plane, false);
+      return hits[0] ?? null;
+    };
+
+    const neighborAvg = (arr: Float32Array, side: number, i: number) => {
+      const r = Math.floor(i / side);
+      const c = i % side;
+      let sum = 0, n = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr, nc = c + dc;
+          if (nr < 0 || nc < 0 || nr >= side || nc >= side) continue;
+          sum += arr[(nr * side + nc) * 3 + 2];
+          n++;
+        }
+      }
+      return n > 0 ? sum / n : 0;
+    };
+
+    const applyBrush = (hit: THREE.Intersection) => {
+      const cfg = cfgRef.current;
+      const plane = hit.object as THREE.Mesh;
+      const geom = plane.geometry as THREE.BufferGeometry;
+      const pos = geom.attributes.position as THREE.BufferAttribute;
+      const arr = pos.array as Float32Array;
+      const side = Math.round(Math.sqrt(pos.count));
+      const local = plane.worldToLocal(v.copy(hit.point));
+      const r = cfg.radius;
+      const r2 = r * r;
+      const s = cfg.strength;
+      let changed = false;
+      for (let i = 0; i < pos.count; i++) {
+        const vx = arr[i * 3];
+        const vy = arr[i * 3 + 1];
+        const dx = vx - local.x;
+        const dy = vy - local.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > r2) continue;
+        const t = 1 - Math.sqrt(d2) / r;
+        const fall = t * t * (3 - 2 * t);
+        const zi = i * 3 + 2;
+        let z = arr[zi];
+        if (cfg.tool === "lift") z += s * fall;
+        else if (cfg.tool === "dig") z -= s * fall;
+        else if (cfg.tool === "flatten") {
+          z += (flattenZRef.current - z) * Math.min(1, fall * s * 4);
+        } else if (cfg.tool === "smooth") {
+          const avg = neighborAvg(arr, side, i);
+          z += (avg - z) * Math.min(1, fall * s * 4);
+        }
+        arr[zi] = z;
+        changed = true;
+      }
+      if (changed) {
+        pos.needsUpdate = true;
+        geom.computeVertexNormals();
+      }
+    };
+
+    const commit = () => {
+      const plane = getPlane();
+      if (!plane) return;
+      const pos = (plane.geometry as THREE.BufferGeometry).attributes
+        .position as THREE.BufferAttribute;
+      const arr = pos.array as Float32Array;
+      const out = new Array(pos.count);
+      for (let i = 0; i < pos.count; i++) out[i] = arr[i * 3 + 2];
+      cfgRef.current.commit(out);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      const hit = pick(ev);
+      if (!hit) { setBrush(null); return; }
+      setBrush({ p: [hit.point.x, hit.point.y + 0.02, hit.point.z] });
+      if (downRef.current) applyBrush(hit);
+    };
+    const onDown = (ev: PointerEvent) => {
+      if (ev.button !== 0) return;
+      const hit = pick(ev);
+      if (!hit) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+      downRef.current = true;
+      const plane = hit.object as THREE.Mesh;
+      const local = plane.worldToLocal(v.copy(hit.point));
+      flattenZRef.current = local.z;
+      if (controlsRef?.current) controlsRef.current.enabled = false;
+      applyBrush(hit);
+    };
+    const onUp = () => {
+      if (!downRef.current) return;
+      downRef.current = false;
+      if (controlsRef?.current) controlsRef.current.enabled = true;
+      commit();
+    };
+    const onLeave = () => setBrush(null);
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerleave", onLeave);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("pointerup", onUp);
+      if (controlsRef?.current) controlsRef.current.enabled = true;
+    };
+  }, [camera, gl, r3fScene, controlsRef]);
+
+  if (!brush) return null;
+  const color = sculpt.tool === "dig" ? "#f97316"
+    : sculpt.tool === "lift" ? "#22d3ee"
+    : sculpt.tool === "smooth" ? "#a78bfa"
+    : "#facc15";
+  return (
+    <group position={brush.p}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={9999}>
+        <ringGeometry args={[Math.max(0.01, sculpt.radius * 0.96), sculpt.radius, 64]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.85}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={9998}>
+        <circleGeometry args={[sculpt.radius, 64]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.12}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
     </group>
   );
 }
