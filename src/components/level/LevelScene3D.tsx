@@ -621,11 +621,12 @@ function PolygonEditOverlay({
   );
   const hasExtrude = (poly.extrude || 0) > 0.001;
 
-  const beginDrag = (index: number, e: any) => {
+  const beginDrag = (index: number, ring: "top" | "bottom", e: any) => {
     e.stopPropagation();
     if (controlsRef?.current) controlsRef.current.enabled = false;
-    // Plane passes through the TOP face of the extrusion (matching handle Y)
-    const origin = new THREE.Vector3(0, (poly.extrude || 0) + 0.01, 0).applyMatrix4(objMatrix);
+    // Drag plane sits at the handle's face so the cursor stays under it.
+    const planeY = ring === "top" ? (poly.extrude || 0) + 0.01 : -0.01;
+    const origin = new THREE.Vector3(0, planeY, 0).applyMatrix4(objMatrix);
     const normal = new THREE.Vector3(0, 1, 0).transformDirection(objMatrix).normalize();
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
     const raycaster = new THREE.Raycaster();
@@ -669,20 +670,20 @@ function PolygonEditOverlay({
 
   return (
     <group>
-      {/* outline + handles */}
-      {worldPoints.map((wp, i) => {
-        const next = worldPoints[(i + 1) % worldPoints.length];
+      {/* outline + handles (top ring) */}
+      {topPoints.map((wp, i) => {
+        const next = topPoints[(i + 1) % topPoints.length];
         const mid = wp.clone().add(next).multiplyScalar(0.5);
         // segment length in local units (matches the inspector point values)
         const a = poly.points[i];
         const b = poly.points[(i + 1) % poly.points.length];
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
         return (
-          <group key={i}>
+          <group key={`top-${i}`}>
             {/* draggable handle */}
             <mesh
               position={wp.toArray() as any}
-              onPointerDown={(e) => beginDrag(i, e)}
+              onPointerDown={(e) => beginDrag(i, "top", e)}
               renderOrder={999}
             >
               <sphereGeometry args={[0.16, 20, 20]} />
@@ -699,7 +700,7 @@ function PolygonEditOverlay({
               </div>
             </Html>
             {/* segment length label */}
-            {(poly.closed || i < worldPoints.length - 1) && (
+            {(poly.closed || i < topPoints.length - 1) && (
               <Html position={mid.toArray() as any} center distanceFactor={8} zIndexRange={[100, 0]}>
                 <div style={{
                   background: "rgba(15,23,42,0.85)", color: "#67e8f9", padding: "1px 6px",
@@ -713,17 +714,46 @@ function PolygonEditOverlay({
           </group>
         );
       })}
-      {/* edge lines */}
+      {/* bottom ring handles (only meaningful when extruded) */}
+      {hasExtrude &&
+        bottomPoints.map((wp, i) => (
+          <mesh
+            key={`bot-${i}`}
+            position={wp.toArray() as any}
+            onPointerDown={(e) => beginDrag(i, "bottom", e)}
+            renderOrder={999}
+          >
+            <sphereGeometry args={[0.13, 16, 16]} />
+            <meshBasicMaterial color="#f97316" depthTest={false} depthWrite={false} toneMapped={false} />
+          </mesh>
+        ))}
+      {/* edge lines: top ring, bottom ring, and verticals connecting them */}
       <line>
         <bufferGeometry
           attach="geometry"
           onUpdate={(g) => {
             const verts: number[] = [];
-            for (let i = 0; i < worldPoints.length; i++) {
-              const a = worldPoints[i];
-              const b = worldPoints[(i + 1) % worldPoints.length];
-              if (!poly.closed && i === worldPoints.length - 1) continue;
+            // top ring
+            for (let i = 0; i < topPoints.length; i++) {
+              const a = topPoints[i];
+              const b = topPoints[(i + 1) % topPoints.length];
+              if (!poly.closed && i === topPoints.length - 1) continue;
               verts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+            }
+            if (hasExtrude) {
+              // bottom ring
+              for (let i = 0; i < bottomPoints.length; i++) {
+                const a = bottomPoints[i];
+                const b = bottomPoints[(i + 1) % bottomPoints.length];
+                if (!poly.closed && i === bottomPoints.length - 1) continue;
+                verts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+              }
+              // verticals
+              for (let i = 0; i < topPoints.length; i++) {
+                const t = topPoints[i];
+                const b = bottomPoints[i];
+                verts.push(t.x, t.y, t.z, b.x, b.y, b.z);
+              }
             }
             g.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
           }}
