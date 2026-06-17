@@ -3662,18 +3662,7 @@ function SpaceshipPage() {
       )}
 
       {/* Loading Screen */}
-      
-        {!isLoaded && (
-          <div
-            className="absolute inset-0 z-50 bg-[#0a0a1a] flex flex-col items-center justify-center animate-fade-in"
-          >
-            <div
-              className="w-16 h-16 rounded-full border-2 border-white/10 border-t-primary animate-spin"
-            />
-            <p className="mt-6 text-white/80 text-sm font-mono">INITIALIZING EARTH SYSTEMS...</p>
-          </div>
-        )}
-      
+      {/* Loading screen removed */}
 
       {/* Business Store Loading Overlay */}
       {isLoaded && isLoadingBusinesses && (
