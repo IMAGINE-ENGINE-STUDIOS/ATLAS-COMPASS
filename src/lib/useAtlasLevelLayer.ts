@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Cartesian3, Color, ScreenSpaceEventHandler, ScreenSpaceEventType, defined, type Viewer } from "cesium";
+import { Cartesian2, Cartesian3, Color, LabelStyle, ScreenSpaceEventHandler, ScreenSpaceEventType, defined, type Viewer } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface LevelPlacement {
@@ -64,11 +64,11 @@ export function useAtlasLevelLayer(
         label: {
           text: `▣ ${p.levels?.name ?? "Level"}`,
           font: "12px Inter, sans-serif",
-          pixelOffset: { x: 0, y: -22 } as any,
+          pixelOffset: new Cartesian2(0, -22),
           fillColor: Color.WHITE,
           outlineColor: Color.BLACK,
           outlineWidth: 2,
-          style: 2 as any, // FILL_AND_OUTLINE
+          style: LabelStyle.FILL_AND_OUTLINE,
           showBackground: true,
           backgroundColor: Color.fromCssColorString("rgba(15,23,42,0.85)"),
         },
