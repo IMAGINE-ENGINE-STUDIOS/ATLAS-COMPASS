@@ -2049,7 +2049,7 @@ function TerrainPanel({
   };
 
   return (
-    <div className="space-y-2 pt-3 border-t border-border/40">
+    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-card/80 backdrop-blur-xl shadow-lg max-w-sm">
       <div className="flex items-center justify-between">
         <Label className="text-xs flex items-center gap-1">
           <Layers className="w-3 h-3" /> Terrain
