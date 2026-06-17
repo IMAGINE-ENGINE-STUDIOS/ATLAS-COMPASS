@@ -913,6 +913,8 @@ export default function LevelEditorPage() {
             onSelectLight={(lid) => selectLight(lid)}
             editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
+            addingPolygonPoint={addingPointMode && !!editingPolygonId}
+            onAddingPointHandled={() => setAddingPointMode(false)}
             transformMode={selectedObjectLocked ? null : transformMode}
             onObjectTransform={(oid, t) => {
               const o = scene.objects.find((x) => x.id === oid);
