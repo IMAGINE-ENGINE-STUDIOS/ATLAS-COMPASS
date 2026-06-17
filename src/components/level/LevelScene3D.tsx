@@ -269,6 +269,7 @@ export interface LevelSceneProps {
     id: string,
     t: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] },
   ) => void;
+  snap?: number;
 }
 
 /**
@@ -289,6 +290,7 @@ export function LevelSceneContents({
   onPolygonPointsChange,
   transformMode,
   onObjectTransform,
+  snap,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -307,8 +309,12 @@ export function LevelSceneContents({
       {showGrid && (
         <Grid
           args={[40, 40]}
-          cellColor="#1f2937"
+          cellSize={snap && snap > 0 ? snap : 1}
+          sectionSize={snap && snap > 0 ? snap * 5 : 5}
+          cellColor={snap && snap > 0 ? "#3b82f6" : "#1f2937"}
           sectionColor="#3b82f6"
+          cellThickness={snap && snap > 0 ? 1 : 0.6}
+          sectionThickness={1.2}
           fadeDistance={50}
           infiniteGrid
           position={[0, 0, 0]}
@@ -346,6 +352,7 @@ export function LevelSceneContents({
           mode={transformMode}
           groupRef={groupRef}
           controlsRef={controlsRef}
+          snap={snap}
           onCommit={(t) => onObjectTransform(selectedId, t)}
         />
       )}
