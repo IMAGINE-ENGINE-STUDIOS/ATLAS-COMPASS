@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Grid, OrbitControls, useGLTF, Environment } from "@react-three/drei";
+import { Grid, OrbitControls, useGLTF, Environment, Html } from "@react-three/drei";
 import * as THREE from "three";
 import type {
   LevelScene,
@@ -271,6 +271,8 @@ export interface LevelSceneProps {
   showGrid?: boolean;
   playing?: boolean;
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
+  editingPolygonId?: string | null;
+  onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
 }
 
 /**
@@ -287,6 +289,8 @@ export function LevelSceneContents({
   focusRequest,
   onFocusHandled,
   controlsRef,
+  editingPolygonId,
+  onPolygonPointsChange,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -335,6 +339,18 @@ export function LevelSceneContents({
         controlsRef={controlsRef}
         onDone={onFocusHandled}
       />
+      {editingPolygonId && (() => {
+        const poly = scene.objects.find((o) => o.id === editingPolygonId && o.kind === "polygon") as
+          | PolygonObject | undefined;
+        if (!poly || !onPolygonPointsChange) return null;
+        return (
+          <PolygonEditOverlay
+            poly={poly}
+            controlsRef={controlsRef}
+            onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
+          />
+        );
+      })()}
     </>
   );
 }
