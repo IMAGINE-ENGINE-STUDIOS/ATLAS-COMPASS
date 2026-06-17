@@ -544,6 +544,7 @@ function SpaceshipPage() {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   // Restore previously persisted UI state (if any)
   const savedUI = (() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}"); } catch { return {}; }
