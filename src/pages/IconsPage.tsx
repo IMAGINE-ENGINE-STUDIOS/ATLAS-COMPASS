@@ -323,6 +323,7 @@ export default function IconsPage() {
       </section>
 
       {/* Controls */}
+      {!isFonts && (
       <section className="max-w-[1400px] mx-auto px-6">
         <div className="border-y border-white/[0.06] hairline-grid grid grid-cols-1 sm:grid-cols-[1fr_auto_auto]">
           {/* search */}
@@ -374,10 +375,46 @@ export default function IconsPage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Grid */}
       <section className="max-w-[1400px] mx-auto px-6 pb-40">
-        {filtered.length === 0 ? (
+        {isFonts ? (
+          <div className="border-t border-white/[0.06]">
+            {FONTS.map((f, idx) => (
+              <article
+                key={f.tag}
+                className="group grid grid-cols-1 md:grid-cols-[180px_1fr_140px] gap-6 md:gap-10 items-baseline border-b border-white/[0.06] py-12 md:py-16 transition-colors hover:bg-white/[0.02]"
+                style={{ animation: `io-rise 0.5s ${idx * 40}ms both ease-out` }}
+              >
+                <div className="mono text-[10px] uppercase tracking-[0.28em] text-white/40">
+                  <div className="text-white/85 text-[11px]">
+                    {String(idx + 1).padStart(3, "0")}
+                  </div>
+                  <div className="mt-1">{f.tag}</div>
+                </div>
+
+                <div
+                  className="text-white/95 leading-[0.95]"
+                  style={{
+                    fontFamily: f.stack,
+                    fontWeight: f.weight,
+                    fontStyle: f.italic ? "italic" : "normal",
+                    letterSpacing: f.tracking,
+                    fontSize: f.size,
+                    textTransform: f.transform ?? "none",
+                  }}
+                >
+                  {f.sample}
+                </div>
+
+                <div className="mono text-[10px] uppercase tracking-[0.24em] text-white/45 md:text-right">
+                  {f.caption}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <p className="mono text-[11px] uppercase tracking-[0.24em] text-white/40 py-24 text-center">
             No glyphs match “{query}”.
           </p>
@@ -430,6 +467,7 @@ export default function IconsPage() {
       </section>
 
       {/* Detail rail */}
+      {!isFonts && (
       <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.08] bg-black/90 backdrop-blur-2xl">
         <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center gap-6">
           {/* preview */}
@@ -471,6 +509,7 @@ export default function IconsPage() {
           </div>
         </div>
       </aside>
+      )}
     </main>
   );
 }
