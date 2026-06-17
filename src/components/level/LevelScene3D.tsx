@@ -680,6 +680,10 @@ export interface LevelSceneProps {
   editingPolygonId?: string | null;
   onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
   onPolygonOffsetsChange?: (id: string, offsets: Array<[number, number]>) => void;
+  onPolygonHeightsChange?: (
+    id: string,
+    heights: { top?: number[]; bottom?: number[] },
+  ) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
@@ -709,6 +713,7 @@ export function LevelSceneContents({
   editingPolygonId,
   onPolygonPointsChange,
   onPolygonOffsetsChange,
+  onPolygonHeightsChange,
   transformMode,
   onObjectTransform,
   snap,
@@ -808,6 +813,7 @@ export function LevelSceneContents({
             controlsRef={controlsRef}
             onChange={(pts) => onPolygonPointsChange(poly.id, pts)}
             onOffsetsChange={(offs) => onPolygonOffsetsChange?.(poly.id, offs)}
+            onHeightsChange={(h) => onPolygonHeightsChange?.(poly.id, h)}
             addingPoint={!!addingPolygonPoint}
             onAddingPointHandled={onAddingPointHandled}
           />
