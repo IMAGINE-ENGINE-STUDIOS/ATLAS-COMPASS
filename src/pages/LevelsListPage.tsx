@@ -31,6 +31,7 @@ export default function LevelsListPage() {
       setUserId(uid ?? getLocalLevelOwnerId());
       const localLevels = listLocalLevels();
       setLevels(localLevels);
+      setLoading(false);
       const { data, error } = await withTimeout(
         supabase
           .from("levels")
@@ -39,9 +40,8 @@ export default function LevelsListPage() {
         5000,
         { data: null, error: { message: "Levels request timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
       );
-      if (error) toast.error(error.message);
+      if (error) console.warn("[levels] backend list failed", error.message);
       else setLevels([...localLevels, ...((data ?? []) as LevelRow[])]);
-      setLoading(false);
     })();
   }, []);
 
