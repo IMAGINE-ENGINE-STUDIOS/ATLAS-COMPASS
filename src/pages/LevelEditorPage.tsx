@@ -458,6 +458,20 @@ export default function LevelEditorPage() {
   const selectedObj = scene.objects.find((o) => o.id === selectedId);
   const selectedLight = scene.lights.find((l) => l.id === selectedLightId);
 
+  // Apply layer visibility to the rendered scene (objects in hidden layers
+  // become invisible). Memoised to avoid re-renders.
+  const renderedScene = useMemo(() => {
+    const layers = scene.layers && scene.layers.length ? scene.layers : defaultLayers();
+    const hidden = new Set(layers.filter((l) => !l.visible).map((l) => l.id));
+    if (hidden.size === 0) return scene;
+    return {
+      ...scene,
+      objects: scene.objects.map((o) =>
+        hidden.has(o.layerId ?? DEFAULT_LAYER_ID) ? { ...o, visible: false } : o,
+      ),
+    };
+  }, [scene]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
