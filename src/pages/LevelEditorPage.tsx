@@ -3,10 +3,11 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
-  Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
+  Loader2, Globe2, Lock as LockIcon, ChevronDown, ChevronRight, Pencil, Magnet,
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
+  Unlock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
@@ -292,7 +293,9 @@ export default function LevelEditorPage() {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        const oids = Array.from(selectedIds);
+        const oids = Array.from(selectedIds).filter(
+          (oid) => !isObjectLocked(scene.objects.find((o) => o.id === oid)),
+        );
         const lids = Array.from(selectedLightIds);
         if (oids.length) {
           removeObjects(oids);
@@ -515,6 +518,19 @@ export default function LevelEditorPage() {
       ),
     };
   }, [scene]);
+
+  // Lock helpers — an object is locked if it or its layer is locked.
+  const layerLockMap = useMemo(() => {
+    const m = new Map<string, boolean>();
+    (scene.layers ?? defaultLayers()).forEach((l) => m.set(l.id, !!l.locked));
+    return m;
+  }, [scene.layers]);
+  const isObjectLocked = useCallback(
+    (o: SceneObject | undefined | null) =>
+      !!o && (!!o.locked || !!layerLockMap.get(o.layerId ?? DEFAULT_LAYER_ID)),
+    [layerLockMap],
+  );
+  const selectedObjectLocked = isObjectLocked(scene.objects.find((o) => o.id === selectedId));
 
   if (loading) {
     return (
@@ -755,11 +771,19 @@ export default function LevelEditorPage() {
                       >
                         {layer.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                       </button>
+                      <button
+                        onClick={() => patchLayer(layer.id, { locked: !layer.locked })}
+                        title={layer.locked ? "Unlock layer" : "Lock layer"}
+                        className={layer.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground"}
+                      >
+                        {layer.locked ? <Unlock className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />}
+                      </button>
                       {layer.id !== DEFAULT_LAYER_ID && (
                         <button
                           onClick={() => removeLayer(layer.id)}
                           title="Delete layer (objects move to Default)"
-                          className="text-muted-foreground hover:text-destructive"
+                          className="text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:hover:text-muted-foreground"
+                          disabled={!!layer.locked}
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -770,12 +794,14 @@ export default function LevelEditorPage() {
                         {items.length === 0 && (
                           <p className="text-[10px] text-muted-foreground/70 italic py-1">empty</p>
                         )}
-                        {items.map((o) => (
+                        {items.map((o) => {
+                          const objLocked = isObjectLocked(o);
+                          return (
                           <div
                             key={o.id}
                             className={`group w-full px-1.5 py-1 rounded text-xs flex items-center gap-1.5 ${
                               selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
-                            }`}
+                            } ${objLocked ? "opacity-80" : ""}`}
                           >
                             <button
                               onClick={(e) => selectObject(o.id, e.ctrlKey || e.metaKey)}
@@ -797,8 +823,16 @@ export default function LevelEditorPage() {
                               ))}
                             </select>
                             <button
+                              onClick={(e) => { e.stopPropagation(); patchObject(o.id, { locked: !o.locked } as any); }}
+                              title={o.locked ? "Unlock object" : "Lock object"}
+                              className={o.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"}
+                            >
+                              {o.locked ? <Unlock className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />}
+                            </button>
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                if (objLocked) return;
                                 removeObject(o.id);
                                 setSelectedIds((prev) => {
                                   const next = new Set(prev);
@@ -808,12 +842,15 @@ export default function LevelEditorPage() {
                                 if (selectedId === o.id) setSelectedId(null);
                                 if (editingPolygonId === o.id) setEditingPolygonId(null);
                               }}
-                              className="opacity-60 hover:opacity-100 hover:text-destructive"
+                              disabled={objLocked}
+                              title={objLocked ? "Object is locked" : "Delete"}
+                              className="opacity-60 hover:opacity-100 hover:text-destructive disabled:opacity-20 disabled:hover:text-muted-foreground"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -869,10 +906,14 @@ export default function LevelEditorPage() {
             }}
             showGrid={showGrid}
             playing={playing}
-            editingPolygonId={editingPolygonId}
+            editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
             onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
-            transformMode={transformMode}
-            onObjectTransform={(oid, t) => patchObject(oid, t as any)}
+            transformMode={selectedObjectLocked ? null : transformMode}
+            onObjectTransform={(oid, t) => {
+              const o = scene.objects.find((x) => x.id === oid);
+              if (isObjectLocked(o)) return;
+              patchObject(oid, t as any);
+            }}
             className="w-full h-full"
           />
         </main>
@@ -1005,7 +1046,7 @@ export default function LevelEditorPage() {
               <div className="flex items-center justify-between pt-2 border-t border-border/40">
                 <div>
                   <Label className="text-xs flex items-center gap-1">
-                    {isPublic ? <Globe2 className="w-3 h-3" /> : <Lock className="w-3 h-3" />} Public
+                    {isPublic ? <Globe2 className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />} Public
                   </Label>
                   <p className="text-[10px] text-muted-foreground">Anyone can view this Level</p>
                 </div>

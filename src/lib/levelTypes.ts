@@ -11,6 +11,7 @@ export interface BaseObject {
   scale: Vec3;
   visible: boolean;
   layerId?: string; // optional; falls back to default layer
+  locked?: boolean;
 }
 
 export interface PrimitiveObject extends BaseObject {
