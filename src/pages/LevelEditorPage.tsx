@@ -39,6 +39,7 @@ import {
   CAD_FORMATS,
 } from "@/lib/model-import";
 import { GLTFLoader } from "three-stdlib";
+import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 
 function rgbaToHex(c: RGBA): string {
   const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
