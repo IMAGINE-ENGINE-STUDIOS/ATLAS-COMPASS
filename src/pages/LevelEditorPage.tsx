@@ -2105,11 +2105,22 @@ function TerrainPanel({
   disabled,
   onPatch,
   onEnable,
+  sculpt,
 }: {
   terrain?: SceneTerrain;
   disabled?: boolean;
   onPatch: (p: Partial<SceneTerrain>) => void;
   onEnable: (enabled: boolean) => void;
+  sculpt?: {
+    active: boolean;
+    tool: "lift" | "dig" | "smooth" | "flatten";
+    radius: number;
+    strength: number;
+    setActive: (v: boolean) => void;
+    setTool: (v: "lift" | "dig" | "smooth" | "flatten") => void;
+    setRadius: (v: number) => void;
+    setStrength: (v: number) => void;
+  };
 }) {
   const t = terrain ?? { ...defaultTerrain(), enabled: false };
   const fileRef = useRef<HTMLInputElement>(null);
