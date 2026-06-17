@@ -15,6 +15,7 @@ import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
   SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
+  SceneTerrain, defaultTerrain,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { Button } from "@/components/ui/button";
