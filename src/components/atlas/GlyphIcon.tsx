@@ -18,6 +18,8 @@ import speedImg      from "@/assets/icons/speed.png";
 import terrainImg    from "@/assets/icons/terrain.png";
 import cameraImg     from "@/assets/icons/camera.png";
 import heatImg       from "@/assets/icons/heat.png";
+import eyeImg        from "@/assets/icons/eye.png";
+import targetImg     from "@/assets/icons/target.png";
 
 export const GLYPHS = {
   atlas: atlasImg, spaceship: spaceshipImg, voxel: voxelImg, brush: brushImg,
@@ -25,6 +27,7 @@ export const GLYPHS = {
   signal: signalImg, graph: graphImg, compass: compassImg, drone: droneImg,
   cargo: cargoImg, telemetry: telemetryImg, network: networkImg, layers: layersImg,
   speed: speedImg, terrain: terrainImg, camera: cameraImg, heat: heatImg,
+  eye: eyeImg, target: targetImg,
 } as const;
 
 export type GlyphName = keyof typeof GLYPHS;
