@@ -448,6 +448,8 @@ export interface LevelSceneProps {
     t: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] },
   ) => void;
   snap?: number;
+  selectedLightId?: string | null;
+  onSelectLight?: (id: string) => void;
 }
 
 /**
@@ -469,6 +471,8 @@ export function LevelSceneContents({
   transformMode,
   onObjectTransform,
   snap,
+  selectedLightId,
+  onSelectLight,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -484,6 +488,15 @@ export function LevelSceneContents({
       {scene.lights.map((l) => (
         <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} />
       ))}
+      {!playing &&
+        scene.lights.map((l) => (
+          <LightGizmo
+            key={`gz-${l.id}`}
+            light={l}
+            selected={selectedLightId === l.id}
+            onSelect={onSelectLight}
+          />
+        ))}
       {showGrid && (
         <Grid
           args={[40, 40]}
