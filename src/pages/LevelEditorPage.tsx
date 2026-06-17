@@ -5,6 +5,7 @@ import {
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
   Loader2, Globe2, Lock, ChevronDown, ChevronRight, Pencil, Magnet,
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
+  Move3d, Rotate3d, Scaling,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
