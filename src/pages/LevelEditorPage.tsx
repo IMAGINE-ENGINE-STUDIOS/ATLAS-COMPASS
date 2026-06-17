@@ -7,7 +7,7 @@ import {
   SunMedium, FlashlightIcon as Spotlight, Undo2, Redo2,
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
-  Unlock,
+  Unlock, Mountain,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession } from "@/lib/levelSession";
