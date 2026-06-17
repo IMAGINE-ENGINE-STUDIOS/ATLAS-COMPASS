@@ -8,6 +8,7 @@ import {
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
+  X, ArrowUpRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
@@ -129,6 +130,8 @@ export default function LevelEditorPage() {
   const [placeLat, setPlaceLat] = useState("40.7580");
   const [placeLng, setPlaceLng] = useState("-73.9855");
   const [placeScale, setPlaceScale] = useState("1");
+  const [currentPlacement, setCurrentPlacement] = useState<{ lat: number; lng: number; scale: number } | null>(null);
+  const [showLocationViewport, setShowLocationViewport] = useState(true);
   const [selectedLightId, setSelectedLightId] = useState<string | null>(null);
   const [selectedLightIds, setSelectedLightIds] = useState<Set<string>>(new Set());
   const [snapEnabled, setSnapEnabled] = useState(false);
@@ -170,6 +173,27 @@ export default function LevelEditorPage() {
   useEffect(() => {
     if (!facePaintActive) setPaintedFaces(new Set());
   }, [facePaintActive, selectedId]);
+
+  // Load most recent Atlas placement so we can preview its location.
+  useEffect(() => {
+    if (!id || !userId || isLocalLevelId(id)) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("atlas_level_placements")
+        .select("lat,lng,scale")
+        .eq("level_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      setCurrentPlacement({ lat: Number(data.lat), lng: Number(data.lng), scale: Number(data.scale ?? 1) });
+      setPlaceLat(String(data.lat));
+      setPlaceLng(String(data.lng));
+      setPlaceScale(String(data.scale ?? 1));
+    })();
+    return () => { cancelled = true; };
+  }, [id, userId]);
 
   const snap = snapEnabled ? snapSize : 0;
 
@@ -628,6 +652,8 @@ export default function LevelEditorPage() {
     else {
       toast.success("Placed on Atlas");
       setPlaceDialogOpen(false);
+      setCurrentPlacement({ lat, lng, scale: sc });
+      setShowLocationViewport(true);
     }
   };
 
@@ -1368,6 +1394,11 @@ export default function LevelEditorPage() {
               <Label className="text-xs">Scale</Label>
               <Input value={placeScale} onChange={(e) => setPlaceScale(e.target.value)} />
             </div>
+            <LocationMapPreview
+              lat={parseFloat(placeLat)}
+              lng={parseFloat(placeLng)}
+              className="h-48 w-full rounded-lg overflow-hidden border border-white/10"
+            />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPlaceDialogOpen(false)}>Cancel</Button>
@@ -1377,6 +1408,17 @@ export default function LevelEditorPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Atlas location viewport */}
+      {currentPlacement && showLocationViewport && (
+        <LocationViewport
+          lat={currentPlacement.lat}
+          lng={currentPlacement.lng}
+          onClose={() => setShowLocationViewport(false)}
+          onOpenAtlas={() => navigate(`/atlas?lat=${currentPlacement.lat}&lng=${currentPlacement.lng}`)}
+          onPickManually={() => setPlaceDialogOpen(true)}
+        />
+      )}
     </div>
   );
 }
@@ -2458,6 +2500,86 @@ function TerrainPanel({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------- Atlas location preview ---------- */
+
+function osmEmbedUrl(lat: number, lng: number, span = 0.01) {
+  const left = lng - span;
+  const right = lng + span;
+  const top = lat + span;
+  const bottom = lat - span;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${lat}%2C${lng}`;
+}
+
+function LocationMapPreview({ lat, lng, className }: { lat: number; lng: number; className?: string }) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return (
+      <div className={`${className ?? ""} grid place-items-center bg-white/5 text-[11px] text-muted-foreground`}>
+        Enter valid coordinates
+      </div>
+    );
+  }
+  return (
+    <iframe
+      key={`${lat.toFixed(4)},${lng.toFixed(4)}`}
+      title="Atlas location preview"
+      src={osmEmbedUrl(lat, lng)}
+      className={className}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+    />
+  );
+}
+
+function LocationViewport({
+  lat, lng, onClose, onOpenAtlas, onPickManually,
+}: {
+  lat: number;
+  lng: number;
+  onClose: () => void;
+  onOpenAtlas: () => void;
+  onPickManually: () => void;
+}) {
+  return (
+    <div className="fixed bottom-4 right-4 z-50 w-72 rounded-xl border border-white/10 bg-background/85 backdrop-blur-md shadow-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+          <span className="text-[11px] font-medium truncate">
+            {lat.toFixed(5)}, {lng.toFixed(5)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={onOpenAtlas}
+            title="Open in Atlas"
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={onClose}
+            title="Close"
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+      <LocationMapPreview lat={lat} lng={lng} className="h-44 w-full" />
+      <button
+        onClick={onPickManually}
+        className="w-full px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 border-t border-white/10 text-left transition-colors"
+      >
+        Re-pick coordinates…
+      </button>
     </div>
   );
 }
