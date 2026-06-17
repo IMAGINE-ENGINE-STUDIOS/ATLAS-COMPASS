@@ -135,6 +135,32 @@ export default function LevelEditorPage() {
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
 
+  // Face-paint mode: when active, clicks on the selected object's faces add
+  // to `paintedFaces` (Shift = additive). The inspector panel writes the
+  // chosen color/texture into the object's `faceOverrides`.
+  const [facePaintActive, setFacePaintActive] = useState(false);
+  const [paintedFaces, setPaintedFaces] = useState<Set<string>>(new Set());
+  const facePaintState = useMemo(
+    () => ({
+      active: facePaintActive,
+      objectId: facePaintActive ? selectedId : null,
+      selected: paintedFaces,
+      toggle: (key: string, add: boolean) =>
+        setPaintedFaces((prev) => {
+          const next = add ? new Set(prev) : new Set<string>();
+          if (prev.has(key) && add) next.delete(key);
+          else next.add(key);
+          return next;
+        }),
+      clear: () => setPaintedFaces(new Set()),
+    }),
+    [facePaintActive, selectedId, paintedFaces],
+  );
+  // Exiting paint mode (or switching object) clears the selection.
+  useEffect(() => {
+    if (!facePaintActive) setPaintedFaces(new Set());
+  }, [facePaintActive, selectedId]);
+
   const snap = snapEnabled ? snapSize : 0;
 
   const isOwner = userId && ownerId && userId === ownerId;
