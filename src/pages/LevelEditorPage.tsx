@@ -1054,6 +1054,24 @@ export default function LevelEditorPage() {
                 </div>
                 <Switch checked={isPublic} onCheckedChange={setIsPublic} disabled={!isOwner} />
               </div>
+
+              <TerrainPanel
+                terrain={scene.terrain}
+                disabled={!isOwner}
+                onPatch={(p) =>
+                  updateScene((s) => {
+                    const base = s.terrain ?? defaultTerrain();
+                    s.terrain = { ...base, ...p } as SceneTerrain;
+                    return s;
+                  })
+                }
+                onEnable={(enabled) =>
+                  updateScene((s) => {
+                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled };
+                    return s;
+                  })
+                }
+              />
             </TabsContent>
           </Tabs>
         </aside>
