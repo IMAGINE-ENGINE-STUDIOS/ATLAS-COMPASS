@@ -605,14 +605,14 @@ function SpaceshipPage() {
   ]);
 
   const GEO_CATEGORIES = [
-    { key: "all", label: "All", icon: <Layers className="w-3.5 h-3.5" /> },
-    { key: "restaurant", label: "Food", icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
-    { key: "cafe", label: "Café", icon: <Coffee className="w-3.5 h-3.5" /> },
-    { key: "supermarket", label: "Grocery", icon: <ShoppingCart className="w-3.5 h-3.5" /> },
-    { key: "shop", label: "Shops", icon: <Store className="w-3.5 h-3.5" /> },
-    { key: "hotel", label: "Hotels", icon: <Hotel className="w-3.5 h-3.5" /> },
-    { key: "fuel", label: "Fuel", icon: <Fuel className="w-3.5 h-3.5" /> },
-    { key: "health", label: "Health", icon: <Stethoscope className="w-3.5 h-3.5" /> },
+    { key: "all", label: "All", icon: <Layers className="w-3.5 h-3.5" />, color: "slate", hex: "#94a3b8" },
+    { key: "restaurant", label: "Food", icon: <UtensilsCrossed className="w-3.5 h-3.5" />, color: "rose", hex: "#fb7185" },
+    { key: "cafe", label: "Café", icon: <Coffee className="w-3.5 h-3.5" />, color: "amber", hex: "#f59e0b" },
+    { key: "supermarket", label: "Grocery", icon: <ShoppingCart className="w-3.5 h-3.5" />, color: "emerald", hex: "#34d399" },
+    { key: "shop", label: "Shops", icon: <Store className="w-3.5 h-3.5" />, color: "violet", hex: "#a78bfa" },
+    { key: "hotel", label: "Hotels", icon: <Hotel className="w-3.5 h-3.5" />, color: "sky", hex: "#38bdf8" },
+    { key: "fuel", label: "Fuel", icon: <Fuel className="w-3.5 h-3.5" />, color: "orange", hex: "#fb923c" },
+    { key: "health", label: "Health", icon: <Stethoscope className="w-3.5 h-3.5" />, color: "teal", hex: "#2dd4bf" },
   ];
   const GEO_RADIUS_OPTIONS = [1, 3, 5, 10, 25, 50];
 
