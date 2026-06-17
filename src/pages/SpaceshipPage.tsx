@@ -2907,11 +2907,39 @@ function SpaceshipPage() {
     if (!editingModel) return;
     const r = Math.max(1, radius);
     setPlacedModels(prev => {
-      const updated = prev.map(m => m.id === editingModel.id ? { ...m, cropRadius: r } : m);
+      const updated = prev.map(m => {
+        if (m.id !== editingModel.id) return m;
+        // Preserve existing cropBase but resize the height field if the radius grew.
+        let cropBase = m.cropBase;
+        if (!cropBase) cropBase = DEFAULT_CROP_BASE(r);
+        else {
+          const newGrid = Math.max(2, Math.ceil((r * 2) / cropBase.cellSize));
+          if (newGrid !== cropBase.gridSize) {
+            const oldGrid = cropBase.gridSize;
+            const oldH = cropBase.heights;
+            const newH = new Array(newGrid * newGrid).fill(0);
+            const offset = Math.floor((newGrid - oldGrid) / 2);
+            for (let r2 = 0; r2 < oldGrid; r2++) {
+              for (let c2 = 0; c2 < oldGrid; c2++) {
+                const nr = r2 + offset, nc = c2 + offset;
+                if (nr >= 0 && nr < newGrid && nc >= 0 && nc < newGrid) {
+                  newH[nr * newGrid + nc] = oldH[r2 * oldGrid + c2];
+                }
+              }
+            }
+            cropBase = { ...cropBase, gridSize: newGrid, heights: newH };
+          }
+        }
+        return { ...m, cropRadius: r, cropBase };
+      });
       savePlacedModels(updated);
       return updated;
     });
-    setEditingModel(current => current?.id === editingModel.id ? { ...current, cropRadius: r } : current);
+    setEditingModel(current => {
+      if (!current || current.id !== editingModel.id) return current;
+      const cropBase = current.cropBase ?? DEFAULT_CROP_BASE(r);
+      return { ...current, cropRadius: r, cropBase };
+    });
   }, [editingModel]);
 
   const handleUncropTile = useCallback(() => {
