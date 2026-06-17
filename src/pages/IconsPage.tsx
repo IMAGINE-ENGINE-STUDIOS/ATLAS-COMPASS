@@ -36,7 +36,6 @@ const Glyph = ({ src, alt }: { src: string; alt: string }) => (
     loading="lazy"
     draggable={false}
     className="w-full h-full object-contain select-none"
-    style={{ filter: "invert(0)" }}
   />
 );
 
