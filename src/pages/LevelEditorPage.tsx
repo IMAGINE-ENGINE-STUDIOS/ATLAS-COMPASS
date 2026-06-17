@@ -1145,6 +1145,27 @@ export default function LevelEditorPage() {
                   disabled={!isOwner}
                 />
               </div>
+              <HDRIPanel
+                hdri={scene.environment.hdri}
+                disabled={!isOwner}
+                onChange={(updater) =>
+                  updateScene((s) => {
+                    const current: HDRIEnvironmentCfg = s.environment.hdri ?? {
+                      maps: [],
+                      intensity: 1,
+                      rotation: 0,
+                      asBackground: true,
+                    };
+                    const next = updater(current);
+                    if (!next || next.maps.length === 0) {
+                      delete s.environment.hdri;
+                    } else {
+                      s.environment.hdri = next;
+                    }
+                    return s;
+                  })
+                }
+              />
               <div className="flex items-center justify-between pt-2 border-t border-border/40">
                 <div>
                   <Label className="text-xs flex items-center gap-1">
