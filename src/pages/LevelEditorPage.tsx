@@ -2228,6 +2228,141 @@ function TerrainPanel({
                   disabled={disabled}
                 />
               </div>
+              {t.shape === "plane" && sculpt && (
+                <div className="mt-2 space-y-2 rounded-md border border-border/40 bg-background/40 p-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs flex items-center gap-1">
+                      <Brush className="w-3 h-3" /> Sculpt brush
+                    </Label>
+                    <Switch
+                      checked={sculpt.active}
+                      onCheckedChange={(v) => {
+                        // Initialize heightmap on first activation so the
+                        // plane has a subdivided grid to sculpt into.
+                        if (v && !t.heightmap) {
+                          const N = 64;
+                          const data = new Array((N + 1) * (N + 1)).fill(0);
+                          onPatch({ heightmap: { resolution: N, data } });
+                        }
+                        sculpt.setActive(v);
+                      }}
+                      disabled={disabled}
+                    />
+                  </div>
+                  {sculpt.active && (
+                    <>
+                      <div>
+                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Tool
+                        </Label>
+                        <div className="grid grid-cols-4 gap-1 mt-1">
+                          {([
+                            { id: "lift", icon: ArrowUp, label: "Lift" },
+                            { id: "dig", icon: ArrowDown, label: "Dig" },
+                            { id: "smooth", icon: Waves, label: "Smooth" },
+                            { id: "flatten", icon: Minus, label: "Flat" },
+                          ] as const).map((b) => {
+                            const Icon = b.icon;
+                            return (
+                              <Button
+                                key={b.id}
+                                size="sm"
+                                variant={sculpt.tool === b.id ? "secondary" : "ghost"}
+                                className="h-8 flex flex-col gap-0.5 px-1 text-[9px]"
+                                onClick={() => sculpt.setTool(b.id)}
+                                disabled={disabled}
+                                title={b.label}
+                              >
+                                <Icon className="w-3 h-3" />
+                                {b.label}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Radius
+                          </Label>
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {sculpt.radius.toFixed(2)}
+                          </span>
+                        </div>
+                        <Slider
+                          value={[sculpt.radius]}
+                          min={0.1}
+                          max={Math.max(2, Math.max(t.size[0], t.size[2]) / 2)}
+                          step={0.05}
+                          onValueChange={(v) => sculpt.setRadius(v[0])}
+                          disabled={disabled}
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Strength
+                          </Label>
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {sculpt.strength.toFixed(2)}
+                          </span>
+                        </div>
+                        <Slider
+                          value={[sculpt.strength]}
+                          min={0.01}
+                          max={2}
+                          step={0.01}
+                          onValueChange={(v) => sculpt.setStrength(v[0])}
+                          disabled={disabled}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Resolution
+                        </Label>
+                        <Select
+                          value={String(t.heightmap?.resolution ?? 64)}
+                          onValueChange={(v) => {
+                            const N = parseInt(v, 10);
+                            const data = new Array((N + 1) * (N + 1)).fill(0);
+                            onPatch({ heightmap: { resolution: N, data } });
+                          }}
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className="h-7 text-[11px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="32" className="text-xs">32 × 32 (coarse)</SelectItem>
+                            <SelectItem value="64" className="text-xs">64 × 64 (default)</SelectItem>
+                            <SelectItem value="128" className="text-xs">128 × 128 (fine)</SelectItem>
+                            <SelectItem value="192" className="text-xs">192 × 192 (hi-res)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground mt-1 italic">
+                          Changing resolution resets the heightmap.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] w-full"
+                        disabled={disabled || !t.heightmap}
+                        onClick={() => {
+                          const N = t.heightmap?.resolution ?? 64;
+                          const data = new Array((N + 1) * (N + 1)).fill(0);
+                          onPatch({ heightmap: { resolution: N, data } });
+                        }}
+                      >
+                        Reset terrain (flat)
+                      </Button>
+                      <p className="text-[10px] text-muted-foreground italic">
+                        Click &amp; drag on the terrain to sculpt. Orbit controls pause while you paint.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="space-y-1">
