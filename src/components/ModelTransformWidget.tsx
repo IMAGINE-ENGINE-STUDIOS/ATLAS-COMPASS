@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   Move, RotateCcw, Scale, X, Check, ArrowDown,
-  Plus, Minus, Scissors,
+  Plus, Minus, Scissors, Grid3x3, Square as SquareIcon, Circle as CircleIcon,
+  Brush, MousePointerClick, Pencil, RotateCw,
 } from "lucide-react";
 
 export interface TransformData {
@@ -14,6 +15,14 @@ export interface TransformData {
   scale: number;
 }
 
+export interface CropBaseUI {
+  shape: "circle" | "square";
+  wireframe: boolean;
+  voxelMode: "click" | "brush";
+  brushRadius: number;
+  brushStrength: number;
+}
+
 interface Props {
   modelName: string;
   initial: TransformData;
@@ -24,6 +33,11 @@ interface Props {
   cropRadius?: number;
   onCropTile?: (radius: number) => void;
   onUncropTile?: () => void;
+  cropBase?: CropBaseUI;
+  onCropBaseChange?: (partial: Partial<CropBaseUI>) => void;
+  onResetTerrain?: () => void;
+  terrainEditing?: boolean;
+  onToggleTerrainEditing?: () => void;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
@@ -87,7 +101,11 @@ function RotationSlider({ label, value, min, max, onChange }: {
   );
 }
 
-export default function ModelTransformWidget({ modelName, initial, onUpdate, onApply, onClose, onSnapToGround, cropRadius = 0, onCropTile, onUncropTile }: Props) {
+export default function ModelTransformWidget({
+  modelName, initial, onUpdate, onApply, onClose, onSnapToGround,
+  cropRadius = 0, onCropTile, onUncropTile,
+  cropBase, onCropBaseChange, onResetTerrain, terrainEditing, onToggleTerrainEditing,
+}: Props) {
   const [data, setData] = useState<TransformData>(initial);
   const [tab, setTab] = useState<"position" | "rotation" | "scale">("position");
   const [cropInput, setCropInput] = useState<number>(cropRadius > 0 ? cropRadius : 30);
