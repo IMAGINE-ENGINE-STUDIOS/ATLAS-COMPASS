@@ -1,4 +1,5 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Grid, OrbitControls, useGLTF, Environment, Html, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -1192,6 +1193,7 @@ function LevelScene3DInner(
   const { className, ...rest } = props;
   const controlsRef = useRef<any>(null);
   const [focusReq, setFocusReq] = useState<{ id: string; nonce: number } | null>(null);
+  const [canvasKey, setCanvasKey] = useState(0);
   // Bridge so the inner <group onDoubleClick> can trigger a focus request
   // without threading a ref/callback through every render.
   useEffect(() => {
@@ -1203,26 +1205,72 @@ function LevelScene3DInner(
   }, []);
   return (
     <Canvas
+      key={canvasKey}
       className={className}
       shadows
       camera={{ position: [6, 6, 8], fov: 50 }}
+      // Cap pixel ratio so high-DPI screens (e.g. retina × browser zoom)
+      // don't push the GPU past its memory budget and lose the context.
+      dpr={[1, 1.75]}
+      gl={{ powerPreference: "high-performance", antialias: true, preserveDrawingBuffer: false }}
+      onCreated={({ gl }) => {
+        const canvas = gl.domElement;
+        const onLost = (e: Event) => {
+          e.preventDefault();
+          console.warn("[scene] WebGL context lost — attempting recovery");
+        };
+        const onRestored = () => {
+          console.warn("[scene] WebGL context restored — remounting Canvas");
+          // Force a clean remount so all GPU resources rebuild against the
+          // new context (avoids the dreaded permanent black canvas).
+          setCanvasKey((k) => k + 1);
+        };
+        canvas.addEventListener("webglcontextlost", onLost, false);
+        canvas.addEventListener("webglcontextrestored", onRestored, false);
+      }}
       onPointerMissed={() => rest.onSelect?.(null)}
     >
-      <Suspense fallback={null}>
-        <LevelSceneContents
-          {...rest}
-          focusRequest={focusReq}
-          onFocusHandled={() => setFocusReq(null)}
-          controlsRef={controlsRef}
-        />
+      <SceneErrorBoundary onError={(err) => console.warn("[scene] render error caught", err)}>
+        <Suspense fallback={null}>
+          <LevelSceneContents
+            {...rest}
+            focusRequest={focusReq}
+            onFocusHandled={() => setFocusReq(null)}
+            controlsRef={controlsRef}
+          />
           {/* Fall back to a neutral studio preset only when the user hasn't supplied an HDRI. */}
           {!(rest.scene.environment.hdri && rest.scene.environment.hdri.activeId) && (
             <Environment preset="city" />
           )}
+        </SceneErrorBoundary>
       </Suspense>
       <OrbitControls ref={controlsRef} makeDefault enableDamping />
     </Canvas>
   );
+}
+
+/**
+ * Error boundary scoped to the R3F scene tree. A single misbehaving asset
+ * (broken HDRI, malformed GLTF, sculpt math edge case) won't unmount the
+ * whole canvas — it just suppresses that subtree until the next render.
+ */
+class SceneErrorBoundary extends Component<
+  { children: ReactNode; onError?: (err: unknown) => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(err: unknown) {
+    this.props.onError?.(err);
+    // Recover on the next frame so transient failures don't lock the canvas.
+    queueMicrotask(() => this.setState({ failed: false }));
+  }
+  render() {
+    if (this.state.failed) return null;
+    return this.props.children;
+  }
 }
 
 /* ---------- focus / smooth camera move ---------- */
