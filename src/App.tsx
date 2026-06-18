@@ -19,7 +19,6 @@ import SpaceshipPage from "@/pages/SpaceshipPage";
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";
-import LocomotionPage from "@/pages/LocomotionPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -42,7 +41,7 @@ const App = () => (
           {/* LEVEL editor — independent creative scenes */}
           <Route path="/levels" element={<LevelsListPage />} />
           <Route path="/level/:id" element={<LevelEditorPage />} />
-          <Route path="/locomotion" element={<LocomotionPage />} />
+          <Route path="/locomotion" element={<LevelEditorPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
