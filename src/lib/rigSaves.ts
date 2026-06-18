@@ -148,9 +148,8 @@ export async function listRigSaves(): Promise<RigSave[]> {
 export async function saveRig(input: RigSaveInput): Promise<RigSave> {
   const userId = await ensureLevelSession();
   if (!userId) throw new Error("Could not create a session to save the rig.");
-  // Enforce "one posed character per user": wipe any prior saves before
-  // inserting the new one. The gallery therefore holds at most one row.
-  await supabase.from("rig_saves").delete().eq("user_id", userId);
+  // Accumulate saves: each save becomes a new entry in the user's rig gallery,
+  // shared between the Rig Controller Room and the Level Editor's Rig & Body.
   const payload = {
     user_id: userId,
     name: input.name,
@@ -169,8 +168,8 @@ export async function saveRig(input: RigSaveInput): Promise<RigSave> {
     .single();
   if (error || !data) throw new Error(error?.message ?? "Save failed");
   const row = data as unknown as RigSave;
-  // Cache mirrors the server: exactly one entry.
-  writeCache([row]);
+  // Cache mirrors the server: prepend the new row to the existing list.
+  writeCache([row, ...readCache().filter((r) => r.id !== row.id)]);
   return row;
 }
 
