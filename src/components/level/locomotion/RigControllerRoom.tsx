@@ -627,83 +627,38 @@ export default function RigControllerRoom({
           </div>
         )}
 
+        {/* Character library as a single compact dropdown. */}
         <div className="space-y-1.5">
-          <Label className="text-xs">Model URL (.glb / .gltf)</Label>
-          <div className="flex gap-1.5">
-            <Input
-              value={pendingUrl}
-              onChange={(e) => setPendingUrl(e.target.value)}
-              className="h-8 text-xs"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={() => { setUrl(pendingUrl); setSourceLabel(pendingUrl); }}
-              disabled={!pendingUrl || pendingUrl === url}
-            >
-              <RefreshCw className="w-3 h-3" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUploadFile(f);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-7 w-full"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
-        </div>
-
-        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
           <Label className="text-[11px]">Character library</Label>
-          <p className="text-[10px] text-muted-foreground leading-snug">
-            Free rigged models. Click to load — replaces the current rig.
-          </p>
-          {(["Human", "Creature", "Robot"] as const).map((cat) => {
-            const items = CHARACTER_LIBRARY.filter((c) => c.category === cat);
-            if (items.length === 0) return null;
-            return (
-              <div key={cat}>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mt-1.5 mb-1">
-                  {cat}
-                </div>
-                <div className="grid grid-cols-2 gap-1">
-                  {items.map((c) => {
-                    const active = url === c.url;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => handleLoadLibrary(c)}
-                        title={c.credit}
-                        className={`text-left text-[11px] px-2 py-1 rounded border transition truncate ${
-                          active
-                            ? "border-foreground/40 bg-foreground/10"
-                            : "border-border/40 hover:bg-muted/30"
-                        }`}
-                      >
+          <Select
+            value={CHARACTER_LIBRARY.find((c) => c.url === url)?.id ?? ""}
+            onValueChange={(id) => {
+              const c = CHARACTER_LIBRARY.find((x) => x.id === id);
+              if (c) handleLoadLibrary(c);
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Pick a rigged character…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(["Human", "Creature", "Robot"] as const).map((cat) => {
+                const items = CHARACTER_LIBRARY.filter((c) => c.category === cat);
+                if (items.length === 0) return null;
+                return (
+                  <SelectGroup key={cat}>
+                    <SelectLabel className="text-[10px] uppercase tracking-wide">
+                      {cat}
+                    </SelectLabel>
+                    {items.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
                         {c.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex gap-2">
