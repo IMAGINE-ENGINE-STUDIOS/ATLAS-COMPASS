@@ -435,6 +435,27 @@ export default function RigControllerRoom({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
+  // ----- cinematic camera presets -----
+  // The viewport offers a Reset View + four canned angles. Each click bumps
+  // `cameraTick` so the in-canvas <CameraDirector/> re-applies the active
+  // preset, even when the user re-picks the same one.
+  type CameraPresetId = "reset" | "front" | "side" | "back" | "top";
+  interface CamPreset { id: CameraPresetId; label: string; position: [number, number, number]; target: [number, number, number]; }
+  const CAMERA_PRESETS: CamPreset[] = useMemo(() => [
+    { id: "reset", label: "Reset",          position: [2.2, 1.6, 2.2],  target: [0, 1, 0] },
+    { id: "front", label: "Front close-up", position: [0, 1.6, 2.6],    target: [0, 1.5, 0] },
+    { id: "side",  label: "Profile",        position: [3.0, 1.4, 0],    target: [0, 1.2, 0] },
+    { id: "back",  label: "Hero back",      position: [0, 1.8, -3.2],   target: [0, 1.2, 0] },
+    { id: "top",   label: "Top down",       position: [0.01, 4.5, 0.01],target: [0, 0.9, 0] },
+  ], []);
+  const [activeCamera, setActiveCamera] = useState<CameraPresetId>("reset");
+  const [cameraTick, setCameraTick] = useState(0);
+  const activePreset = CAMERA_PRESETS.find((p) => p.id === activeCamera) ?? CAMERA_PRESETS[0];
+  const focusCamera = (id: CameraPresetId) => {
+    setActiveCamera(id);
+    setCameraTick((t) => t + 1);
+  };
+
   // ----- save system state -----
   const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
