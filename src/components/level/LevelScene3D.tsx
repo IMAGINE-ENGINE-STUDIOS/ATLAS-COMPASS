@@ -540,7 +540,29 @@ function useImageTexture(
   repeat = 1,
   colorSpace: "srgb" | "linear" = "srgb",
 ): THREE.Texture | null {
+  const { gl } = useThree();
   const [tex, setTex] = useState<THREE.Texture | null>(null);
+  // Bumped on `webglcontextrestored` so we can re-upload texture data to the
+  // GPU. Without this, terrain textures appear to "vanish" after a context
+  // loss (typical after long sessions / tab backgrounding) because the JS
+  // texture object still exists but its GPU upload is gone.
+  const [restoreTick, setRestoreTick] = useState(0);
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const onLost = (e: Event) => e.preventDefault();
+    const onRestored = () => setRestoreTick((t) => t + 1);
+    canvas.addEventListener("webglcontextlost", onLost as any, false);
+    canvas.addEventListener("webglcontextrestored", onRestored as any, false);
+    return () => {
+      canvas.removeEventListener("webglcontextlost", onLost as any);
+      canvas.removeEventListener("webglcontextrestored", onRestored as any);
+    };
+  }, [gl]);
+  // Re-upload the texture data after a context restore.
+  useEffect(() => {
+    if (!tex || restoreTick === 0) return;
+    tex.needsUpdate = true;
+  }, [tex, restoreTick]);
   useEffect(() => {
     if (!url) {
       setTex(null);
@@ -573,7 +595,7 @@ function useImageTexture(
     return () => {
       cancelled = true;
     };
-  }, [url, colorSpace]);
+  }, [url, colorSpace, restoreTick]);
   // Keep repeat reactive without reloading the texture
   useEffect(() => {
     if (!tex) return;
