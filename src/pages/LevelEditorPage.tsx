@@ -29,6 +29,7 @@ import {
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
   CharacterObject, DEFAULT_CHARACTER_URL,
 } from "@/lib/levelTypes";
+import type { TrajectoryObject, TrajectorySection } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
 import AtlasMiniMap from "@/components/level/AtlasMiniMap";
