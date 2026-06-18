@@ -1482,9 +1482,36 @@ function LevelScene3DInner(
       // Cap pixel ratio so high-DPI screens (e.g. retina × browser zoom)
       // don't push the GPU past its memory budget and lose the context.
       dpr={[1, 1.75]}
-      gl={{ powerPreference: "high-performance", antialias: true, preserveDrawingBuffer: false }}
+      // preserveDrawingBuffer keeps the last frame readable so the editor's
+      // save flow can grab an ultra-light thumbnail via toDataURL().
+      gl={{ powerPreference: "high-performance", antialias: true, preserveDrawingBuffer: true }}
       onCreated={({ gl }) => {
         const canvas = gl.domElement;
+        // Expose a tiny global thumbnail capturer. Downsamples the live
+        // canvas to ~192x108 JPEG (~5 KB) — small enough to store inline on
+        // the level row without a storage round-trip.
+        (window as any).__levelThumbnail = (w = 192, h = 108, q = 0.55): string | null => {
+          try {
+            const off = document.createElement("canvas");
+            off.width = w;
+            off.height = h;
+            const ctx = off.getContext("2d");
+            if (!ctx) return null;
+            // Letterbox-fit so non-16:9 viewports don't squish.
+            const cw = canvas.width || 1;
+            const ch = canvas.height || 1;
+            const scale = Math.min(w / cw, h / ch);
+            const dw = cw * scale;
+            const dh = ch * scale;
+            ctx.fillStyle = "#0b1220";
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(canvas, (w - dw) / 2, (h - dh) / 2, dw, dh);
+            return off.toDataURL("image/jpeg", q);
+          } catch (e) {
+            console.warn("[scene] thumbnail capture failed", e);
+            return null;
+          }
+        };
         const onLost = (e: Event) => {
           e.preventDefault();
           console.warn("[scene] WebGL context lost — attempting recovery");
