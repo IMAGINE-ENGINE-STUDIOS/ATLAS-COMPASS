@@ -17,7 +17,16 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon } from "lucide-react";
+import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon, Camera, Maximize2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   listRigSaves,
@@ -191,6 +200,34 @@ function SnapshotBridge({ bridgeRef }: { bridgeRef: React.MutableRefObject<RigBr
     };
     return () => { bridgeRef.current.snapshot = null; };
   }, [gl, scene, camera, bridgeRef]);
+  return null;
+}
+
+/**
+ * In-canvas helper that snaps the OrbitControls camera to a preset whenever
+ * `tick` changes. We re-run on every tick (not just on preset change) so the
+ * Reset View button works even when the active preset is already "reset".
+ */
+function CameraDirector({
+  position,
+  target,
+  tick,
+}: {
+  position: [number, number, number];
+  target: [number, number, number];
+  tick: number;
+}) {
+  const { camera, controls } = useThree() as any;
+  useEffect(() => {
+    camera.position.set(position[0], position[1], position[2]);
+    if (controls && controls.target) {
+      controls.target.set(target[0], target[1], target[2]);
+      controls.update?.();
+    } else {
+      camera.lookAt(target[0], target[1], target[2]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
   return null;
 }
 
@@ -426,6 +463,27 @@ export default function RigControllerRoom({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
+  // ----- cinematic camera presets -----
+  // The viewport offers a Reset View + four canned angles. Each click bumps
+  // `cameraTick` so the in-canvas <CameraDirector/> re-applies the active
+  // preset, even when the user re-picks the same one.
+  type CameraPresetId = "reset" | "front" | "side" | "back" | "top";
+  interface CamPreset { id: CameraPresetId; label: string; position: [number, number, number]; target: [number, number, number]; }
+  const CAMERA_PRESETS: CamPreset[] = useMemo(() => [
+    { id: "reset", label: "Reset",          position: [2.2, 1.6, 2.2],  target: [0, 1, 0] },
+    { id: "front", label: "Front close-up", position: [0, 1.6, 2.6],    target: [0, 1.5, 0] },
+    { id: "side",  label: "Profile",        position: [3.0, 1.4, 0],    target: [0, 1.2, 0] },
+    { id: "back",  label: "Hero back",      position: [0, 1.8, -3.2],   target: [0, 1.2, 0] },
+    { id: "top",   label: "Top down",       position: [0.01, 4.5, 0.01],target: [0, 0.9, 0] },
+  ], []);
+  const [activeCamera, setActiveCamera] = useState<CameraPresetId>("reset");
+  const [cameraTick, setCameraTick] = useState(0);
+  const activePreset = CAMERA_PRESETS.find((p) => p.id === activeCamera) ?? CAMERA_PRESETS[0];
+  const focusCamera = (id: CameraPresetId) => {
+    setActiveCamera(id);
+    setCameraTick((t) => t + 1);
+  };
+
   // ----- save system state -----
   const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
@@ -618,83 +676,38 @@ export default function RigControllerRoom({
           </div>
         )}
 
+        {/* Character library as a single compact dropdown. */}
         <div className="space-y-1.5">
-          <Label className="text-xs">Model URL (.glb / .gltf)</Label>
-          <div className="flex gap-1.5">
-            <Input
-              value={pendingUrl}
-              onChange={(e) => setPendingUrl(e.target.value)}
-              className="h-8 text-xs"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={() => { setUrl(pendingUrl); setSourceLabel(pendingUrl); }}
-              disabled={!pendingUrl || pendingUrl === url}
-            >
-              <RefreshCw className="w-3 h-3" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUploadFile(f);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-7 w-full"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
-        </div>
-
-        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
           <Label className="text-[11px]">Character library</Label>
-          <p className="text-[10px] text-muted-foreground leading-snug">
-            Free rigged models. Click to load — replaces the current rig.
-          </p>
-          {(["Human", "Creature", "Robot"] as const).map((cat) => {
-            const items = CHARACTER_LIBRARY.filter((c) => c.category === cat);
-            if (items.length === 0) return null;
-            return (
-              <div key={cat}>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mt-1.5 mb-1">
-                  {cat}
-                </div>
-                <div className="grid grid-cols-2 gap-1">
-                  {items.map((c) => {
-                    const active = url === c.url;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => handleLoadLibrary(c)}
-                        title={c.credit}
-                        className={`text-left text-[11px] px-2 py-1 rounded border transition truncate ${
-                          active
-                            ? "border-foreground/40 bg-foreground/10"
-                            : "border-border/40 hover:bg-muted/30"
-                        }`}
-                      >
+          <Select
+            value={CHARACTER_LIBRARY.find((c) => c.url === url)?.id ?? ""}
+            onValueChange={(id) => {
+              const c = CHARACTER_LIBRARY.find((x) => x.id === id);
+              if (c) handleLoadLibrary(c);
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Pick a rigged character…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(["Human", "Creature", "Robot"] as const).map((cat) => {
+                const items = CHARACTER_LIBRARY.filter((c) => c.category === cat);
+                if (items.length === 0) return null;
+                return (
+                  <SelectGroup key={cat}>
+                    <SelectLabel className="text-[10px] uppercase tracking-wide">
+                      {cat}
+                    </SelectLabel>
+                    {items.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
                         {c.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex gap-2">
@@ -897,6 +910,49 @@ export default function RigControllerRoom({
             </ul>
           </ScrollArea>
         </div>
+
+        {/* ---- Model URL / Upload (moved to the bottom of the sidebar) ---- */}
+        <div className="space-y-1.5 pt-2 border-t border-border/30">
+          <Label className="text-xs">Model URL (.glb / .gltf)</Label>
+          <div className="flex gap-1.5">
+            <Input
+              value={pendingUrl}
+              onChange={(e) => setPendingUrl(e.target.value)}
+              className="h-8 text-xs"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => { setUrl(pendingUrl); setSourceLabel(pendingUrl); }}
+              disabled={!pendingUrl || pendingUrl === url}
+            >
+              <RefreshCw className="w-3 h-3" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUploadFile(f);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 w-full"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
+        </div>
       </aside>
 
       {/* Viewport */}
@@ -927,6 +983,11 @@ export default function RigControllerRoom({
           >
             <Environment preset="city" />
             <SnapshotBridge bridgeRef={bridgeRef} />
+            <CameraDirector
+              position={activePreset.position}
+              target={activePreset.target}
+              tick={cameraTick}
+            />
             {url && (
               <Rig
                 url={url}
@@ -950,6 +1011,32 @@ export default function RigControllerRoom({
         </Canvas>
         <div className="absolute top-3 left-3 px-3 py-1.5 rounded-md bg-background/70 backdrop-blur border border-border/40 text-[11px] text-muted-foreground">
           {selectedBoneName ? <>Selected: <span className="text-foreground font-mono">{selectedBoneName}</span></> : "Click a controller marker or bone in the list"}
+        </div>
+
+        {/* Cinematic camera deck — Reset + 4 preset angles. */}
+        <div className="absolute top-3 right-3 flex items-center gap-1 px-1.5 py-1 rounded-md bg-background/70 backdrop-blur border border-border/40">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[11px] gap-1"
+            onClick={() => focusCamera("reset")}
+            title="Reset view"
+          >
+            <Maximize2 className="w-3 h-3" /> Reset
+          </Button>
+          <div className="w-px h-4 bg-border/40 mx-0.5" />
+          {CAMERA_PRESETS.filter((p) => p.id !== "reset").map((p, i) => (
+            <Button
+              key={p.id}
+              size="sm"
+              variant={activeCamera === p.id ? "default" : "ghost"}
+              className="h-7 px-2 text-[11px] gap-1"
+              onClick={() => focusCamera(p.id)}
+              title={p.label}
+            >
+              <Camera className="w-3 h-3" /> {i + 1}
+            </Button>
+          ))}
         </div>
       </main>
     </div>
