@@ -2541,6 +2541,8 @@ function RigBodySection({
 }) {
   const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [index, setIndex] = useState(0);
 
   useEffect(() => {
     let cancel = false;
@@ -2560,60 +2562,158 @@ function RigBodySection({
     toast.success(`Rig set to "${s.name}"`);
   };
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return saves;
+    return saves.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.source_label ?? "").toLowerCase().includes(q),
+    );
+  }, [saves, query]);
+
+  // Keep the carousel index aligned with the current selection or in bounds
+  // as the filter changes.
+  useEffect(() => {
+    if (filtered.length === 0) {
+      setIndex(0);
+      return;
+    }
+    const activeIdx = filtered.findIndex((s) => s.model_url === obj.url);
+    if (activeIdx >= 0) {
+      setIndex(activeIdx);
+    } else if (index >= filtered.length) {
+      setIndex(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, obj.url]);
+
+  const safeIndex = filtered.length ? Math.min(index, filtered.length - 1) : 0;
+  const current = filtered[safeIndex];
+  const step = (delta: number) => {
+    if (filtered.length === 0) return;
+    setIndex((i) => (i + delta + filtered.length) % filtered.length);
+  };
+
   return (
     <div className="rounded-md border border-fuchsia-400/30 bg-fuchsia-500/5 p-2 space-y-2">
       <div className="flex items-center justify-between">
         <Label className="text-[11px] font-semibold text-fuchsia-200">Rig &amp; Body</Label>
         <span className="text-[10px] text-muted-foreground">
-          {loading ? "…" : `${saves.length} saved`}
+          {loading
+            ? "…"
+            : query
+              ? `${filtered.length}/${saves.length}`
+              : `${saves.length} saved`}
         </span>
       </div>
       <p className="text-[10px] text-muted-foreground leading-snug">
-        Saved rigs from the Rig Controller Room. Tap to swap this character's body.
+        Browse saved rigs from the Rig Controller Room. Tap the card to swap this character's body.
       </p>
+      <div className="relative">
+        <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search rigs…"
+          disabled={disabled || saves.length === 0}
+          className="w-full h-7 pl-7 pr-2 rounded-md bg-black/40 border border-border/40 text-[11px] placeholder:text-muted-foreground/60 focus:outline-none focus:border-fuchsia-400/60"
+        />
+      </div>
       {saves.length === 0 ? (
         <div className="text-[10px] text-muted-foreground/80 italic">
           No saved rigs yet — build & save one in the Rig Controller Room.
         </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-0.5">
-          {saves.map((s) => {
-            const active = obj.url === s.model_url;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                disabled={disabled}
-                onClick={() => applySave(s)}
-                title={`${s.name}${s.source_label ? " · " + s.source_label : ""}`}
-                className={
-                  "group relative aspect-square rounded-md overflow-hidden border " +
-                  (active
-                    ? "border-fuchsia-400/80 ring-1 ring-fuchsia-400/60"
-                    : "border-border/40 hover:border-fuchsia-400/60") +
-                  " bg-black/40"
-                }
-              >
-                {s.thumbnail ? (
-                  <img
-                    src={s.thumbnail}
-                    alt={s.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="absolute inset-x-0 bottom-0 px-1 py-0.5 bg-black/60 text-[9px] text-white truncate text-left">
-                  {s.name}
-                </div>
-              </button>
-            );
-          })}
+      ) : filtered.length === 0 ? (
+        <div className="text-[10px] text-muted-foreground/80 italic">
+          No rigs match "{query}".
         </div>
-      )}
+      ) : current ? (
+        <div className="space-y-1.5">
+          <div className="relative">
+            <button
+              type="button"
+              disabled={disabled || filtered.length < 2}
+              onClick={() => step(-1)}
+              aria-label="Previous rig"
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-black/60 border border-border/40 flex items-center justify-center hover:bg-black/80 disabled:opacity-30"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={disabled || filtered.length < 2}
+              onClick={() => step(1)}
+              aria-label="Next rig"
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-black/60 border border-border/40 flex items-center justify-center hover:bg-black/80 disabled:opacity-30"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => applySave(current)}
+              title={`${current.name}${current.source_label ? " · " + current.source_label : ""}`}
+              className={
+                "block w-full aspect-square rounded-md overflow-hidden border bg-black/40 " +
+                (obj.url === current.model_url
+                  ? "border-fuchsia-400/80 ring-1 ring-fuchsia-400/60"
+                  : "border-border/40 hover:border-fuchsia-400/60")
+              }
+            >
+              {current.thumbnail ? (
+                <img
+                  src={current.thumbnail}
+                  alt={current.name}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <User className="w-8 h-8 text-muted-foreground" />
+                </div>
+              )}
+              <div className="absolute inset-x-0 bottom-0 px-2 py-1 bg-black/70 text-[10px] text-white truncate text-left">
+                {current.name}
+                {current.source_label ? (
+                  <span className="text-muted-foreground"> · {current.source_label}</span>
+                ) : null}
+              </div>
+            </button>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>{obj.url === current.model_url ? "Active" : "Tap card to apply"}</span>
+            <span>{safeIndex + 1} / {filtered.length}</span>
+          </div>
+          {filtered.length > 1 && (
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {filtered.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  title={s.name}
+                  className={
+                    "shrink-0 w-10 h-10 rounded overflow-hidden border bg-black/40 " +
+                    (i === safeIndex
+                      ? "border-fuchsia-400/80 ring-1 ring-fuchsia-400/60"
+                      : "border-border/40 hover:border-fuchsia-400/60")
+                  }
+                >
+                  {s.thumbnail ? (
+                    <img src={s.thumbnail} alt={s.name} className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <User className="w-3 h-3 text-muted-foreground" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
