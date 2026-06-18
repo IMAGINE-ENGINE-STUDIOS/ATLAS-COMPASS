@@ -54,3 +54,11 @@ export function subscribeInteractionPrompt(cb: (p: InteractionPrompt) => void) {
 
 /** "E" key pulse for `use`/`sit`. Set true on keydown, consumed by runtime. */
 export const inputPulse = { interact: false };
+
+/**
+ * Set of object ids currently being driven by a trajectory/spline at play
+ * time. While an id is in this set, PushableRuntime skips its own physics
+ * step (gravity + horizontal collision) so the follower tracks the curve
+ * exactly. The TrajectoryRunner adds/removes ids each frame.
+ */
+export const splineDrivenIds = new Set<string>();

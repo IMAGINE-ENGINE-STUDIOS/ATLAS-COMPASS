@@ -3,6 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Line, Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { TrajectoryObject, TrajectorySection, SceneObject, Vec3 } from "@/lib/levelTypes";
+import { splineDrivenIds } from "../locomotion/locomotionState";
 
 /* ---------- helpers ---------- */
 
@@ -139,7 +140,10 @@ export function TrajectoryRender({
   };
 
   return (
-    <group onPointerDown={(e) => { e.stopPropagation(); onSelect?.(obj.id); }}>
+    <group
+      userData={{ __nocast: true, __spline: true }}
+      onPointerDown={(e) => { e.stopPropagation(); onSelect?.(obj.id); }}
+    >
       {segments.map((s, i) => (
         <Line
           key={i}
@@ -148,6 +152,7 @@ export function TrajectoryRender({
           lineWidth={selected ? 4 : 2.5}
           transparent
           opacity={0.95}
+          userData={{ __nocast: true }}
         />
       ))}
       {/* Control-point handles */}
@@ -178,6 +183,7 @@ export function TrajectoryRender({
         const arrowLen = 0.6;
         return (
           <arrowHelper
+            userData={{ __nocast: true }}
             args={[dir, a, arrowLen, selected ? 0xfbbf24 : 0x64748b, 0.2, 0.15]}
           />
         );
@@ -281,10 +287,18 @@ export function TrajectoryRunner({
   };
 
   useFrame((_, dt) => {
-    if (!playing) return;
+    if (!playing) {
+      splineDrivenIds.clear();
+      return;
+    }
     const g = groupRef.current;
     if (!g) return;
     const clampedDt = Math.min(dt, 0.1);
+
+    // Re-publish the set of follower ids every frame so other runtimes
+    // (PushableRuntime, etc.) can opt out of physics for spline-driven objects.
+    splineDrivenIds.clear();
+    for (const t of trajectories) for (const f of t.followers) splineDrivenIds.add(f);
 
     for (const traj of trajectories) {
       const curve = buildCurve(traj);
