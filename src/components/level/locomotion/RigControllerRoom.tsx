@@ -428,6 +428,226 @@ function ControllerMarker({
 
 /* --------------------------- Main page ---------------------------- */
 
+/* --------------------- X-ray body map (controllers) ---------------------- */
+
+/**
+ * Anatomical layout for the X-ray body. Coordinates are in a 100x180 viewBox
+ * (top-down humanoid silhouette) — keep them anchored to a real body, not the
+ * abstract bone list, so users can intuitively click a part to grab it.
+ */
+const XRAY_NODES: Record<ControllerKey, { x: number; y: number; r?: number }> = {
+  head:          { x: 50, y: 14, r: 4.5 },
+  neck:          { x: 50, y: 26 },
+  chest:         { x: 50, y: 38 },
+  spine:         { x: 50, y: 52 },
+  hips:          { x: 50, y: 70, r: 3.6 },
+  leftShoulder:  { x: 36, y: 32 },
+  rightShoulder: { x: 64, y: 32 },
+  leftElbow:     { x: 27, y: 52 },
+  rightElbow:    { x: 73, y: 52 },
+  leftHand:      { x: 21, y: 74 },
+  rightHand:     { x: 79, y: 74 },
+  leftHip:       { x: 43, y: 78 },
+  rightHip:      { x: 57, y: 78 },
+  leftKnee:      { x: 41, y: 116 },
+  rightKnee:     { x: 59, y: 116 },
+  leftFoot:      { x: 40, y: 158 },
+  rightFoot:     { x: 60, y: 158 },
+};
+
+/** Edges drawn between anatomical nodes to suggest a wireframe skeleton. */
+const XRAY_EDGES: [ControllerKey, ControllerKey][] = [
+  ["head", "neck"], ["neck", "chest"], ["chest", "spine"], ["spine", "hips"],
+  ["neck", "leftShoulder"], ["neck", "rightShoulder"],
+  ["leftShoulder", "leftElbow"], ["leftElbow", "leftHand"],
+  ["rightShoulder", "rightElbow"], ["rightElbow", "rightHand"],
+  ["hips", "leftHip"], ["hips", "rightHip"],
+  ["leftHip", "leftKnee"], ["leftKnee", "leftFoot"],
+  ["rightHip", "rightKnee"], ["rightKnee", "rightFoot"],
+];
+
+function XrayBodyMap({
+  controllerMap,
+  selectedBoneName,
+  onSelectController,
+  onClearControllers,
+  mappedCount,
+}: {
+  controllerMap: Record<ControllerKey, string | null>;
+  selectedBoneName: string | null;
+  onSelectController: (boneName: string) => void;
+  onClearControllers?: () => void;
+  mappedCount: number;
+}) {
+  const [hoverKey, setHoverKey] = useState<ControllerKey | null>(null);
+  return (
+    <div className="relative rounded-lg border border-cyan-400/20 bg-[radial-gradient(ellipse_at_center,hsl(190_90%_45%/0.10),transparent_70%),linear-gradient(180deg,hsl(220_50%_6%),hsl(220_45%_3%))] p-3 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.18em] text-cyan-300/80 font-semibold">
+            X-Ray · Rig Map
+          </span>
+          <span className="text-[10px] text-cyan-200/40 tabular-nums">
+            {mappedCount.toString().padStart(2, "0")}/{CONTROLLERS.length}
+          </span>
+        </div>
+        {onClearControllers && (
+          <button
+            className="text-[10px] text-cyan-200/60 hover:text-cyan-100 underline-offset-2 hover:underline"
+            onClick={onClearControllers}
+          >
+            clear
+          </button>
+        )}
+      </div>
+
+      {/* Scanline + grid backdrop */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.18]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(0deg, hsl(190 90% 60% / 0.18) 0 1px, transparent 1px 4px)",
+          mixBlendMode: "screen",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-cyan-400/15 to-transparent"
+      />
+
+      <svg viewBox="0 0 100 180" className="relative w-full h-[260px] block">
+        <defs>
+          <radialGradient id="xray-body-fill" cx="50%" cy="35%" r="65%">
+            <stop offset="0%" stopColor="hsl(190 95% 65% / 0.35)" />
+            <stop offset="55%" stopColor="hsl(195 95% 50% / 0.12)" />
+            <stop offset="100%" stopColor="hsl(220 80% 20% / 0)" />
+          </radialGradient>
+          <filter id="xray-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.6" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Silhouette: head + torso + limbs as soft glowing capsules. */}
+        <g fill="url(#xray-body-fill)" stroke="hsl(190 95% 70% / 0.45)" strokeWidth="0.4" filter="url(#xray-glow)">
+          <circle cx="50" cy="14" r="8" />
+          <path d="M50 22 Q42 24 40 32 L36 56 Q34 70 38 78 L42 86 Q50 90 58 86 L62 78 Q66 70 64 56 L60 32 Q58 24 50 22 Z" />
+          {/* Arms */}
+          <path d="M40 32 Q33 35 30 44 L24 60 Q22 70 24 78 Q26 80 28 77 L34 60 Q37 50 41 42 Z" />
+          <path d="M60 32 Q67 35 70 44 L76 60 Q78 70 76 78 Q74 80 72 77 L66 60 Q63 50 59 42 Z" />
+          {/* Legs */}
+          <path d="M44 80 Q40 100 40 120 L38 156 Q40 162 44 160 L46 130 Q48 105 49 86 Z" />
+          <path d="M56 80 Q60 100 60 120 L62 156 Q60 162 56 160 L54 130 Q52 105 51 86 Z" />
+          {/* Hands + feet */}
+          <ellipse cx="21" cy="76" rx="4" ry="5" />
+          <ellipse cx="79" cy="76" rx="4" ry="5" />
+          <ellipse cx="40" cy="162" rx="5" ry="3" />
+          <ellipse cx="60" cy="162" rx="5" ry="3" />
+        </g>
+
+        {/* Wireframe edges between controller nodes. */}
+        <g stroke="hsl(190 95% 75% / 0.45)" strokeWidth="0.5" strokeLinecap="round" filter="url(#xray-glow)">
+          {XRAY_EDGES.map(([a, b]) => {
+            const pa = XRAY_NODES[a];
+            const pb = XRAY_NODES[b];
+            return <line key={`${a}-${b}`} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} />;
+          })}
+        </g>
+
+        {/* Controller nodes — clickable hotspots. */}
+        {CONTROLLERS.map((c) => {
+          const node = XRAY_NODES[c.key];
+          const mapped = controllerMap[c.key];
+          const active = !!mapped && selectedBoneName === mapped;
+          const hover = hoverKey === c.key;
+          const r = node.r ?? 2.4;
+          const color = mapped ? c.color : "hsl(220 20% 55%)";
+          return (
+            <g
+              key={c.key}
+              transform={`translate(${node.x} ${node.y})`}
+              style={{ cursor: mapped ? "pointer" : "not-allowed" }}
+              onMouseEnter={() => setHoverKey(c.key)}
+              onMouseLeave={() => setHoverKey((k) => (k === c.key ? null : k))}
+              onClick={() => mapped && onSelectController(mapped)}
+            >
+              {/* Pulse ring when active */}
+              {active && (
+                <circle
+                  r={r + 1.4}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="0.5"
+                  opacity="0.9"
+                  style={{
+                    transformOrigin: "center",
+                    animation: "xrayPulse 1.6s ease-out infinite",
+                  }}
+                />
+              )}
+              {/* Hit area */}
+              <circle r={r + 3} fill="transparent" />
+              {/* Outer halo */}
+              <circle
+                r={r + 0.9}
+                fill={color}
+                opacity={mapped ? (active ? 0.35 : hover ? 0.25 : 0.12) : 0.06}
+                filter="url(#xray-glow)"
+              />
+              {/* Core dot */}
+              <circle
+                r={r}
+                fill={active ? color : "transparent"}
+                stroke={color}
+                strokeWidth={active ? 0.4 : 0.7}
+                opacity={mapped ? 1 : 0.55}
+              />
+              {/* Label on hover / when active */}
+              {(hover || active) && mapped && (
+                <g transform={`translate(${node.x > 50 ? r + 2 : -(r + 2)} 1.2)`}>
+                  <text
+                    fontSize="3.2"
+                    fill={color}
+                    textAnchor={node.x > 50 ? "start" : "end"}
+                    style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace", letterSpacing: "0.03em" }}
+                  >
+                    {c.label.toUpperCase()}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Corner crosshairs for the HUD feel */}
+        <g stroke="hsl(190 95% 70% / 0.55)" strokeWidth="0.4" fill="none">
+          <path d="M2 8 V2 H8" />
+          <path d="M98 8 V2 H92" />
+          <path d="M2 172 V178 H8" />
+          <path d="M98 172 V178 H92" />
+        </g>
+      </svg>
+
+      <style>{`
+        @keyframes xrayPulse {
+          0%   { transform: scale(1);   opacity: 0.9; }
+          70%  { transform: scale(2.4); opacity: 0;   }
+          100% { transform: scale(2.4); opacity: 0;   }
+        }
+      `}</style>
+
+      <p className="mt-1 text-[10px] text-cyan-200/50 leading-snug">
+        Tap a glowing joint to grab it in the viewport. Dim nodes aren't mapped on this rig — run Auto-set first.
+      </p>
+    </div>
+  );
+}
+
 export interface SceneCharacterRef {
   id: string;
   name: string;
@@ -847,44 +1067,13 @@ export default function RigControllerRoom({
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <Label className="text-xs">Controllers ({mappedCount}/{CONTROLLERS.length})</Label>
-            {mappedCount > 0 && (
-              <button
-                className="text-[10px] text-muted-foreground hover:text-foreground underline"
-                onClick={handleClearControllers}
-              >clear</button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-1">
-            {CONTROLLERS.map((c) => {
-              const mapped = controllerMap[c.key];
-              const active = selectedBoneName === mapped;
-              return (
-                <button
-                  key={c.key}
-                  disabled={!mapped}
-                  onClick={() => mapped && setSelectedBoneName(mapped)}
-                  className={`flex items-center gap-1.5 px-1.5 py-1 rounded border text-[10px] text-left transition ${
-                    !mapped
-                      ? "border-border/20 text-muted-foreground/60"
-                      : active
-                        ? "border-foreground/40 bg-foreground/10"
-                        : "border-border/40 hover:bg-muted/30"
-                  }`}
-                  title={mapped ?? "Not detected"}
-                >
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ background: mapped ? c.color : "transparent", border: `1px solid ${c.color}` }}
-                  />
-                  <span className="truncate">{c.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <XrayBodyMap
+          controllerMap={controllerMap}
+          selectedBoneName={selectedBoneName}
+          onSelectController={(boneName) => setSelectedBoneName(boneName)}
+          onClearControllers={mappedCount > 0 ? handleClearControllers : undefined}
+          mappedCount={mappedCount}
+        />
 
         <div>
           <Label className="text-xs">All bones ({bones.length})</Label>
