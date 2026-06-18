@@ -26,6 +26,17 @@ import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
 import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
 import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
 import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLabelsOverlay";
+import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
+import {
+  amenityToCategoryId,
+  clearSelected,
+  isSelected as isTagSelected,
+  selectedCount as getSelectedCount,
+  subscribeSelection,
+  toggleSelected,
+  type SelectedTag,
+} from "@/lib/atlasSelection";
+import { Star } from "lucide-react";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
