@@ -459,6 +459,31 @@ export default function LevelEditorPage() {
     })();
   }, [id, navigate]);
 
+  // ---- Recovery: if a newer, uncommitted backup snapshot exists for this
+  // level (e.g. the last save failed, the tab crashed, or quota errored),
+  // offer to restore it instead of silently losing the user's work.
+  useEffect(() => {
+    if (!id || loading) return;
+    let cancelled = false;
+    (async () => {
+      const snap = await latestLevelSnapshot(id);
+      if (cancelled || !snap || snap.committed) return;
+      // Only prompt if the snapshot is meaningfully newer than what we loaded.
+      if (snap.savedAt <= (lastSavedAtRef.current || 0)) return;
+      const when = new Date(snap.savedAt).toLocaleString();
+      const restore = window.confirm(
+        `An unsaved backup of this level from ${when} was found.\n\nRestore it? (Cancel keeps the currently loaded version.)`,
+      );
+      if (!restore || cancelled) return;
+      setName(snap.name);
+      setDescription(snap.description ?? "");
+      setIsPublic(snap.isPublic);
+      setScene(rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(snap.scene as any) }));
+      toast.success("Restored unsaved backup");
+    })();
+    return () => { cancelled = true; };
+  }, [id, loading]);
+
   const lastSavedAtRef = useRef<number>(0);
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
 
