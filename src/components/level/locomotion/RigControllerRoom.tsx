@@ -196,6 +196,7 @@ function SnapshotBridge({ bridgeRef }: { bridgeRef: React.MutableRefObject<RigBr
 
 function Rig({
   url,
+  targetHeight,
   showSkeleton,
   selectedBoneName,
   transformMode,
@@ -210,6 +211,7 @@ function Rig({
   bridgeRef,
 }: {
   url: string;
+  targetHeight: number;
   showSkeleton: boolean;
   selectedBoneName: string | null;
   transformMode: "rotate" | "translate";
@@ -225,6 +227,19 @@ function Rig({
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+  // Normalize the model so its rendered height matches `targetHeight` (m).
+  // glTF sample creatures (Fox, Horse, Flamingo…) ship at wildly different
+  // unit scales — this brings every rig into real-world proportions.
+  const normalizedScale = useMemo(() => {
+    try {
+      const box = new THREE.Box3().setFromObject(cloned);
+      const size = box.getSize(new THREE.Vector3());
+      if (!isFinite(size.y) || size.y <= 0) return 1;
+      return targetHeight / size.y;
+    } catch {
+      return 1;
+    }
+  }, [cloned, targetHeight]);
   const helperRef = useRef<THREE.SkeletonHelper | null>(null);
   const { scene: r3fScene } = useThree();
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -316,7 +331,7 @@ function Rig({
 
   return (
     <>
-      <primitive object={cloned} />
+      <primitive object={cloned} scale={normalizedScale} />
       {highlightedBones.map((h) => (
         <ControllerMarker
           key={h.name}
