@@ -1623,6 +1623,13 @@ function ObjectInspector({
           }
         />
       )}
+      {obj.kind === "character" && (
+        <CharacterInspector
+          obj={obj as CharacterObject}
+          disabled={disabled}
+          onPatch={(patch) => onPatch(patch as any)}
+        />
+      )}
       {(obj.kind === "polygon" || obj.kind === "primitive" || obj.kind === "model") && (
         <FacePaintPanel
           obj={obj}
