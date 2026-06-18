@@ -1438,8 +1438,21 @@ function LevelScene3DInner(
           )}
         </Suspense>
       </SceneErrorBoundary>
-      <OrbitControls ref={controlsRef} makeDefault enableDamping />
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enableDamping
+        enabled={!hasActivePlayer(rest)}
+      />
     </Canvas>
+  );
+}
+
+/** True when Play mode is on AND any character is flagged playable. */
+function hasActivePlayer(props: LevelSceneProps) {
+  if (!props.playing) return false;
+  return props.scene.objects.some(
+    (o) => o.kind === "character" && (o as CharacterObject).playable,
   );
 }
 
