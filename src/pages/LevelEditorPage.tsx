@@ -52,6 +52,7 @@ import {
 } from "@/lib/model-import";
 import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
+import TerrainGallery from "@/components/level/terrain/TerrainGallery";
 
 type ActiveTool = { key: string; label: string; icon: React.ReactNode; active: boolean };
 
@@ -227,6 +228,7 @@ export default function LevelEditorPage() {
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
   const [terrainOpen, setTerrainOpen] = useState(false);
+  const [terrainGalleryOpen, setTerrainGalleryOpen] = useState(false);
 
   // Animation gallery modals — opened from inspectors.
   const [characterGalleryOpen, setCharacterGalleryOpen] = useState(false);
@@ -1410,6 +1412,13 @@ export default function LevelEditorPage() {
                   setRadius: setSculptRadius,
                   setStrength: setSculptStrength,
                 }}
+                onClear={() =>
+                  updateScene((s) => {
+                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled: false };
+                    return s;
+                  })
+                }
+                onOpenGallery={() => setTerrainGalleryOpen(true)}
               />
             </TabsContent>
 
@@ -1635,6 +1644,18 @@ export default function LevelEditorPage() {
         onOpenChange={setObjectGalleryOpen}
         target={objectGalleryTarget}
         onApply={(track) => addTrack(track)}
+      />
+
+      <TerrainGallery
+        open={terrainGalleryOpen}
+        onOpenChange={setTerrainGalleryOpen}
+        currentTerrain={scene.terrain}
+        onLoad={(terrain) =>
+          updateScene((s) => {
+            s.terrain = { ...terrain, enabled: true };
+            return s;
+          })
+        }
       />
     </div>
   );
@@ -2639,11 +2660,15 @@ function TerrainPanel({
   onPatch,
   onEnable,
   sculpt,
+  onClear,
+  onOpenGallery,
 }: {
   terrain?: SceneTerrain;
   disabled?: boolean;
   onPatch: (p: Partial<SceneTerrain>) => void;
   onEnable: (enabled: boolean) => void;
+  onClear: () => void;
+  onOpenGallery: () => void;
   sculpt?: {
     active: boolean;
     tool: "lift" | "dig" | "smooth" | "flatten";
@@ -2682,6 +2707,28 @@ function TerrainPanel({
           <Layers className="w-3 h-3" /> Terrain
         </Label>
         <Switch checked={t.enabled} onCheckedChange={onEnable} disabled={disabled} />
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={onOpenGallery}
+          disabled={disabled}
+          title="Browse terrain gallery & save current"
+        >
+          <Mountain className="w-3 h-3 mr-1" /> Gallery / Save
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-[11px] text-destructive hover:text-destructive"
+          onClick={onClear}
+          disabled={disabled || !t.enabled}
+          title="Remove terrain from scene"
+        >
+          <Trash2 className="w-3 h-3 mr-1" /> Eliminate
+        </Button>
       </div>
       {t.enabled && (
         <>
