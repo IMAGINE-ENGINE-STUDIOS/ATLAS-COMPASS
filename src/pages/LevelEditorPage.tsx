@@ -505,6 +505,10 @@ export default function LevelEditorPage() {
   // keyboard shortcuts
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      const inField =
+        tag === "input" || tag === "textarea" || (e.target as any)?.isContentEditable;
+
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         save();
@@ -517,6 +521,70 @@ export default function LevelEditorPage() {
         e.preventDefault();
         redo();
       }
+
+      // ---- Copy / Paste / Duplicate (selected scene objects) ----
+      if (!inField && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
+        const ids = Array.from(selectedIds);
+        if (ids.length) {
+          const objs = scene.objects.filter((o) => ids.includes(o.id));
+          if (objs.length) {
+            clipboardRef.current = structuredClone(objs);
+            e.preventDefault();
+            toast.success(`Copied ${objs.length} object${objs.length > 1 ? "s" : ""}`);
+          }
+        }
+      }
+      if (!inField && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") {
+        const buf = clipboardRef.current;
+        if (buf && buf.length) {
+          e.preventDefault();
+          const newIds: string[] = [];
+          updateScene((s) => {
+            for (const src of buf) {
+              const clone = structuredClone(src) as SceneObject;
+              clone.id = newId(clone.kind);
+              clone.name = `${src.name} copy`;
+              clone.position = [
+                src.position[0] + 1,
+                src.position[1],
+                src.position[2] + 1,
+              ];
+              s.objects.push(clone);
+              newIds.push(clone.id);
+            }
+            return s;
+          });
+          setSelectedIds(new Set(newIds));
+          setSelectedId(newIds[newIds.length - 1] ?? null);
+          toast.success(`Pasted ${buf.length} object${buf.length > 1 ? "s" : ""}`);
+        }
+      }
+      if (!inField && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
+        const ids = Array.from(selectedIds);
+        if (ids.length) {
+          e.preventDefault();
+          const sources = scene.objects.filter((o) => ids.includes(o.id));
+          const newIds: string[] = [];
+          updateScene((s) => {
+            for (const src of sources) {
+              const clone = structuredClone(src) as SceneObject;
+              clone.id = newId(clone.kind);
+              clone.name = `${src.name} copy`;
+              clone.position = [
+                src.position[0] + 1,
+                src.position[1],
+                src.position[2] + 1,
+              ];
+              s.objects.push(clone);
+              newIds.push(clone.id);
+            }
+            return s;
+          });
+          setSelectedIds(new Set(newIds));
+          setSelectedId(newIds[newIds.length - 1] ?? null);
+        }
+      }
+
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         const oids = Array.from(selectedIds).filter(
@@ -536,18 +604,30 @@ export default function LevelEditorPage() {
         }
       }
       // gizmo mode shortcuts — only when no input is focused
-      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || (e.target as any)?.isContentEditable) return;
+      if (inField) return;
       if (!e.metaKey && !e.ctrlKey && !e.altKey) {
         if (e.key.toLowerCase() === "g") setTransformMode("translate");
         else if (e.key.toLowerCase() === "r") setTransformMode("rotate");
         else if (e.key.toLowerCase() === "t") setTransformMode("scale");
-        else if (e.key === "Escape") setTransformMode(null);
+        else if (e.key.toLowerCase() === "f") {
+          // Frame selected object in the viewport.
+          if (selectedId && (window as any).__levelFocusObject) {
+            (window as any).__levelFocusObject(selectedId);
+          }
+        } else if (e.key === "Escape") {
+          // Priority: exit Play mode → clear gizmo → clear selection.
+          if (playing) setPlaying(false);
+          else if (transformMode) setTransformMode(null);
+          else {
+            setSelectedIds(new Set());
+            setSelectedId(null);
+          }
+        }
       }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [save, undo, redo, selectedIds, selectedLightIds, editingPolygonId]);
+  }, [save, undo, redo, selectedIds, selectedLightIds, editingPolygonId, scene.objects, playing, transformMode, selectedId]);
 
   /* ---------- scene mutators ---------- */
 
