@@ -868,6 +868,15 @@ export default function LevelEditorPage() {
               <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePolygon())} title="Polygon (spline)">
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 px-2"
+                onClick={() => addObject(makeCharacter())}
+                title="Character (rigged Xbot — body, fingers, toes + Mixamo animations)"
+              >
+                <User className="w-3.5 h-3.5" />
+              </Button>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-1">
               <Button
