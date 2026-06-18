@@ -1943,10 +1943,13 @@ function Vec3Field({
   label, value, onChange, step = 0.1, disabled, snap = 0,
 }: { label: string; value: Vec3; onChange: (v: Vec3) => void; step?: number; disabled?: boolean; snap?: number }) {
   const snapVal = (n: number) => (snap > 0 ? Math.round(n / snap) * snap : n);
+  const abbr = label === "Position" ? "P" : label === "Rotation (rad)" ? "R" : label === "Scale" ? "S" : label.charAt(0);
   return (
-    <div>
-      <Label className="text-xs">{label}</Label>
-      <div className="grid grid-cols-3 gap-1 mt-1">
+    <div className="flex items-center gap-2">
+      <span className="w-5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0 text-right leading-none" title={label}>
+        {abbr}
+      </span>
+      <div className="grid grid-cols-3 gap-1 flex-1 min-w-0">
         {(["X", "Y", "Z"] as const).map((axis, i) => (
           <Input
             key={axis}
@@ -1959,7 +1962,8 @@ function Vec3Field({
               v[i] = snapVal(parseFloat(e.target.value) || 0);
               onChange(v);
             }}
-            className="h-7 text-[11px]"
+            className="h-6 text-[10px] px-1.5"
+            placeholder={axis}
           />
         ))}
       </div>
