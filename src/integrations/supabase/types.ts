@@ -142,6 +142,50 @@ export type Database = {
         }
         Relationships: []
       }
+      level_snapshots: {
+        Row: {
+          client_saved_at: string
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          level_id: string
+          name: string
+          owner_id: string
+          scene: Json
+        }
+        Insert: {
+          client_saved_at?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          level_id: string
+          name?: string
+          owner_id: string
+          scene: Json
+        }
+        Update: {
+          client_saved_at?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          level_id?: string
+          name?: string
+          owner_id?: string
+          scene?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "level_snapshots_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "levels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       levels: {
         Row: {
           created_at: string
