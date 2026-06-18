@@ -541,8 +541,9 @@ function XrayBoneHotspot({
     bone.add(ref.current);
     return () => { bone.remove(ref.current!); };
   }, [bone]);
-  const color = selected ? "#fff7a8" : hovered ? "#bdf6ff" : "#5fd9ff";
-  const r = selected ? 0.028 : hovered ? 0.024 : 0.014;
+  // Green highlight when hovered or actively selected (per design spec).
+  const color = selected ? "#22ff88" : hovered ? "#5cff9e" : "#5fd9ff";
+  const r = selected ? 0.032 : hovered ? 0.026 : 0.014;
   return (
     <mesh
       ref={ref}
@@ -558,6 +559,27 @@ function XrayBoneHotspot({
         depthTest={false}
         toneMapped={false}
       />
+      {(hovered || selected) && (
+        <Html
+          center
+          distanceFactor={2}
+          zIndexRange={[100, 0]}
+          style={{ pointerEvents: "none" }}
+        >
+          <div
+            className="px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap"
+            style={{
+              background: "rgba(4,16,26,0.85)",
+              color: selected ? "#22ff88" : "#5cff9e",
+              border: `1px solid ${selected ? "#22ff88" : "#5cff9e"}`,
+              transform: "translateY(-14px)",
+              boxShadow: `0 0 8px ${selected ? "#22ff88aa" : "#5cff9e88"}`,
+            }}
+          >
+            {prettifyBoneName(bone.name)}
+          </div>
+        </Html>
+      )}
     </mesh>
   );
 }
