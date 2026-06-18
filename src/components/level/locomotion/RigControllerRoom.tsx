@@ -161,6 +161,29 @@ function findSkeleton(root: THREE.Object3D): THREE.Skeleton | null {
 
 /* --------------------------- Rig viewer --------------------------- */
 
+/**
+ * Tiny in-Canvas helper that exposes the WebGL canvas's `toDataURL` to the
+ * parent via the shared bridge ref. Lets the sidebar grab a thumbnail when
+ * the user saves a rig without having to lift the renderer out.
+ */
+function SnapshotBridge({ bridgeRef }: { bridgeRef: React.MutableRefObject<RigBridge> }) {
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    bridgeRef.current.snapshot = () => {
+      try {
+        // Force a render so the buffer is current before reading pixels.
+        gl.render(scene, camera);
+        return gl.domElement.toDataURL("image/jpeg", 0.6);
+      } catch (e) {
+        console.warn("[rig] snapshot failed", e);
+        return null;
+      }
+    };
+    return () => { bridgeRef.current.snapshot = null; };
+  }, [gl, scene, camera, bridgeRef]);
+  return null;
+}
+
 function Rig({
   url,
   showSkeleton,
