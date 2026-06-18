@@ -2640,11 +2640,15 @@ function TerrainPanel({
   onPatch,
   onEnable,
   sculpt,
+  onClear,
+  onOpenGallery,
 }: {
   terrain?: SceneTerrain;
   disabled?: boolean;
   onPatch: (p: Partial<SceneTerrain>) => void;
   onEnable: (enabled: boolean) => void;
+  onClear: () => void;
+  onOpenGallery: () => void;
   sculpt?: {
     active: boolean;
     tool: "lift" | "dig" | "smooth" | "flatten";
@@ -2683,6 +2687,28 @@ function TerrainPanel({
           <Layers className="w-3 h-3" /> Terrain
         </Label>
         <Switch checked={t.enabled} onCheckedChange={onEnable} disabled={disabled} />
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={onOpenGallery}
+          disabled={disabled}
+          title="Browse terrain gallery & save current"
+        >
+          <Mountain className="w-3 h-3 mr-1" /> Gallery / Save
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-[11px] text-destructive hover:text-destructive"
+          onClick={onClear}
+          disabled={disabled || !t.enabled}
+          title="Remove terrain from scene"
+        >
+          <Trash2 className="w-3 h-3 mr-1" /> Eliminate
+        </Button>
       </div>
       {t.enabled && (
         <>
