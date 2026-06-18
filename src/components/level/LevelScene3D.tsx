@@ -28,6 +28,7 @@ import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 import LevelCharacter from "./LevelCharacter";
 import PlayableCharacter from "./locomotion/PlayableCharacter";
 import PushableRuntime from "./locomotion/PushableRuntime";
+import { characterRegistry } from "./locomotion/locomotionState";
 import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
 import { TrajectoryRender, TrajectoryRunner } from "./trajectory/TrajectoryRuntime";
@@ -903,6 +904,17 @@ function ObjectSlot({
     if (interactionTag) g.userData.__interaction = interactionTag;
     else delete g.userData.__interaction;
   }, [obj.id, interactionTag]);
+
+  // Register / unregister character groups so the player controller can
+  // push them on contact.
+  useEffect(() => {
+    if (obj.kind !== "character") return;
+    if (isPlayer) return; // player drives its own transform
+    const g = groupRef.current;
+    if (!g) return;
+    characterRegistry.set(obj.id, g);
+    return () => { characterRegistry.delete(obj.id); };
+  }, [obj.id, obj.kind, isPlayer]);
 
   if (isPlayer) {
     // Detach from authored transform; the player drives its own world matrix.
