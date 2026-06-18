@@ -1702,6 +1702,29 @@ function ObjectInspector({
       <Vec3Field label="Rotation (rad)" value={obj.rotation} onChange={(rotation) => onPatch({ rotation } as any)} step={0.05} disabled={disabled} />
       <Vec3Field label="Scale" value={obj.scale} onChange={(scale) => onPatch({ scale } as any)} disabled={disabled} />
 
+      {obj.kind !== "character" && (
+        <div>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Play-mode role
+          </Label>
+          <Select
+            value={obj.interaction ?? "none"}
+            onValueChange={(v) =>
+              onPatch({ interaction: v === "none" ? undefined : (v as any) } as any)
+            }
+            disabled={disabled}
+          >
+            <SelectTrigger className="h-7 text-[11px] mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none" className="text-xs">Static (walkable)</SelectItem>
+              <SelectItem value="pushable" className="text-xs">Pushable / kickable</SelectItem>
+              <SelectItem value="sit" className="text-xs">Sit marker — Press E</SelectItem>
+              <SelectItem value="use" className="text-xs">Use marker — Press E</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {obj.kind === "primitive" && (
         <>
           <div>
