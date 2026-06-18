@@ -5513,6 +5513,29 @@ function SpaceshipPage() {
             onActivate={(key) => loadCategoryBusinessesInstant(key)}
           />
 
+          {/* Selected (gold) tags chip */}
+          {selectedCount > 0 && (
+            <div className="absolute right-3 sm:right-4 top-[calc(50%+140px)] z-30 flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full backdrop-blur-xl animate-fade-in"
+              style={{
+                background: "linear-gradient(135deg, rgba(255,215,0,0.18), rgba(184,134,11,0.18))",
+                border: "1px solid #FFD70066",
+                boxShadow: "0 4px 18px rgba(255,215,0,0.25)",
+              }}
+            >
+              <Star className="w-3 h-3 fill-yellow-300 text-yellow-300" />
+              <span className="text-[10px] font-semibold tracking-wide text-yellow-200">
+                {selectedCount} selected
+              </span>
+              <button
+                onClick={() => clearSelected()}
+                title="Clear selection"
+                className="w-5 h-5 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-yellow-200/90 hover:text-yellow-100"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
           {/* Intelligence — Live Traffic Cameras Panel */}
           <IntelligencePanel
             open={intelligenceOpen}
