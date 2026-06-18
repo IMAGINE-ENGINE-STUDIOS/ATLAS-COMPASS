@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
@@ -8,7 +8,7 @@ import {
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
-  X, ArrowUpRight,
+  X, ArrowUpRight, User,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
@@ -21,8 +21,10 @@ import {
   SceneTerrain, defaultTerrain,
   ModelMaterialOverride,
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
+  CharacterObject, DEFAULT_CHARACTER_URL,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
+import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
 import AtlasMiniMap from "@/components/level/AtlasMiniMap";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +98,23 @@ function makePolygon(): PolygonObject {
     fillColor: [0.6, 0.7, 0.9, 1],
     sideColor: [0.5, 0.55, 0.7, 1],
     topColor: [0.7, 0.75, 0.95, 1],
+  };
+}
+
+function makeCharacter(): CharacterObject {
+  return {
+    id: newId("obj"),
+    kind: "character",
+    name: "Character",
+    url: DEFAULT_CHARACTER_URL,
+    source: "Xbot · Mixamo (MIT)",
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    visible: true,
+    animationSpeed: 1,
+    paused: false,
+    crossfade: 0.25,
   };
 }
 
@@ -849,6 +868,15 @@ export default function LevelEditorPage() {
               <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePolygon())} title="Polygon (spline)">
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 px-2"
+                onClick={() => addObject(makeCharacter())}
+                title="Character (rigged Xbot — body, fingers, toes + Mixamo animations)"
+              >
+                <User className="w-3.5 h-3.5" />
+              </Button>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-1">
               <Button
@@ -1006,6 +1034,7 @@ export default function LevelEditorPage() {
                             >
                               {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
                                o.kind === "polygon" ? <Pencil className="w-3 h-3" /> :
+                               o.kind === "character" ? <User className="w-3 h-3" /> :
                                <LayersIcon className="w-3 h-3" />}
                               <span className="flex-1 truncate">{o.name}</span>
                             </button>
@@ -1594,6 +1623,19 @@ function ObjectInspector({
           }
         />
       )}
+      {obj.kind === "character" && (
+        <Suspense fallback={
+          <p className="text-[10px] text-muted-foreground py-3 border-t border-border/40">
+            Loading rig & animation clips…
+          </p>
+        }>
+          <CharacterInspector
+            obj={obj as CharacterObject}
+            disabled={disabled}
+            onPatch={(patch) => onPatch(patch as any)}
+          />
+        </Suspense>
+      )}
       {(obj.kind === "polygon" || obj.kind === "primitive" || obj.kind === "model") && (
         <FacePaintPanel
           obj={obj}
@@ -1774,6 +1816,83 @@ function TextureSlot({
           }
         }}
       />
+    </div>
+  );
+}
+
+function CharacterInspector({
+  obj, disabled, onPatch,
+}: {
+  obj: CharacterObject;
+  disabled?: boolean;
+  onPatch: (patch: Partial<CharacterObject>) => void;
+}) {
+  const names = useCharacterAnimationNames(obj.url);
+  const current = obj.currentAnimation || names[0] || "";
+  return (
+    <div className="space-y-3 pt-3 border-t border-border/40">
+      <div>
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Character</p>
+        <p className="text-[11px] text-foreground/80">{obj.source || "Custom rig"}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">
+          {names.length} animation clip{names.length === 1 ? "" : "s"} · full body, finger & toe rig
+        </p>
+      </div>
+
+      <div>
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Animation</Label>
+        <Select
+          value={current}
+          onValueChange={(v) => onPatch({ currentAnimation: v })}
+          disabled={disabled || names.length === 0}
+        >
+          <SelectTrigger className="h-8 text-xs mt-1">
+            <SelectValue placeholder={names.length === 0 ? "No clips" : "Pick a clip"} />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {names.map((n) => (
+              <SelectItem key={n} value={n} className="text-xs">{n}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Speed</Label>
+          <span className="text-[10px] font-mono text-muted-foreground">{(obj.animationSpeed ?? 1).toFixed(2)}×</span>
+        </div>
+        <Slider
+          min={0}
+          max={3}
+          step={0.05}
+          value={[obj.animationSpeed ?? 1]}
+          onValueChange={([v]) => onPatch({ animationSpeed: v })}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label className="text-[11px]">Paused</Label>
+        <Switch
+          checked={!!obj.paused}
+          onCheckedChange={(v) => onPatch({ paused: v })}
+          disabled={disabled}
+        />
+      </div>
+
+      <div>
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Source URL</Label>
+        <Input
+          value={obj.url}
+          onChange={(e) => onPatch({ url: e.target.value })}
+          disabled={disabled}
+          className="h-8 text-[11px] mt-1 font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Paste any rigged .glb/.gltf URL. Defaults to the Xbot example rig.
+        </p>
+      </div>
     </div>
   );
 }
