@@ -497,6 +497,12 @@ export default function LevelEditorPage() {
       setAutosaveStatus("saving");
       const persistable = stripHdriBlobs(id, scene);
       const snapshotAt = Date.now();
+      // Ultra-light thumbnail (~5 KB JPEG) captured from the live canvas.
+      // Best-effort: any failure (no canvas yet, lost context) just skips it.
+      const thumb: string | null =
+        typeof window !== "undefined" && typeof (window as any).__levelThumbnail === "function"
+          ? (window as any).__levelThumbnail()
+          : null;
       // ALWAYS write a backup snapshot to IndexedDB before attempting the
       // primary save. If anything below fails (quota, network, crash) the
       // user's work is recoverable on next load.
@@ -512,7 +518,13 @@ export default function LevelEditorPage() {
       if (isLocalLevelId(id)) {
         let ok = false;
         try {
-          ok = updateLocalLevel(id, { name, description, is_public: isPublic, scene: persistable });
+          ok = updateLocalLevel(id, {
+            name,
+            description,
+            is_public: isPublic,
+            scene: persistable,
+            ...(thumb ? { thumbnail_url: thumb } : {}),
+          });
         } catch (err) {
           console.warn("[level] local save failed", err);
         }
@@ -544,7 +556,13 @@ export default function LevelEditorPage() {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const res = await supabase
           .from("levels")
-          .update({ name, description, is_public: isPublic, scene: persistable as any })
+          .update({
+            name,
+            description,
+            is_public: isPublic,
+            scene: persistable as any,
+            ...(thumb ? { thumbnail_url: thumb } : {}),
+          })
           .eq("id", id);
         error = (res as any).error ?? null;
         if (!error) break;
