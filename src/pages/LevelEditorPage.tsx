@@ -1471,7 +1471,6 @@ export default function LevelEditorPage() {
             ))}
           </div>
         </aside>
-        )}
 
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
