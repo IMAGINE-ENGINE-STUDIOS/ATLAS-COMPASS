@@ -1466,6 +1466,26 @@ export default function LevelEditorPage() {
 
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
+          {rigRoomMode ? (
+            <RigControllerRoom
+              sceneCharacters={scene.objects
+                .filter((o): o is CharacterObject => o.kind === "character")
+                .map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  url: c.url,
+                  currentAnimation: c.currentAnimation,
+                }))}
+              onApplyToCharacter={(cid, patch) => {
+                patchObject(cid, {
+                  url: patch.url,
+                  ...(patch.currentAnimation
+                    ? { currentAnimation: patch.currentAnimation }
+                    : {}),
+                } as any);
+              }}
+            />
+          ) : (
           <LevelScene3D
             scene={renderedScene}
             selectedId={selectedId}
@@ -1535,6 +1555,7 @@ export default function LevelEditorPage() {
             }}
             className="w-full h-full"
           />
+          )}
         </main>
 
         {/* Right: inspector */}
