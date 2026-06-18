@@ -52,6 +52,7 @@ import {
 } from "@/lib/model-import";
 import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
+import TerrainGallery from "@/components/level/terrain/TerrainGallery";
 
 type ActiveTool = { key: string; label: string; icon: React.ReactNode; active: boolean };
 
