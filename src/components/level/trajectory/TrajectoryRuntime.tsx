@@ -287,10 +287,18 @@ export function TrajectoryRunner({
   };
 
   useFrame((_, dt) => {
-    if (!playing) return;
+    if (!playing) {
+      splineDrivenIds.clear();
+      return;
+    }
     const g = groupRef.current;
     if (!g) return;
     const clampedDt = Math.min(dt, 0.1);
+
+    // Re-publish the set of follower ids every frame so other runtimes
+    // (PushableRuntime, etc.) can opt out of physics for spline-driven objects.
+    splineDrivenIds.clear();
+    for (const t of trajectories) for (const f of t.followers) splineDrivenIds.add(f);
 
     for (const traj of trajectories) {
       const curve = buildCurve(traj);
