@@ -214,6 +214,9 @@ function makeTrajectory(): TrajectoryObject {
     orientToPath: true,
     loop: true,
     color: "#3b82f6",
+    smartPath: false,
+    maxStepHeight: 0.4,
+    slopeSpeedFactor: 0.6,
   };
 }
 
@@ -3305,6 +3308,41 @@ function TrajectoryInspector({
           <Switch checked={obj.orientToPath} onCheckedChange={(v) => onPatch({ orientToPath: v })} disabled={disabled} />
           Orient
         </label>
+      </div>
+
+      <div className="rounded border border-border/40 p-2 space-y-2 bg-muted/10">
+        <label className="flex items-center gap-2 text-[11px] font-medium">
+          <Switch
+            checked={!!obj.smartPath}
+            onCheckedChange={(v) => onPatch({ smartPath: v })}
+            disabled={disabled}
+          />
+          Smart path (terrain-aware)
+        </label>
+        <p className="text-[10px] text-muted-foreground leading-snug">
+          Follower collides with terrain & objects, snaps to surface,
+          climbs steps and tilts with the slope. Speed adjusts uphill/downhill.
+        </p>
+        {obj.smartPath && (
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div>
+              <Label className="text-[9px]">Max step (m) {(obj.maxStepHeight ?? 0.4).toFixed(2)}</Label>
+              <Slider
+                value={[obj.maxStepHeight ?? 0.4]} min={0.05} max={1.2} step={0.05}
+                disabled={disabled}
+                onValueChange={([v]) => onPatch({ maxStepHeight: v })}
+              />
+            </div>
+            <div>
+              <Label className="text-[9px]">Slope speed × {(obj.slopeSpeedFactor ?? 0.6).toFixed(2)}</Label>
+              <Slider
+                value={[obj.slopeSpeedFactor ?? 0.6]} min={0} max={2} step={0.05}
+                disabled={disabled}
+                onValueChange={([v]) => onPatch({ slopeSpeedFactor: v })}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div>

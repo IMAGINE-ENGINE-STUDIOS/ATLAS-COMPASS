@@ -203,6 +203,8 @@ export function TrajectoryRunner({
 }) {
   const phaseRef = useRef<Map<string, number>>(new Map()); // key: traj.id + ":" + followerId
   const origRef = useRef<Map<string, [number, number, number]>>(new Map()); // followerId -> original pos
+  const smoothYRef = useRef<Map<string, number>>(new Map()); // smoothed Y per follower
+  const { scene: r3fScene } = useThree();
 
   const trajectories = useMemo(
     () => objects.filter((o) => o.kind === "trajectory") as TrajectoryObject[],
@@ -222,6 +224,7 @@ export function TrajectoryRunner({
       }
       origRef.current.clear();
       phaseRef.current.clear();
+      smoothYRef.current.clear();
       return;
     }
     const g = groupRef.current;
@@ -233,6 +236,37 @@ export function TrajectoryRunner({
       if (f) origRef.current.set(fid, [f.position.x, f.position.y, f.position.z]);
     });
   }, [playing, trajectories, groupRef]);
+
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const down = useMemo(() => new THREE.Vector3(0, -1, 0), []);
+
+  /** Down-cast from `worldX, worldZ` starting at `fromY`; returns hit Y + normal or null. */
+  const sampleSurface = (
+    worldX: number,
+    worldZ: number,
+    fromY: number,
+    excludeName: string,
+  ): { y: number; normal: THREE.Vector3 } | null => {
+    raycaster.set(new THREE.Vector3(worldX, fromY, worldZ), down);
+    raycaster.far = 50;
+    const targets: THREE.Object3D[] = [];
+    const exclude = r3fScene.getObjectByName(excludeName);
+    const excludeSet = new Set<THREE.Object3D>();
+    if (exclude) exclude.traverse((o) => excludeSet.add(o));
+    r3fScene.traverse((o) => {
+      if (!(o as any).isMesh) return;
+      if (excludeSet.has(o)) return;
+      const ud = (o as any).userData ?? {};
+      if (ud.__gizmo) return;
+      targets.push(o);
+    });
+    const hit = raycaster.intersectObjects(targets, false)[0];
+    if (!hit) return null;
+    const normal = hit.face?.normal
+      ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize()
+      : new THREE.Vector3(0, 1, 0);
+    return { y: hit.point.y, normal };
+  };
 
   useFrame((_, dt) => {
     if (!playing) return;
@@ -263,7 +297,26 @@ export function TrajectoryRunner({
         let s = phaseRef.current.get(key) ?? 0;
         const t0 = (s / totalLen) % 1;
         const sec = sectionAt(traj.sections, t0);
-        const speed = traj.speed * (sec?.speedMul ?? 1);
+        let speed = traj.speed * (sec?.speedMul ?? 1);
+
+        // Smart-path: probe upcoming slope (small lookahead along curve) and
+        // scale speed before integrating. Uphill slows down, downhill speeds up.
+        if (traj.smartPath) {
+          const factor = traj.slopeSpeedFactor ?? 0.6;
+          const tHere = Math.min(0.9999, Math.max(0, s / totalLen));
+          const tNext = Math.min(0.9999, tHere + 0.01);
+          const pHere = curve.getPointAt(tHere).applyMatrix4(mat);
+          const pNext = curve.getPointAt(tNext).applyMatrix4(mat);
+          const hHere = sampleSurface(pHere.x, pHere.z, pHere.y + 5, `obj-${fid}`);
+          const hNext = sampleSurface(pNext.x, pNext.z, pNext.y + 5, `obj-${fid}`);
+          if (hHere && hNext) {
+            const horiz = Math.hypot(pNext.x - pHere.x, pNext.z - pHere.z) || 1e-3;
+            const slope = Math.atan2(hNext.y - hHere.y, horiz); // +up / -down
+            const scale = Math.max(0.25, Math.min(2, 1 - slope * factor));
+            speed *= scale;
+          }
+        }
+
         s += speed * clampedDt;
         if (!traj.closed && !traj.loop) {
           if (s >= totalLen) s = totalLen;
@@ -282,12 +335,55 @@ export function TrajectoryRunner({
         localPos.y += activeSec?.altitude ?? 0;
 
         const worldPos = localPos.clone().applyMatrix4(mat);
+        let surfaceNormal: THREE.Vector3 | null = null;
+
+        if (traj.smartPath) {
+          // Snap Y to terrain/scenery surface.
+          const surf = sampleSurface(worldPos.x, worldPos.z, worldPos.y + 5, `obj-${fid}`);
+          if (surf) {
+            const stepMax = traj.maxStepHeight ?? 0.4;
+            const targetY = surf.y;
+            const prevY = smoothYRef.current.get(key) ?? targetY;
+            const dy = targetY - prevY;
+            let newY: number;
+            if (Math.abs(dy) <= stepMax) {
+              // Small step — apply instantly (climb stairs / curbs).
+              newY = targetY;
+            } else {
+              // Big jump — ease toward target so it looks like walking down a
+              // ramp / step instead of teleporting.
+              const ease = Math.min(1, clampedDt * 8);
+              newY = prevY + dy * ease;
+            }
+            smoothYRef.current.set(key, newY);
+            worldPos.y = newY;
+            surfaceNormal = surf.normal;
+          }
+        }
+
         follower.position.copy(worldPos);
 
         if (traj.orientToPath) {
           const worldTan = localTan.clone().transformDirection(mat).normalize();
           const yaw = Math.atan2(worldTan.x, worldTan.z);
           follower.rotation.y = yaw;
+          if (traj.smartPath && surfaceNormal) {
+            // Pitch the follower along the slope (rotate around local X).
+            // Project tangent onto vertical plane defined by yaw.
+            const fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+            const slopeY = -fwd.dot(
+              new THREE.Vector3(surfaceNormal.x, 0, surfaceNormal.z),
+            );
+            // Pitch ≈ angle between tangent projection and horizontal.
+            const pitch = Math.atan2(
+              new THREE.Vector3(surfaceNormal.x, 0, surfaceNormal.z).length() *
+                Math.sign(slopeY),
+              surfaceNormal.y || 1,
+            );
+            follower.rotation.x = Math.max(-0.7, Math.min(0.7, pitch));
+          } else {
+            follower.rotation.x = 0;
+          }
         }
       }
     }
