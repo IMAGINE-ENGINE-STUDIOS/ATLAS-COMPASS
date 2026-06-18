@@ -2291,6 +2291,7 @@ function CharacterInspector({
   onOpenGallery?: () => void;
 }) {
   const names = useCharacterAnimationNames(obj.url);
+  // RigBodySection is defined below; this is just to anchor placement.
   const current = obj.currentAnimation || names[0] || "";
   return (
     <div className="space-y-3 pt-3 border-t border-border/40">
