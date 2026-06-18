@@ -1164,7 +1164,7 @@ export default function LevelEditorPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setPlaceDialogOpen(true)}
+            onClick={openPlaceDialog}
             disabled={!isOwner}
             title="Place on Atlas"
           >
