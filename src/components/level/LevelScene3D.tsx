@@ -972,8 +972,18 @@ function ObjectSlot({
     if (isPlayer) return; // player drives its own transform
     const g = groupRef.current;
     if (!g) return;
+    // Tag so raycasts (collision / camera) can skip this whole subtree.
+    // Character vs character is handled separately by a cheap XZ cylinder
+    // check in PlayableCharacter, so we never want skinned meshes hit by
+    // per-frame raycasts.
+    g.userData.__character = true;
+    g.userData.__nocast = true;
     characterRegistry.set(obj.id, g);
-    return () => { characterRegistry.delete(obj.id); };
+    return () => {
+      delete g.userData.__character;
+      delete g.userData.__nocast;
+      characterRegistry.delete(obj.id);
+    };
   }, [obj.id, obj.kind, isPlayer]);
 
   if (isPlayer) {
