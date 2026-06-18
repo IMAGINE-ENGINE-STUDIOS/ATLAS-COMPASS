@@ -127,7 +127,7 @@ export async function listRigSaves(): Promise<RigSave[]> {
     console.warn("[rigSaves] list failed, using cache", error?.message);
     return readCache();
   }
-  const rows = data as RigSave[];
+  const rows = data as unknown as RigSave[];
   writeCache(rows);
   return rows;
 }
@@ -152,7 +152,7 @@ export async function saveRig(input: RigSaveInput): Promise<RigSave> {
     .select("*")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Save failed");
-  const row = data as RigSave;
+  const row = data as unknown as RigSave;
   writeCache([row, ...readCache().filter((r) => r.id !== row.id)]);
   return row;
 }
