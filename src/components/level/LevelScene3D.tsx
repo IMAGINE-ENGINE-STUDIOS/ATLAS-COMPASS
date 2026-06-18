@@ -1563,8 +1563,6 @@ function LevelScene3DInner(
         // painted. Result is ~80-150 KB — small enough to inline.
         (window as any).__levelThumbnail = (w = 1280, h = 720, q = 0.9): string | null => {
           try {
-            // Force a fresh render so we don't capture a stale/blank frame.
-            try { gl.render((gl as any).__r3f?.scene ?? gl.getRenderTarget()?.texture ? (gl as any).__r3f?.scene : (gl as any).__r3f?.scene, (gl as any).__r3f?.camera); } catch {}
             const off = document.createElement("canvas");
             off.width = w;
             off.height = h;
