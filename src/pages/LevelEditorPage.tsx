@@ -228,6 +228,7 @@ export default function LevelEditorPage() {
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
   const [terrainOpen, setTerrainOpen] = useState(false);
+  const [terrainGalleryOpen, setTerrainGalleryOpen] = useState(false);
 
   // Animation gallery modals — opened from inspectors.
   const [characterGalleryOpen, setCharacterGalleryOpen] = useState(false);
