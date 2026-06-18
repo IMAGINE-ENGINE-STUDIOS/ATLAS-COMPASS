@@ -821,6 +821,7 @@ export default function RigControllerRoom({
             }
           >
             <Environment preset="city" />
+            <SnapshotBridge bridgeRef={bridgeRef} />
             {url && (
               <Rig
                 url={url}
@@ -833,6 +834,9 @@ export default function RigControllerRoom({
                 activeClip={activeClip}
                 playing={playing}
                 speed={speed}
+                pendingPose={pendingPose}
+                onPoseApplied={() => setPendingPose(null)}
+                bridgeRef={bridgeRef}
               />
             )}
           </Suspense>
