@@ -1192,8 +1192,9 @@ export default function LevelEditorPage() {
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-[260px_1fr_320px] min-h-0">
-        {/* Left: outline */}
+      <div className={`flex-1 grid ${rigRoomMode ? "grid-cols-[1fr_320px]" : "grid-cols-[260px_1fr_320px]"} min-h-0`}>
+        {/* Left: outline (hidden in rig room — the Rig Controller owns its own sidebar). */}
+        {!rigRoomMode && (
         <aside className="border-r border-border/40 bg-card/40 overflow-y-auto">
           <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
             {!rigRoomMode && (
