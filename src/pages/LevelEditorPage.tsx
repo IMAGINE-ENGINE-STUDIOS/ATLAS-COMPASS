@@ -1248,6 +1248,7 @@ export default function LevelEditorPage() {
                               {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
                                o.kind === "polygon" ? <Pencil className="w-3 h-3" /> :
                                o.kind === "character" ? <User className="w-3 h-3" /> :
+                               o.kind === "trajectory" ? <SplineIcon className="w-3 h-3" /> :
                                <LayersIcon className="w-3 h-3" />}
                               <span className="flex-1 truncate">{o.name}</span>
                             </button>
