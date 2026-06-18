@@ -17,8 +17,24 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users } from "lucide-react";
+import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import {
+  listRigSaves,
+  saveRig,
+  deleteRigSave,
+  capturePose,
+  applyPose,
+  getCachedRigSaves,
+  type RigSave,
+  type BonePose,
+} from "@/lib/rigSaves";
+
+/** Imperative bridge between <Rig/> and the parent panel. */
+interface RigBridge {
+  root: THREE.Object3D | null;
+  snapshot: (() => string | null) | null;
+}
 
 /**
  * Curated free / open-licensed rigged characters. All URLs are public CDN
