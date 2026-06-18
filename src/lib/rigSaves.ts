@@ -49,6 +49,18 @@ export interface RigSaveInput {
 }
 
 const CACHE_KEY = "rig-saves-cache-v1";
+const CHANGE_EVENT = "rig-saves-changed";
+
+function notifyChange() {
+  if (typeof window === "undefined") return;
+  try { window.dispatchEvent(new CustomEvent(CHANGE_EVENT)); } catch { /* no-op */ }
+}
+
+export function onRigSavesChanged(handler: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(CHANGE_EVENT, handler);
+  return () => window.removeEventListener(CHANGE_EVENT, handler);
+}
 
 /* ----------------------------- cache ------------------------------ */
 
@@ -77,6 +89,7 @@ function writeCache(rows: RigSave[]) {
       /* give up — gallery still works from server */
     }
   }
+  notifyChange();
 }
 
 export function getCachedRigSaves(): RigSave[] {
