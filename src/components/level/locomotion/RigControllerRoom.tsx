@@ -690,6 +690,71 @@ export default function RigControllerRoom({
           </Button>
         </div>
 
+        {/* ---- Save + Saved gallery ---- */}
+        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
+          <div className="flex items-center justify-between">
+            <Label className="text-[11px] flex items-center gap-1.5">
+              <Save className="w-3 h-3" /> Saved rigs ({saves.length})
+            </Label>
+            <Button
+              size="sm"
+              className="h-7"
+              onClick={handleSave}
+              disabled={bones.length === 0}
+            >
+              <Save className="w-3 h-3 mr-1.5" /> Save
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            Stores model, pose, controllers, and clip — synced to your account
+            with a local cache fallback.
+          </p>
+          {saves.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground/70 italic">
+              {savesLoading ? "Loading…" : "No saves yet — pose the rig then hit Save."}
+            </p>
+          ) : (
+            <ScrollArea className="h-44">
+              <div className="grid grid-cols-2 gap-1.5 pr-1.5">
+                {saves.map((s) => {
+                  const active = activeSaveId === s.id;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`group relative rounded border overflow-hidden transition ${
+                        active ? "border-foreground/40 ring-1 ring-foreground/30" : "border-border/40 hover:border-border"
+                      }`}
+                    >
+                      <button
+                        onClick={() => handleLoadSave(s)}
+                        className="block w-full text-left"
+                        title={`${s.name}\n${new Date(s.created_at).toLocaleString()}`}
+                      >
+                        <div className="aspect-square bg-slate-900 flex items-center justify-center">
+                          {s.thumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={s.thumbnail} alt={s.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+                          )}
+                        </div>
+                        <div className="px-1.5 py-1 text-[10px] truncate">{s.name}</div>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteSave(s); }}
+                        className="absolute top-1 right-1 p-1 rounded bg-background/80 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground transition"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+
         <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Animations ({clips.length})</Label>
