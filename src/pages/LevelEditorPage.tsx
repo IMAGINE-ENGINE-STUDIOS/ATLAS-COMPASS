@@ -2373,13 +2373,14 @@ function MultiLightInspector({
 }
 
 function AnimationPanel({
-  scene, onAdd, onRemove, onPatch, disabled,
+  scene, onAdd, onRemove, onPatch, disabled, onOpenGallery,
 }: {
   scene: LevelScene;
   onAdd: (t: AnimationTrack) => void;
   onRemove: (id: string) => void;
   onPatch: (id: string, patch: Partial<AnimationTrack>) => void;
   disabled?: boolean;
+  onOpenGallery?: (targetId: string) => void;
 }) {
   const [target, setTarget] = useState<string>("");
 
@@ -2419,6 +2420,17 @@ function AnimationPanel({
         <Button size="sm" onClick={addTrack} disabled={disabled}>
           <Plus className="w-3.5 h-3.5" />
         </Button>
+        {onOpenGallery && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={disabled || !target}
+            onClick={() => target && onOpenGallery(target)}
+            title="Browse animation presets"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
 
       {scene.animations.length === 0 && (
