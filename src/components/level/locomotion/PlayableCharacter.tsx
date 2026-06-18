@@ -259,7 +259,18 @@ export default function PlayableCharacter({
   const setState = (next: LocoState, fade = 0.18) => {
     if (stateRef.current === next) return;
     stateRef.current = next;
-    const clip = pickClip(names, next);
+    // When the user explicitly picked a clip from the animation gallery,
+    // honor it for the idle / sit / use states (jumps and locomotion still
+    // come from the locomotion state machine so movement feels right).
+    const userPick =
+      obj.currentAnimation && names.includes(obj.currentAnimation)
+        ? obj.currentAnimation
+        : null;
+    const overrideStates: LocoState[] = ["idle", "sit", "use"];
+    const clip =
+      userPick && overrideStates.includes(next)
+        ? userPick
+        : pickClip(names, next);
     if (!clip) return;
     const action = actions[clip];
     if (!action) return;
@@ -278,6 +289,19 @@ export default function PlayableCharacter({
     action.timeScale = obj.animationSpeed ?? 1;
     activeAction.current = action;
   };
+
+  // React to gallery selection changes while idle / sitting so the swap is
+  // visible immediately without waiting for a state transition.
+  useEffect(() => {
+    if (!enabled) return;
+    const s = stateRef.current;
+    if (s === "idle" || s === "sit" || s === "use") {
+      // Force re-apply by flipping to a sentinel then back.
+      stateRef.current = "fall" as LocoState;
+      setState(s);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [obj.currentAnimation, names.join("|")]);
 
   /* --------------------- per-frame simulation --------------------- */
 
