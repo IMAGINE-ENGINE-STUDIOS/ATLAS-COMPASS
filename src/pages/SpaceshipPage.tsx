@@ -5358,6 +5358,36 @@ function SpaceshipPage() {
                     className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-colors">
                     <X className="w-3.5 h-3.5" />
                   </button>
+                  {(() => {
+                    const bizEntityId = `biz-${selectedBusiness.id}`;
+                    const sel = isTagSelected(bizEntityId);
+                    return (
+                      <button
+                        onClick={() => toggleSelected({
+                          kind: "biz",
+                          id: bizEntityId,
+                          name: selectedBusiness.name,
+                          lat: selectedBusiness.lat,
+                          lng: selectedBusiness.lng,
+                          category: selectedBusiness.category,
+                          website: selectedBusiness.website,
+                          emoji: selectedBusiness.emoji,
+                        })}
+                        title={sel ? "Unselect" : "Select (mark as gold)"}
+                        className="absolute -top-2 -left-2 z-10 w-7 h-7 rounded-full backdrop-blur-xl flex items-center justify-center transition-colors"
+                        style={sel ? {
+                          background: "linear-gradient(135deg,#FFE56A,#B8860B)",
+                          border: "1px solid #FFD700",
+                          boxShadow: "0 0 12px #FFD70088",
+                        } : {
+                          background: "rgba(0,0,0,0.8)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${sel ? "fill-[#1a1300] text-[#1a1300]" : "text-white/80"}`} />
+                      </button>
+                    );
+                  })()}
                   <POICard
                     poi={selectedBusiness}
                     variant="glass"
