@@ -89,27 +89,11 @@ const ROBOT = "https://threejs.org/examples/models/gltf/RobotExpressive/RobotExp
 const SOLDIER = "https://threejs.org/examples/models/gltf/Soldier.glb";
 
 export const CHARACTER_ANIMATION_LIBRARY: CharacterClipEntry[] = [
-  // Verified working clips only. Applying a "url" entry swaps the character
-  // model to that rig (Xbot → Robot / Soldier) so the named clip plays.
-
-  // ----- Locomotion: walk / run / idle (Xbot built-ins, no model swap) -----
-  builtin("xbot-idle",        "Idle",             "idle",       "idle",       ["calm", "loop"]),
-  builtin("xbot-walk",        "Walking",          "locomotion", "walk",       ["loop", "forward"]),
-  builtin("xbot-run",         "Running",          "locomotion", "run",        ["loop", "forward", "fast"]),
-
-  // ----- 5 idle variants -----
-  builtin("xbot-sneak-idle",  "Idle — Sneak",     "idle",       "sneak_pose", ["stealth", "crouch"]),
-  builtin("xbot-sad-idle",    "Idle — Sad",       "idle",       "sad_pose",   ["emotion", "down"]),
-  url("robot-idle",           "Idle — Robot",     "idle",       ROBOT,   "Idle",     ["robot", "swap"]),
-  url("robot-standing",       "Idle — Standing",  "idle",       ROBOT,   "Standing", ["robot", "swap"]),
-  url("soldier-idle",         "Idle — Soldier",   "idle",       SOLDIER, "Idle",     ["soldier", "swap"]),
-
-  // ----- Jumps (only two real jump clips exist on threejs.org) -----
-  url("robot-jump",           "Jump (in place)",  "jump",       ROBOT,   "Jump",     ["robot", "swap"], false),
-  url("robot-walkjump",       "Jump (running)",   "jump",       ROBOT,   "WalkJump", ["robot", "swap"], false),
-
-  // ----- Sit down -----
-  url("robot-sitting",        "Sit down",         "sit",        ROBOT,   "Sitting",  ["robot", "swap"]),
+  // Only clips that play reliably on the default Xbot rig. Additional
+  // clips can be added at runtime via the gallery's Upload button.
+  builtin("xbot-idle", "Idle",    "idle",       "idle", ["calm", "loop"]),
+  builtin("xbot-walk", "Walking", "locomotion", "walk", ["loop", "forward"]),
+  builtin("xbot-run",  "Running", "locomotion", "run",  ["loop", "forward", "fast"]),
 ];
 
 export const CLIP_CATEGORIES: { id: ClipCategory; label: string }[] = [
