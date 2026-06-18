@@ -171,13 +171,21 @@ export default function PlayableCharacter({
     });
   }, [cloned]);
 
-  // Auto-fit visual scale so the rig matches the requested capsule height.
-  const visualScale = useMemo(() => {
+  // Respect the authored object scale (don't auto-resize the rig — that was
+  // producing giant characters when the source glb already shipped at human
+  // height). Then measure the actual rendered height once for camera framing.
+  const visualScale: [number, number, number] = [
+    obj.scale[0] ?? 1,
+    obj.scale[1] ?? 1,
+    obj.scale[2] ?? 1,
+  ];
+  const measuredHeight = useMemo(() => {
     const box = new THREE.Box3().setFromObject(cloned);
     const size = box.getSize(new THREE.Vector3());
-    if (size.y < 0.01) return 1;
-    return height / size.y;
-  }, [cloned, height]);
+    const h = size.y * (obj.scale[1] ?? 1);
+    return h > 0.1 ? h : 1.7;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloned, obj.scale[1]]);
 
   // Camera state
   const camOrbit = useRef({ yaw: 0, pitch: 0.25, dist: 4 });
@@ -419,31 +427,37 @@ export default function PlayableCharacter({
 
     // ---- camera ----
     if (cameraMode === "first") {
-      // Find a "head" bone if possible, else use top of capsule.
-      let headY = root.position.y + height * 0.92;
+      // Find a "head" bone if possible, else top of measured rig.
+      let headY = root.position.y + measuredHeight * 0.92;
       const head = cloned.getObjectByName("mixamorigHead") ?? cloned.getObjectByName("Head");
       if (head) {
         const wp = new THREE.Vector3();
         head.getWorldPosition(wp);
-        headY = wp.y;
+        headY = wp.y + 0.08; // small bump so the cam sits at eye-level, not inside the skull
       }
       const pitch = camOrbit.current.pitch;
+      // Nudge the camera slightly forward so the rig's own head mesh doesn't
+      // clip into the near-plane (which looked like "I'm inside the skull").
+      const fwdX = -Math.sin(camYaw);
+      const fwdZ = -Math.cos(camYaw);
       tmp.camPos.set(
-        root.position.x,
+        root.position.x + fwdX * 0.18,
         headY,
-        root.position.z,
+        root.position.z + fwdZ * 0.18,
       );
       camera.position.copy(tmp.camPos);
       tmp.camTarget.set(
-        root.position.x - Math.sin(camYaw) * Math.cos(pitch),
+        tmp.camPos.x + fwdX * Math.cos(pitch),
         headY + Math.sin(pitch),
-        root.position.z - Math.cos(camYaw) * Math.cos(pitch),
+        tmp.camPos.z + fwdZ * Math.cos(pitch),
       );
       camera.lookAt(tmp.camTarget);
     } else {
-      const dist = camOrbit.current.dist;
+      // Distance scales with rig height so a 1.8m character frames the same
+      // as a 3m one without the user having to fiddle.
+      const dist = camOrbit.current.dist * Math.max(0.6, measuredHeight / 1.8);
       const pitch = camOrbit.current.pitch;
-      const targetY = root.position.y + height * 0.75;
+      const targetY = root.position.y + measuredHeight * 0.7;
       tmp.camTarget.set(root.position.x, targetY, root.position.z);
       tmp.camPos.set(
         root.position.x + Math.sin(camYaw) * Math.cos(pitch) * dist,
