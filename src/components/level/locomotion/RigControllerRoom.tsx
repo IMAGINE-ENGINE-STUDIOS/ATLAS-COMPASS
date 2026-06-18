@@ -387,6 +387,24 @@ export default function RigControllerRoom({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
+  // ----- save system state -----
+  const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
+  const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
+  const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
+  const [savesLoading, setSavesLoading] = useState(false);
+  const [activeSaveId, setActiveSaveId] = useState<string | null>(null);
+
+  // Hydrate saves from the server (cache rendered immediately above).
+  useEffect(() => {
+    let cancelled = false;
+    setSavesLoading(true);
+    listRigSaves()
+      .then((rows) => { if (!cancelled) setSaves(rows); })
+      .catch((e) => console.warn("[rig] list saves failed", e))
+      .finally(() => { if (!cancelled) setSavesLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (sceneCharacters.length && !sceneCharacters.find((c) => c.id === targetCharId)) {
       setTargetCharId(sceneCharacters[0].id);
@@ -441,7 +459,61 @@ export default function RigControllerRoom({
     setUrl(c.url);
     setPendingUrl(c.url);
     setSourceLabel(`${c.name} · ${c.credit}`);
+    setActiveSaveId(null);
     toast.success(`Loaded ${c.name}`);
+  };
+
+  const handleSave = async () => {
+    const root = bridgeRef.current.root;
+    if (!root) { toast.error("Rig not ready yet"); return; }
+    const defaultName = `${sourceLabel.split("·")[0].trim() || "Rig"} ${new Date()
+      .toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+    const name = window.prompt("Save rig as…", defaultName);
+    if (!name || !name.trim()) return;
+    const pose = capturePose(root);
+    const thumb = bridgeRef.current.snapshot?.() ?? null;
+    try {
+      const row = await saveRig({
+        name: name.trim(),
+        source_label: sourceLabel,
+        model_url: url,
+        active_clip: activeClip,
+        speed,
+        controller_map: controllerMap,
+        pose,
+        thumbnail: thumb,
+      });
+      setSaves((prev) => [row, ...prev.filter((r) => r.id !== row.id)]);
+      setActiveSaveId(row.id);
+      toast.success("Rig saved");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Save failed");
+    }
+  };
+
+  const handleLoadSave = (s: RigSave) => {
+    setActiveSaveId(s.id);
+    setSourceLabel(s.source_label ?? s.name);
+    setPendingUrl(s.model_url.startsWith("data:") ? s.name : s.model_url);
+    setSpeed(s.speed ?? 1);
+    setControllerMap((s.controller_map as Record<ControllerKey, string | null>) ?? ({} as Record<ControllerKey, string | null>));
+    setPendingPose(s.pose ?? null);
+    // Force a reload even if the URL is identical (re-clone for clean apply).
+    setUrl("");
+    setTimeout(() => {
+      setUrl(s.model_url);
+      if (s.active_clip) setActiveClip(s.active_clip);
+    }, 20);
+    toast.success(`Loaded ${s.name}`);
+  };
+
+  const handleDeleteSave = async (s: RigSave) => {
+    if (!window.confirm(`Delete "${s.name}"? This cannot be undone.`)) return;
+    setSaves((prev) => prev.filter((r) => r.id !== s.id));
+    if (activeSaveId === s.id) setActiveSaveId(null);
+    try { await deleteRigSave(s.id); } catch (e: any) {
+      toast.error(e?.message ?? "Delete failed");
+    }
   };
 
   const handleApplyToCharacter = () => {
