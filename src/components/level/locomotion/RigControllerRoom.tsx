@@ -525,7 +525,7 @@ export default function RigControllerRoom({
           <p className="text-[10px] text-muted-foreground leading-snug">
             Free rigged models. Click to load — replaces the current rig.
           </p>
-          {(["Human", "Creature", "Monster", "Robot"] as const).map((cat) => {
+          {(["Human", "Creature", "Robot"] as const).map((cat) => {
             const items = CHARACTER_LIBRARY.filter((c) => c.category === cat);
             if (items.length === 0) return null;
             return (
