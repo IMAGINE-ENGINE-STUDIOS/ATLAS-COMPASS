@@ -1295,7 +1295,7 @@ export function LevelSceneContents({
             onSelect={onSelectLight}
           />
         ))}
-      {showGrid && (
+      {showGrid && !scene.terrain?.enabled && (
         <Grid
           args={[40, 40]}
           cellSize={snap && snap > 0 ? snap : 1}
