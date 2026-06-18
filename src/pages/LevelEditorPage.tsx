@@ -1454,6 +1454,7 @@ export default function LevelEditorPage() {
                   onPatch={(p) => patchObject(selectedObj.id, p)}
                   disabled={!isOwner}
                   snap={snap}
+                  allObjects={scene.objects}
                   editing={editingPolygonId === selectedObj.id}
                   onToggleEdit={() =>
                     setEditingPolygonId((cur) => (cur === selectedObj.id ? null : selectedObj.id))
