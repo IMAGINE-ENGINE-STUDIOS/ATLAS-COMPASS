@@ -1184,23 +1184,21 @@ export function LevelSceneContents({
       {scene.terrain?.enabled && <RenderTerrain terrain={scene.terrain} />}
       <group ref={groupRef} onPointerMissed={() => onSelect?.(null)}>
         {scene.objects.map((o) => (
-          <group
+          <ObjectSlot
             key={o.id}
-            name={`obj-${o.id}`}
-            position={o.position}
-            rotation={o.rotation as any}
-            scale={o.scale}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              (e as any).nativeEvent?.preventDefault?.();
-              // ask parent (Canvas wrapper) to focus this object
-              (window as any).__levelFocusObject?.(o.id);
-            }}
-          >
-            <RenderObject obj={o} selectedId={selectedId} onSelect={onSelect ? (id) => onSelect(id) : undefined} />
-          </group>
+            obj={o}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            playing={!!playing}
+          />
         ))}
       </group>
+      {/* HUD prompt for sit / use markers — overlays the canvas via Html. */}
+      {playing && (
+        <Html fullscreen prepend zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+          <InteractionPromptUI />
+        </Html>
+      )}
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
       <FocusController
         target={focusRequest}
