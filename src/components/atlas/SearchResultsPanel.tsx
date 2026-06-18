@@ -133,13 +133,13 @@ export default function SearchResultsPanel(p: Props) {
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="fixed z-40 left-3 top-20 bottom-28 w-[360px] max-w-[92vw] flex flex-col rounded-2xl bg-black/80 backdrop-blur-2xl border border-white/[0.12] shadow-[0_20px_60px_rgba(0,0,0,0.6)] pointer-events-auto"
+      className="fixed z-40 left-2 right-2 sm:left-4 sm:right-4 bottom-[88px] sm:bottom-[96px] max-h-[60vh] flex flex-col rounded-2xl bg-black/85 backdrop-blur-2xl border border-white/[0.12] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] pointer-events-auto"
       style={{
         fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif',
-        animation: "panelSlideIn 0.25s cubic-bezier(0.22,1,0.36,1)",
+        animation: "panelSlideUp 0.28s cubic-bezier(0.22,1,0.36,1)",
       }}
     >
-      <style>{`@keyframes panelSlideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <style>{`@keyframes panelSlideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* Header */}
       <div className="flex items-center gap-2 p-3 border-b border-white/[0.08]">
