@@ -563,10 +563,28 @@ export default function LevelEditorPage() {
         lastSavedAtRef.current = Date.now();
         setAutosaveStatus("saved");
         markLevelSnapshotCommitted(id, snapshotAt).catch(() => {});
+        // Append-only version history: every successful cloud save also writes
+        // an immutable snapshot row so older versions can never be erased.
+        if (userId) {
+          supabase
+            .from("level_snapshots")
+            .insert({
+              level_id: id,
+              owner_id: userId,
+              name,
+              description: description || null,
+              is_public: isPublic,
+              scene: persistable as any,
+              client_saved_at: new Date(snapshotAt).toISOString(),
+            })
+            .then(({ error: snapErr }) => {
+              if (snapErr) console.warn("[level] snapshot insert failed", snapErr.message);
+            });
+        }
         if (!opts.silent) toast.success("Saved");
       }
     },
-    [id, name, description, isPublic, scene, isOwner],
+    [id, name, description, isPublic, scene, isOwner, userId],
   );
 
   // -------- Autosave: persist every change so nothing is lost --------
