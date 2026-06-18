@@ -110,6 +110,36 @@ export interface ModelObject extends BaseObject {
   materialOverrides?: Record<string, ModelMaterialOverride>;
 }
 
+/**
+ * A rigged, animated character actor in the scene.
+ *
+ * Defaults to the Three.js example **Xbot** glTF, which ships with a Mixamo
+ * humanoid skeleton (full finger bones + foot/toe bones) and ~14 baked
+ * animation clips (Idle, Walk, Run, Dance, Wave, Death, ThumbsUp, …).
+ *
+ * The user can swap in any other rigged glTF/GLB by URL and the animation
+ * picker auto-discovers clips from the file.
+ */
+export interface CharacterObject extends BaseObject {
+  kind: "character";
+  /** URL of the rigged glTF/GLB. */
+  url: string;
+  /** Human-readable source label, e.g. "Xbot (Mixamo)". */
+  source?: string;
+  /** Name of the active animation clip (must match one in the glTF). */
+  currentAnimation?: string;
+  /** Playback speed multiplier (1 = normal). */
+  animationSpeed: number;
+  /** True to freeze on the current frame. */
+  paused: boolean;
+  /** Crossfade duration in seconds when swapping clips. */
+  crossfade?: number;
+}
+
+/** Default Xbot character (Three.js examples — MIT-licensed Mixamo rig). */
+export const DEFAULT_CHARACTER_URL =
+  "https://threejs.org/examples/models/gltf/Xbot.glb";
+
 export interface ModelMaterialOverride {
   color?: RGBA;
   metalness?: number;
@@ -127,7 +157,11 @@ export interface ModelMaterialOverride {
   rotation?: number;
 }
 
-export type SceneObject = PrimitiveObject | PolygonObject | ModelObject;
+export type SceneObject =
+  | PrimitiveObject
+  | PolygonObject
+  | ModelObject
+  | CharacterObject;
 
 export interface SceneLight {
   id: string;
