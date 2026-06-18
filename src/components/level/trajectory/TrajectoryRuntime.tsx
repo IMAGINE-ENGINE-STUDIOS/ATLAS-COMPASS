@@ -178,6 +178,43 @@ export function TrajectoryRender({
           />
         </mesh>
       ))}
+      {/* Insertion "+" handles at the midpoint of every segment. Click to
+          insert a new control point exactly on the curve at that location. */}
+      {editable && selected && curve && (() => {
+        const total = obj.points.length;
+        const segCount = obj.closed ? total : total - 1;
+        const handles: JSX.Element[] = [];
+        for (let i = 0; i < segCount; i++) {
+          const jNext = (i + 1) % total;
+          // Place the handle at the curve's midpoint between control i and i+1
+          // (parameterised by index, not arc length — close enough visually).
+          const tMid = (i + 0.5) / (obj.closed ? total : total - 1);
+          const mid = curve.getPointAt(Math.min(0.9999, Math.max(0.0001, tMid)));
+          const insert = (e: any) => {
+            if (!onPointsChange) return;
+            e.stopPropagation();
+            const newPt: Vec3 = [mid.x, mid.y, mid.z];
+            const next = [
+              ...obj.points.slice(0, jNext === 0 ? total : jNext),
+              newPt,
+              ...obj.points.slice(jNext === 0 ? total : jNext),
+            ];
+            onPointsChange(next);
+          };
+          handles.push(
+            <mesh
+              key={`ins-${i}`}
+              position={[mid.x, mid.y, mid.z]}
+              userData={{ __nocast: true }}
+              onPointerDown={insert}
+            >
+              <sphereGeometry args={[0.09, 12, 12]} />
+              <meshBasicMaterial color="#22c55e" depthTest={false} transparent opacity={0.85} />
+            </mesh>,
+          );
+        }
+        return <>{handles}</>;
+      })()}
       {/* Direction arrow on first segment */}
       {obj.points.length >= 2 && (() => {
         const a = new THREE.Vector3(...obj.points[0]);
