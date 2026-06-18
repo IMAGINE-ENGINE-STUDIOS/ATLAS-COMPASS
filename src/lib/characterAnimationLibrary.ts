@@ -96,7 +96,7 @@ export const CLIP_CATEGORIES: { id: ClipCategory; label: string }[] = [
 export function inferUploadedCategory(clipName: string): ClipCategory {
   const n = clipName.toLowerCase();
   if (/idle|stand|breath|wait|bored/.test(n)) return "idle";
-  if (/walk|run|sprint|jog|sneak|limp|strut|crouch|pace/.test(n)) return "locomotion";
+  if (/walk|run|sprint|jog|limp|strut|crouch|pace/.test(n)) return "locomotion";
   if (/jump|leap|flip|vault|land/.test(n)) return "jump";
   if (/punch|kick|sword|bow|gun|rifle|reload|grenade|block|dodge|combat|fight/.test(n)) return "combat";
   if (/dance|salsa|hiphop|breakdance|house|samba|rumba|twist|charleston/.test(n)) return "dance";
