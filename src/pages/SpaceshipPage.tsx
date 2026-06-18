@@ -795,6 +795,18 @@ function SpaceshipPage() {
   // Reactive count for the "Selected (n)" chip.
   const [selectedCount, setSelectedCount] = useState(getSelectedCount());
   useEffect(() => subscribeSelection(() => setSelectedCount(getSelectedCount())), []);
+
+  // ── Pin ground-clamping helper ─────────────────────────────────────────────
+  // In "realistic" mode the globe terrain is hidden and Google Photorealistic
+  // 3D Tiles are the only visible surface — Cesium's CLAMP_TO_GROUND falls
+  // back to sea level there, dropping pins under buildings. CLAMP_TO_3D_TILE
+  // anchors them to the photogrammetry top instead.
+  const viewModeRef = useRef<"realistic" | "osm">("realistic");
+  const pinHeightRef = useCallback(() => (
+    viewModeRef.current === "realistic"
+      ? HeightReference.CLAMP_TO_3D_TILE
+      : HeightReference.CLAMP_TO_GROUND
+  ), []);
   const cameraEntitiesRef = useRef<any[]>([]);
   const [mapCameras, setMapCameras] = useState<TrafficCamera[]>([]);
 
