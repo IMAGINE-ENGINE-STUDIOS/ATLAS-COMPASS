@@ -89,35 +89,27 @@ const ROBOT = "https://threejs.org/examples/models/gltf/RobotExpressive/RobotExp
 const SOLDIER = "https://threejs.org/examples/models/gltf/Soldier.glb";
 
 export const CHARACTER_ANIMATION_LIBRARY: CharacterClipEntry[] = [
-  // ----- Built-in Xbot clips (verified against the actual glb) -----
-  builtin("xbot-idle",       "Idle",            "idle",       "idle",       ["calm", "loop"]),
-  builtin("xbot-walk",       "Walking",         "locomotion", "walk",       ["loop", "forward"]),
-  builtin("xbot-run",        "Running",         "locomotion", "run",        ["loop", "forward", "fast"]),
-  builtin("xbot-agree",      "Agree (nod)",     "gesture",    "agree",      ["yes"]),
-  builtin("xbot-headshake",  "Head shake (no)", "gesture",    "headShake",  ["no"]),
-  builtin("xbot-sad",        "Sad pose",        "social",     "sad_pose",   ["emotion"]),
-  builtin("xbot-sneak",      "Sneak pose",      "locomotion", "sneak_pose", ["stealth"]),
+  // Verified working clips only. Applying a "url" entry swaps the character
+  // model to that rig (Xbot → Robot / Soldier) so the named clip plays.
 
-  // ----- Robot Expressive (full expressive rig, 14 clips) -----
-  url("robot-idle",          "Robot — Idle",          "idle",       ROBOT,   "Idle",        ["sample", "robot"]),
-  url("robot-walking",       "Robot — Walking",       "locomotion", ROBOT,   "Walking",     ["sample", "robot"]),
-  url("robot-running",       "Robot — Running",       "locomotion", ROBOT,   "Running",     ["sample", "robot"]),
-  url("robot-jump",          "Robot — Jump",          "jump",       ROBOT,   "Jump",        ["sample", "robot"], false),
-  url("robot-walkjump",      "Robot — Walk-jump",     "jump",       ROBOT,   "WalkJump",    ["sample", "robot"], false),
-  url("robot-dance",         "Robot — Dance",         "dance",      ROBOT,   "Dance",       ["sample", "robot"]),
-  url("robot-death",         "Robot — Death",         "death",      ROBOT,   "Death",       ["sample", "robot"], false),
-  url("robot-sitting",       "Robot — Sitting",       "sit",        ROBOT,   "Sitting",     ["sample", "robot"]),
-  url("robot-standing",      "Robot — Standing",      "social",     ROBOT,   "Standing",    ["sample", "robot"]),
-  url("robot-yes",           "Robot — Yes",           "gesture",    ROBOT,   "Yes",         ["sample", "robot"], false),
-  url("robot-no",            "Robot — No",            "gesture",    ROBOT,   "No",          ["sample", "robot"], false),
-  url("robot-thumbsup",      "Robot — Thumbs up",     "gesture",    ROBOT,   "ThumbsUp",    ["sample", "robot"], false),
-  url("robot-wave",          "Robot — Wave",          "gesture",    ROBOT,   "Wave",        ["sample", "robot"], false),
-  url("robot-punch",         "Robot — Punch",         "combat",     ROBOT,   "Punch",       ["sample", "robot"], false),
+  // ----- Locomotion: walk / run / idle (Xbot built-ins, no model swap) -----
+  builtin("xbot-idle",        "Idle",             "idle",       "idle",       ["calm", "loop"]),
+  builtin("xbot-walk",        "Walking",          "locomotion", "walk",       ["loop", "forward"]),
+  builtin("xbot-run",         "Running",          "locomotion", "run",        ["loop", "forward", "fast"]),
 
-  // ----- Soldier (military rig) -----
-  url("soldier-idle",        "Soldier — Idle",        "idle",       SOLDIER, "Idle",        ["sample", "soldier"]),
-  url("soldier-walk",        "Soldier — Walk",        "locomotion", SOLDIER, "Walk",        ["sample", "soldier"]),
-  url("soldier-run",         "Soldier — Run",         "locomotion", SOLDIER, "Run",         ["sample", "soldier"]),
+  // ----- 5 idle variants -----
+  builtin("xbot-sneak-idle",  "Idle — Sneak",     "idle",       "sneak_pose", ["stealth", "crouch"]),
+  builtin("xbot-sad-idle",    "Idle — Sad",       "idle",       "sad_pose",   ["emotion", "down"]),
+  url("robot-idle",           "Idle — Robot",     "idle",       ROBOT,   "Idle",     ["robot", "swap"]),
+  url("robot-standing",       "Idle — Standing",  "idle",       ROBOT,   "Standing", ["robot", "swap"]),
+  url("soldier-idle",         "Idle — Soldier",   "idle",       SOLDIER, "Idle",     ["soldier", "swap"]),
+
+  // ----- Jumps (only two real jump clips exist on threejs.org) -----
+  url("robot-jump",           "Jump (in place)",  "jump",       ROBOT,   "Jump",     ["robot", "swap"], false),
+  url("robot-walkjump",       "Jump (running)",   "jump",       ROBOT,   "WalkJump", ["robot", "swap"], false),
+
+  // ----- Sit down -----
+  url("robot-sitting",        "Sit down",         "sit",        ROBOT,   "Sitting",  ["robot", "swap"]),
 ];
 
 export const CLIP_CATEGORIES: { id: ClipCategory; label: string }[] = [
