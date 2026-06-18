@@ -462,7 +462,7 @@ export default function LevelEditorPage() {
         setDescription(local.description ?? "");
         setIsPublic(local.is_public);
         setOwnerId(local.owner_id);
-        setScene(rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(local.scene as any) }));
+        setScene(await rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(local.scene as any) }));
         setLoading(false);
         return;
       }
@@ -488,7 +488,7 @@ export default function LevelEditorPage() {
       setDescription(data.description ?? "");
       setIsPublic(data.is_public);
       setOwnerId(data.owner_id);
-      setScene(rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(data.scene as any) }));
+      setScene(await rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(data.scene as any) }));
       setLoading(false);
     })();
   }, [id, navigate]);
@@ -512,7 +512,7 @@ export default function LevelEditorPage() {
       setName(snap.name);
       setDescription(snap.description ?? "");
       setIsPublic(snap.isPublic);
-      setScene(rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(snap.scene as any) }));
+      setScene(await rehydrateHdriBlobs(id, { ...EMPTY_SCENE, ...(snap.scene as any) }));
       toast.success("Restored unsaved backup");
     })();
     return () => { cancelled = true; };
