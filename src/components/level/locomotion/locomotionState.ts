@@ -62,3 +62,9 @@ export const inputPulse = { interact: false };
  * exactly. The TrajectoryRunner adds/removes ids each frame.
  */
 export const splineDrivenIds = new Set<string>();
+
+/**
+ * All character group transforms in the scene, keyed by object id. Used by
+ * the player controller to push NPC characters out of the way on contact.
+ */
+export const characterRegistry = new Map<string, THREE.Object3D>();
