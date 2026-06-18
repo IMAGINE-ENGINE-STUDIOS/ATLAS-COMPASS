@@ -160,6 +160,8 @@ export interface CharacterObject extends BaseObject {
     gravity?: number;     // m/s^2, default 18 (snappy game feel)
     height?: number;      // capsule total height, default 1.7
     radius?: number;      // capsule radius, default 0.32
+    /** Tallest step the character climbs without a full climb tween (m). */
+    maxStepHeight?: number;
   };
   /**
    * When true, the editor renders a walkability heatmap over the scene:
