@@ -808,6 +808,49 @@ function SpaceshipPage() {
       : HeightReference.CLAMP_TO_GROUND
   ), []);
 
+  // ── Surface-snap helper ────────────────────────────────────────────────────
+  // CLAMP_TO_3D_TILE / CLAMP_TO_GROUND can only place the pin on the surface
+  // *after* the tile at that coordinate has streamed in. While the tile is
+  // still loading the billboard sits at h=0 (sea level), which on photo-
+  // grammetry buildings or elevated terrain looks like the pin is buried
+  // INSIDE the planet. To prevent that, we hide each pin on creation, ask
+  // Cesium to load the most-detailed tiles at the pin's (lng,lat) and sample
+  // the resulting height, then place the pin exactly on top of that surface
+  // with a tiny upward offset before showing it. If the sample fails we still
+  // reveal the pin using the heightReference clamp so we never leave it
+  // permanently hidden.
+  const clampPinToSurface = useCallback((entity: any, lng: number, lat: number) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed() || !entity) return;
+    entity.show = false;
+    const carto = Cartographic.fromDegrees(lng, lat);
+    const reveal = (height: number | null) => {
+      if (!viewer || viewer.isDestroyed()) return;
+      if (typeof height === "number" && isFinite(height)) {
+        // +0.5m lift so the billboard's base sits ABOVE the tile surface,
+        // never co-planar with (or below) it.
+        entity.position = Cartesian3.fromDegrees(lng, lat, height + 0.5);
+      }
+      entity.show = true;
+      viewer.scene.requestRender?.();
+    };
+    try {
+      const p = (viewer.scene as any).sampleHeightMostDetailed?.([carto]);
+      if (p && typeof p.then === "function") {
+        p.then((arr: Cartographic[]) => {
+          const h = arr?.[0]?.height;
+          reveal(typeof h === "number" ? h : null);
+        }).catch(() => reveal(null));
+      } else {
+        // Fallback: synchronous sampleHeight against currently-loaded tiles.
+        const h = (viewer.scene as any).sampleHeight?.(carto);
+        reveal(typeof h === "number" ? h : null);
+      }
+    } catch {
+      reveal(null);
+    }
+  }, []);
+
   // Re-anchor every existing pin billboard when the view mode toggles.
   useEffect(() => {
     viewModeRef.current = viewMode;
