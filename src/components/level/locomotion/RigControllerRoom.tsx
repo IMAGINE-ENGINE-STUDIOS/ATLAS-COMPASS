@@ -172,6 +172,20 @@ function collectBones(root: THREE.Object3D): THREE.Bone[] {
   return out;
 }
 
+/**
+ * Turn raw bone names like `mixamorigRightHandPinky2` into readable labels
+ * like "Right Hand Pinky 2" for hover tooltips and the OBJECT bar.
+ */
+function prettifyBoneName(name: string): string {
+  return name
+    .replace(/^mixamorig:?/i, "")
+    .replace(/[_\-:]/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function findSkeleton(root: THREE.Object3D): THREE.Skeleton | null {
   let sk: THREE.Skeleton | null = null;
   root.traverse((o: any) => { if (!sk && o.isSkinnedMesh && o.skeleton) sk = o.skeleton; });
