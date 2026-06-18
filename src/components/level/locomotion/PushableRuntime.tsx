@@ -21,11 +21,18 @@ export default function PushableRuntime({
   groupRef,
   mass = 1,
   gravity = 18,
+  gravityEnabled = false,
 }: {
   objectId: string;
   groupRef: React.RefObject<THREE.Object3D>;
   mass?: number;
   gravity?: number;
+  /**
+   * When false (default), the object floats at its authored height and only
+   * responds to horizontal pushes. Turn on per-object to make it fall and
+   * rest on surfaces.
+   */
+  gravityEnabled?: boolean;
 }) {
   const { scene } = useThree();
   const stateRef = useRef({
@@ -112,32 +119,36 @@ export default function PushableRuntime({
     tryMove("z", s.velocity.z * dt);
     g.rotation.y += s.angularY * dt;
 
-    // ---- gravity + ground snap ----
-    verticalVel.current -= gravity * dt;
-    g.position.y += verticalVel.current * dt;
+    // ---- gravity + ground snap (opt-in) ----
+    if (gravityEnabled) {
+      verticalVel.current -= gravity * dt;
+      g.position.y += verticalVel.current * dt;
 
-    // Down-ray from the object's top to find the surface to rest on.
-    ray.set(new THREE.Vector3(g.position.x, g.position.y + halfHeight + 0.05, g.position.z), tmpDown);
-    ray.far = halfHeight * 2 + 4;
-    const down = ray.intersectObjects(targets, true)[0];
-    if (down) {
-      const restY = down.point.y + halfHeight;
-      if (g.position.y <= restY) {
-        g.position.y = restY;
-        // Tiny bounce on impact, then settle.
-        if (verticalVel.current < -3) verticalVel.current = -verticalVel.current * 0.15;
-        else verticalVel.current = 0;
-        grounded.current = true;
+      // Down-ray from the object's top to find the surface to rest on.
+      ray.set(new THREE.Vector3(g.position.x, g.position.y + halfHeight + 0.05, g.position.z), tmpDown);
+      ray.far = halfHeight * 2 + 4;
+      const down = ray.intersectObjects(targets, true)[0];
+      if (down) {
+        const restY = down.point.y + halfHeight;
+        if (g.position.y <= restY) {
+          g.position.y = restY;
+          if (verticalVel.current < -3) verticalVel.current = -verticalVel.current * 0.15;
+          else verticalVel.current = 0;
+          grounded.current = true;
+        } else {
+          grounded.current = false;
+        }
       } else {
         grounded.current = false;
+        if (g.position.y < -100) {
+          g.position.y = 50;
+          verticalVel.current = 0;
+        }
       }
     } else {
-      grounded.current = false;
-      // Safety: respawn if it fell out of the world.
-      if (g.position.y < -100) {
-        g.position.y = 50;
-        verticalVel.current = 0;
-      }
+      // Gravity off → treat as grounded so horizontal friction still applies.
+      verticalVel.current = 0;
+      grounded.current = true;
     }
 
     s.position.copy(g.position);
