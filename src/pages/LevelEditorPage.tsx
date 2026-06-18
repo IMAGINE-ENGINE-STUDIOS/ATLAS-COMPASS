@@ -3468,8 +3468,25 @@ function TrajectoryInspector({
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground mb-1">
-          Drag yellow handles in the viewport to move points (hold <kbd>Shift</kbd> for vertical). Double-click a handle to delete.
+          Drag yellow handles to move (hold <kbd>Shift</kbd> for vertical). Click a green <span className="text-green-500">+</span> midpoint to insert. Double-click a handle to delete.
         </p>
+        <div className="mb-2">
+          <Label className="text-[10px]">Template shape</Label>
+          <Select disabled={disabled} value="" onValueChange={(v) => v && applyTemplate(v)}>
+            <SelectTrigger className="h-7 text-[11px] mt-1"><SelectValue placeholder="Apply a template…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="line" className="text-xs">Straight line</SelectItem>
+              <SelectItem value="circle" className="text-xs">Circle (closed)</SelectItem>
+              <SelectItem value="square" className="text-xs">Square (closed)</SelectItem>
+              <SelectItem value="triangle" className="text-xs">Triangle (closed)</SelectItem>
+              <SelectItem value="figure8" className="text-xs">Figure-8</SelectItem>
+              <SelectItem value="zigzag" className="text-xs">Zigzag</SelectItem>
+              <SelectItem value="stairs" className="text-xs">Stairs (rising)</SelectItem>
+              <SelectItem value="spiral" className="text-xs">Spiral (rising)</SelectItem>
+              <SelectItem value="wave" className="text-xs">Sine wave</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1 max-h-44 overflow-y-auto">
           {obj.points.map((p, i) => (
             <div key={i} className="grid grid-cols-[14px_1fr_1fr_1fr_auto] gap-1 items-center">
