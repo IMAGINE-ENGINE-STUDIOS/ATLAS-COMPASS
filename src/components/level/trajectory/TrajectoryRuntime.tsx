@@ -10,7 +10,9 @@ import { splineDrivenIds } from "../locomotion/locomotionState";
 function buildCurve(obj: TrajectoryObject): THREE.CatmullRomCurve3 | null {
   if (!obj.points || obj.points.length < 2) return null;
   const pts = obj.points.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
-  const curve = new THREE.CatmullRomCurve3(pts, obj.closed, "catmullrom", obj.tension);
+  // Centripetal Catmull-Rom avoids loops/overshoot at sharp control points,
+  // producing a visibly smoother curve than the default "catmullrom" mode.
+  const curve = new THREE.CatmullRomCurve3(pts, obj.closed, "centripetal", obj.tension);
   return curve;
 }
 
@@ -47,7 +49,8 @@ export function TrajectoryRender({
   // Build colored line segments by sampling the curve and tinting per section.
   const segments = useMemo(() => {
     if (!curve) return [] as Array<{ pts: [number, number, number][]; color: string }>;
-    const SAMPLES = 200;
+    // Denser sampling = silkier curve, especially on long paths.
+    const SAMPLES = Math.min(600, Math.max(200, obj.points.length * 40));
     const points: THREE.Vector3[] = curve.getSpacedPoints(SAMPLES);
     const segs: Array<{ pts: [number, number, number][]; color: string }> = [];
     let current: { pts: [number, number, number][]; color: string } | null = null;
@@ -175,6 +178,43 @@ export function TrajectoryRender({
           />
         </mesh>
       ))}
+      {/* Insertion "+" handles at the midpoint of every segment. Click to
+          insert a new control point exactly on the curve at that location. */}
+      {editable && selected && curve && (() => {
+        const total = obj.points.length;
+        const segCount = obj.closed ? total : total - 1;
+        const handles: JSX.Element[] = [];
+        for (let i = 0; i < segCount; i++) {
+          const jNext = (i + 1) % total;
+          // Place the handle at the curve's midpoint between control i and i+1
+          // (parameterised by index, not arc length — close enough visually).
+          const tMid = (i + 0.5) / (obj.closed ? total : total - 1);
+          const mid = curve.getPointAt(Math.min(0.9999, Math.max(0.0001, tMid)));
+          const insert = (e: any) => {
+            if (!onPointsChange) return;
+            e.stopPropagation();
+            const newPt: Vec3 = [mid.x, mid.y, mid.z];
+            const next = [
+              ...obj.points.slice(0, jNext === 0 ? total : jNext),
+              newPt,
+              ...obj.points.slice(jNext === 0 ? total : jNext),
+            ];
+            onPointsChange(next);
+          };
+          handles.push(
+            <mesh
+              key={`ins-${i}`}
+              position={[mid.x, mid.y, mid.z]}
+              userData={{ __nocast: true }}
+              onPointerDown={insert}
+            >
+              <sphereGeometry args={[0.09, 12, 12]} />
+              <meshBasicMaterial color="#22c55e" depthTest={false} transparent opacity={0.85} />
+            </mesh>,
+          );
+        }
+        return <>{handles}</>;
+      })()}
       {/* Direction arrow on first segment */}
       {obj.points.length >= 2 && (() => {
         const a = new THREE.Vector3(...obj.points[0]);
