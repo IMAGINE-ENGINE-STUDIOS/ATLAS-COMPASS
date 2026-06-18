@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
@@ -36,6 +36,7 @@ import {
 } from "@/lib/levelTypes";
 import type { TrajectoryObject, TrajectorySection } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
+import RigControllerRoom from "@/components/level/locomotion/RigControllerRoom";
 import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
 import AtlasMiniMap from "@/components/level/AtlasMiniMap";
 import { Button } from "@/components/ui/button";
