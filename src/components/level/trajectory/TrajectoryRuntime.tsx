@@ -463,6 +463,36 @@ export function TrajectoryRunner({
 
         follower.position.copy(worldPos);
 
+        // ---- auto walk/run based on effective speed ----
+        // Spline-driven characters default to "walk" and switch to "run"
+        // once their effective speed exceeds RUN_THRESHOLD (u/s).
+        const charRoot = findCharacterRoot(follower);
+        if (charRoot) {
+          const ud: any = (charRoot as any).userData;
+          const names: string[] = ud.__animationNames ?? [];
+          const actions: Record<string, THREE.AnimationAction> = ud.__actions ?? {};
+          let wanted: string | null = null;
+          if (speed < IDLE_THRESHOLD) {
+            wanted = findClip(names, "idle", "stand") ?? names[0] ?? null;
+          } else if (speed >= RUN_THRESHOLD) {
+            wanted = findClip(names, "run", "sprint", "jog") ?? findClip(names, "walk") ?? names[0] ?? null;
+          } else {
+            wanted = findClip(names, "walk") ?? findClip(names, "run") ?? names[0] ?? null;
+          }
+          if (wanted && actions[wanted]) {
+            const state = animRef.current.get(fid) ?? { current: null, action: null };
+            if (state.current !== wanted) {
+              const next = actions[wanted];
+              if (state.action && state.action !== next) state.action.fadeOut(0.2);
+              next.reset().fadeIn(0.2).play();
+              next.setLoop(THREE.LoopRepeat, Infinity);
+              state.current = wanted;
+              state.action = next;
+              animRef.current.set(fid, state);
+            }
+          }
+        }
+
         if (traj.orientToPath) {
           const worldTan = localTan.clone().transformDirection(mat).normalize();
           const yaw = Math.atan2(worldTan.x, worldTan.z);
