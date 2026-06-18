@@ -169,6 +169,47 @@ export interface CharacterObject extends BaseObject {
   showNavMap?: boolean;
 }
 
+/**
+ * Editable trajectory spline. The world-space path is built from `points`
+ * (each in object-local space; the object's own position/rotation/scale
+ * still applies on top). At Play time, every entry in `followers` is
+ * advanced along the curve by length, modulated per-section.
+ */
+export interface TrajectorySection {
+  id: string;
+  /** Start parameter along the curve (0..1, inclusive). */
+  tStart: number;
+  /** End parameter along the curve (0..1, exclusive). */
+  tEnd: number;
+  /** Multiplier on the trajectory's base speed inside this section. */
+  speedMul: number;
+  /** World-Y offset added to the curve while inside this section. */
+  altitude: number;
+  /** Visual color for the section (hex). */
+  color: string;
+}
+
+export interface TrajectoryObject extends BaseObject {
+  kind: "trajectory";
+  /** Control points in object-local space. */
+  points: Vec3[];
+  closed: boolean;
+  /** Catmull-Rom tension (0..1). */
+  tension: number;
+  /** Base travel speed in world units / second. */
+  speed: number;
+  /** Colored / accelerated segments along the curve. */
+  sections: TrajectorySection[];
+  /** Object ids that follow this curve during Play mode. */
+  followers: string[];
+  /** When true, follower yaw is aligned to the curve tangent. */
+  orientToPath: boolean;
+  /** When true, follower loops on reaching the end (open curves). */
+  loop: boolean;
+  /** Base curve color (used outside any section). */
+  color: string;
+}
+
 /** Default Xbot character (Three.js examples — MIT-licensed Mixamo rig). */
 export const DEFAULT_CHARACTER_URL =
   "https://threejs.org/examples/models/gltf/Xbot.glb";
@@ -194,7 +235,8 @@ export type SceneObject =
   | PrimitiveObject
   | PolygonObject
   | ModelObject
-  | CharacterObject;
+  | CharacterObject
+  | TrajectoryObject;
 
 export interface SceneLight {
   id: string;
