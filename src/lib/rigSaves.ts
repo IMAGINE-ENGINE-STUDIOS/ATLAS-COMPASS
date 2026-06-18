@@ -148,7 +148,7 @@ export async function saveRig(input: RigSaveInput): Promise<RigSave> {
   };
   const { data, error } = await supabase
     .from("rig_saves")
-    .insert(payload)
+    .insert(payload as any)
     .select("*")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Save failed");
