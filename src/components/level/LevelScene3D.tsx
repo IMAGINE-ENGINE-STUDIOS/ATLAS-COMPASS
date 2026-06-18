@@ -1180,6 +1180,11 @@ export interface LevelSceneProps {
       bottomHeights?: number[];
     },
   ) => void;
+  /** Drag-edit of trajectory control points in the viewport. */
+  onTrajectoryPointsChange?: (
+    id: string,
+    points: [number, number, number][],
+  ) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
