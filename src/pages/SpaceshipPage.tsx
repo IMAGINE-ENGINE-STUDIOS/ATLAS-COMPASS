@@ -2720,6 +2720,57 @@ function SpaceshipPage() {
     };
   }, []);
 
+  // ── Repaint business / marketplace billboards when selection changes ──
+  // Selected pins switch to a gold canvas with eyeOffset.z = -50 so they
+  // always render on top of any other tag in the scene.
+  useEffect(() => {
+    const repaint = () => {
+      const viewer = viewerRef.current;
+      if (!viewer || viewer.isDestroyed()) return;
+      // Businesses
+      businessEntitiesRef.current.forEach(ent => {
+        if (!ent?.id || !ent.billboard) return;
+        const data = businessDataRef.current.get(ent.id);
+        if (!data) return;
+        const sel = isTagSelected(ent.id);
+        const truncName = data.name.length > 20 ? data.name.slice(0, 18) + "…" : data.name;
+        const favicon = getFavicon(data.website);
+        const amenityKey = (data.category || "").toLowerCase().replace(/ /g, "_");
+        const iconMap: Record<string, string> = {
+          restaurant: "🍽️", fast_food: "🍔", cafe: "☕", bar: "🍺", pub: "🍺",
+          fuel: "⛽", charging_station: "🔌", pharmacy: "💊", hospital: "🏥",
+          clinic: "🏥", doctors: "👨‍⚕️", dentist: "🦷", bank: "🏦",
+          hotel: "🏨", motel: "🏨", hostel: "🏨", guest_house: "🏨",
+          supermarket: "🛒", convenience: "🏪", department_store: "🏬",
+          general: "🏪", grocery: "🛒",
+        };
+        const icon = data.emoji || iconMap[amenityKey] || "📍";
+        const bgColor = "rgba(0,212,255,0.65)";
+        (ent.billboard as any).image = sel
+          ? createGoldenPinCanvas(icon, truncName, favicon)
+          : createPinCanvas(icon, truncName, bgColor, favicon);
+        (ent.billboard as any).eyeOffset = sel
+          ? new Cartesian3(0, 0, -50)
+          : new Cartesian3(0, 0, 0);
+        (ent.billboard as any).scaleByDistance = {
+          near: 200, nearValue: sel ? 1.0 : 0.8,
+          far: 15000, farValue: sel ? 0.35 : 0.25,
+        } as any;
+      });
+      // Marketplace
+      marketplaceEntitiesRef.current.forEach(ent => {
+        if (!ent?.id || !ent.billboard) return;
+        const sel = isTagSelected(ent.id);
+        (ent.billboard as any).eyeOffset = sel
+          ? new Cartesian3(0, 0, -50)
+          : new Cartesian3(0, 0, 0);
+      });
+      viewer.scene.requestRender();
+    };
+    repaint();
+    return subscribeSelection(repaint);
+  }, [tagsVersion]);
+
   // Brush mode indicator visibility
   useEffect(() => {
     if (brushIndicatorRef.current) {
