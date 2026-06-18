@@ -25,6 +25,9 @@ import {
 } from "@/lib/face-system";
 import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 import LevelCharacter from "./LevelCharacter";
+import PlayableCharacter from "./locomotion/PlayableCharacter";
+import PushableRuntime from "./locomotion/PushableRuntime";
+import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 
 /* ---------- helpers ---------- */
 
@@ -807,22 +810,33 @@ function RenderObject({
   selectedId,
   onSelect,
   onFocus,
+  playing,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   onFocus?: (id: string) => void;
+  playing?: boolean;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
   if (obj.kind === "polygon") return <PolygonMesh obj={obj} selected={selected} onSelect={onSelect} />;
   if (obj.kind === "model") return <GLTFModelMesh obj={obj} onSelect={onSelect} />;
-  if (obj.kind === "character")
+  if (obj.kind === "character") {
+    const isPlayer = !!playing && !!(obj as CharacterObject).playable;
+    if (isPlayer) {
+      return (
+        <Suspense fallback={null}>
+          <PlayableCharacter obj={obj as CharacterObject} enabled={true} />
+        </Suspense>
+      );
+    }
     return (
       <Suspense fallback={null}>
         <LevelCharacter obj={obj as CharacterObject} onSelect={onSelect} />
       </Suspense>
     );
+  }
   return null;
 }
 
