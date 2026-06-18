@@ -2488,6 +2488,92 @@ function CharacterInspector({
   );
 }
 
+function RigBodySection({
+  obj, disabled, onPatch,
+}: {
+  obj: CharacterObject;
+  disabled?: boolean;
+  onPatch: (patch: Partial<CharacterObject>) => void;
+}) {
+  const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancel = false;
+    setLoading(true);
+    listRigSaves()
+      .then((rows) => { if (!cancel) setSaves(rows); })
+      .catch(() => { /* keep cache */ })
+      .finally(() => { if (!cancel) setLoading(false); });
+    const off = onRigSavesChanged(() => {
+      setSaves(getCachedRigSaves());
+    });
+    return () => { cancel = true; off(); };
+  }, []);
+
+  const applySave = (s: RigSave) => {
+    onPatch({ url: s.model_url, source: s.name });
+    toast.success(`Rig set to "${s.name}"`);
+  };
+
+  return (
+    <div className="rounded-md border border-fuchsia-400/30 bg-fuchsia-500/5 p-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-[11px] font-semibold text-fuchsia-200">Rig &amp; Body</Label>
+        <span className="text-[10px] text-muted-foreground">
+          {loading ? "…" : `${saves.length} saved`}
+        </span>
+      </div>
+      <p className="text-[10px] text-muted-foreground leading-snug">
+        Saved rigs from the Rig Controller Room. Tap to swap this character's body.
+      </p>
+      {saves.length === 0 ? (
+        <div className="text-[10px] text-muted-foreground/80 italic">
+          No saved rigs yet — build & save one in the Rig Controller Room.
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-0.5">
+          {saves.map((s) => {
+            const active = obj.url === s.model_url;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => applySave(s)}
+                title={`${s.name}${s.source_label ? " · " + s.source_label : ""}`}
+                className={
+                  "group relative aspect-square rounded-md overflow-hidden border " +
+                  (active
+                    ? "border-fuchsia-400/80 ring-1 ring-fuchsia-400/60"
+                    : "border-border/40 hover:border-fuchsia-400/60") +
+                  " bg-black/40"
+                }
+              >
+                {s.thumbnail ? (
+                  <img
+                    src={s.thumbnail}
+                    alt={s.name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 px-1 py-0.5 bg-black/60 text-[9px] text-white truncate text-left">
+                  {s.name}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ModelMaterialEditor({
   obj, disabled, onPatch,
 }: {
