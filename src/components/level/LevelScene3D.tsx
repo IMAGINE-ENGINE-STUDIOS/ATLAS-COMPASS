@@ -1520,8 +1520,76 @@ function LevelScene3DInner(
         enableDamping
         enabled={!hasActivePlayer(rest)}
       />
+      <KeyboardCameraController controlsRef={controlsRef} enabled={!hasActivePlayer(rest)} />
     </Canvas>
   );
+}
+
+/** WASD / Arrow key camera fly controller for the editor. */
+function KeyboardCameraController({
+  controlsRef,
+  enabled,
+  speed = 10,
+}: {
+  controlsRef?: React.MutableRefObject<any>;
+  enabled: boolean;
+  speed?: number;
+}) {
+  const { camera } = useThree();
+  const keys = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!enabled) return;
+    const down = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      const key = e.key.toLowerCase();
+      if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
+        e.preventDefault();
+        keys.current.add(key);
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      keys.current.delete(e.key.toLowerCase());
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [enabled]);
+
+  useFrame((_, dt) => {
+    if (!enabled || keys.current.size === 0) return;
+
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    forward.y = 0;
+    if (forward.lengthSq() < 1e-6) forward.set(0, 0, -1);
+    forward.normalize();
+
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+    const move = new THREE.Vector3();
+    const k = keys.current;
+    if (k.has("w") || k.has("arrowup")) move.add(forward);
+    if (k.has("s") || k.has("arrowdown")) move.sub(forward);
+    if (k.has("d") || k.has("arrowright")) move.add(right);
+    if (k.has("a") || k.has("arrowleft")) move.sub(right);
+
+    if (move.lengthSq() < 1e-6) return;
+
+    move.normalize().multiplyScalar(speed * dt);
+    camera.position.add(move);
+    if (controlsRef?.current) {
+      const target = controlsRef.current.target as THREE.Vector3;
+      target.add(move);
+      controlsRef.current.update();
+    }
+  });
+
+  return null;
 }
 
 /** True when Play mode is on AND any character is flagged playable. */
