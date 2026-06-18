@@ -431,6 +431,18 @@ export default function LevelEditorPage() {
 
   // load
   useEffect(() => {
+    if (rigRoomMode) {
+      // Bootstrap an in-memory "Rig Room" workspace — no DB, no autosave.
+      const me = "rig-room";
+      setUserId(me);
+      setOwnerId(me);
+      setName("Rig Room");
+      setDescription("Standalone rig & scene workspace");
+      setIsPublic(false);
+      setScene(EMPTY_SCENE);
+      setLoading(false);
+      return;
+    }
     if (!id) return;
     (async () => {
       if (isLocalLevelId(id)) {
