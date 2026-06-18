@@ -807,6 +807,24 @@ function SpaceshipPage() {
       ? HeightReference.CLAMP_TO_3D_TILE
       : HeightReference.CLAMP_TO_GROUND
   ), []);
+
+  // Re-anchor every existing pin billboard when the view mode toggles.
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+    const hr = viewMode === "realistic"
+      ? HeightReference.CLAMP_TO_3D_TILE
+      : HeightReference.CLAMP_TO_GROUND;
+    const refs = [
+      businessEntitiesRef, marketplaceEntitiesRef,
+      cameraEntitiesRef, searchResultEntitiesRef,
+    ];
+    refs.forEach(ref => {
+      ref.current?.forEach((e: any) => {
+        if (e?.billboard) e.billboard.heightReference = hr;
+      });
+    });
+    viewerRef.current?.scene.requestRender?.();
+  }, [viewMode]);
   const cameraEntitiesRef = useRef<any[]>([]);
   const [mapCameras, setMapCameras] = useState<TrafficCamera[]>([]);
 
