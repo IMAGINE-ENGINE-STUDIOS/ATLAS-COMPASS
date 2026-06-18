@@ -442,6 +442,129 @@ function ControllerMarker({
 
 /* --------------------------- Main page ---------------------------- */
 
+/**
+ * OBJECT controller bar — appears in the side panel whenever the user has a
+ * bone selected (via hover-click in the X-ray view, the bone list, or a
+ * marker in the main viewport). Mirrors the look of the editor's Object
+ * Inspector and exposes live rotation sliders against the selected bone in
+ * the live rig, plus a Reset that restores the bone's bind rotation.
+ */
+function ObjectControllerBar({
+  bridgeRef,
+  selectedBoneName,
+  onClear,
+}: {
+  bridgeRef: React.MutableRefObject<RigBridge>;
+  selectedBoneName: string | null;
+  onClear: () => void;
+}) {
+  const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0]);
+  const initialRef = useRef<THREE.Euler | null>(null);
+  const boneRef = useRef<THREE.Object3D | null>(null);
+
+  // Resolve the currently-selected bone every time the selection changes.
+  useEffect(() => {
+    boneRef.current = null;
+    initialRef.current = null;
+    if (!selectedBoneName) { setRotation([0, 0, 0]); return; }
+    const root = bridgeRef.current.root;
+    if (!root) return;
+    let found: THREE.Object3D | null = null;
+    root.traverse((o) => { if (!found && o.name === selectedBoneName) found = o; });
+    if (!found) return;
+    boneRef.current = found;
+    initialRef.current = found.rotation.clone();
+    setRotation([found.rotation.x, found.rotation.y, found.rotation.z]);
+  }, [selectedBoneName, bridgeRef]);
+
+  const applyAxis = (axis: 0 | 1 | 2, value: number) => {
+    const next: [number, number, number] = [...rotation] as any;
+    next[axis] = value;
+    setRotation(next);
+    const b = boneRef.current;
+    if (b) b.rotation.set(next[0], next[1], next[2]);
+  };
+
+  const reset = () => {
+    const b = boneRef.current;
+    const init = initialRef.current;
+    if (b && init) {
+      b.rotation.copy(init);
+      setRotation([init.x, init.y, init.z]);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-md p-3 space-y-2"
+      style={{
+        background: "linear-gradient(180deg, rgba(34,255,136,0.06), rgba(34,255,136,0.02))",
+        border: "1px solid rgba(34,255,136,0.35)",
+        boxShadow: "0 0 18px rgba(34,255,136,0.08)",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span
+          className="text-[10px] uppercase tracking-[0.22em] font-semibold"
+          style={{ color: "#22ff88", textShadow: "0 0 6px rgba(34,255,136,0.5)" }}
+        >
+          Object · Bone
+        </span>
+        {selectedBoneName && (
+          <button
+            onClick={onClear}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          >
+            clear
+          </button>
+        )}
+      </div>
+
+      {!selectedBoneName ? (
+        <p className="text-[10px] text-muted-foreground italic">
+          Hover then click a node on the X-ray to load it here.
+        </p>
+      ) : (
+        <>
+          <div className="text-[11px] font-mono truncate" style={{ color: "#bbffd5" }}>
+            {prettifyBoneName(selectedBoneName)}
+          </div>
+          <div className="text-[9px] text-muted-foreground font-mono truncate -mt-1">
+            {selectedBoneName}
+          </div>
+
+          {(["X", "Y", "Z"] as const).map((axis, i) => (
+            <div key={axis}>
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px]">Rot {axis}</Label>
+                <span className="text-[10px] font-mono tabular-nums text-muted-foreground">
+                  {((rotation[i] * 180) / Math.PI).toFixed(1)}°
+                </span>
+              </div>
+              <Slider
+                value={[rotation[i]]}
+                min={-Math.PI}
+                max={Math.PI}
+                step={0.01}
+                onValueChange={([v]) => applyAxis(i as 0 | 1 | 2, v)}
+              />
+            </div>
+          ))}
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 w-full"
+            onClick={reset}
+          >
+            <RotateCcw className="w-3 h-3 mr-1.5" /> Reset rotation
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* --------------------- X-ray body map (controllers) ---------------------- */
 
 /**
