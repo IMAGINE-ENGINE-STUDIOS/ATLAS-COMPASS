@@ -4052,7 +4052,7 @@ function SpaceshipPage() {
           allTags.push({
             kind: "poi", id: `poi-${p.id}`,
             name: p.name, lat: p.lat, lng: p.lng,
-            categoryId: amenityToCategoryId(p.category),
+            categoryId: "landmark",
           });
         });
         // Marketplace
