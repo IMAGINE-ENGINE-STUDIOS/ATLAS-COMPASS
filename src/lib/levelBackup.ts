@@ -2,19 +2,18 @@
  * Level backup safety net.
  *
  * Persistence priorities, in order:
- *   1. Primary save (cloud `levels` row OR `localStorage` for local drafts).
- *   2. IndexedDB snapshot — survives localStorage quota errors, refreshes,
- *      crashes, and network failures. Always written BEFORE the primary save
- *      so a failed save never loses data.
- *   3. localStorage mirror of the last snapshot metadata so we can warn the
- *      user on load even if IDB is unavailable (private mode, etc.).
+ *   1. Append-only IndexedDB snapshot — survives refreshes, crashes, network
+ *      failures and older cloud/local versions. It is always written BEFORE the
+ *      primary save so a failed or stale save never loses data.
+ *   2. Primary save (cloud `levels` row OR `localStorage` for local drafts).
+ *   3. localStorage mirror of the last snapshot metadata so we can detect that
+ *      a newer memory exists even if IDB is temporarily unavailable.
  */
 import type { LevelScene } from "@/lib/levelTypes";
 
 const DB_NAME = "startupfactoryhub:level-backups";
 const DB_VERSION = 1;
 const STORE = "snapshots";
-const MAX_SNAPSHOTS_PER_LEVEL = 8;
 const META_KEY_PREFIX = "startupfactoryhub:level-backup-meta:";
 
 export interface LevelSnapshot {
@@ -84,7 +83,6 @@ export async function writeSnapshot(snap: Omit<LevelSnapshot, "id">): Promise<bo
       const store = t.objectStore(STORE);
       store.put(full);
       t.oncomplete = () => {
-        pruneLevel(snap.levelId).catch(() => {});
         resolve(true);
       };
       t.onerror = () => resolve(false);
@@ -120,21 +118,6 @@ export async function markCommitted(levelId: string, savedAt: number): Promise<v
       resolve();
     }
   });
-}
-
-async function pruneLevel(levelId: string): Promise<void> {
-  const all = await listSnapshots(levelId);
-  if (all.length <= MAX_SNAPSHOTS_PER_LEVEL) return;
-  const toDelete = all.slice(MAX_SNAPSHOTS_PER_LEVEL);
-  const db = await openDb();
-  if (!db) return;
-  try {
-    const t = db.transaction(STORE, "readwrite");
-    const store = t.objectStore(STORE);
-    toDelete.forEach((s) => store.delete(s.id));
-  } catch {
-    /* ignore */
-  }
 }
 
 export async function listSnapshots(levelId: string): Promise<LevelSnapshot[]> {
