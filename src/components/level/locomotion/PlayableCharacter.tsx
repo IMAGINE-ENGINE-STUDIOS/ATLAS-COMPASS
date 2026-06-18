@@ -8,6 +8,8 @@ import {
   pushableRegistry,
   setInteractionPrompt,
   inputPulse,
+  characterRegistry,
+  splineDrivenIds,
 } from "./locomotionState";
 
 /* ----------------------------- input -------------------------------- */
@@ -604,6 +606,30 @@ export default function PlayableCharacter({
         p.angularY += (Math.random() - 0.5) * 2 * dt;
         void id;
       }
+    }
+
+    // ---- push other characters (simple soft-body shove) ----
+    // Cylinder vs cylinder check on XZ. Always nudges, regardless of input,
+    // so two characters never overlap and the player gets a slight bump back.
+    const myRadius = radius + 0.05;
+    for (const [cid, cgroup] of characterRegistry) {
+      if (cid === obj.id) continue;
+      // Skip characters being driven by a spline — they belong to the path.
+      if (splineDrivenIds.has(cid)) continue;
+      const dx = cgroup.position.x - root.position.x;
+      const dz = cgroup.position.z - root.position.z;
+      const dist = Math.hypot(dx, dz);
+      const minDist = myRadius + 0.35; // assume NPC radius ~0.3
+      if (dist >= minDist || dist < 1e-4) continue;
+      const nx = dx / dist;
+      const nz = dz / dist;
+      const overlap = minDist - dist;
+      // Push NPC out 70%, player back 30% — feels like a soft shove with
+      // weight rather than the player being a wall.
+      cgroup.position.x += nx * overlap * 0.7;
+      cgroup.position.z += nz * overlap * 0.7;
+      root.position.x -= nx * overlap * 0.3;
+      root.position.z -= nz * overlap * 0.3;
     }
 
     // ---- proximity interactions (sit / use markers) ----
