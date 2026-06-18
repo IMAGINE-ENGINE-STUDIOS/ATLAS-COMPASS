@@ -939,7 +939,13 @@ function ObjectSlot({
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
       />
-      {isPushable && <PushableRuntime objectId={obj.id} groupRef={groupRef} />}
+      {isPushable && (
+        <PushableRuntime
+          objectId={obj.id}
+          groupRef={groupRef}
+          gravityEnabled={!!obj.physics?.gravity}
+        />
+      )}
     </group>
   );
 }

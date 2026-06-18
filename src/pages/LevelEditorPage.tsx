@@ -1953,6 +1953,21 @@ function ObjectInspector({
         </div>
       )}
 
+      {obj.kind !== "character" && obj.interaction === "pushable" && (
+        <div className="flex items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2 py-1.5">
+          <Label className="text-[11px]">Gravity</Label>
+          <Switch
+            checked={!!obj.physics?.gravity}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onPatch({
+                physics: { ...(obj.physics ?? {}), gravity: checked },
+              } as any)
+            }
+          />
+        </div>
+      )}
+
       {obj.kind === "primitive" && (
         <>
           <div>
