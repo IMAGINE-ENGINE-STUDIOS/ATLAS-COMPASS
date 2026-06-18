@@ -132,7 +132,14 @@ function collectStaticTargets(root: THREE.Object3D, exclude: THREE.Object3D): TH
     if ((o as any).isMesh) {
       // skip helpers/gizmos
       const ud = (o as any).userData ?? {};
-      if (ud.__gizmo) return;
+      if (ud.__gizmo || ud.__nocast) return;
+      if ((o as any).isLine || (o as any).isLine2 || (o as any).isLineSegments || (o as any).isLineSegments2) return;
+      // Skip anything inside a spline/trajectory group.
+      let p: THREE.Object3D | null = o.parent;
+      while (p) {
+        if (p.userData?.__spline || p.userData?.__nocast) return;
+        p = p.parent;
+      }
       out.push(o);
     }
   });
