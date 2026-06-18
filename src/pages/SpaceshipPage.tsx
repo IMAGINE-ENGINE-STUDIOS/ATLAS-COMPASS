@@ -4236,31 +4236,31 @@ function SpaceshipPage() {
                     <ArrowLeft className="w-5 h-5 text-white/70" />
                   </GlassPanel>
                 </Link>
-                <GlassPanel className="px-4 py-2.5 flex items-center gap-2">
+                <GlassPanel className="hidden sm:flex px-4 py-2.5 items-center gap-2">
                   <GlyphIcon name="atlas" alt="Atlas" glow="#22d3ee" />
                   <span className="text-sm font-bold text-white">ATLAS</span>
                   <span className="text-xs text-white/70 font-mono">ATLAS</span>
                 </GlassPanel>
               </div>
 
-              <GlassPanel className="flex items-center flex-wrap gap-1 p-1.5 max-w-[280px] sm:max-w-none">
+              <GlassPanel className="flex items-center flex-nowrap gap-1 p-1.5 overflow-x-auto max-w-[calc(100vw-5rem)] sm:max-w-none sm:flex-wrap sm:overflow-visible">
                   <button
                     onClick={toggleBuildings}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Toggle Buildings On/Off"
                   >
                     <GlyphIcon name="layers" alt="Toggle Buildings" glow={showBuildings ? "#22d3ee" : undefined} />
                   </button>
                   <button
                     onClick={resetView}
-                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
+                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors shrink-0"
                     title="Global View"
                   >
                     <GlyphIcon name="compass" alt="Global View" />
                   </button>
                   <button
                     onClick={() => setPoisPanelOpen(!poisPanelOpen)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
                     title="Interest Points"
                   >
                     <GlyphIcon name="poi" alt="Interest Points" glow={poisPanelOpen ? "#facc15" : undefined} />
@@ -4268,7 +4268,7 @@ function SpaceshipPage() {
                   {/* Tile Brush Toggle */}
                   <button
                     onClick={() => { setBrushMode(!brushMode); setBrushPanelOpen(!brushMode); }}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
                     title="Tile Brush — Place 3D Models"
                   >
                     <GlyphIcon name="brush" alt="Tile Brush" glow={brushMode ? "#34d399" : undefined} />
@@ -4276,7 +4276,7 @@ function SpaceshipPage() {
                   {/* Directions Toggle */}
                   <button
                     onClick={() => setDirectionsOpen(!directionsOpen)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
                     title="Directions & Routes"
                   >
                     <GlyphIcon name="route" alt="Directions" glow={directionsOpen ? "#60a5fa" : undefined} />
@@ -4288,7 +4288,7 @@ function SpaceshipPage() {
                       setShowCargoRoutes(next);
                       setShowLiveTraffic(next);
                     }}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
                     title="Trade Routes"
                   >
                     <GlyphIcon name="cargo" alt="Trade Routes" glow={showCargoRoutes ? "#fbbf24" : undefined} />
@@ -4296,7 +4296,7 @@ function SpaceshipPage() {
                   {/* Uber Direct Delivery */}
                   <button
                     onClick={() => setDeliveryPanelOpen(!deliveryPanelOpen)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Uber Direct Delivery"
                   >
                     <GlyphIcon name="speed" alt="Delivery" glow={deliveryPanelOpen ? "#22d3ee" : undefined} />
@@ -4304,7 +4304,7 @@ function SpaceshipPage() {
                   {/* Marketplace Pins Toggle */}
                   <button
                     onClick={() => setShowMarketplacePins(!showMarketplacePins)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
                     title="Marketplace Products"
                   >
                     <GlyphIcon name="market" alt="Marketplace" glow={showMarketplacePins ? "#a78bfa" : undefined} />
@@ -4312,7 +4312,7 @@ function SpaceshipPage() {
                   {/* Intelligence — Traffic Cameras */}
                   <button
                     onClick={() => setIntelligenceOpen(o => !o)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Intelligence — Live Traffic Cameras"
                   >
                     <GlyphIcon name="camera" alt="Traffic Cameras" glow={intelligenceOpen ? "#f87171" : undefined} />
@@ -4320,14 +4320,14 @@ function SpaceshipPage() {
                   {/* Recordings Gallery */}
                   <button
                     onClick={() => setRecordingsOpen(o => !o)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Camera recordings gallery"
                   >
                     <GlyphIcon name="telemetry" alt="Recordings" glow={recordingsOpen ? "#f87171" : undefined} />
                   </button>
                   <button
                     onClick={toggleFullscreen}
-                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors"
+                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors shrink-0"
                     title="Fullscreen"
                   >
                     {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
