@@ -101,6 +101,23 @@ function makePolygon(): PolygonObject {
   };
 }
 
+function makeCharacter(): CharacterObject {
+  return {
+    id: newId("obj"),
+    kind: "character",
+    name: "Character",
+    url: DEFAULT_CHARACTER_URL,
+    source: "Xbot · Mixamo (MIT)",
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    visible: true,
+    animationSpeed: 1,
+    paused: false,
+    crossfade: 0.25,
+  };
+}
+
 function makeLight(kind: SceneLight["kind"]): SceneLight {
   return {
     id: newId("lgt"),
