@@ -109,8 +109,11 @@ function pickClip(names: string[], state: LocoState): string | null {
 
 function collectStaticTargets(root: THREE.Object3D, exclude: THREE.Object3D): THREE.Object3D[] {
   const out: THREE.Object3D[] = [];
+  // Build a set of ancestors-of-exclude descendants once.
+  const excludeSet = new Set<THREE.Object3D>();
+  exclude.traverse((o) => excludeSet.add(o));
   root.traverse((o) => {
-    if (o === exclude) return;
+    if (excludeSet.has(o)) return;
     if ((o as any).isMesh) {
       // skip helpers/gizmos
       const ud = (o as any).userData ?? {};
