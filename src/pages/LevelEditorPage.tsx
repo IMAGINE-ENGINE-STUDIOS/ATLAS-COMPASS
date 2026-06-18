@@ -228,6 +228,66 @@ export default function LevelEditorPage() {
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
   const [terrainOpen, setTerrainOpen] = useState(false);
 
+  // Animation gallery modals — opened from inspectors.
+  const [characterGalleryOpen, setCharacterGalleryOpen] = useState(false);
+  const [objectGalleryOpen, setObjectGalleryOpen] = useState(false);
+  const [objectGalleryTarget, setObjectGalleryTarget] = useState<SceneObject | null>(null);
+
+  /** User-uploaded character clips persisted on the scene. */
+  const userClipEntries = useMemo<CharacterClipEntry[]>(() => {
+    const lib = scene.userClipLibrary ?? [];
+    return lib.map((e) => ({
+      id: e.id,
+      name: e.name,
+      category: e.category as any,
+      tags: e.tags,
+      source: "user" as const,
+      url: e.url,
+      clipName: e.clipName,
+      loop: e.loop,
+    }));
+  }, [scene.userClipLibrary]);
+
+  const addUserClipsToLibrary = useCallback(
+    async (entries: CharacterClipEntry[]) => {
+      // Convert blob URLs to data URLs so they survive a reload.
+      const persisted = await Promise.all(
+        entries.map(async (e) => {
+          let url = e.url ?? "";
+          if (url.startsWith("blob:")) {
+            try {
+              const blob = await fetch(url).then((r) => r.blob());
+              url = await new Promise<string>((res, rej) => {
+                const r = new FileReader();
+                r.onload = () => res(r.result as string);
+                r.onerror = () => rej(r.error);
+                r.readAsDataURL(blob);
+              });
+            } catch (err) {
+              console.warn("[clip-persist] keeping blob url, won't survive reload", err);
+            }
+          }
+          return {
+            id: e.id,
+            name: e.name,
+            category: String(e.category),
+            tags: e.tags,
+            url,
+            clipName: e.clipName,
+            loop: e.loop,
+          };
+        }),
+      );
+      updateScene((s) => {
+        s.userClipLibrary = [...(s.userClipLibrary ?? []), ...persisted];
+        return s;
+      });
+    },
+    // updateScene is stable enough (defined in this component); spread to silence lint
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   // Terrain sculpting tool state
   const [sculptActive, setSculptActive] = useState(false);
   const [sculptTool, setSculptTool] = useState<"lift" | "dig" | "smooth" | "flatten">("lift");
