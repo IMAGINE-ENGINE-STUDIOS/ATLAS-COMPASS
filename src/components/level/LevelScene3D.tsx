@@ -11,6 +11,7 @@ import type {
   PolygonObject,
   PrimitiveObject,
   ModelObject,
+  CharacterObject,
   SceneLight,
   AnimationTrack,
   SceneTerrain,
@@ -23,6 +24,7 @@ import {
   resolveFaceKeyFromHit,
 } from "@/lib/face-system";
 import { FacePaintContext, useFacePaint } from "./FacePaintContext";
+import LevelCharacter from "./LevelCharacter";
 
 /* ---------- helpers ---------- */
 
@@ -815,6 +817,12 @@ function RenderObject({
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
   if (obj.kind === "polygon") return <PolygonMesh obj={obj} selected={selected} onSelect={onSelect} />;
   if (obj.kind === "model") return <GLTFModelMesh obj={obj} onSelect={onSelect} />;
+  if (obj.kind === "character")
+    return (
+      <Suspense fallback={null}>
+        <LevelCharacter obj={obj as CharacterObject} onSelect={onSelect} />
+      </Suspense>
+    );
   return null;
 }
 
