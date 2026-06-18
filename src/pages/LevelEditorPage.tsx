@@ -1624,11 +1624,17 @@ function ObjectInspector({
         />
       )}
       {obj.kind === "character" && (
-        <CharacterInspector
-          obj={obj as CharacterObject}
-          disabled={disabled}
-          onPatch={(patch) => onPatch(patch as any)}
-        />
+        <Suspense fallback={
+          <p className="text-[10px] text-muted-foreground py-3 border-t border-border/40">
+            Loading rig & animation clips…
+          </p>
+        }>
+          <CharacterInspector
+            obj={obj as CharacterObject}
+            disabled={disabled}
+            onPatch={(patch) => onPatch(patch as any)}
+          />
+        </Suspense>
       )}
       {(obj.kind === "polygon" || obj.kind === "primitive" || obj.kind === "model") && (
         <FacePaintPanel
