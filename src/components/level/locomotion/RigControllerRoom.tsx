@@ -172,6 +172,20 @@ function collectBones(root: THREE.Object3D): THREE.Bone[] {
   return out;
 }
 
+/**
+ * Turn raw bone names like `mixamorigRightHandPinky2` into readable labels
+ * like "Right Hand Pinky 2" for hover tooltips and the OBJECT bar.
+ */
+function prettifyBoneName(name: string): string {
+  return name
+    .replace(/^mixamorig:?/i, "")
+    .replace(/[_\-:]/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function findSkeleton(root: THREE.Object3D): THREE.Skeleton | null {
   let sk: THREE.Skeleton | null = null;
   root.traverse((o: any) => { if (!sk && o.isSkinnedMesh && o.skeleton) sk = o.skeleton; });
@@ -428,6 +442,129 @@ function ControllerMarker({
 
 /* --------------------------- Main page ---------------------------- */
 
+/**
+ * OBJECT controller bar — appears in the side panel whenever the user has a
+ * bone selected (via hover-click in the X-ray view, the bone list, or a
+ * marker in the main viewport). Mirrors the look of the editor's Object
+ * Inspector and exposes live rotation sliders against the selected bone in
+ * the live rig, plus a Reset that restores the bone's bind rotation.
+ */
+function ObjectControllerBar({
+  bridgeRef,
+  selectedBoneName,
+  onClear,
+}: {
+  bridgeRef: React.MutableRefObject<RigBridge>;
+  selectedBoneName: string | null;
+  onClear: () => void;
+}) {
+  const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0]);
+  const initialRef = useRef<THREE.Euler | null>(null);
+  const boneRef = useRef<THREE.Object3D | null>(null);
+
+  // Resolve the currently-selected bone every time the selection changes.
+  useEffect(() => {
+    boneRef.current = null;
+    initialRef.current = null;
+    if (!selectedBoneName) { setRotation([0, 0, 0]); return; }
+    const root = bridgeRef.current.root;
+    if (!root) return;
+    let found: THREE.Object3D | null = null;
+    root.traverse((o) => { if (!found && o.name === selectedBoneName) found = o; });
+    if (!found) return;
+    boneRef.current = found;
+    initialRef.current = found.rotation.clone();
+    setRotation([found.rotation.x, found.rotation.y, found.rotation.z]);
+  }, [selectedBoneName, bridgeRef]);
+
+  const applyAxis = (axis: 0 | 1 | 2, value: number) => {
+    const next: [number, number, number] = [...rotation] as any;
+    next[axis] = value;
+    setRotation(next);
+    const b = boneRef.current;
+    if (b) b.rotation.set(next[0], next[1], next[2]);
+  };
+
+  const reset = () => {
+    const b = boneRef.current;
+    const init = initialRef.current;
+    if (b && init) {
+      b.rotation.copy(init);
+      setRotation([init.x, init.y, init.z]);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-md p-3 space-y-2"
+      style={{
+        background: "linear-gradient(180deg, rgba(34,255,136,0.06), rgba(34,255,136,0.02))",
+        border: "1px solid rgba(34,255,136,0.35)",
+        boxShadow: "0 0 18px rgba(34,255,136,0.08)",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span
+          className="text-[10px] uppercase tracking-[0.22em] font-semibold"
+          style={{ color: "#22ff88", textShadow: "0 0 6px rgba(34,255,136,0.5)" }}
+        >
+          Object · Bone
+        </span>
+        {selectedBoneName && (
+          <button
+            onClick={onClear}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          >
+            clear
+          </button>
+        )}
+      </div>
+
+      {!selectedBoneName ? (
+        <p className="text-[10px] text-muted-foreground italic">
+          Hover then click a node on the X-ray to load it here.
+        </p>
+      ) : (
+        <>
+          <div className="text-[11px] font-mono truncate" style={{ color: "#bbffd5" }}>
+            {prettifyBoneName(selectedBoneName)}
+          </div>
+          <div className="text-[9px] text-muted-foreground font-mono truncate -mt-1">
+            {selectedBoneName}
+          </div>
+
+          {(["X", "Y", "Z"] as const).map((axis, i) => (
+            <div key={axis}>
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px]">Rot {axis}</Label>
+                <span className="text-[10px] font-mono tabular-nums text-muted-foreground">
+                  {((rotation[i] * 180) / Math.PI).toFixed(1)}°
+                </span>
+              </div>
+              <Slider
+                value={[rotation[i]]}
+                min={-Math.PI}
+                max={Math.PI}
+                step={0.01}
+                onValueChange={([v]) => applyAxis(i as 0 | 1 | 2, v)}
+              />
+            </div>
+          ))}
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 w-full"
+            onClick={reset}
+          >
+            <RotateCcw className="w-3 h-3 mr-1.5" /> Reset rotation
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* --------------------- X-ray body map (controllers) ---------------------- */
 
 /**
@@ -541,8 +678,9 @@ function XrayBoneHotspot({
     bone.add(ref.current);
     return () => { bone.remove(ref.current!); };
   }, [bone]);
-  const color = selected ? "#fff7a8" : hovered ? "#bdf6ff" : "#5fd9ff";
-  const r = selected ? 0.028 : hovered ? 0.024 : 0.014;
+  // Green highlight when hovered or actively selected (per design spec).
+  const color = selected ? "#22ff88" : hovered ? "#5cff9e" : "#5fd9ff";
+  const r = selected ? 0.032 : hovered ? 0.026 : 0.014;
   return (
     <mesh
       ref={ref}
@@ -558,6 +696,27 @@ function XrayBoneHotspot({
         depthTest={false}
         toneMapped={false}
       />
+      {(hovered || selected) && (
+        <Html
+          center
+          distanceFactor={2}
+          zIndexRange={[100, 0]}
+          style={{ pointerEvents: "none" }}
+        >
+          <div
+            className="px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap"
+            style={{
+              background: "rgba(4,16,26,0.85)",
+              color: selected ? "#22ff88" : "#5cff9e",
+              border: `1px solid ${selected ? "#22ff88" : "#5cff9e"}`,
+              transform: "translateY(-14px)",
+              boxShadow: `0 0 8px ${selected ? "#22ff88aa" : "#5cff9e88"}`,
+            }}
+          >
+            {prettifyBoneName(bone.name)}
+          </div>
+        </Html>
+      )}
     </mesh>
   );
 }
@@ -657,8 +816,16 @@ function XrayBodyMap({
         </svg>
         {/* Hovered/selected bone readout */}
         <div className="absolute left-2 bottom-2 right-2 flex items-center justify-between gap-2 pointer-events-none">
-          <span className="text-[10px] font-mono text-cyan-100/90 truncate bg-black/40 px-1.5 py-0.5 rounded">
-            {display ?? "hover any bone…"}
+          <span
+            className="text-[10px] font-mono truncate px-1.5 py-0.5 rounded"
+            style={{
+              background: "rgba(0,0,0,0.5)",
+              color: display ? "#22ff88" : "rgba(190,236,255,0.7)",
+              border: display ? "1px solid #22ff8855" : "1px solid transparent",
+              textShadow: display ? "0 0 6px #22ff8866" : undefined,
+            }}
+          >
+            {display ? prettifyBoneName(display) : "hover any bone…"}
           </span>
           <span className="text-[9px] uppercase tracking-wider text-cyan-300/70 bg-black/40 px-1.5 py-0.5 rounded">
             live
@@ -1100,6 +1267,12 @@ export default function RigControllerRoom({
           onSelectBone={(boneName) => setSelectedBoneName(boneName)}
           onClearControllers={mappedCount > 0 ? handleClearControllers : undefined}
           mappedCount={mappedCount}
+        />
+
+        <ObjectControllerBar
+          bridgeRef={bridgeRef}
+          selectedBoneName={selectedBoneName}
+          onClear={() => setSelectedBoneName(null)}
         />
 
         <div>
