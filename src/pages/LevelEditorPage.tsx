@@ -10,6 +10,7 @@ import {
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
   X, ArrowUpRight, User,
 } from "lucide-react";
+import { Spline as SplineIcon, Paintbrush } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
