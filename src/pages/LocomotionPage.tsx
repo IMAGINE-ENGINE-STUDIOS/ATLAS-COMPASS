@@ -182,6 +182,33 @@ export default function LocomotionPage() {
     }));
   }, []);
 
+  const sceneCharacters = useMemo(
+    () =>
+      scene.objects
+        .filter((o): o is CharacterObject => o.kind === "character")
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          url: c.url,
+          currentAnimation: c.currentAnimation,
+        })),
+    [scene.objects],
+  );
+
+  const applyRigToCharacter = useCallback(
+    (characterId: string, patch: { url: string; currentAnimation?: string }) => {
+      setScene((s) => ({
+        ...s,
+        objects: s.objects.map((o) =>
+          o.id === characterId && o.kind === "character"
+            ? { ...o, url: patch.url, currentAnimation: patch.currentAnimation ?? o.currentAnimation }
+            : o,
+        ),
+      }));
+    },
+    [],
+  );
+
   return (
     <div className="fixed inset-0 flex bg-slate-950 text-foreground">
       {mode === "rig" ? (
@@ -190,7 +217,10 @@ export default function LocomotionPage() {
             <Button size="sm" variant="ghost" className="h-7" onClick={() => setMode("path")}>Path Lab</Button>
             <Button size="sm" variant="default" className="h-7" onClick={() => setMode("rig")}>Rig Room</Button>
           </div>
-          <RigControllerRoom />
+          <RigControllerRoom
+            sceneCharacters={sceneCharacters}
+            onApplyToCharacter={applyRigToCharacter}
+          />
         </div>
       ) : (
       <>
