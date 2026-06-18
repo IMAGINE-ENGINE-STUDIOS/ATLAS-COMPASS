@@ -73,7 +73,9 @@ export default function LevelCharacter({
   useEffect(() => {
     (cloned as any).userData.__animationNames = names;
     (cloned as any).userData.__objId = obj.id;
-  }, [cloned, names, obj.id]);
+    (cloned as any).userData.__actions = actions;
+    (cloned as any).userData.__mixer = mixer;
+  }, [cloned, names, obj.id, actions, mixer]);
 
   return (
     <group

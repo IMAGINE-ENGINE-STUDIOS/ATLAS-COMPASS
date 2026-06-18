@@ -7,6 +7,39 @@ import { splineDrivenIds } from "../locomotion/locomotionState";
 
 /* ---------- helpers ---------- */
 
+/** Speed at which spline-driven characters switch from walk to run (u/s). */
+const RUN_THRESHOLD = 5;
+/** Below this effective speed, fall back to idle. */
+const IDLE_THRESHOLD = 0.05;
+
+function findClip(names: string[], ...needles: string[]): string | null {
+  const lower = names.map((n) => n.toLowerCase());
+  for (const n of needles) {
+    const i = lower.findIndex((s) => s.includes(n));
+    if (i !== -1) return names[i];
+  }
+  return null;
+}
+
+/** Locate the cloned glTF root inside a follower group so we can drive its
+ *  animation actions. Returns null for non-character followers. */
+function findCharacterRoot(follower: THREE.Object3D): THREE.Object3D | null {
+  let found: THREE.Object3D | null = null;
+  follower.traverse((o) => {
+    if (found) return;
+    const ud: any = (o as any).userData;
+    if (ud && Array.isArray(ud.__animationNames) && ud.__actions) {
+      found = o;
+    }
+  });
+  return found;
+}
+
+interface FollowerAnimState {
+  current: string | null;
+  action: THREE.AnimationAction | null;
+}
+
 function buildCurve(obj: TrajectoryObject): THREE.CatmullRomCurve3 | null {
   if (!obj.points || obj.points.length < 2) return null;
   const pts = obj.points.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
@@ -251,6 +284,7 @@ export function TrajectoryRunner({
   const phaseRef = useRef<Map<string, number>>(new Map()); // key: traj.id + ":" + followerId
   const origRef = useRef<Map<string, [number, number, number]>>(new Map()); // followerId -> original pos
   const smoothYRef = useRef<Map<string, number>>(new Map()); // smoothed Y per follower
+  const animRef = useRef<Map<string, FollowerAnimState>>(new Map()); // followerId -> current anim
   const { scene: r3fScene } = useThree();
 
   const trajectories = useMemo(
@@ -272,6 +306,7 @@ export function TrajectoryRunner({
       origRef.current.clear();
       phaseRef.current.clear();
       smoothYRef.current.clear();
+      animRef.current.clear();
       return;
     }
     const g = groupRef.current;
@@ -428,6 +463,36 @@ export function TrajectoryRunner({
         }
 
         follower.position.copy(worldPos);
+
+        // ---- auto walk/run based on effective speed ----
+        // Spline-driven characters default to "walk" and switch to "run"
+        // once their effective speed exceeds RUN_THRESHOLD (u/s).
+        const charRoot = findCharacterRoot(follower);
+        if (charRoot) {
+          const ud: any = (charRoot as any).userData;
+          const names: string[] = ud.__animationNames ?? [];
+          const actions: Record<string, THREE.AnimationAction> = ud.__actions ?? {};
+          let wanted: string | null = null;
+          if (speed < IDLE_THRESHOLD) {
+            wanted = findClip(names, "idle", "stand") ?? names[0] ?? null;
+          } else if (speed >= RUN_THRESHOLD) {
+            wanted = findClip(names, "run", "sprint", "jog") ?? findClip(names, "walk") ?? names[0] ?? null;
+          } else {
+            wanted = findClip(names, "walk") ?? findClip(names, "run") ?? names[0] ?? null;
+          }
+          if (wanted && actions[wanted]) {
+            const state = animRef.current.get(fid) ?? { current: null, action: null };
+            if (state.current !== wanted) {
+              const next = actions[wanted];
+              if (state.action && state.action !== next) state.action.fadeOut(0.2);
+              next.reset().fadeIn(0.2).play();
+              next.setLoop(THREE.LoopRepeat, Infinity);
+              state.current = wanted;
+              state.action = next;
+              animRef.current.set(fid, state);
+            }
+          }
+        }
 
         if (traj.orientToPath) {
           const worldTan = localTan.clone().transformDirection(mat).normalize();
