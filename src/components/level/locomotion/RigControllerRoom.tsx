@@ -406,6 +406,13 @@ export default function RigControllerRoom({
     setTargetCharId(c.id);
   };
 
+  const handleLoadLibrary = (c: LibraryCharacter) => {
+    setUrl(c.url);
+    setPendingUrl(c.url);
+    setSourceLabel(`${c.name} · ${c.credit}`);
+    toast.success(`Loaded ${c.name}`);
+  };
+
   const handleApplyToCharacter = () => {
     if (!targetCharId || !onApplyToCharacter) return;
     onApplyToCharacter(targetCharId, { url, currentAnimation: activeClip ?? undefined });
