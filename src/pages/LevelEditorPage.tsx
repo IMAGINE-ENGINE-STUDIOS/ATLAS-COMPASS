@@ -3321,6 +3321,9 @@ function TrajectoryInspector({
             <Plus className="w-3 h-3" /> Extend
           </Button>
         </div>
+        <p className="text-[10px] text-muted-foreground mb-1">
+          Drag yellow handles in the viewport to move points (hold <kbd>Shift</kbd> for vertical). Double-click a handle to delete.
+        </p>
         <div className="space-y-1 max-h-44 overflow-y-auto">
           {obj.points.map((p, i) => (
             <div key={i} className="grid grid-cols-[14px_1fr_1fr_1fr_auto] gap-1 items-center">
