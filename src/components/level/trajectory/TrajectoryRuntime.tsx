@@ -306,6 +306,7 @@ export function TrajectoryRunner({
       origRef.current.clear();
       phaseRef.current.clear();
       smoothYRef.current.clear();
+      animRef.current.clear();
       return;
     }
     const g = groupRef.current;
