@@ -731,6 +731,28 @@ export default function LevelEditorPage() {
           className="h-8 w-64 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold"
         />
         <div className="ml-auto flex items-center gap-2">
+          <ActiveToolBadges
+            tools={[
+              {
+                key: "sculpt",
+                label: "Sculpt brush",
+                icon: <Brush className="w-3.5 h-3.5" />,
+                active: sculptActive,
+              },
+              {
+                key: "spline",
+                label: "Spline editor",
+                icon: <SplineIcon className="w-3.5 h-3.5" />,
+                active: editingPolygonId !== null,
+              },
+              {
+                key: "texture",
+                label: "Texture painting",
+                icon: <Paintbrush className="w-3.5 h-3.5" />,
+                active: facePaintActive,
+              },
+            ]}
+          />
           <Button
             size="sm"
             variant="ghost"
