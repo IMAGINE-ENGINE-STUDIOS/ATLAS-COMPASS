@@ -2254,22 +2254,29 @@ function SpaceshipPage() {
             if (!img || viewer.isDestroyed()) return;
             const ent = viewer.entities.getById(entityId);
             if (ent && ent.billboard) {
-              (ent.billboard as any).image = createPinCanvas(icon, truncName, bgColor, img);
+              const selected = isTagSelected(entityId);
+              (ent.billboard as any).image = selected
+                ? createGoldenPinCanvas(icon, truncName, img)
+                : createPinCanvas(icon, truncName, bgColor, img);
               viewer.scene.requestRender();
             }
           });
+          const selectedNow = isTagSelected(entityId);
           const entity = viewer.entities.add({
             id: entityId,
             position: Cartesian3.fromDegrees(_lng, _lat, 0),
             billboard: {
-              image: createPinCanvas(icon, truncName, bgColor, favicon),
+              image: selectedNow
+                ? createGoldenPinCanvas(icon, truncName, favicon)
+                : createPinCanvas(icon, truncName, bgColor, favicon),
               verticalOrigin: 1, // BOTTOM
               pixelOffset: new Cartesian2(0, 0),
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 200, nearValue: 0.8, far: 15000, farValue: 0.25 } as any,
+              scaleByDistance: { near: 200, nearValue: selectedNow ? 1.0 : 0.8, far: 15000, farValue: selectedNow ? 0.35 : 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
               heightReference: 1, // CLAMP_TO_GROUND
               alignedAxis: Cartesian3.ZERO, // Always face camera
+              eyeOffset: selectedNow ? new Cartesian3(0, 0, -50) : new Cartesian3(0, 0, 0),
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
           });
