@@ -17,8 +17,24 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users } from "lucide-react";
+import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import {
+  listRigSaves,
+  saveRig,
+  deleteRigSave,
+  capturePose,
+  applyPose,
+  getCachedRigSaves,
+  type RigSave,
+  type BonePose,
+} from "@/lib/rigSaves";
+
+/** Imperative bridge between <Rig/> and the parent panel. */
+interface RigBridge {
+  root: THREE.Object3D | null;
+  snapshot: (() => string | null) | null;
+}
 
 /**
  * Curated free / open-licensed rigged characters. All URLs are public CDN
@@ -29,13 +45,13 @@ import { toast } from "sonner";
 interface LibraryCharacter {
   id: string;
   name: string;
-  category: "Human" | "Creature" | "Monster" | "Robot";
+  category: "Human" | "Creature" | "Robot";
   url: string;
   credit: string;
 }
 
 const KHRONOS =
-  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0";
+  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models";
 const THREE_EX = "https://threejs.org/examples/models/gltf";
 
 const CHARACTER_LIBRARY: LibraryCharacter[] = [
@@ -48,8 +64,10 @@ const CHARACTER_LIBRARY: LibraryCharacter[] = [
   // Creatures
   { id: "fox",         name: "Fox",           category: "Creature", url: `${KHRONOS}/Fox/glTF-Binary/Fox.glb`,                     credit: "Khronos (CC0)" },
   { id: "brainstem",   name: "BrainStem",     category: "Creature", url: `${KHRONOS}/BrainStem/glTF-Binary/BrainStem.glb`,         credit: "Khronos (CC-BY)" },
-  // Monsters
-  { id: "monster",     name: "Monster",       category: "Monster",  url: `${KHRONOS}/Monster/glTF-Binary/Monster.glb`,             credit: "Khronos (CC-BY)" },
+  { id: "flamingo",    name: "Flamingo",      category: "Creature", url: `${THREE_EX}/Flamingo.glb`,                              credit: "three.js" },
+  { id: "stork",       name: "Stork",         category: "Creature", url: `${THREE_EX}/Stork.glb`,                                 credit: "three.js" },
+  { id: "parrot",      name: "Parrot",        category: "Creature", url: `${THREE_EX}/Parrot.glb`,                                credit: "three.js" },
+  { id: "horse",       name: "Horse",         category: "Creature", url: `${THREE_EX}/Horse.glb`,                                 credit: "three.js" },
   // Robots
   { id: "robot-exp",   name: "Robot Expressive", category: "Robot", url: `${THREE_EX}/RobotExpressive/RobotExpressive.glb`,       credit: "three.js" },
 ];
@@ -143,6 +161,29 @@ function findSkeleton(root: THREE.Object3D): THREE.Skeleton | null {
 
 /* --------------------------- Rig viewer --------------------------- */
 
+/**
+ * Tiny in-Canvas helper that exposes the WebGL canvas's `toDataURL` to the
+ * parent via the shared bridge ref. Lets the sidebar grab a thumbnail when
+ * the user saves a rig without having to lift the renderer out.
+ */
+function SnapshotBridge({ bridgeRef }: { bridgeRef: React.MutableRefObject<RigBridge> }) {
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    bridgeRef.current.snapshot = () => {
+      try {
+        // Force a render so the buffer is current before reading pixels.
+        gl.render(scene, camera);
+        return gl.domElement.toDataURL("image/jpeg", 0.6);
+      } catch (e) {
+        console.warn("[rig] snapshot failed", e);
+        return null;
+      }
+    };
+    return () => { bridgeRef.current.snapshot = null; };
+  }, [gl, scene, camera, bridgeRef]);
+  return null;
+}
+
 function Rig({
   url,
   showSkeleton,
@@ -154,6 +195,9 @@ function Rig({
   activeClip,
   playing,
   speed,
+  pendingPose,
+  onPoseApplied,
+  bridgeRef,
 }: {
   url: string;
   showSkeleton: boolean;
@@ -165,6 +209,9 @@ function Rig({
   activeClip: string | null;
   playing: boolean;
   speed: number;
+  pendingPose: BonePose[] | null;
+  onPoseApplied: () => void;
+  bridgeRef: React.MutableRefObject<RigBridge>;
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
@@ -190,11 +237,17 @@ function Rig({
     const clips = (gltf.animations as THREE.AnimationClip[]) ?? [];
     clipsRef.current = clips;
     mixerRef.current = new THREE.AnimationMixer(cloned);
+    bridgeRef.current.root = cloned;
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
       clips: clips.map((c) => c.name),
     });
+    // Apply a queued pose (from a loaded save) once the rig is mounted.
+    if (pendingPose && pendingPose.length > 0) {
+      try { applyPose(cloned, pendingPose); } catch {}
+      onPoseApplied();
+    }
     return () => {
       r3fScene.remove(helper);
       helper.dispose?.();
@@ -202,6 +255,7 @@ function Rig({
       mixerRef.current?.stopAllAction();
       mixerRef.current = null;
       actionRef.current = null;
+      if (bridgeRef.current.root === cloned) bridgeRef.current.root = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
@@ -356,6 +410,24 @@ export default function RigControllerRoom({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
+  // ----- save system state -----
+  const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
+  const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
+  const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
+  const [savesLoading, setSavesLoading] = useState(false);
+  const [activeSaveId, setActiveSaveId] = useState<string | null>(null);
+
+  // Hydrate saves from the server (cache rendered immediately above).
+  useEffect(() => {
+    let cancelled = false;
+    setSavesLoading(true);
+    listRigSaves()
+      .then((rows) => { if (!cancelled) setSaves(rows); })
+      .catch((e) => console.warn("[rig] list saves failed", e))
+      .finally(() => { if (!cancelled) setSavesLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (sceneCharacters.length && !sceneCharacters.find((c) => c.id === targetCharId)) {
       setTargetCharId(sceneCharacters[0].id);
@@ -410,7 +482,61 @@ export default function RigControllerRoom({
     setUrl(c.url);
     setPendingUrl(c.url);
     setSourceLabel(`${c.name} · ${c.credit}`);
+    setActiveSaveId(null);
     toast.success(`Loaded ${c.name}`);
+  };
+
+  const handleSave = async () => {
+    const root = bridgeRef.current.root;
+    if (!root) { toast.error("Rig not ready yet"); return; }
+    const defaultName = `${sourceLabel.split("·")[0].trim() || "Rig"} ${new Date()
+      .toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+    const name = window.prompt("Save rig as…", defaultName);
+    if (!name || !name.trim()) return;
+    const pose = capturePose(root);
+    const thumb = bridgeRef.current.snapshot?.() ?? null;
+    try {
+      const row = await saveRig({
+        name: name.trim(),
+        source_label: sourceLabel,
+        model_url: url,
+        active_clip: activeClip,
+        speed,
+        controller_map: controllerMap,
+        pose,
+        thumbnail: thumb,
+      });
+      setSaves((prev) => [row, ...prev.filter((r) => r.id !== row.id)]);
+      setActiveSaveId(row.id);
+      toast.success("Rig saved");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Save failed");
+    }
+  };
+
+  const handleLoadSave = (s: RigSave) => {
+    setActiveSaveId(s.id);
+    setSourceLabel(s.source_label ?? s.name);
+    setPendingUrl(s.model_url.startsWith("data:") ? s.name : s.model_url);
+    setSpeed(s.speed ?? 1);
+    setControllerMap((s.controller_map as Record<ControllerKey, string | null>) ?? ({} as Record<ControllerKey, string | null>));
+    setPendingPose(s.pose ?? null);
+    // Force a reload even if the URL is identical (re-clone for clean apply).
+    setUrl("");
+    setTimeout(() => {
+      setUrl(s.model_url);
+      if (s.active_clip) setActiveClip(s.active_clip);
+    }, 20);
+    toast.success(`Loaded ${s.name}`);
+  };
+
+  const handleDeleteSave = async (s: RigSave) => {
+    if (!window.confirm(`Delete "${s.name}"? This cannot be undone.`)) return;
+    setSaves((prev) => prev.filter((r) => r.id !== s.id));
+    if (activeSaveId === s.id) setActiveSaveId(null);
+    try { await deleteRigSave(s.id); } catch (e: any) {
+      toast.error(e?.message ?? "Delete failed");
+    }
   };
 
   const handleApplyToCharacter = () => {
@@ -523,7 +649,7 @@ export default function RigControllerRoom({
           <p className="text-[10px] text-muted-foreground leading-snug">
             Free rigged models. Click to load — replaces the current rig.
           </p>
-          {(["Human", "Creature", "Monster", "Robot"] as const).map((cat) => {
+          {(["Human", "Creature", "Robot"] as const).map((cat) => {
             const items = CHARACTER_LIBRARY.filter((c) => c.category === cat);
             if (items.length === 0) return null;
             return (
@@ -562,6 +688,71 @@ export default function RigControllerRoom({
           <Button size="sm" variant="outline" onClick={handleResetPose}>
             <RotateCcw className="w-3 h-3 mr-1.5" /> Reset pose
           </Button>
+        </div>
+
+        {/* ---- Save + Saved gallery ---- */}
+        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
+          <div className="flex items-center justify-between">
+            <Label className="text-[11px] flex items-center gap-1.5">
+              <Save className="w-3 h-3" /> Saved rigs ({saves.length})
+            </Label>
+            <Button
+              size="sm"
+              className="h-7"
+              onClick={handleSave}
+              disabled={bones.length === 0}
+            >
+              <Save className="w-3 h-3 mr-1.5" /> Save
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            Stores model, pose, controllers, and clip — synced to your account
+            with a local cache fallback.
+          </p>
+          {saves.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground/70 italic">
+              {savesLoading ? "Loading…" : "No saves yet — pose the rig then hit Save."}
+            </p>
+          ) : (
+            <ScrollArea className="h-44">
+              <div className="grid grid-cols-2 gap-1.5 pr-1.5">
+                {saves.map((s) => {
+                  const active = activeSaveId === s.id;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`group relative rounded border overflow-hidden transition ${
+                        active ? "border-foreground/40 ring-1 ring-foreground/30" : "border-border/40 hover:border-border"
+                      }`}
+                    >
+                      <button
+                        onClick={() => handleLoadSave(s)}
+                        className="block w-full text-left"
+                        title={`${s.name}\n${new Date(s.created_at).toLocaleString()}`}
+                      >
+                        <div className="aspect-square bg-slate-900 flex items-center justify-center">
+                          {s.thumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={s.thumbnail} alt={s.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+                          )}
+                        </div>
+                        <div className="px-1.5 py-1 text-[10px] truncate">{s.name}</div>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteSave(s); }}
+                        className="absolute top-1 right-1 p-1 rounded bg-background/80 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground transition"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
         </div>
 
         <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
@@ -697,6 +888,7 @@ export default function RigControllerRoom({
         <Canvas
           camera={{ position: [2.2, 1.6, 2.2], fov: 45, near: 0.05, far: 200 }}
           shadows
+          gl={{ preserveDrawingBuffer: true }}
         >
           <color attach="background" args={["#0b1220"]} />
           <ambientLight intensity={0.6} />
@@ -718,6 +910,7 @@ export default function RigControllerRoom({
             }
           >
             <Environment preset="city" />
+            <SnapshotBridge bridgeRef={bridgeRef} />
             {url && (
               <Rig
                 url={url}
@@ -730,6 +923,9 @@ export default function RigControllerRoom({
                 activeClip={activeClip}
                 playing={playing}
                 speed={speed}
+                pendingPose={pendingPose}
+                onPoseApplied={() => setPendingPose(null)}
+                bridgeRef={bridgeRef}
               />
             )}
           </Suspense>
