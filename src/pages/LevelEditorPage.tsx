@@ -1411,6 +1411,13 @@ export default function LevelEditorPage() {
                   setRadius: setSculptRadius,
                   setStrength: setSculptStrength,
                 }}
+                onClear={() =>
+                  updateScene((s) => {
+                    s.terrain = { ...(s.terrain ?? defaultTerrain()), enabled: false };
+                    return s;
+                  })
+                }
+                onOpenGallery={() => setTerrainGalleryOpen(true)}
               />
             </TabsContent>
 
