@@ -1226,6 +1226,7 @@ export function LevelSceneContents({
   onPolygonOffsetsChange,
   onPolygonHeightsChange,
   onPolygonPatch,
+  onTrajectoryPointsChange,
   transformMode,
   onObjectTransform,
   snap,
@@ -1299,6 +1300,8 @@ export function LevelSceneContents({
             selectedId={selectedId}
             onSelect={onSelect}
             playing={!!playing}
+            controlsRef={controlsRef}
+            onTrajectoryPointsChange={onTrajectoryPointsChange}
           />
         ))}
       </group>
