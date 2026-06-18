@@ -48,6 +48,34 @@ function HDRIEnvironmentRuntime({ cfg }: { cfg: HDRIEnvironmentCfg }) {
   const { scene, gl } = useThree();
   const active = cfg.maps.find((m) => m.id === cfg.activeId);
   const [tex, setTex] = useState<THREE.Texture | null>(null);
+  const targetRef = useRef<THREE.WebGLRenderTarget | null>(null);
+  // Bumped to force a reload (WebGL context restore, manual refresh).
+  const [reloadTick, setReloadTick] = useState(0);
+
+  // The PMREM-filtered render target lives on the GPU. If the WebGL context
+  // is lost (tab backgrounded for too long, GPU pressure, driver hiccup) the
+  // underlying texture becomes a black/empty 1x1 and the scene goes dark —
+  // this is why the HDRI seemed to vanish after a few minutes. We listen for
+  // the standard `webglcontextrestored` event and re-run the loader, plus
+  // expose `window.__refreshHDRI()` for a manual nudge.
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const onLost = (e: Event) => {
+      // Preventing default tells the browser we'll handle restoration —
+      // without it `webglcontextrestored` never fires.
+      e.preventDefault();
+    };
+    const onRestored = () => setReloadTick((t) => t + 1);
+    canvas.addEventListener("webglcontextlost", onLost as any, false);
+    canvas.addEventListener("webglcontextrestored", onRestored as any, false);
+    // Manual hook for power users / debugging.
+    (window as any).__refreshHDRI = () => setReloadTick((t) => t + 1);
+    return () => {
+      canvas.removeEventListener("webglcontextlost", onLost as any);
+      canvas.removeEventListener("webglcontextrestored", onRestored as any);
+      if ((window as any).__refreshHDRI) delete (window as any).__refreshHDRI;
+    };
+  }, [gl]);
 
   useEffect(() => {
     if (!active) {
@@ -99,6 +127,11 @@ function HDRIEnvironmentRuntime({ cfg }: { cfg: HDRIEnvironmentCfg }) {
           const target = pmrem.fromEquirectangular(t);
           t.dispose();
           pmrem.dispose();
+          // Free any previous render target before swapping (this is what
+          // leaked WebGL memory and eventually caused context loss in long
+          // sessions).
+          targetRef.current?.dispose();
+          targetRef.current = target;
           setTex(target.texture);
         } catch (err) {
           // PMREM can throw if the WebGL context is lost mid-load. Don't
@@ -120,7 +153,7 @@ function HDRIEnvironmentRuntime({ cfg }: { cfg: HDRIEnvironmentCfg }) {
       cancelled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [active?.id, active?.url, active?.ext, gl]);
+  }, [active?.id, active?.url, active?.ext, gl, reloadTick]);
 
   useEffect(() => {
     if (!tex) return;
@@ -140,7 +173,12 @@ function HDRIEnvironmentRuntime({ cfg }: { cfg: HDRIEnvironmentCfg }) {
     };
   }, [tex, cfg.asBackground, cfg.intensity, cfg.rotation, scene]);
 
-  useEffect(() => () => { tex?.dispose(); }, [tex]);
+  // Dispose the render target (which owns the texture) on unmount — disposing
+  // `tex` alone leaks the underlying framebuffer/depthbuffer.
+  useEffect(() => () => {
+    targetRef.current?.dispose();
+    targetRef.current = null;
+  }, []);
   return null;
 }
 
