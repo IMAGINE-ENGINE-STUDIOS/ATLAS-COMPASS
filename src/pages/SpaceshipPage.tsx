@@ -26,6 +26,17 @@ import AtlasDeliveryPanel from "@/components/delivery/AtlasDeliveryPanel";
 import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
 import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
 import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLabelsOverlay";
+import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
+import {
+  amenityToCategoryId,
+  clearSelected,
+  isSelected as isTagSelected,
+  selectedCount as getSelectedCount,
+  subscribeSelection,
+  toggleSelected,
+  type SelectedTag,
+} from "@/lib/atlasSelection";
+import { Star } from "lucide-react";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
@@ -480,6 +491,123 @@ function createPinCanvas(icon: string, name: string, bgColor: string, favicon?: 
   return dataUrl;
 }
 
+// ── Golden pin canvas for user-selected stores ─────────────────────────────
+// Mirrors createPinCanvas but paints a gold gradient background, gold border
+// and bigger glow so selected pins read as "starred" and always-on-top.
+const goldenPinCache = new Map<string, string>();
+function createGoldenPinCanvas(icon: string, name: string, favicon?: HTMLImageElement | null): string {
+  const key = `gold|${icon}|${name}|${favicon ? favicon.src : ""}`;
+  if (goldenPinCache.has(key)) return goldenPinCache.get(key)!;
+
+  const dpr = 2;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+
+  const padL = 6 * dpr, padR = 10 * dpr, padY = 5 * dpr;
+  const circleD = 20 * dpr;       // slightly larger than the regular pin
+  const gap = 6 * dpr;
+  const leaderH = 10 * dpr;
+  const fontSpec = `600 ${11 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
+  ctx.font = fontSpec;
+  const textWidth = Math.ceil(ctx.measureText(name).width);
+  const contentH = circleD;
+  const pillH = contentH + padY * 2;
+  const pillW = padL + circleD + gap + textWidth + padR + 8 * dpr; // room for star
+  const radius = pillH / 2;
+
+  const shadowPad = 12 * dpr;
+  canvas.width = pillW + shadowPad * 2;
+  canvas.height = pillH + leaderH + shadowPad * 2;
+
+  const ox = shadowPad, oy = shadowPad;
+
+  const pill = () => {
+    ctx.beginPath();
+    ctx.moveTo(ox + radius, oy);
+    ctx.lineTo(ox + pillW - radius, oy);
+    ctx.quadraticCurveTo(ox + pillW, oy, ox + pillW, oy + radius);
+    ctx.lineTo(ox + pillW, oy + pillH - radius);
+    ctx.quadraticCurveTo(ox + pillW, oy + pillH, ox + pillW - radius, oy + pillH);
+    ctx.lineTo(ox + radius, oy + pillH);
+    ctx.quadraticCurveTo(ox, oy + pillH, ox, oy + pillH - radius);
+    ctx.lineTo(ox, oy + radius);
+    ctx.quadraticCurveTo(ox, oy, ox + radius, oy);
+    ctx.closePath();
+  };
+
+  // Gold glow
+  ctx.save();
+  ctx.shadowColor = "rgba(255,215,0,0.55)";
+  ctx.shadowBlur = 22 * dpr;
+  ctx.shadowOffsetY = 3 * dpr;
+  pill();
+  const grad = ctx.createLinearGradient(ox, oy, ox, oy + pillH);
+  grad.addColorStop(0, "#FFE56A");
+  grad.addColorStop(1, "#B8860B");
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  // Gold border
+  pill();
+  ctx.strokeStyle = "#FFD700";
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.stroke();
+
+  // Icon circle (white bg if favicon, else dark for emoji contrast)
+  const cx = ox + padL + circleD / 2;
+  const cy = oy + pillH / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, circleD / 2, 0, Math.PI * 2);
+  ctx.fillStyle = favicon ? "#ffffff" : "rgba(26,19,0,0.55)";
+  ctx.fill();
+  if (favicon) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, circleD / 2 - 1, 0, Math.PI * 2);
+    ctx.clip();
+    const s = circleD - 4 * dpr;
+    ctx.drawImage(favicon, cx - s / 2, cy - s / 2, s, s);
+    ctx.restore();
+  } else {
+    ctx.font = `${13 * dpr}px -apple-system, BlinkMacSystemFont, "Apple Color Emoji", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.fillText(icon, cx, cy + 0.5 * dpr);
+  }
+
+  // Name label — deep brown for contrast on gold.
+  ctx.font = fontSpec;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#1a1300";
+  ctx.fillText(name, ox + padL + circleD + gap, cy);
+
+  // Tiny star glyph at far right.
+  ctx.font = `${11 * dpr}px -apple-system, BlinkMacSystemFont, "Apple Color Emoji", sans-serif`;
+  ctx.fillStyle = "#1a1300";
+  ctx.fillText("★", ox + pillW - padR - 4 * dpr, cy);
+
+  // Leader line.
+  const lineX = canvas.width / 2;
+  const lineY0 = oy + pillH;
+  const lineY1 = lineY0 + leaderH;
+  const g2 = ctx.createLinearGradient(lineX, lineY0, lineX, lineY1);
+  g2.addColorStop(0, "rgba(255,215,0,0.8)");
+  g2.addColorStop(1, "rgba(255,215,0,0)");
+  ctx.strokeStyle = g2;
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(lineX, lineY0);
+  ctx.lineTo(lineX, lineY1);
+  ctx.stroke();
+
+  const url = canvas.toDataURL("image/png");
+  goldenPinCache.set(key, url);
+  return url;
+}
+
 function flyCameraToTarget(
   viewer: Viewer | null,
   target: { lat: number; lng: number; alt?: number },
@@ -660,6 +788,12 @@ function SpaceshipPage() {
   const [showMarketplacePins, setShowMarketplacePins] = useState<boolean>(savedUI.showMarketplacePins ?? false);
   const [selectedMarketplaceProduct, setSelectedMarketplaceProduct] = useState<MarketplaceProduct | null>(null);
   const marketplaceEntitiesRef = useRef<any[]>([]);
+  // Bumps whenever loaded atlas tags (businesses, marketplace) change so the
+  // unified cluster overlay re-derives its tag list.
+  const [tagsVersion, setTagsVersion] = useState(0);
+  // Reactive count for the "Selected (n)" chip.
+  const [selectedCount, setSelectedCount] = useState(getSelectedCount());
+  useEffect(() => subscribeSelection(() => setSelectedCount(getSelectedCount())), []);
   const cameraEntitiesRef = useRef<any[]>([]);
   const [mapCameras, setMapCameras] = useState<TrafficCamera[]>([]);
 
@@ -2126,27 +2260,35 @@ function SpaceshipPage() {
             if (!img || viewer.isDestroyed()) return;
             const ent = viewer.entities.getById(entityId);
             if (ent && ent.billboard) {
-              (ent.billboard as any).image = createPinCanvas(icon, truncName, bgColor, img);
+              const selected = isTagSelected(entityId);
+              (ent.billboard as any).image = selected
+                ? createGoldenPinCanvas(icon, truncName, img)
+                : createPinCanvas(icon, truncName, bgColor, img);
               viewer.scene.requestRender();
             }
           });
+          const selectedNow = isTagSelected(entityId);
           const entity = viewer.entities.add({
             id: entityId,
             position: Cartesian3.fromDegrees(_lng, _lat, 0),
             billboard: {
-              image: createPinCanvas(icon, truncName, bgColor, favicon),
+              image: selectedNow
+                ? createGoldenPinCanvas(icon, truncName, favicon)
+                : createPinCanvas(icon, truncName, bgColor, favicon),
               verticalOrigin: 1, // BOTTOM
               pixelOffset: new Cartesian2(0, 0),
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              scaleByDistance: { near: 200, nearValue: 0.8, far: 15000, farValue: 0.25 } as any,
+              scaleByDistance: { near: 200, nearValue: selectedNow ? 1.0 : 0.8, far: 15000, farValue: selectedNow ? 0.35 : 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
               heightReference: 1, // CLAMP_TO_GROUND
               alignedAxis: Cartesian3.ZERO, // Always face camera
+              eyeOffset: selectedNow ? new Cartesian3(0, 0, -50) : new Cartesian3(0, 0, 0),
             },
             description: tags.name + (addr ? ` — ${addr}` : ""),
           });
           businessEntitiesRef.current.push(entity);
         });
+        setTagsVersion(v => v + 1);
       } catch { /* ignore network/abort errors */ } finally {
         if (!viewer.isDestroyed()) setIsLoadingBusinesses(false);
       }
@@ -2577,6 +2719,57 @@ function SpaceshipPage() {
       modelUrlsRef.current.clear();
     };
   }, []);
+
+  // ── Repaint business / marketplace billboards when selection changes ──
+  // Selected pins switch to a gold canvas with eyeOffset.z = -50 so they
+  // always render on top of any other tag in the scene.
+  useEffect(() => {
+    const repaint = () => {
+      const viewer = viewerRef.current;
+      if (!viewer || viewer.isDestroyed()) return;
+      // Businesses
+      businessEntitiesRef.current.forEach(ent => {
+        if (!ent?.id || !ent.billboard) return;
+        const data = businessDataRef.current.get(ent.id);
+        if (!data) return;
+        const sel = isTagSelected(ent.id);
+        const truncName = data.name.length > 20 ? data.name.slice(0, 18) + "…" : data.name;
+        const favicon = getFavicon(data.website);
+        const amenityKey = (data.category || "").toLowerCase().replace(/ /g, "_");
+        const iconMap: Record<string, string> = {
+          restaurant: "🍽️", fast_food: "🍔", cafe: "☕", bar: "🍺", pub: "🍺",
+          fuel: "⛽", charging_station: "🔌", pharmacy: "💊", hospital: "🏥",
+          clinic: "🏥", doctors: "👨‍⚕️", dentist: "🦷", bank: "🏦",
+          hotel: "🏨", motel: "🏨", hostel: "🏨", guest_house: "🏨",
+          supermarket: "🛒", convenience: "🏪", department_store: "🏬",
+          general: "🏪", grocery: "🛒",
+        };
+        const icon = data.emoji || iconMap[amenityKey] || "📍";
+        const bgColor = "rgba(0,212,255,0.65)";
+        (ent.billboard as any).image = sel
+          ? createGoldenPinCanvas(icon, truncName, favicon)
+          : createPinCanvas(icon, truncName, bgColor, favicon);
+        (ent.billboard as any).eyeOffset = sel
+          ? new Cartesian3(0, 0, -50)
+          : new Cartesian3(0, 0, 0);
+        (ent.billboard as any).scaleByDistance = {
+          near: 200, nearValue: sel ? 1.0 : 0.8,
+          far: 15000, farValue: sel ? 0.35 : 0.25,
+        } as any;
+      });
+      // Marketplace
+      marketplaceEntitiesRef.current.forEach(ent => {
+        if (!ent?.id || !ent.billboard) return;
+        const sel = isTagSelected(ent.id);
+        (ent.billboard as any).eyeOffset = sel
+          ? new Cartesian3(0, 0, -50)
+          : new Cartesian3(0, 0, 0);
+      });
+      viewer.scene.requestRender();
+    };
+    repaint();
+    return subscribeSelection(repaint);
+  }, [tagsVersion]);
 
   // Brush mode indicator visibility
   useEffect(() => {
@@ -3839,6 +4032,63 @@ function SpaceshipPage() {
           onSelect={(m) => flyToModel(m as PlacedModel)}
         />
       )}
+
+      {/* Unified Atlas tag clustering overlay */}
+      {isLoaded && (() => {
+        const allTags: AtlasTag[] = [];
+        // Business pins
+        businessDataRef.current.forEach((data, id) => {
+          allTags.push({
+            kind: "biz", id,
+            name: data.name,
+            lat: data.lat, lng: data.lng,
+            categoryId: amenityToCategoryId(data.category),
+            emoji: data.emoji,
+            website: data.website,
+          });
+        });
+        // Saved POIs
+        pois.forEach(p => {
+          allTags.push({
+            kind: "poi", id: `poi-${p.id}`,
+            name: p.name, lat: p.lat, lng: p.lng,
+            categoryId: "landmark",
+          });
+        });
+        // Marketplace
+        if (showMarketplacePins) {
+          fetchMarketplaceProducts().forEach(p => {
+            allTags.push({
+              kind: "market", id: `marketplace-${p.id}`,
+              name: p.name, lat: p.sellerLat, lng: p.sellerLng,
+              categoryId: "shop",
+              emoji: p.emoji,
+            });
+          });
+        }
+        // Reference tagsVersion to keep this block re-running.
+        void tagsVersion;
+        return (
+          <AtlasTagsOverlay
+            viewer={viewerRef.current}
+            tags={allTags}
+            onSelect={(t) => {
+              if (t.kind === "biz") {
+                const data = businessDataRef.current.get(t.id);
+                if (data) setSelectedBusiness(data);
+              } else if (t.kind === "market") {
+                const productId = t.id.replace("marketplace-", "");
+                const prod = fetchMarketplaceProducts().find(p => p.id === productId);
+                if (prod) setSelectedMarketplaceProduct(prod);
+              } else if (t.kind === "poi") {
+                const poiId = t.id.replace("poi-", "");
+                const poi = pois.find(p => p.id === poiId);
+                if (poi) setSelectedPOI(poi);
+              }
+            }}
+          />
+        );
+      })()}
 
       {/* Loading Screen */}
       {/* Loading screen removed */}
@@ -5108,6 +5358,36 @@ function SpaceshipPage() {
                     className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-colors">
                     <X className="w-3.5 h-3.5" />
                   </button>
+                  {(() => {
+                    const bizEntityId = `biz-${String(selectedBusiness.id ?? "")}`;
+                    const sel = isTagSelected(bizEntityId);
+                    return (
+                      <button
+                        onClick={() => toggleSelected({
+                          kind: "biz",
+                          id: bizEntityId,
+                          name: selectedBusiness.name,
+                          lat: selectedBusiness.lat,
+                          lng: selectedBusiness.lng,
+                          category: selectedBusiness.category,
+                          website: selectedBusiness.website,
+                          emoji: selectedBusiness.emoji,
+                        })}
+                        title={sel ? "Unselect" : "Select (mark as gold)"}
+                        className="absolute -top-2 -left-2 z-10 w-7 h-7 rounded-full backdrop-blur-xl flex items-center justify-center transition-colors"
+                        style={sel ? {
+                          background: "linear-gradient(135deg,#FFE56A,#B8860B)",
+                          border: "1px solid #FFD700",
+                          boxShadow: "0 0 12px #FFD70088",
+                        } : {
+                          background: "rgba(0,0,0,0.8)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${sel ? "fill-[#1a1300] text-[#1a1300]" : "text-white/80"}`} />
+                      </button>
+                    );
+                  })()}
                   <POICard
                     poi={selectedBusiness}
                     variant="glass"
@@ -5262,6 +5542,29 @@ function SpaceshipPage() {
             }}
             onActivate={(key) => loadCategoryBusinessesInstant(key)}
           />
+
+          {/* Selected (gold) tags chip */}
+          {selectedCount > 0 && (
+            <div className="absolute right-3 sm:right-4 top-[calc(50%+140px)] z-30 flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full backdrop-blur-xl animate-fade-in"
+              style={{
+                background: "linear-gradient(135deg, rgba(255,215,0,0.18), rgba(184,134,11,0.18))",
+                border: "1px solid #FFD70066",
+                boxShadow: "0 4px 18px rgba(255,215,0,0.25)",
+              }}
+            >
+              <Star className="w-3 h-3 fill-yellow-300 text-yellow-300" />
+              <span className="text-[10px] font-semibold tracking-wide text-yellow-200">
+                {selectedCount} selected
+              </span>
+              <button
+                onClick={() => clearSelected()}
+                title="Clear selection"
+                className="w-5 h-5 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-yellow-200/90 hover:text-yellow-100"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
 
           {/* Intelligence — Live Traffic Cameras Panel */}
           <IntelligencePanel

@@ -1,51 +1,62 @@
-## Plan — Crop Tile architectural base + voxel terrain
+# Golden selected stores + unified atlas tag clustering
 
-### Data model
-Extend `PlacedModel` with a `cropBase` block (persisted to localStorage):
+## Goal
+1. Let the user **select** atlas store/business pins. Selected stores render in a distinct **gold** style and always sit on top of every other tag.
+2. When many atlas tags (business pins, saved POIs, marketplace pins) crowd a screen area, collapse them into a **grouped pill** using the same HTML cluster system already used by `ModelLabelsOverlay` (single → coloured pill; many → category-grouped row of circular thumbnails).
+
+## UX
+
+- **Selecting a store**: clicking a store pin opens the existing POI/Business card. Card gains a new **"Select"** (star) toggle. Toggling marks the pin as selected.
+- A small **"Selected (n)"** chip near the QuickStoreFilter shows the count and exposes a "Clear all" action.
+- Selected store pins repaint with a gold pin canvas (gradient `#FFD700 → #B8860B`), thicker border, gold glow, slightly larger scale, and `eyeOffset.z = -50` so they always render in front of other billboards.
+- Selection survives reloads (localStorage), keyed by entity id.
+
+- **Unified cluster overlay**: a new `<AtlasTagsOverlay>` HTML layer (z above billboards) takes the union of:
+  - business pins (current `businessEntitiesRef` data)
+  - saved POIs (`pois` state)
+  - marketplace product pins
+  and projects them to screen space each `postRender`. Logic mirrors `ModelLabelsOverlay`:
+    - Cluster recomputed on `camera.moveEnd` (stable mid-flight).
+    - Pins within `clusterDistancePx` (default 64) of the same **category** merge.
+    - Single member → coloured glass pill with icon + name.
+    - Multiple → glass pill showing `CATEGORY · N` + up to 8 circular avatars (favicon if available, else initials) + `+N` overflow.
+    - Selected (gold) members always render as their own pill on top of the cluster row, never collapsed away, and the cluster pill gets a subtle gold ring if it contains any selected member.
+- When the overlay is active, the underlying Cesium billboards switch to a smaller "dot" canvas to avoid double-rendering; the HTML pill becomes the interactive surface. A toggle in the existing tag controls lets users go back to raw billboard pins.
+
+## Technical
+
+### New / changed files
+
+- `src/lib/atlasSelection.ts` (new): tiny store for the selected-pin set.
+  ```ts
+  type Sel = { kind: "biz" | "poi" | "market"; id: string; lat: number; lng: number; name: string; category?: string };
+  // get/set/toggle/clear + subscribe + localStorage persistence ("atlas_selected_tags")
+  ```
+- `src/pages/SpaceshipPage.tsx`:
+  - Import selection store + new overlay.
+  - `createPinCanvas` gains `goldenSelected?: boolean` → gold gradient + bigger ring.
+  - When adding business billboards, look up `isSelected(id)`; if true, paint gold pin and set `eyeOffset = new Cartesian3(0,0,-50)`. Subscribe to selection changes to repaint affected entities (replace `billboard.image` + `eyeOffset`).
+  - Existing POI / business / marketplace popups gain a **Select** star button wired to `toggleSelected(...)`.
+  - Mount `<AtlasTagsOverlay viewer={viewerRef.current} businesses={...} pois={pois} marketplace={...} onOpen={...} />` next to existing overlays.
+  - Show a "Selected (n) · Clear" chip near `QuickStoreFilter` when count > 0.
+- `src/components/atlas/AtlasTagsOverlay.tsx` (new): close copy of `ModelLabelsOverlay`'s clustering math, generalised to take a heterogeneous `AtlasTag[]` source. Reuses `MODEL_CATEGORIES` palette where possible and maps business amenity → category id (`restaurant|cafe|shop|hotel|fuel|health|landmark|other`). Selected tags rendered with gold border + glow; cluster pills containing selected members get a 1px gold outer ring.
+
+### Cluster algorithm (same as ModelLabelsOverlay)
+
+```text
+for each tag projected to screen:
+  if not used:
+    seed cluster with same category within R px
+    record key = sorted member ids joined by "|"
 ```
-cropBase?: {
-  shape: "circle" | "square",        // user picks per model
-  wireframe: boolean,                // grid + axis ruler toggle
-  voxelMode: "click" | "brush",      // active tool when editing
-  brushRadius?: number,              // m, default 4
-  brushStrength?: number,            // m per drag step, default 0.5
-  // 2D height field — uniform 1 m grid centered on the model, size = ceil(2 * cropRadius)
-  heights?: number[],                // length = gridSize * gridSize, meters
-  gridSize?: number,                 // derived from cropRadius at create time
-}
-```
-Defaults applied the first time `cropRadius` is set: `shape: "circle"`, `wireframe: false`, `voxelMode: "click"`, `brushRadius: 4`, `brushStrength: 0.5`, heights filled with 0.
 
-### Rendering (Cesium primitives only)
-1. **Solid grey base** — for each cropped model, build a flat grey polygon/rectangle (per `shape`) clamped to ground at the model's lat/lng. Material `Color(0.55,0.55,0.58,1)`, double-sided, depth-write enabled so it occludes the clipped tile underneath.
-2. **Voxel terrain mesh** — a `Cesium.Primitive` with a custom `GeometryInstance` built from the height field: for each 1 m cell, emit two triangles raised by `heights[i]`. Vertices in local east-north-up frame, transformed with `Transforms.eastNorthUpToFixedFrame(modelCenter)`. Update by rebuilding the primitive on edit (debounced 60 ms).
-3. **Wireframe overlay (toggle)** — a separate `Primitive` of `GeometryInstance` lines: minor grid every 1 m (cyan rgba(120,200,255,0.35)), major every 5 m (cyan rgba(120,220,255,0.85)). Axis ruler: two perpendicular bright lines through model origin with tick labels every 5 m rendered as billboards showing the meter value.
-4. All three pieces share an `entityGroupId = `cropbase-${model.id}`` so rebuild can clear in one pass.
-
-### Interaction
-- Crop Tile widget in `ModelTransformWidget` gains a sub-panel when `cropRadius > 0`:
-  - Shape segmented control: Circle | Square
-  - Wireframe toggle (Switch icon)
-  - Voxel tool segmented control: Click | Brush
-  - Brush radius slider (1–20 m), strength slider (0.1–2 m), shown only in Brush mode
-  - "Reset terrain" button (heights → 0)
-- Active voxel editing engages a Cesium `ScreenSpaceEventHandler` while the widget panel is open AND the user enables "Edit terrain" mode (toggle button). While active:
-  - Click mode: `LEFT_CLICK` raises the picked cell by 1 m, `SHIFT + LEFT_CLICK` lowers by 1 m.
-  - Brush mode: `LEFT_DOWN` + drag paints with falloff `strength * (1 − d/radius)` per frame, `SHIFT` inverts.
-  - Picking is done by ray-casting the cursor onto the voxel mesh; falls back to the local ENU plane intersection if the mesh hasn't built yet.
-  - While editing, camera rotation is disabled via `viewer.scene.screenSpaceCameraController.enableRotate = false`; restored on exit.
+Recompute only on `camera.moveEnd`; positions sync every `postRender` via direct DOM transforms (no React commits per frame).
 
 ### Persistence
-Persist `cropBase` (including heights array) inside `placedModels` localStorage. Heights are typed-array friendly numbers; for a 60 m crop that's 3 600 floats ≈ 30 KB — safe.
 
-### Files touched
-- `src/pages/SpaceshipPage.tsx` — extend `PlacedModel`, add `cropBaseEntitiesRef` map, `rebuildCropBaseForModel`, `applyAllCropBases`, wire to `applyAllCrops` so they refresh together; add voxel edit handler effect gated on editing model + active tool.
-- `src/components/ModelTransformWidget.tsx` — new props (`cropBase`, `onCropBaseChange`, `onResetTerrain`, `terrainEditing`, `onToggleTerrainEditing`) and the sub-panel UI under the existing Crop Tile control.
+- `localStorage["atlas_selected_tags"] = JSON.stringify(Sel[])`. No backend changes.
 
-### Out of scope (deliberate)
-- No undo stack for voxel edits (use Reset).
-- No texture painting on the base — solid grey only.
-- No round/erode brush — just additive/subtractive falloff.
-
-### Verification
-After the build, drive Playwright to: place a model in Manhattan, set crop radius 30 m, switch shape to Square, toggle wireframe on, switch to Brush mode, drag-paint a mound, reload and confirm the height field persists.
+## Out of scope
+- Server-side sync of selections across devices.
+- Editing pin geometry from the cluster pill (kept read-only; tap a thumbnail to open existing detail card).
+- Changes to the model-labels overlay itself.
