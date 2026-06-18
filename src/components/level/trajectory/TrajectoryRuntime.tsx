@@ -155,6 +155,7 @@ export function TrajectoryRender({
         <mesh
           key={i}
           position={p}
+          userData={{ __nocast: true }}
           onPointerDown={(e) => {
             if (editable && selected) beginDrag(i, e);
           }}
@@ -257,7 +258,18 @@ export function TrajectoryRunner({
       if (!(o as any).isMesh) return;
       if (excludeSet.has(o)) return;
       const ud = (o as any).userData ?? {};
-      if (ud.__gizmo) return;
+      if (ud.__gizmo || ud.__nocast) return;
+      // drei <Line> renders as Line2/LineSegments2, which masquerade as Mesh
+      // but throw inside raycast unless camera is set. Skip all line types.
+      if (
+        (o as any).isLine2 ||
+        (o as any).isLineSegments2 ||
+        (o as any).isLine ||
+        (o as any).isLineSegments
+      )
+        return;
+      const mat: any = (o as any).material;
+      if (mat && (mat.isLineMaterial || mat.isLineBasicMaterial || mat.isLineDashedMaterial)) return;
       targets.push(o);
     });
     const hit = raycaster.intersectObjects(targets, false)[0];
