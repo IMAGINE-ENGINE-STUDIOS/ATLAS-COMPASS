@@ -8,6 +8,8 @@ import {
   pushableRegistry,
   setInteractionPrompt,
   inputPulse,
+  characterRegistry,
+  splineDrivenIds,
 } from "./locomotionState";
 
 /* ----------------------------- input -------------------------------- */
