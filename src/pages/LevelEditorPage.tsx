@@ -19,7 +19,7 @@ import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
-import { getLocalLevel, getLocalLevelOwnerId, isLocalLevelId, updateLocalLevel } from "@/lib/localLevels";
+import { getLocalLevel, getLocalLevelOwnerId, isLocalLevelId, listLocalLevels, updateLocalLevel } from "@/lib/localLevels";
 import {
   writeSnapshot as writeLevelSnapshot,
   markCommitted as markLevelSnapshotCommitted,
@@ -1476,21 +1476,56 @@ export default function LevelEditorPage() {
         <main className="relative bg-slate-950">
           {rigRoomMode ? (
             <RigControllerRoom
-              sceneCharacters={scene.objects
-                .filter((o): o is CharacterObject => o.kind === "character")
-                .map((c) => ({
-                  id: c.id,
-                  name: c.name,
-                  url: c.url,
-                  currentAnimation: c.currentAnimation,
-                }))}
+              sceneCharacters={(() => {
+                // Rig room has no scene of its own, so surface every
+                // character authored across the user's local levels. The id
+                // is namespaced "<levelId>:<charId>" so apply-back can find
+                // the right level + object later.
+                const seen = new Set<string>();
+                const out: { id: string; name: string; url: string; currentAnimation?: string }[] = [];
+                for (const lvl of listLocalLevels()) {
+                  const chars = (lvl.scene?.objects ?? []).filter(
+                    (o): o is CharacterObject => o.kind === "character",
+                  );
+                  for (const c of chars) {
+                    const key = `${lvl.id}:${c.id}`;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    out.push({
+                      id: key,
+                      name: `${c.name} · ${lvl.name}`,
+                      url: c.url,
+                      currentAnimation: c.currentAnimation,
+                    });
+                  }
+                }
+                return out;
+              })()}
               onApplyToCharacter={(cid, patch) => {
-                patchObject(cid, {
-                  url: patch.url,
-                  ...(patch.currentAnimation
-                    ? { currentAnimation: patch.currentAnimation }
-                    : {}),
-                } as any);
+                // Rig-room ids are namespaced "<levelId>:<charId>"; write the
+                // patch back to that level on disk so it persists.
+                const [levelId, charId] = cid.split(":");
+                if (!levelId || !charId) {
+                  patchObject(cid, {
+                    url: patch.url,
+                    ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                  } as any);
+                  return;
+                }
+                const lvl = getLocalLevel(levelId);
+                if (!lvl) return;
+                const nextObjects = (lvl.scene.objects ?? []).map((o) =>
+                  o.id === charId
+                    ? ({
+                        ...o,
+                        url: patch.url,
+                        ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                      } as any)
+                    : o,
+                );
+                updateLocalLevel(levelId, {
+                  scene: { ...lvl.scene, objects: nextObjects },
+                });
               }}
             />
           ) : (
