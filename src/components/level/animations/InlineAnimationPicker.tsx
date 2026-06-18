@@ -23,10 +23,7 @@ export default function InlineAnimationPicker({
   const [query, setQuery] = useState("");
 
   const all = useMemo(
-    () =>
-      [...(extraEntries ?? []), ...CHARACTER_ANIMATION_LIBRARY].filter(
-        (e) => e.source !== "slot",
-      ),
+    () => [...(extraEntries ?? []), ...CHARACTER_ANIMATION_LIBRARY],
     [extraEntries],
   );
 

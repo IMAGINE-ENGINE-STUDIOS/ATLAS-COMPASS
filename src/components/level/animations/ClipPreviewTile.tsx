@@ -3,7 +3,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
-import { Loader2, Upload as UploadIcon, Film } from "lucide-react";
+import { Film } from "lucide-react";
 import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
 import { retargetClip } from "@/lib/animationRetarget";
 
@@ -41,12 +41,7 @@ export default function ClipPreviewTile({ entry }: { entry: CharacterClipEntry }
       ref={rootRef}
       className="relative w-full aspect-square rounded-md overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 border border-border/40"
     >
-      {entry.source === "slot" ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground p-2 text-center">
-          <UploadIcon className="w-5 h-5 opacity-50" />
-          <span className="text-[9px] leading-tight">Upload .glb to enable</span>
-        </div>
-      ) : !visible ? (
+      {!visible ? (
         <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/40">
           <Film className="w-5 h-5" />
         </div>

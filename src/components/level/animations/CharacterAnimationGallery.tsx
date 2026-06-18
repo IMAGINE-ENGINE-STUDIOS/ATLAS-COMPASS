@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   CHARACTER_ANIMATION_LIBRARY,
   CLIP_CATEGORIES,
-  matchClipToSlot,
+  inferUploadedCategory,
   type CharacterClipEntry,
   type ClipCategory,
 } from "@/lib/characterAnimationLibrary";
@@ -80,16 +80,16 @@ export default function CharacterAnimationGallery({
         const url = URL.createObjectURL(file);
         const gltf = await loader.loadAsync(url);
         for (const clip of gltf.animations) {
-          const matched = matchClipToSlot(clip.name);
+          const category = inferUploadedCategory(clip.name);
           newEntries.push({
             id: `user-${Math.random().toString(36).slice(2, 9)}`,
-            name: matched ? `${matched.name} (${clip.name})` : clip.name || file.name,
-            category: matched?.category ?? "work",
-            tags: [...(matched?.tags ?? ["work"]), "user"],
+            name: clip.name || file.name,
+            category,
+            tags: [category, "user"],
             source: "user",
             url,
             clipName: clip.name,
-            loop: matched?.loop ?? true,
+            loop: true,
           });
         }
       }
@@ -171,18 +171,16 @@ export default function CharacterAnimationGallery({
             <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
               {filtered.map((e) => {
                 const isSelected = selected === e.id || (!selected && currentClip === e.clipName);
-                const isSlot = e.source === "slot";
                 return (
                   <button
                     key={e.id}
                     onClick={() => setSelected(e.id)}
-                    onDoubleClick={() => !isSlot && apply(e)}
-                    disabled={isSlot}
+                    onDoubleClick={() => apply(e)}
                     className={`group text-left flex flex-col gap-1 rounded-lg p-1.5 transition-all ${
                       isSelected
                         ? "ring-2 ring-primary bg-primary/10"
                         : "ring-1 ring-border/30 hover:ring-border bg-card/40"
-                    } ${isSlot ? "opacity-60" : ""}`}
+                    }`}
                   >
                     <ClipPreviewTile entry={e} />
                     <div className="flex items-center gap-1 px-1 pt-0.5">
@@ -214,7 +212,7 @@ export default function CharacterAnimationGallery({
             </Button>
             <Button
               size="sm"
-              disabled={!selected || allEntries.find((e) => e.id === selected)?.source === "slot"}
+              disabled={!selected}
               onClick={() => {
                 const e = allEntries.find((x) => x.id === selected);
                 if (e) apply(e);
