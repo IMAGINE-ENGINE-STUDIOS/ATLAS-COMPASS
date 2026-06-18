@@ -1373,6 +1373,11 @@ export default function LevelEditorPage() {
                 onRemove={removeTrack}
                 onPatch={patchTrack}
                 disabled={!isOwner}
+                onOpenGallery={(targetId) => {
+                  const obj = scene.objects.find((o) => o.id === targetId) ?? null;
+                  setObjectGalleryTarget(obj);
+                  setObjectGalleryOpen(true);
+                }}
               />
             </TabsContent>
 
