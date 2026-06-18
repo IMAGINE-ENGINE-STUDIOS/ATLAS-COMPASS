@@ -35,7 +35,7 @@ interface LibraryCharacter {
 }
 
 const KHRONOS =
-  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0";
+  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models";
 const THREE_EX = "https://threejs.org/examples/models/gltf";
 
 const CHARACTER_LIBRARY: LibraryCharacter[] = [
@@ -48,8 +48,10 @@ const CHARACTER_LIBRARY: LibraryCharacter[] = [
   // Creatures
   { id: "fox",         name: "Fox",           category: "Creature", url: `${KHRONOS}/Fox/glTF-Binary/Fox.glb`,                     credit: "Khronos (CC0)" },
   { id: "brainstem",   name: "BrainStem",     category: "Creature", url: `${KHRONOS}/BrainStem/glTF-Binary/BrainStem.glb`,         credit: "Khronos (CC-BY)" },
-  // Monsters
-  { id: "monster",     name: "Monster",       category: "Monster",  url: `${KHRONOS}/Monster/glTF-Binary/Monster.glb`,             credit: "Khronos (CC-BY)" },
+  { id: "flamingo",    name: "Flamingo",      category: "Creature", url: `${THREE_EX}/Flamingo.glb`,                              credit: "three.js" },
+  { id: "stork",       name: "Stork",         category: "Creature", url: `${THREE_EX}/Stork.glb`,                                 credit: "three.js" },
+  { id: "parrot",      name: "Parrot",        category: "Creature", url: `${THREE_EX}/Parrot.glb`,                                credit: "three.js" },
+  { id: "horse",       name: "Horse",         category: "Creature", url: `${THREE_EX}/Horse.glb`,                                 credit: "three.js" },
   // Robots
   { id: "robot-exp",   name: "Robot Expressive", category: "Robot", url: `${THREE_EX}/RobotExpressive/RobotExpressive.glb`,       credit: "three.js" },
 ];
