@@ -1093,9 +1093,11 @@ export default function RigControllerRoom({
         </div>
 
         <XrayBodyMap
+          url={url}
+          bones={bones}
           controllerMap={controllerMap}
           selectedBoneName={selectedBoneName}
-          onSelectController={(boneName) => setSelectedBoneName(boneName)}
+          onSelectBone={(boneName) => setSelectedBoneName(boneName)}
           onClearControllers={mappedCount > 0 ? handleClearControllers : undefined}
           mappedCount={mappedCount}
         />
