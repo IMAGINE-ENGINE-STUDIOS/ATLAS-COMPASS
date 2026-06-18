@@ -21,6 +21,11 @@ import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
 import { getLocalLevel, getLocalLevelOwnerId, isLocalLevelId, updateLocalLevel } from "@/lib/localLevels";
 import {
+  writeSnapshot as writeLevelSnapshot,
+  markCommitted as markLevelSnapshotCommitted,
+  latestSnapshot as latestLevelSnapshot,
+} from "@/lib/levelBackup";
+import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
   SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
