@@ -21,6 +21,14 @@ export interface BaseObject {
    */
   interaction?: "pushable" | "sit" | "use";
   /**
+   * Lightweight physics toggles applied at Play time. All flags default to
+   * OFF so authored placement is preserved unless the user opts in.
+   */
+  physics?: {
+    /** When true and `interaction === "pushable"`, gravity pulls the object down. */
+    gravity?: boolean;
+  };
+  /**
    * Per-face material overrides. Keys are stable face identifiers that
    * depend on the object's shape:
    *  - Polygon flat:      "cap"
