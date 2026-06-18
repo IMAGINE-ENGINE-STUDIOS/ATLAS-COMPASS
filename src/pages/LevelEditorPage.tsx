@@ -242,6 +242,14 @@ function makeLight(kind: SceneLight["kind"]): SceneLight {
 export default function LevelEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  /**
+   * When mounted at /locomotion, the editor swaps its central viewport for
+   * the Rig Controller Room while keeping every sidebar (objects, layers,
+   * terrain, inspector, animations) so users can sculpt rigs surrounded by
+   * the full scene-creation toolset.
+   */
+  const rigRoomMode = location.pathname === "/locomotion";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
