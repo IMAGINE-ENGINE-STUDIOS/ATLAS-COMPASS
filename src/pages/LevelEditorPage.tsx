@@ -248,46 +248,6 @@ export default function LevelEditorPage() {
     }));
   }, [scene.userClipLibrary]);
 
-  const addUserClipsToLibrary = useCallback(
-    async (entries: CharacterClipEntry[]) => {
-      // Convert blob URLs to data URLs so they survive a reload.
-      const persisted = await Promise.all(
-        entries.map(async (e) => {
-          let url = e.url ?? "";
-          if (url.startsWith("blob:")) {
-            try {
-              const blob = await fetch(url).then((r) => r.blob());
-              url = await new Promise<string>((res, rej) => {
-                const r = new FileReader();
-                r.onload = () => res(r.result as string);
-                r.onerror = () => rej(r.error);
-                r.readAsDataURL(blob);
-              });
-            } catch (err) {
-              console.warn("[clip-persist] keeping blob url, won't survive reload", err);
-            }
-          }
-          return {
-            id: e.id,
-            name: e.name,
-            category: String(e.category),
-            tags: e.tags,
-            url,
-            clipName: e.clipName,
-            loop: e.loop,
-          };
-        }),
-      );
-      updateScene((s) => {
-        s.userClipLibrary = [...(s.userClipLibrary ?? []), ...persisted];
-        return s;
-      });
-    },
-    // updateScene is stable enough (defined in this component); spread to silence lint
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
   // Terrain sculpting tool state
   const [sculptActive, setSculptActive] = useState(false);
   const [sculptTool, setSculptTool] = useState<"lift" | "dig" | "smooth" | "flatten">("lift");
