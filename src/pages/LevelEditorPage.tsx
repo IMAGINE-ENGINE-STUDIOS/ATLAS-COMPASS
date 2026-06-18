@@ -1645,6 +1645,18 @@ export default function LevelEditorPage() {
         target={objectGalleryTarget}
         onApply={(track) => addTrack(track)}
       />
+
+      <TerrainGallery
+        open={terrainGalleryOpen}
+        onOpenChange={setTerrainGalleryOpen}
+        currentTerrain={scene.terrain}
+        onLoad={(terrain) =>
+          updateScene((s) => {
+            s.terrain = { ...terrain, enabled: true };
+            return s;
+          })
+        }
+      />
     </div>
   );
 }
