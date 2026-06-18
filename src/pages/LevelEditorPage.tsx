@@ -1350,6 +1350,8 @@ export default function LevelEditorPage() {
                   paintedFaces={paintedFaces}
                   onToggleFacePaint={() => setFacePaintActive((v) => !v)}
                   onClearFacePaint={() => setPaintedFaces(new Set())}
+                  userClips={userClipEntries}
+                  onOpenCharacterGallery={() => setCharacterGalleryOpen(true)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
