@@ -7,6 +7,39 @@ import { splineDrivenIds } from "../locomotion/locomotionState";
 
 /* ---------- helpers ---------- */
 
+/** Speed at which spline-driven characters switch from walk to run (u/s). */
+const RUN_THRESHOLD = 5;
+/** Below this effective speed, fall back to idle. */
+const IDLE_THRESHOLD = 0.05;
+
+function findClip(names: string[], ...needles: string[]): string | null {
+  const lower = names.map((n) => n.toLowerCase());
+  for (const n of needles) {
+    const i = lower.findIndex((s) => s.includes(n));
+    if (i !== -1) return names[i];
+  }
+  return null;
+}
+
+/** Locate the cloned glTF root inside a follower group so we can drive its
+ *  animation actions. Returns null for non-character followers. */
+function findCharacterRoot(follower: THREE.Object3D): THREE.Object3D | null {
+  let found: THREE.Object3D | null = null;
+  follower.traverse((o) => {
+    if (found) return;
+    const ud: any = (o as any).userData;
+    if (ud && Array.isArray(ud.__animationNames) && ud.__actions) {
+      found = o;
+    }
+  });
+  return found;
+}
+
+interface FollowerAnimState {
+  current: string | null;
+  action: THREE.AnimationAction | null;
+}
+
 function buildCurve(obj: TrajectoryObject): THREE.CatmullRomCurve3 | null {
   if (!obj.points || obj.points.length < 2) return null;
   const pts = obj.points.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
