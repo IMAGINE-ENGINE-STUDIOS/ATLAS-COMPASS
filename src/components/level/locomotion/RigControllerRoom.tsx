@@ -172,6 +172,9 @@ function Rig({
   activeClip,
   playing,
   speed,
+  pendingPose,
+  onPoseApplied,
+  bridgeRef,
 }: {
   url: string;
   showSkeleton: boolean;
@@ -183,6 +186,9 @@ function Rig({
   activeClip: string | null;
   playing: boolean;
   speed: number;
+  pendingPose: BonePose[] | null;
+  onPoseApplied: () => void;
+  bridgeRef: React.MutableRefObject<RigBridge>;
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
@@ -208,11 +214,17 @@ function Rig({
     const clips = (gltf.animations as THREE.AnimationClip[]) ?? [];
     clipsRef.current = clips;
     mixerRef.current = new THREE.AnimationMixer(cloned);
+    bridgeRef.current.root = cloned;
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
       clips: clips.map((c) => c.name),
     });
+    // Apply a queued pose (from a loaded save) once the rig is mounted.
+    if (pendingPose && pendingPose.length > 0) {
+      try { applyPose(cloned, pendingPose); } catch {}
+      onPoseApplied();
+    }
     return () => {
       r3fScene.remove(helper);
       helper.dispose?.();
@@ -220,6 +232,7 @@ function Rig({
       mixerRef.current?.stopAllAction();
       mixerRef.current = null;
       actionRef.current = null;
+      if (bridgeRef.current.root === cloned) bridgeRef.current.root = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
