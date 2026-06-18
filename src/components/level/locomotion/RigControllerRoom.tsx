@@ -847,44 +847,13 @@ export default function RigControllerRoom({
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <Label className="text-xs">Controllers ({mappedCount}/{CONTROLLERS.length})</Label>
-            {mappedCount > 0 && (
-              <button
-                className="text-[10px] text-muted-foreground hover:text-foreground underline"
-                onClick={handleClearControllers}
-              >clear</button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-1">
-            {CONTROLLERS.map((c) => {
-              const mapped = controllerMap[c.key];
-              const active = selectedBoneName === mapped;
-              return (
-                <button
-                  key={c.key}
-                  disabled={!mapped}
-                  onClick={() => mapped && setSelectedBoneName(mapped)}
-                  className={`flex items-center gap-1.5 px-1.5 py-1 rounded border text-[10px] text-left transition ${
-                    !mapped
-                      ? "border-border/20 text-muted-foreground/60"
-                      : active
-                        ? "border-foreground/40 bg-foreground/10"
-                        : "border-border/40 hover:bg-muted/30"
-                  }`}
-                  title={mapped ?? "Not detected"}
-                >
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ background: mapped ? c.color : "transparent", border: `1px solid ${c.color}` }}
-                  />
-                  <span className="truncate">{c.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <XrayBodyMap
+          controllerMap={controllerMap}
+          selectedBoneName={selectedBoneName}
+          onSelectController={(boneName) => setSelectedBoneName(boneName)}
+          onClearControllers={mappedCount > 0 ? handleClearControllers : undefined}
+          mappedCount={mappedCount}
+        />
 
         <div>
           <Label className="text-xs">All bones ({bones.length})</Label>
