@@ -4,6 +4,16 @@ import { Star } from "lucide-react";
 import { MODEL_CATEGORIES, getCategory } from "./ModelLabelsOverlay";
 import { isSelected, subscribeSelection } from "@/lib/atlasSelection";
 
+function faviconFor(website?: string): string | null {
+  if (!website) return null;
+  try {
+    const host = new URL(website.startsWith("http") ? website : `https://${website}`).hostname;
+    return `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
+  } catch {
+    return null;
+  }
+}
+
 export interface AtlasTag {
   kind: "biz" | "poi" | "market";
   id: string;
@@ -159,21 +169,30 @@ export default function AtlasTagsOverlay({
                 const sel = isSelected(m.id);
                 const accent = sel ? "#FFD700" : cat.hex;
                 const initials = m.name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase().slice(0, 2) || "·";
+                const logo = faviconFor(m.website);
                 return (
                   <button
                     key={m.id}
                     type="button"
                     title={m.name}
                     onClick={(e) => { e.stopPropagation(); onSelect?.(m); }}
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold transition-transform hover:scale-110 relative"
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold transition-transform hover:scale-110 relative overflow-hidden"
                     style={{
-                      background: sel ? "linear-gradient(135deg,#FFE56A,#B8860B)" : `${accent}33`,
+                      background: logo ? "#fff" : (sel ? "linear-gradient(135deg,#FFE56A,#B8860B)" : `${accent}33`),
                       border: `1.5px solid ${accent}`,
                       color: sel ? "#1a1300" : accent,
                       boxShadow: sel ? "0 0 10px #FFD70088" : undefined,
                     }}
                   >
-                    {initials}
+                    {logo ? (
+                      <img
+                        src={logo}
+                        alt=""
+                        className="w-4 h-4 object-contain"
+                        loading="lazy"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : initials}
                     {sel && (
                       <Star className="w-2 h-2 absolute -top-0.5 -right-0.5 fill-yellow-300 text-yellow-300" />
                     )}
