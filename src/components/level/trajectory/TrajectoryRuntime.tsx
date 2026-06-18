@@ -284,6 +284,7 @@ export function TrajectoryRunner({
   const phaseRef = useRef<Map<string, number>>(new Map()); // key: traj.id + ":" + followerId
   const origRef = useRef<Map<string, [number, number, number]>>(new Map()); // followerId -> original pos
   const smoothYRef = useRef<Map<string, number>>(new Map()); // smoothed Y per follower
+  const animRef = useRef<Map<string, FollowerAnimState>>(new Map()); // followerId -> current anim
   const { scene: r3fScene } = useThree();
 
   const trajectories = useMemo(
