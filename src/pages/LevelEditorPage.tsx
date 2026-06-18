@@ -1814,6 +1814,83 @@ function TextureSlot({
   );
 }
 
+function CharacterInspector({
+  obj, disabled, onPatch,
+}: {
+  obj: CharacterObject;
+  disabled?: boolean;
+  onPatch: (patch: Partial<CharacterObject>) => void;
+}) {
+  const names = useCharacterAnimationNames(obj.url);
+  const current = obj.currentAnimation || names[0] || "";
+  return (
+    <div className="space-y-3 pt-3 border-t border-border/40">
+      <div>
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Character</p>
+        <p className="text-[11px] text-foreground/80">{obj.source || "Custom rig"}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">
+          {names.length} animation clip{names.length === 1 ? "" : "s"} · full body, finger & toe rig
+        </p>
+      </div>
+
+      <div>
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Animation</Label>
+        <Select
+          value={current}
+          onValueChange={(v) => onPatch({ currentAnimation: v })}
+          disabled={disabled || names.length === 0}
+        >
+          <SelectTrigger className="h-8 text-xs mt-1">
+            <SelectValue placeholder={names.length === 0 ? "No clips" : "Pick a clip"} />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {names.map((n) => (
+              <SelectItem key={n} value={n} className="text-xs">{n}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Speed</Label>
+          <span className="text-[10px] font-mono text-muted-foreground">{(obj.animationSpeed ?? 1).toFixed(2)}×</span>
+        </div>
+        <Slider
+          min={0}
+          max={3}
+          step={0.05}
+          value={[obj.animationSpeed ?? 1]}
+          onValueChange={([v]) => onPatch({ animationSpeed: v })}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label className="text-[11px]">Paused</Label>
+        <Switch
+          checked={!!obj.paused}
+          onCheckedChange={(v) => onPatch({ paused: v })}
+          disabled={disabled}
+        />
+      </div>
+
+      <div>
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Source URL</Label>
+        <Input
+          value={obj.url}
+          onChange={(e) => onPatch({ url: e.target.value })}
+          disabled={disabled}
+          className="h-8 text-[11px] mt-1 font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Paste any rigged .glb/.gltf URL. Defaults to the Xbot example rig.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function ModelMaterialEditor({
   obj, disabled, onPatch,
 }: {
