@@ -225,6 +225,51 @@ export type Database = {
         }
         Relationships: []
       }
+      rig_saves: {
+        Row: {
+          active_clip: string | null
+          controller_map: Json
+          created_at: string
+          id: string
+          model_url: string
+          name: string
+          pose: Json
+          source_label: string | null
+          speed: number
+          thumbnail: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_clip?: string | null
+          controller_map?: Json
+          created_at?: string
+          id?: string
+          model_url: string
+          name: string
+          pose?: Json
+          source_label?: string | null
+          speed?: number
+          thumbnail?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_clip?: string | null
+          controller_map?: Json
+          created_at?: string
+          id?: string
+          model_url?: string
+          name?: string
+          pose?: Json
+          source_label?: string | null
+          speed?: number
+          thumbnail?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
