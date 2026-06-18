@@ -11,7 +11,7 @@ import {
   X, ArrowUpRight, User,
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
-import { Sparkles, Library } from "lucide-react";
+import { Sparkles, Library, ChevronLeft, Search } from "lucide-react";
 import CharacterAnimationGallery from "@/components/level/animations/CharacterAnimationGallery";
 import ObjectAnimationGallery from "@/components/level/animations/ObjectAnimationGallery";
 import InlineAnimationPicker from "@/components/level/animations/InlineAnimationPicker";
