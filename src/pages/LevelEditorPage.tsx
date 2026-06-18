@@ -1742,8 +1742,8 @@ function ObjectInspector({
             obj={obj as CharacterObject}
             disabled={disabled}
             onPatch={(patch) => onPatch(patch as any)}
-            userClips={userClipEntries}
-            onOpenGallery={() => setCharacterGalleryOpen(true)}
+            userClips={userClips}
+            onOpenGallery={onOpenCharacterGallery}
           />
         </Suspense>
       )}
