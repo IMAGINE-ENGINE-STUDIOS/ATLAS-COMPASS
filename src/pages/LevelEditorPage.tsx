@@ -11,6 +11,11 @@ import {
   X, ArrowUpRight, User,
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
+import { Sparkles, Library } from "lucide-react";
+import CharacterAnimationGallery from "@/components/level/animations/CharacterAnimationGallery";
+import ObjectAnimationGallery from "@/components/level/animations/ObjectAnimationGallery";
+import InlineAnimationPicker from "@/components/level/animations/InlineAnimationPicker";
+import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
@@ -222,6 +227,26 @@ export default function LevelEditorPage() {
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale" | null>("translate");
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
   const [terrainOpen, setTerrainOpen] = useState(false);
+
+  // Animation gallery modals — opened from inspectors.
+  const [characterGalleryOpen, setCharacterGalleryOpen] = useState(false);
+  const [objectGalleryOpen, setObjectGalleryOpen] = useState(false);
+  const [objectGalleryTarget, setObjectGalleryTarget] = useState<SceneObject | null>(null);
+
+  /** User-uploaded character clips persisted on the scene. */
+  const userClipEntries = useMemo<CharacterClipEntry[]>(() => {
+    const lib = scene.userClipLibrary ?? [];
+    return lib.map((e) => ({
+      id: e.id,
+      name: e.name,
+      category: e.category as any,
+      tags: e.tags,
+      source: "user" as const,
+      url: e.url,
+      clipName: e.clipName,
+      loop: e.loop,
+    }));
+  }, [scene.userClipLibrary]);
 
   // Terrain sculpting tool state
   const [sculptActive, setSculptActive] = useState(false);
@@ -1325,6 +1350,8 @@ export default function LevelEditorPage() {
                   paintedFaces={paintedFaces}
                   onToggleFacePaint={() => setFacePaintActive((v) => !v)}
                   onClearFacePaint={() => setPaintedFaces(new Set())}
+                  userClips={userClipEntries}
+                  onOpenCharacterGallery={() => setCharacterGalleryOpen(true)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
@@ -1348,6 +1375,11 @@ export default function LevelEditorPage() {
                 onRemove={removeTrack}
                 onPatch={patchTrack}
                 disabled={!isOwner}
+                onOpenGallery={(targetId) => {
+                  const obj = scene.objects.find((o) => o.id === targetId) ?? null;
+                  setObjectGalleryTarget(obj);
+                  setObjectGalleryOpen(true);
+                }}
               />
             </TabsContent>
 
@@ -1552,6 +1584,58 @@ export default function LevelEditorPage() {
           }}
         />
       )}
+
+      <CharacterAnimationGallery
+        open={characterGalleryOpen}
+        onOpenChange={setCharacterGalleryOpen}
+        currentClip={
+          scene.objects.find((o) => o.id === selectedId && o.kind === "character") &&
+          (scene.objects.find((o) => o.id === selectedId) as CharacterObject | undefined)?.currentAnimation
+        }
+        extraEntries={userClipEntries}
+        onApply={(entry) => {
+          const obj = scene.objects.find((o) => o.id === selectedId);
+          if (!obj || obj.kind !== "character") return;
+          const patch: Partial<CharacterObject> = { currentAnimation: entry.clipName };
+          if (entry.source !== "builtin" && entry.url) patch.url = entry.url;
+          patchObject(obj.id, patch as any);
+        }}
+        onUserClipsParsed={async (entries) => {
+          const persisted = await Promise.all(
+            entries.map(async (e) => {
+              let url = e.url ?? "";
+              if (url.startsWith("blob:")) {
+                try {
+                  const blob = await fetch(url).then((r) => r.blob());
+                  url = await new Promise<string>((res, rej) => {
+                    const r = new FileReader();
+                    r.onload = () => res(r.result as string);
+                    r.onerror = () => rej(r.error);
+                    r.readAsDataURL(blob);
+                  });
+                } catch (err) {
+                  console.warn("[clip-persist] keeping blob url", err);
+                }
+              }
+              return {
+                id: e.id, name: e.name, category: String(e.category),
+                tags: e.tags, url, clipName: e.clipName, loop: e.loop,
+              };
+            }),
+          );
+          updateScene((s) => {
+            s.userClipLibrary = [...(s.userClipLibrary ?? []), ...persisted];
+            return s;
+          });
+        }}
+      />
+
+      <ObjectAnimationGallery
+        open={objectGalleryOpen}
+        onOpenChange={setObjectGalleryOpen}
+        target={objectGalleryTarget}
+        onApply={(track) => addTrack(track)}
+      />
     </div>
   );
 }
@@ -1589,6 +1673,7 @@ function Vec3Field({
 function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
+  userClips, onOpenCharacterGallery,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -1604,6 +1689,8 @@ function ObjectInspector({
   paintedFaces: Set<string>;
   onToggleFacePaint: () => void;
   onClearFacePaint: () => void;
+  userClips: CharacterClipEntry[];
+  onOpenCharacterGallery: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -1707,6 +1794,8 @@ function ObjectInspector({
             obj={obj as CharacterObject}
             disabled={disabled}
             onPatch={(patch) => onPatch(patch as any)}
+            userClips={userClips}
+            onOpenGallery={onOpenCharacterGallery}
           />
         </Suspense>
       )}
@@ -1895,11 +1984,13 @@ function TextureSlot({
 }
 
 function CharacterInspector({
-  obj, disabled, onPatch,
+  obj, disabled, onPatch, userClips, onOpenGallery,
 }: {
   obj: CharacterObject;
   disabled?: boolean;
   onPatch: (patch: Partial<CharacterObject>) => void;
+  userClips?: CharacterClipEntry[];
+  onOpenGallery?: () => void;
 }) {
   const names = useCharacterAnimationNames(obj.url);
   const current = obj.currentAnimation || names[0] || "";
@@ -1912,6 +2003,30 @@ function CharacterInspector({
           {names.length} animation clip{names.length === 1 ? "" : "s"} · full body, finger & toe rig
         </p>
       </div>
+
+      {onOpenGallery && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-8 text-[11px]"
+          disabled={disabled}
+          onClick={onOpenGallery}
+        >
+          <Library className="w-3.5 h-3.5 mr-1" /> Browse 100 animations
+        </Button>
+      )}
+
+      <InlineAnimationPicker
+        currentClipName={current}
+        extraEntries={userClips}
+        onPick={(entry) => {
+          // If the entry is from a different rig URL, swap to its url so the
+          // clip can play. Otherwise just update the clip name.
+          const patch: Partial<CharacterObject> = { currentAnimation: entry.clipName };
+          if (entry.source !== "builtin" && entry.url) patch.url = entry.url;
+          onPatch(patch);
+        }}
+      />
 
       <div>
         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Animation</Label>
@@ -2310,13 +2425,14 @@ function MultiLightInspector({
 }
 
 function AnimationPanel({
-  scene, onAdd, onRemove, onPatch, disabled,
+  scene, onAdd, onRemove, onPatch, disabled, onOpenGallery,
 }: {
   scene: LevelScene;
   onAdd: (t: AnimationTrack) => void;
   onRemove: (id: string) => void;
   onPatch: (id: string, patch: Partial<AnimationTrack>) => void;
   disabled?: boolean;
+  onOpenGallery?: (targetId: string) => void;
 }) {
   const [target, setTarget] = useState<string>("");
 
@@ -2356,6 +2472,17 @@ function AnimationPanel({
         <Button size="sm" onClick={addTrack} disabled={disabled}>
           <Plus className="w-3.5 h-3.5" />
         </Button>
+        {onOpenGallery && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={disabled || !target}
+            onClick={() => target && onOpenGallery(target)}
+            title="Browse animation presets"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
 
       {scene.animations.length === 0 && (
