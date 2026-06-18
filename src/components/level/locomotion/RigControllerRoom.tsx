@@ -983,6 +983,11 @@ export default function RigControllerRoom({
           >
             <Environment preset="city" />
             <SnapshotBridge bridgeRef={bridgeRef} />
+            <CameraDirector
+              position={activePreset.position}
+              target={activePreset.target}
+              tick={cameraTick}
+            />
             {url && (
               <Rig
                 url={url}
@@ -1006,6 +1011,32 @@ export default function RigControllerRoom({
         </Canvas>
         <div className="absolute top-3 left-3 px-3 py-1.5 rounded-md bg-background/70 backdrop-blur border border-border/40 text-[11px] text-muted-foreground">
           {selectedBoneName ? <>Selected: <span className="text-foreground font-mono">{selectedBoneName}</span></> : "Click a controller marker or bone in the list"}
+        </div>
+
+        {/* Cinematic camera deck — Reset + 4 preset angles. */}
+        <div className="absolute top-3 right-3 flex items-center gap-1 px-1.5 py-1 rounded-md bg-background/70 backdrop-blur border border-border/40">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[11px] gap-1"
+            onClick={() => focusCamera("reset")}
+            title="Reset view"
+          >
+            <Maximize2 className="w-3 h-3" /> Reset
+          </Button>
+          <div className="w-px h-4 bg-border/40 mx-0.5" />
+          {CAMERA_PRESETS.filter((p) => p.id !== "reset").map((p, i) => (
+            <Button
+              key={p.id}
+              size="sm"
+              variant={activeCamera === p.id ? "default" : "ghost"}
+              className="h-7 px-2 text-[11px] gap-1"
+              onClick={() => focusCamera(p.id)}
+              title={p.label}
+            >
+              <Camera className="w-3 h-3" /> {i + 1}
+            </Button>
+          ))}
         </div>
       </main>
     </div>
