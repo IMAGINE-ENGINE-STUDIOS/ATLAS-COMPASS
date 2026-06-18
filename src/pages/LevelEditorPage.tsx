@@ -493,6 +493,19 @@ export default function LevelEditorPage() {
       setSaving(true);
       setAutosaveStatus("saving");
       const persistable = stripHdriBlobs(id, scene);
+      const snapshotAt = Date.now();
+      // ALWAYS write a backup snapshot to IndexedDB before attempting the
+      // primary save. If anything below fails (quota, network, crash) the
+      // user's work is recoverable on next load.
+      const snapshotOk = await writeLevelSnapshot({
+        levelId: id,
+        savedAt: snapshotAt,
+        committed: false,
+        name,
+        description,
+        isPublic,
+        scene: persistable,
+      });
       if (isLocalLevelId(id)) {
         let ok = false;
         try {
@@ -504,24 +517,49 @@ export default function LevelEditorPage() {
         if (ok) {
           lastSavedAtRef.current = Date.now();
           setAutosaveStatus("saved");
+          markLevelSnapshotCommitted(id, snapshotAt).catch(() => {});
           if (!opts.silent) toast.success("Saved");
         } else {
-          setAutosaveStatus("error");
-          toast.error("Local storage is full — uploaded models are too large to autosave. Remove a model or sign in to save to the cloud.");
+          // Primary local save failed but the IDB snapshot is our safety net.
+          if (snapshotOk) {
+            lastSavedAtRef.current = Date.now();
+            setAutosaveStatus("saved");
+            if (!opts.silent) {
+              toast.warning(
+                "Saved to local backup (browser storage is full). Your work is safe and will be restored on reload.",
+              );
+            }
+          } else {
+            setAutosaveStatus("error");
+            toast.error("Could not save — both local storage and backup failed. Please export or copy your work.");
+          }
         }
         return;
       }
-      const { error } = await supabase
-        .from("levels")
-        .update({ name, description, is_public: isPublic, scene: persistable as any })
-        .eq("id", id);
+      // Cloud save with retry — never lose data to a transient network blip.
+      let error: { message?: string } | null = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const res = await supabase
+          .from("levels")
+          .update({ name, description, is_public: isPublic, scene: persistable as any })
+          .eq("id", id);
+        error = (res as any).error ?? null;
+        if (!error) break;
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
       setSaving(false);
       if (error) {
         setAutosaveStatus("error");
-        toast.error(error.message);
+        // The IDB snapshot persists — the user can reload and recover.
+        toast.error(
+          snapshotOk
+            ? `Cloud save failed (${error.message ?? "unknown error"}). A local backup was kept — we'll restore it next time.`
+            : (error.message ?? "Save failed"),
+        );
       } else {
         lastSavedAtRef.current = Date.now();
         setAutosaveStatus("saved");
+        markLevelSnapshotCommitted(id, snapshotAt).catch(() => {});
         if (!opts.silent) toast.success("Saved");
       }
     },
