@@ -939,6 +939,7 @@ export default function RigControllerRoom({
             {url && (
               <Rig
                 url={url}
+                targetHeight={lookupRealHeight(url)}
                 showSkeleton={showSkeleton}
                 selectedBoneName={selectedBoneName}
                 transformMode={transformMode}
