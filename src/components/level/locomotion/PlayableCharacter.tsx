@@ -135,7 +135,7 @@ export default function PlayableCharacter({
   const rootRef = useRef<THREE.Group>(null);
   const visualRef = useRef<THREE.Group>(null);
   const { actions, names } = useAnimations(gltf.animations, cloned);
-  const { camera, scene: threeScene } = useThree();
+  const { camera, scene: threeScene, gl } = useThree();
 
   // Settings (with defaults)
   const cfg = obj.locomotion ?? {};
@@ -183,9 +183,7 @@ export default function PlayableCharacter({
   // Pointer-lock + mouse look (active only when enabled).
   useEffect(() => {
     if (!enabled) return;
-    const gl = (threeScene as any).__r3f?.root?.getState?.()?.gl;
-    const canvas: HTMLCanvasElement | undefined =
-      gl?.domElement ?? document.querySelector("canvas") ?? undefined;
+    const canvas: HTMLCanvasElement | undefined = gl?.domElement;
     if (!canvas) return;
     const onClick = () => {
       if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.();
@@ -214,7 +212,7 @@ export default function PlayableCharacter({
       window.removeEventListener("wheel", onWheel);
       if (document.pointerLockElement === canvas) document.exitPointerLock?.();
     };
-  }, [enabled, cameraMode, threeScene]);
+  }, [enabled, cameraMode, gl]);
 
   // Initial position: start at the object's authored position.
   useEffect(() => {
