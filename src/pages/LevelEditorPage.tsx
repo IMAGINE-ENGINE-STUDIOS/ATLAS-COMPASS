@@ -3283,6 +3283,81 @@ function TrajectoryInspector({
     if (obj.points.length <= 2) return;
     onPatch({ points: obj.points.filter((_, j) => j !== i) });
   };
+
+  // Template shape generators (centered at origin in object-local space).
+  const applyTemplate = (name: string) => {
+    const TAU = Math.PI * 2;
+    const round = (v: number) => Math.round(v * 1000) / 1000;
+    const mk = (xs: number[], ys: number[], zs: number[]): Vec3[] =>
+      xs.map((x, i) => [round(x), round(ys[i]), round(zs[i])] as Vec3);
+    let pts: Vec3[] = [];
+    let closed = obj.closed;
+    switch (name) {
+      case "line": {
+        pts = [[-3, 0, 0], [3, 0, 0]]; closed = false; break;
+      }
+      case "circle": {
+        const N = 12, R = 3;
+        pts = Array.from({ length: N }, (_, i) => {
+          const a = (i / N) * TAU;
+          return [Math.cos(a) * R, 0, Math.sin(a) * R] as Vec3;
+        });
+        closed = true; break;
+      }
+      case "square": {
+        pts = [[-3, 0, -3], [3, 0, -3], [3, 0, 3], [-3, 0, 3]]; closed = true; break;
+      }
+      case "triangle": {
+        const R = 3;
+        pts = Array.from({ length: 3 }, (_, i) => {
+          const a = (i / 3) * TAU - Math.PI / 2;
+          return [Math.cos(a) * R, 0, Math.sin(a) * R] as Vec3;
+        });
+        closed = true; break;
+      }
+      case "figure8": {
+        const N = 16, R = 2.5;
+        pts = Array.from({ length: N }, (_, i) => {
+          const a = (i / N) * TAU;
+          // Lemniscate of Gerono
+          return [Math.sin(a) * R * 1.4, 0, Math.sin(a) * Math.cos(a) * R * 1.4] as Vec3;
+        });
+        closed = true; break;
+      }
+      case "zigzag": {
+        const N = 8, dx = 1.2;
+        pts = Array.from({ length: N }, (_, i) => [
+          (i - (N - 1) / 2) * dx, 0, i % 2 === 0 ? -1 : 1,
+        ] as Vec3);
+        closed = false; break;
+      }
+      case "stairs": {
+        const N = 8, step = 0.6;
+        pts = Array.from({ length: N }, (_, i) => [i * 0.8, i * step, 0] as Vec3);
+        closed = false; break;
+      }
+      case "spiral": {
+        const N = 24, turns = 2;
+        pts = Array.from({ length: N }, (_, i) => {
+          const a = (i / (N - 1)) * TAU * turns;
+          const r = 0.4 + (i / (N - 1)) * 3;
+          return [Math.cos(a) * r, (i / (N - 1)) * 3, Math.sin(a) * r] as Vec3;
+        });
+        closed = false; break;
+      }
+      case "wave": {
+        const N = 16;
+        pts = Array.from({ length: N }, (_, i) => {
+          const t = (i / (N - 1)) * Math.PI * 2;
+          return [(i - (N - 1) / 2) * 0.6, Math.sin(t) * 1.2, 0] as Vec3;
+        });
+        closed = false; break;
+      }
+      default: return;
+    }
+    onPatch({ points: pts, closed, sections: [] });
+  };
+
   const addSection = () => {
     const palette = ["#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899"];
     const sec: TrajectorySection = {
