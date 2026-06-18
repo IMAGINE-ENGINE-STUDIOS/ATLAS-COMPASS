@@ -861,6 +861,49 @@ export default function RigControllerRoom({
             </ul>
           </ScrollArea>
         </div>
+
+        {/* ---- Model URL / Upload (moved to the bottom of the sidebar) ---- */}
+        <div className="space-y-1.5 pt-2 border-t border-border/30">
+          <Label className="text-xs">Model URL (.glb / .gltf)</Label>
+          <div className="flex gap-1.5">
+            <Input
+              value={pendingUrl}
+              onChange={(e) => setPendingUrl(e.target.value)}
+              className="h-8 text-xs"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => { setUrl(pendingUrl); setSourceLabel(pendingUrl); }}
+              disabled={!pendingUrl || pendingUrl === url}
+            >
+              <RefreshCw className="w-3 h-3" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUploadFile(f);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 w-full"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
+        </div>
       </aside>
 
       {/* Viewport */}
