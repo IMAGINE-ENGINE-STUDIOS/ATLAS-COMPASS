@@ -491,6 +491,123 @@ function createPinCanvas(icon: string, name: string, bgColor: string, favicon?: 
   return dataUrl;
 }
 
+// ── Golden pin canvas for user-selected stores ─────────────────────────────
+// Mirrors createPinCanvas but paints a gold gradient background, gold border
+// and bigger glow so selected pins read as "starred" and always-on-top.
+const goldenPinCache = new Map<string, string>();
+function createGoldenPinCanvas(icon: string, name: string, favicon?: HTMLImageElement | null): string {
+  const key = `gold|${icon}|${name}|${favicon ? favicon.src : ""}`;
+  if (goldenPinCache.has(key)) return goldenPinCache.get(key)!;
+
+  const dpr = 2;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+
+  const padL = 6 * dpr, padR = 10 * dpr, padY = 5 * dpr;
+  const circleD = 20 * dpr;       // slightly larger than the regular pin
+  const gap = 6 * dpr;
+  const leaderH = 10 * dpr;
+  const fontSpec = `600 ${11 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif`;
+  ctx.font = fontSpec;
+  const textWidth = Math.ceil(ctx.measureText(name).width);
+  const contentH = circleD;
+  const pillH = contentH + padY * 2;
+  const pillW = padL + circleD + gap + textWidth + padR + 8 * dpr; // room for star
+  const radius = pillH / 2;
+
+  const shadowPad = 12 * dpr;
+  canvas.width = pillW + shadowPad * 2;
+  canvas.height = pillH + leaderH + shadowPad * 2;
+
+  const ox = shadowPad, oy = shadowPad;
+
+  const pill = () => {
+    ctx.beginPath();
+    ctx.moveTo(ox + radius, oy);
+    ctx.lineTo(ox + pillW - radius, oy);
+    ctx.quadraticCurveTo(ox + pillW, oy, ox + pillW, oy + radius);
+    ctx.lineTo(ox + pillW, oy + pillH - radius);
+    ctx.quadraticCurveTo(ox + pillW, oy + pillH, ox + pillW - radius, oy + pillH);
+    ctx.lineTo(ox + radius, oy + pillH);
+    ctx.quadraticCurveTo(ox, oy + pillH, ox, oy + pillH - radius);
+    ctx.lineTo(ox, oy + radius);
+    ctx.quadraticCurveTo(ox, oy, ox + radius, oy);
+    ctx.closePath();
+  };
+
+  // Gold glow
+  ctx.save();
+  ctx.shadowColor = "rgba(255,215,0,0.55)";
+  ctx.shadowBlur = 22 * dpr;
+  ctx.shadowOffsetY = 3 * dpr;
+  pill();
+  const grad = ctx.createLinearGradient(ox, oy, ox, oy + pillH);
+  grad.addColorStop(0, "#FFE56A");
+  grad.addColorStop(1, "#B8860B");
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  // Gold border
+  pill();
+  ctx.strokeStyle = "#FFD700";
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.stroke();
+
+  // Icon circle (white bg if favicon, else dark for emoji contrast)
+  const cx = ox + padL + circleD / 2;
+  const cy = oy + pillH / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, circleD / 2, 0, Math.PI * 2);
+  ctx.fillStyle = favicon ? "#ffffff" : "rgba(26,19,0,0.55)";
+  ctx.fill();
+  if (favicon) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, circleD / 2 - 1, 0, Math.PI * 2);
+    ctx.clip();
+    const s = circleD - 4 * dpr;
+    ctx.drawImage(favicon, cx - s / 2, cy - s / 2, s, s);
+    ctx.restore();
+  } else {
+    ctx.font = `${13 * dpr}px -apple-system, BlinkMacSystemFont, "Apple Color Emoji", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.fillText(icon, cx, cy + 0.5 * dpr);
+  }
+
+  // Name label — deep brown for contrast on gold.
+  ctx.font = fontSpec;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#1a1300";
+  ctx.fillText(name, ox + padL + circleD + gap, cy);
+
+  // Tiny star glyph at far right.
+  ctx.font = `${11 * dpr}px -apple-system, BlinkMacSystemFont, "Apple Color Emoji", sans-serif`;
+  ctx.fillStyle = "#1a1300";
+  ctx.fillText("★", ox + pillW - padR - 4 * dpr, cy);
+
+  // Leader line.
+  const lineX = canvas.width / 2;
+  const lineY0 = oy + pillH;
+  const lineY1 = lineY0 + leaderH;
+  const g2 = ctx.createLinearGradient(lineX, lineY0, lineX, lineY1);
+  g2.addColorStop(0, "rgba(255,215,0,0.8)");
+  g2.addColorStop(1, "rgba(255,215,0,0)");
+  ctx.strokeStyle = g2;
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(lineX, lineY0);
+  ctx.lineTo(lineX, lineY1);
+  ctx.stroke();
+
+  const url = canvas.toDataURL("image/png");
+  goldenPinCache.set(key, url);
+  return url;
+}
+
 function flyCameraToTarget(
   viewer: Viewer | null,
   target: { lat: number; lng: number; alt?: number },
