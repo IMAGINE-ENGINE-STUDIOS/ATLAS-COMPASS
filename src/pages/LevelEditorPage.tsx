@@ -214,6 +214,9 @@ function makeTrajectory(): TrajectoryObject {
     orientToPath: true,
     loop: true,
     color: "#3b82f6",
+    smartPath: false,
+    maxStepHeight: 0.4,
+    slopeSpeedFactor: 0.6,
   };
 }
 
