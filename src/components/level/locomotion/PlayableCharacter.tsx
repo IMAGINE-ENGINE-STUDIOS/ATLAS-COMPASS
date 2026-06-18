@@ -82,7 +82,18 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
 
 /* ---------------------- animation state machine --------------------- */
 
-type LocoState = "idle" | "walk" | "run" | "jump" | "fall" | "sit" | "use";
+type LocoState =
+  | "idle"
+  | "walk"
+  | "run"
+  | "jump"          // takeoff burst
+  | "fall"          // airborne / falling
+  | "land"          // ground impact squat
+  | "jumpDown"      // intentional drop off a ledge
+  | "climb"         // climbing up a ledge / obstacle
+  | "stepUp"        // walking up a small step
+  | "sit"
+  | "use";
 
 function pickClip(names: string[], state: LocoState): string | null {
   if (names.length === 0) return null;
@@ -98,8 +109,12 @@ function pickClip(names: string[], state: LocoState): string | null {
     case "idle": return find("idle", "tpose", "stand") ?? names[0];
     case "walk": return find("walk") ?? find("run") ?? find("idle") ?? names[0];
     case "run":  return find("run", "sprint", "jog") ?? find("walk") ?? names[0];
-    case "jump": return find("jump_up", "jumpup", "jump") ?? find("idle") ?? names[0];
-    case "fall": return find("falling", "fall", "jump_loop", "air") ?? find("jump") ?? names[0];
+    case "jump": return find("jump_up", "jumpup", "jump_start", "jump") ?? find("idle") ?? names[0];
+    case "fall": return find("falling", "fall_loop", "fall", "jump_loop", "air") ?? find("jump") ?? names[0];
+    case "land": return find("land", "jump_land", "jump_end", "landing") ?? find("idle") ?? names[0];
+    case "jumpDown": return find("jump_down", "drop", "fall_to_run", "jumping_down") ?? find("fall", "jump") ?? names[0];
+    case "climb": return find("climbing", "climb_up", "climb", "hanging_climb", "ledge_climb", "vault") ?? find("jump") ?? names[0];
+    case "stepUp": return find("step_up", "walk_up_stairs", "stairs_up", "stair_walk") ?? find("walk") ?? names[0];
     case "sit":  return find("sitting", "sit") ?? find("idle") ?? names[0];
     case "use":  return find("use", "press", "interact", "wave") ?? find("idle") ?? names[0];
   }
@@ -154,11 +169,36 @@ export default function PlayableCharacter({
   // Dynamics
   const velocityY = useRef(0);
   const grounded = useRef(true);
+  const wasGrounded = useRef(true);
   const yawRef = useRef(obj.rotation[1] ?? 0);
   const stateRef = useRef<LocoState>("idle");
   const activeAction = useRef<THREE.AnimationAction | null>(null);
   const lockedActionUntil = useRef(0);
   const sittingOn = useRef<string | null>(null);
+  // Climb tween (forces the root along a curve over `duration` seconds while
+  // input + gravity are suspended). Animation set to "climb".
+  const climb = useRef<{
+    active: boolean;
+    t: number;
+    duration: number;
+    from: THREE.Vector3;
+    to: THREE.Vector3;
+    yaw: number;
+  }>({
+    active: false,
+    t: 0,
+    duration: 0.75,
+    from: new THREE.Vector3(),
+    to: new THREE.Vector3(),
+    yaw: 0,
+  });
+  // Landing squash factor (1 = neutral, <1 = compressed). Animates back to 1.
+  const squash = useRef(1);
+  // Step-up vertical smoothing so small steps look like a planted footfall
+  // instead of a vertical snap.
+  const stepUpUntil = useRef(0);
+  // Peak height tracker so we know how hard a fall lands.
+  const peakY = useRef(0);
 
   // Mesh prep
   useEffect(() => {
@@ -322,6 +362,33 @@ export default function PlayableCharacter({
     const root = rootRef.current;
     const inp = sample();
 
+    // ---- climb tween: hijacks movement + gravity ----
+    if (climb.current.active) {
+      const c = climb.current;
+      c.t = Math.min(1, c.t + dt / c.duration);
+      // Ease: anticipation pull-up → push-over (classic 3-stage climb arc).
+      const k = c.t;
+      // Vertical first 0..0.65, then forward 0.65..1.
+      const upK = Math.min(1, k / 0.65);
+      const overK = Math.max(0, (k - 0.65) / 0.35);
+      const easeUp = 1 - Math.pow(1 - upK, 2);   // ease-out
+      const easeOver = overK * overK;             // ease-in
+      const x = THREE.MathUtils.lerp(c.from.x, c.to.x, easeOver);
+      const z = THREE.MathUtils.lerp(c.from.z, c.to.z, easeOver);
+      const y = THREE.MathUtils.lerp(c.from.y, c.to.y, easeUp);
+      root.position.set(x, y, z);
+      yawRef.current = c.yaw;
+      velocityY.current = 0;
+      grounded.current = true;
+      if (c.t >= 1) {
+        c.active = false;
+        lockedActionUntil.current = 0;
+        setState("idle", 0.2);
+      }
+      if (visualRef.current) visualRef.current.rotation.y = yawRef.current;
+      return; // skip the rest of the simulation this frame
+    }
+
     // ---- horizontal movement ----
     const camYaw = camOrbit.current.yaw;
     tmp.forward.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
@@ -355,18 +422,131 @@ export default function PlayableCharacter({
     const hits = tmp.raycaster.intersectObjects(staticTargets, true);
     const groundHit = hits[0];
 
+    // ---- forward ledge probe (for climb + jump-down) ----
+    // Cast forward from waist height; if it hits something, measure how tall
+    // that obstacle is and whether the top is walkable.
+    const facingX = Math.sin(yawRef.current);
+    const facingZ = Math.cos(yawRef.current);
+    let ledge: { top: THREE.Vector3; obstacleHeight: number } | null = null;
+    {
+      const waist = new THREE.Vector3(
+        root.position.x,
+        root.position.y + measuredHeight * 0.55,
+        root.position.z,
+      );
+      tmp.raycaster.set(waist, new THREE.Vector3(facingX, 0, facingZ).normalize());
+      tmp.raycaster.far = radius + 0.45;
+      const fh = tmp.raycaster.intersectObjects(staticTargets, true)[0];
+      if (fh) {
+        // Find the top of the obstacle: down-ray from above the hit point
+        // onto whatever surface caps it.
+        const topProbe = new THREE.Vector3(fh.point.x + facingX * 0.05, fh.point.y + 4, fh.point.z + facingZ * 0.05);
+        tmp.raycaster.set(topProbe, tmp.down);
+        tmp.raycaster.far = 6;
+        const th = tmp.raycaster.intersectObjects(staticTargets, true)[0];
+        if (th) {
+          const oh = th.point.y - root.position.y;
+          if (oh > 0.05 && oh < 2.2) {
+            ledge = { top: th.point.clone(), obstacleHeight: oh };
+          }
+        }
+      }
+    }
+
+    // ---- forward drop probe (for jump-down) ----
+    let frontDrop = 0;
+    {
+      const ahead = new THREE.Vector3(
+        root.position.x + facingX * (radius + 0.35),
+        root.position.y + 1.2,
+        root.position.z + facingZ * (radius + 0.35),
+      );
+      tmp.raycaster.set(ahead, tmp.down);
+      tmp.raycaster.far = 6;
+      const dh = tmp.raycaster.intersectObjects(staticTargets, true)[0];
+      if (dh) frontDrop = root.position.y - dh.point.y;
+      else frontDrop = 6;
+    }
+
     // Vertical integration.
     velocityY.current -= gravity * dt;
+
+    // ---- jump button branch: climb > jump-down > regular jump ----
     if (inp.jump && grounded.current) {
-      velocityY.current = jumpVel;
-      grounded.current = false;
-      setState("jump", 0.05);
-      sittingOn.current = null;
+      const stepLimit = Math.max(0.45, cfg.maxStepHeight ?? 0.6);
+      if (ledge && ledge.obstacleHeight > stepLimit && ledge.obstacleHeight <= 2.0) {
+        // CLIMB up the ledge.
+        const c = climb.current;
+        c.active = true;
+        c.t = 0;
+        c.duration = 0.55 + ledge.obstacleHeight * 0.25;
+        c.from.copy(root.position);
+        c.to.set(
+          ledge.top.x + facingX * (radius + 0.05),
+          ledge.top.y + 0.001,
+          ledge.top.z + facingZ * (radius + 0.05),
+        );
+        c.yaw = Math.atan2(facingX, facingZ);
+        velocityY.current = 0;
+        grounded.current = false;
+        lockedActionUntil.current = performance.now() + c.duration * 1000;
+        setState("climb", 0.08);
+        sittingOn.current = null;
+        return; // begin climb next frame
+      }
+      if (moving && frontDrop > 0.7) {
+        // Intentional JUMP-DOWN off a ledge.
+        velocityY.current = jumpVel * 0.45;
+        // Push forward a touch so we clear the edge.
+        root.position.x += facingX * 0.15;
+        root.position.z += facingZ * 0.15;
+        grounded.current = false;
+        setState("jumpDown", 0.05);
+        sittingOn.current = null;
+        peakY.current = root.position.y;
+      } else {
+        // Regular jump with brief anticipation squash.
+        velocityY.current = jumpVel;
+        grounded.current = false;
+        squash.current = 0.86;
+        setState("jump", 0.05);
+        sittingOn.current = null;
+        peakY.current = root.position.y;
+      }
+    }
+    if (!grounded.current) {
+      peakY.current = Math.max(peakY.current, root.position.y);
     }
     root.position.y += velocityY.current * dt;
 
     if (groundHit && root.position.y <= groundHit.point.y + 0.001) {
-      root.position.y = groundHit.point.y;
+      // Step-up smoothing: if the ground popped up by a small amount and we
+      // were already grounded, lerp the foot upward over a short window so it
+      // reads as planting a foot on a stair rather than teleporting.
+      const delta = groundHit.point.y - root.position.y;
+      const stepLimit = Math.max(0.45, cfg.maxStepHeight ?? 0.6);
+      if (wasGrounded.current && delta > 0.04 && delta < stepLimit) {
+        // Move part of the way this frame; the rest follows over 120ms.
+        const a = Math.min(1, dt / 0.12);
+        root.position.y += delta * a;
+        if (root.position.y < groundHit.point.y) {
+          // still climbing → keep playing stepUp clip
+          if (stateRef.current !== "stepUp" && moving) setState("stepUp", 0.15);
+          stepUpUntil.current = performance.now() + 180;
+        } else {
+          root.position.y = groundHit.point.y;
+        }
+      } else {
+        root.position.y = groundHit.point.y;
+      }
+      // Landing impact squash when we were just airborne.
+      if (!wasGrounded.current && velocityY.current < -2) {
+        const fallDist = Math.max(0, peakY.current - root.position.y);
+        const strength = THREE.MathUtils.clamp(fallDist / 4, 0.15, 0.55);
+        squash.current = 1 - strength;
+        setState("land", 0.05);
+        lockedActionUntil.current = performance.now() + 220;
+      }
       if (velocityY.current < 0) velocityY.current = 0;
       grounded.current = true;
     } else if (!groundHit && root.position.y < -50) {
@@ -376,6 +556,10 @@ export default function PlayableCharacter({
     } else {
       grounded.current = false;
     }
+    wasGrounded.current = grounded.current;
+
+    // Squash recovery (always tweens back to 1).
+    squash.current = THREE.MathUtils.lerp(squash.current, 1, Math.min(1, dt * 8));
 
     // ---- horizontal collision (push out of nearby walls) ----
     // Cheap: cast 4 cardinal rays of length `radius + 0.1` from torso.
@@ -460,7 +644,9 @@ export default function PlayableCharacter({
     // ---- animation state ----
     if (performance.now() > lockedActionUntil.current && !sittingOn.current) {
       if (!grounded.current) {
-        setState(velocityY.current > 0 ? "jump" : "fall");
+        setState(velocityY.current > 0.1 ? "jump" : "fall");
+      } else if (performance.now() < stepUpUntil.current && moving) {
+        setState("stepUp");
       } else if (moving) {
         setState(inp.run ? "run" : "walk");
       } else {
@@ -469,7 +655,17 @@ export default function PlayableCharacter({
     }
 
     // ---- visual yaw ----
-    if (visualRef.current) visualRef.current.rotation.y = yawRef.current;
+    if (visualRef.current) {
+      visualRef.current.rotation.y = yawRef.current;
+      // Squash & stretch on Y, opposite on XZ (volume preservation).
+      const sY = squash.current;
+      const sXZ = 1 + (1 - sY) * 0.5;
+      visualRef.current.scale.set(
+        visualScale[0] * sXZ,
+        visualScale[1] * sY,
+        visualScale[2] * sXZ,
+      );
+    }
 
     // ---- camera ----
     // Compute the eye + target for both modes, then blend between them based
