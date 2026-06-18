@@ -333,7 +333,7 @@ export default function PlayableCharacter({
 
     // ---- horizontal collision (push out of nearby walls) ----
     // Cheap: cast 4 cardinal rays of length `radius + 0.1` from torso.
-    const torso = new THREE.Vector3(root.position.x, root.position.y + height * 0.55, root.position.z);
+    const torso = new THREE.Vector3(root.position.x, root.position.y + measuredHeight * 0.55, root.position.z);
     const dirs = [
       new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
       new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
