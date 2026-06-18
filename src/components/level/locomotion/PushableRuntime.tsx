@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { pushableRegistry } from "./locomotionState";
+import { pushableRegistry, splineDrivenIds } from "./locomotionState";
 
 /**
  * Wraps a scene object's group so it behaves as a "small object" the player
@@ -70,7 +70,15 @@ export default function PushableRuntime({
       if (skip.has(o)) return;
       if ((o as any).isMesh) {
         const ud = (o as any).userData ?? {};
-        if (ud.__gizmo) return;
+        if (ud.__gizmo || ud.__nocast) return;
+        // Skip drei <Line> meshes and trajectory line types.
+        if ((o as any).isLine || (o as any).isLine2 || (o as any).isLineSegments || (o as any).isLineSegments2) return;
+        // Walk up the ancestor chain; if any parent is a spline, skip.
+        let p: THREE.Object3D | null = o.parent;
+        while (p) {
+          if (p.userData?.__spline || p.userData?.__nocast) return;
+          p = p.parent;
+        }
         out.push(o);
       }
     });
@@ -82,6 +90,14 @@ export default function PushableRuntime({
     const g = groupRef.current;
     const s = stateRef.current;
     if (!g) return;
+    // If this object is currently driven by a spline/trajectory, do nothing —
+    // the trajectory runner owns its transform and we must not fight it.
+    if (splineDrivenIds.has(objectId)) {
+      verticalVel.current = 0;
+      grounded.current = true;
+      s.position.copy(g.position);
+      return;
+    }
 
     const targets = collectTargets(g);
     const { radius, halfHeight } = sizeRef.current;
