@@ -1303,6 +1303,7 @@ export function LevelSceneContents({
         );
       })()}
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
+      <TrajectoryRunner objects={scene.objects} playing={!!playing} groupRef={groupRef} />
       <FocusController
         target={focusRequest}
         groupRef={groupRef}
