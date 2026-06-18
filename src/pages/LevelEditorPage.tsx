@@ -1996,6 +1996,89 @@ function CharacterInspector({
   const current = obj.currentAnimation || names[0] || "";
   return (
     <div className="space-y-3 pt-3 border-t border-border/40">
+      {/* ------------ locomotion (playable character) ------------ */}
+      <div className="rounded-md border border-blue-400/30 bg-blue-500/5 p-2 space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-[11px] font-semibold text-blue-200">Playable in Play mode</Label>
+          <Switch
+            checked={!!obj.playable}
+            onCheckedChange={(v) => onPatch({ playable: v })}
+            disabled={disabled}
+          />
+        </div>
+        {obj.playable && (
+          <>
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              WASD / left stick to move · Space / A to jump · Shift / LT to run ·
+              E / X to interact · Mouse / right stick to look.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Input</Label>
+                <Select
+                  value={obj.controlScheme ?? "both"}
+                  onValueChange={(v) => onPatch({ controlScheme: v as any })}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className="h-7 text-[11px] mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="both" className="text-xs">Keyboard + Gamepad</SelectItem>
+                    <SelectItem value="keyboard" className="text-xs">Keyboard only</SelectItem>
+                    <SelectItem value="gamepad" className="text-xs">Gamepad only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Camera</Label>
+                <Select
+                  value={obj.cameraMode ?? "third"}
+                  onValueChange={(v) => onPatch({ cameraMode: v as any })}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className="h-7 text-[11px] mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="third" className="text-xs">Third person</SelectItem>
+                    <SelectItem value="first" className="text-xs">First person</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Walk</Label>
+                <Input
+                  type="number" step={0.1} min={0.1}
+                  value={obj.locomotion?.walkSpeed ?? 2.2}
+                  onChange={(e) => onPatch({ locomotion: { ...(obj.locomotion ?? {}), walkSpeed: +e.target.value } })}
+                  disabled={disabled}
+                  className="h-7 text-[11px] mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Run</Label>
+                <Input
+                  type="number" step={0.1} min={0.1}
+                  value={obj.locomotion?.runSpeed ?? 5.0}
+                  onChange={(e) => onPatch({ locomotion: { ...(obj.locomotion ?? {}), runSpeed: +e.target.value } })}
+                  disabled={disabled}
+                  className="h-7 text-[11px] mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Jump</Label>
+                <Input
+                  type="number" step={0.05} min={0.1}
+                  value={obj.locomotion?.jumpHeight ?? 1.2}
+                  onChange={(e) => onPatch({ locomotion: { ...(obj.locomotion ?? {}), jumpHeight: +e.target.value } })}
+                  disabled={disabled}
+                  className="h-7 text-[11px] mt-1"
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       <div>
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Character</p>
         <p className="text-[11px] text-foreground/80">{obj.source || "Custom rig"}</p>
