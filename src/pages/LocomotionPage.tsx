@@ -17,6 +17,7 @@ import {
   type TrajectoryObject,
 } from "@/lib/levelTypes";
 import { Play, Pause, ArrowLeft } from "lucide-react";
+import RigControllerRoom from "@/components/level/locomotion/RigControllerRoom";
 
 /**
  * Standalone locomotion playground. Shows a small terrain with stairs, a
@@ -145,6 +146,7 @@ function buildScene(opts: {
 
 export default function LocomotionPage() {
   const [playing, setPlaying] = useState(true);
+  const [mode, setMode] = useState<"path" | "rig">("path");
   // Build the demo scene exactly once so live slider changes do NOT recreate
   // objects (which would reset character position, generate new ids, and
   // restart the trajectory phase). Sliders patch the trajectory in place.
@@ -182,6 +184,16 @@ export default function LocomotionPage() {
 
   return (
     <div className="fixed inset-0 flex bg-slate-950 text-foreground">
+      {mode === "rig" ? (
+        <div className="flex w-full h-full">
+          <div className="absolute top-3 right-3 z-20 flex gap-1.5 rounded-md bg-background/80 backdrop-blur border border-border/40 p-1">
+            <Button size="sm" variant="ghost" className="h-7" onClick={() => setMode("path")}>Path Lab</Button>
+            <Button size="sm" variant="default" className="h-7" onClick={() => setMode("rig")}>Rig Room</Button>
+          </div>
+          <RigControllerRoom />
+        </div>
+      ) : (
+      <>
       {/* Side panel */}
       <aside className="w-80 shrink-0 border-r border-border/40 bg-background/80 backdrop-blur p-4 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
@@ -201,6 +213,11 @@ export default function LocomotionPage() {
               <><Play className="w-3 h-3 mr-1" /> Play</>
             )}
           </Button>
+        </div>
+
+        <div className="flex gap-1.5 rounded-md border border-border/40 p-1">
+          <Button size="sm" variant="default" className="h-7 flex-1" onClick={() => setMode("path")}>Path Lab</Button>
+          <Button size="sm" variant="ghost" className="h-7 flex-1" onClick={() => setMode("rig")}>Rig Room</Button>
         </div>
 
         <div>
@@ -280,6 +297,8 @@ export default function LocomotionPage() {
           Locomotion playground · {playing ? "Playing" : "Paused"} · Smart path {smartPath ? "ON" : "OFF"}
         </div>
       </main>
+      </>
+      )}
     </div>
   );
 }
