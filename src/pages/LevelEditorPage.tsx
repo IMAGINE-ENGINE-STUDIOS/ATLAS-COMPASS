@@ -212,6 +212,8 @@ export default function LevelEditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [playing, setPlaying] = useState(false);
+  // Local copy/paste buffer for scene objects (Ctrl/Cmd+C / V / D).
+  const clipboardRef = useRef<SceneObject[]>([]);
   const [showGrid, setShowGrid] = useState(true);
   const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
   const [placeLat, setPlaceLat] = useState("40.7580");
