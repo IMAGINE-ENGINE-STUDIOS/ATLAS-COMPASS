@@ -1808,7 +1808,7 @@ function Vec3Field({
 function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
-  userClips, onOpenCharacterGallery,
+  userClips, onOpenCharacterGallery, allObjects = [],
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -1826,6 +1826,7 @@ function ObjectInspector({
   onClearFacePaint: () => void;
   userClips: CharacterClipEntry[];
   onOpenCharacterGallery: () => void;
+  allObjects?: SceneObject[];
 }) {
   return (
     <div className="space-y-3">
