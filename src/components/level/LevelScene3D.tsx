@@ -17,6 +17,7 @@ import type {
   SceneTerrain,
   HDRIEnvironment as HDRIEnvironmentCfg,
 } from "@/lib/levelTypes";
+import type { TrajectoryObject } from "@/lib/levelTypes";
 import {
   buildFaceMaterials,
   objectFaceKeys,
@@ -29,6 +30,7 @@ import PlayableCharacter from "./locomotion/PlayableCharacter";
 import PushableRuntime from "./locomotion/PushableRuntime";
 import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
+import { TrajectoryRender, TrajectoryRunner } from "./trajectory/TrajectoryRuntime";
 
 /* ---------- helpers ---------- */
 
@@ -838,6 +840,15 @@ function RenderObject({
       </Suspense>
     );
   }
+  if (obj.kind === "trajectory") {
+    return (
+      <TrajectoryRender
+        obj={obj as TrajectoryObject}
+        selected={selected}
+        onSelect={onSelect}
+      />
+    );
+  }
   return null;
 }
 
@@ -1292,6 +1303,7 @@ export function LevelSceneContents({
         );
       })()}
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
+      <TrajectoryRunner objects={scene.objects} playing={!!playing} groupRef={groupRef} />
       <FocusController
         target={focusRequest}
         groupRef={groupRef}

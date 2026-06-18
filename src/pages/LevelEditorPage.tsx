@@ -29,6 +29,7 @@ import {
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
   CharacterObject, DEFAULT_CHARACTER_URL,
 } from "@/lib/levelTypes";
+import type { TrajectoryObject, TrajectorySection } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
 import AtlasMiniMap from "@/components/level/AtlasMiniMap";
@@ -182,6 +183,32 @@ function makeCharacter(): CharacterObject {
     animationSpeed: 1,
     paused: false,
     crossfade: 0.25,
+  };
+}
+
+function makeTrajectory(): TrajectoryObject {
+  return {
+    id: newId("obj"),
+    kind: "trajectory",
+    name: "Trajectory",
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    visible: true,
+    points: [
+      [-3, 0.5, -3],
+      [-1, 0.5, 0],
+      [1, 0.5, 0],
+      [3, 0.5, 3],
+    ],
+    closed: false,
+    tension: 0.5,
+    speed: 2,
+    sections: [],
+    followers: [],
+    orientToPath: true,
+    loop: true,
+    color: "#3b82f6",
   };
 }
 
@@ -1051,6 +1078,9 @@ export default function LevelEditorPage() {
               <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePolygon())} title="Polygon (spline)">
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
+              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makeTrajectory())} title="Trajectory spline">
+                <SplineIcon className="w-3.5 h-3.5" />
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"
@@ -1218,6 +1248,7 @@ export default function LevelEditorPage() {
                               {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
                                o.kind === "polygon" ? <Pencil className="w-3 h-3" /> :
                                o.kind === "character" ? <User className="w-3 h-3" /> :
+                               o.kind === "trajectory" ? <SplineIcon className="w-3 h-3" /> :
                                <LayersIcon className="w-3 h-3" />}
                               <span className="flex-1 truncate">{o.name}</span>
                             </button>
@@ -1423,6 +1454,7 @@ export default function LevelEditorPage() {
                   onPatch={(p) => patchObject(selectedObj.id, p)}
                   disabled={!isOwner}
                   snap={snap}
+                  allObjects={scene.objects}
                   editing={editingPolygonId === selectedObj.id}
                   onToggleEdit={() =>
                     setEditingPolygonId((cur) => (cur === selectedObj.id ? null : selectedObj.id))
@@ -1776,7 +1808,7 @@ function Vec3Field({
 function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
-  userClips, onOpenCharacterGallery,
+  userClips, onOpenCharacterGallery, allObjects = [],
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -1794,6 +1826,7 @@ function ObjectInspector({
   onClearFacePaint: () => void;
   userClips: CharacterClipEntry[];
   onOpenCharacterGallery: () => void;
+  allObjects?: SceneObject[];
 }) {
   return (
     <div className="space-y-3">
@@ -1924,6 +1957,14 @@ function ObjectInspector({
             onOpenGallery={onOpenCharacterGallery}
           />
         </Suspense>
+      )}
+      {obj.kind === "trajectory" && (
+        <TrajectoryInspector
+          obj={obj as TrajectoryObject}
+          disabled={disabled}
+          onPatch={(patch) => onPatch(patch as any)}
+          allObjects={allObjects}
+        />
       )}
       {(obj.kind === "polygon" || obj.kind === "primitive" || obj.kind === "model") && (
         <FacePaintPanel
@@ -3101,6 +3142,216 @@ function TerrainPanel({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------- trajectory inspector ---------- */
+
+function TrajectoryInspector({
+  obj,
+  onPatch,
+  disabled,
+  allObjects,
+}: {
+  obj: TrajectoryObject;
+  onPatch: (patch: Partial<TrajectoryObject>) => void;
+  disabled?: boolean;
+  allObjects: SceneObject[];
+}) {
+  const candidates = allObjects.filter(
+    (o) => o.id !== obj.id && (o.kind === "character" || o.kind === "primitive" || o.kind === "model" || o.kind === "polygon"),
+  );
+  const setPoint = (i: number, v: Vec3) => {
+    const next = obj.points.map((p, j) => (j === i ? v : p));
+    onPatch({ points: next });
+  };
+  const addPoint = () => {
+    const last = obj.points[obj.points.length - 1] ?? [0, 0.5, 0];
+    const prev = obj.points[obj.points.length - 2] ?? [last[0] - 1, last[1], last[2] - 1];
+    const ext: Vec3 = [last[0] + (last[0] - prev[0]), last[1], last[2] + (last[2] - prev[2])];
+    onPatch({ points: [...obj.points, ext] });
+  };
+  const removePoint = (i: number) => {
+    if (obj.points.length <= 2) return;
+    onPatch({ points: obj.points.filter((_, j) => j !== i) });
+  };
+  const addSection = () => {
+    const palette = ["#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899"];
+    const sec: TrajectorySection = {
+      id: newId("sec"),
+      tStart: 0,
+      tEnd: 0.25,
+      speedMul: 2,
+      altitude: 0,
+      color: palette[obj.sections.length % palette.length],
+    };
+    onPatch({ sections: [...obj.sections, sec] });
+  };
+  const patchSection = (sid: string, p: Partial<TrajectorySection>) => {
+    onPatch({
+      sections: obj.sections.map((s) => (s.id === sid ? { ...s, ...p } : s)),
+    });
+  };
+  const removeSection = (sid: string) =>
+    onPatch({ sections: obj.sections.filter((s) => s.id !== sid) });
+  const toggleFollower = (oid: string) => {
+    const has = obj.followers.includes(oid);
+    onPatch({
+      followers: has ? obj.followers.filter((f) => f !== oid) : [...obj.followers, oid],
+    });
+  };
+  return (
+    <div className="space-y-3 border-t border-border/40 pt-3">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Trajectory</p>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-[10px]">Base speed (u/s)</Label>
+          <Input
+            type="number" step={0.1} value={obj.speed} disabled={disabled}
+            onChange={(e) => onPatch({ speed: parseFloat(e.target.value) || 0 })}
+            className="h-7 text-[11px]"
+          />
+        </div>
+        <div>
+          <Label className="text-[10px]">Tension {obj.tension.toFixed(2)}</Label>
+          <Slider value={[obj.tension]} min={0} max={1} step={0.05} disabled={disabled}
+            onValueChange={([v]) => onPatch({ tension: v })} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <label className="flex items-center gap-1 text-[11px]">
+          <Switch checked={obj.closed} onCheckedChange={(v) => onPatch({ closed: v })} disabled={disabled} />
+          Closed
+        </label>
+        <label className="flex items-center gap-1 text-[11px]">
+          <Switch checked={obj.loop} onCheckedChange={(v) => onPatch({ loop: v })} disabled={disabled} />
+          Loop
+        </label>
+        <label className="flex items-center gap-1 text-[11px]">
+          <Switch checked={obj.orientToPath} onCheckedChange={(v) => onPatch({ orientToPath: v })} disabled={disabled} />
+          Orient
+        </label>
+      </div>
+
+      <div>
+        <Label className="text-[10px]">Curve color</Label>
+        <Input type="color" value={obj.color} disabled={disabled}
+          onChange={(e) => onPatch({ color: e.target.value })}
+          className="h-7 w-full p-1" />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <Label className="text-xs">Points ({obj.points.length})</Label>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" disabled={disabled} onClick={addPoint}>
+            <Plus className="w-3 h-3" /> Extend
+          </Button>
+        </div>
+        <div className="space-y-1 max-h-44 overflow-y-auto">
+          {obj.points.map((p, i) => (
+            <div key={i} className="grid grid-cols-[14px_1fr_1fr_1fr_auto] gap-1 items-center">
+              <span className="text-[9px] text-muted-foreground text-right">{i}</span>
+              {[0, 1, 2].map((axis) => (
+                <Input
+                  key={axis}
+                  type="number" step={0.1} value={p[axis]} disabled={disabled}
+                  onChange={(e) => {
+                    const v = [...p] as Vec3;
+                    v[axis] = parseFloat(e.target.value) || 0;
+                    setPoint(i, v);
+                  }}
+                  className="h-6 text-[10px]"
+                />
+              ))}
+              <button
+                onClick={() => removePoint(i)} disabled={disabled || obj.points.length <= 2}
+                className="text-muted-foreground hover:text-destructive disabled:opacity-30"
+                title="Remove point"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <Label className="text-xs">Speed / altitude sections</Label>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" disabled={disabled} onClick={addSection}>
+            <Plus className="w-3 h-3" /> Add
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {obj.sections.length === 0 && (
+            <p className="text-[10px] text-muted-foreground italic">
+              No sections — entire curve runs at base speed. Add one to accelerate or change altitude on a segment.
+            </p>
+          )}
+          {obj.sections.map((s) => (
+            <div key={s.id} className="rounded border border-border/40 p-2 space-y-1.5 bg-muted/20">
+              <div className="flex items-center gap-1">
+                <Input type="color" value={s.color} disabled={disabled}
+                  onChange={(e) => patchSection(s.id, { color: e.target.value })}
+                  className="h-6 w-8 p-0.5" />
+                <span className="text-[10px] text-muted-foreground">t [{s.tStart.toFixed(2)} → {s.tEnd.toFixed(2)}]</span>
+                <button onClick={() => removeSection(s.id)} disabled={disabled}
+                  className="ml-auto text-muted-foreground hover:text-destructive">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <div>
+                  <Label className="text-[9px]">Start</Label>
+                  <Slider value={[s.tStart]} min={0} max={1} step={0.01} disabled={disabled}
+                    onValueChange={([v]) => patchSection(s.id, { tStart: Math.min(v, s.tEnd) })} />
+                </div>
+                <div>
+                  <Label className="text-[9px]">End</Label>
+                  <Slider value={[s.tEnd]} min={0} max={1} step={0.01} disabled={disabled}
+                    onValueChange={([v]) => patchSection(s.id, { tEnd: Math.max(v, s.tStart) })} />
+                </div>
+                <div>
+                  <Label className="text-[9px]">Speed ×{s.speedMul.toFixed(2)}</Label>
+                  <Slider value={[s.speedMul]} min={0} max={5} step={0.05} disabled={disabled}
+                    onValueChange={([v]) => patchSection(s.id, { speedMul: v })} />
+                </div>
+                <div>
+                  <Label className="text-[9px]">Altitude {s.altitude.toFixed(2)}</Label>
+                  <Slider value={[s.altitude]} min={-5} max={20} step={0.1} disabled={disabled}
+                    onValueChange={([v]) => patchSection(s.id, { altitude: v })} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <Label className="text-xs">Followers ({obj.followers.length})</Label>
+        <p className="text-[10px] text-muted-foreground mb-1">
+          Select objects/characters that travel along this spline during Play.
+        </p>
+        <div className="space-y-0.5 max-h-32 overflow-y-auto border border-border/40 rounded p-1">
+          {candidates.length === 0 && (
+            <p className="text-[10px] text-muted-foreground italic px-1">No eligible objects in scene.</p>
+          )}
+          {candidates.map((o) => {
+            const checked = obj.followers.includes(o.id);
+            return (
+              <label key={o.id} className={`flex items-center gap-1.5 text-[11px] px-1 py-0.5 rounded cursor-pointer ${checked ? "bg-primary/15 text-primary" : "hover:bg-muted/30"}`}>
+                <input type="checkbox" checked={checked} disabled={disabled}
+                  onChange={() => toggleFollower(o.id)} />
+                <span className="truncate">{o.name}</span>
+                <span className="ml-auto text-[9px] text-muted-foreground">{o.kind}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
