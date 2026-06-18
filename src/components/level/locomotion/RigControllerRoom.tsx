@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   OrbitControls,
   TransformControls,
@@ -14,9 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, RefreshCw } from "lucide-react";
+import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * Rig Controller Room
@@ -115,19 +117,28 @@ function Rig({
   onLoaded,
   onSelectBone,
   highlightedBones,
+  activeClip,
+  playing,
+  speed,
 }: {
   url: string;
   showSkeleton: boolean;
   selectedBoneName: string | null;
   transformMode: "rotate" | "translate";
-  onLoaded: (info: { bones: THREE.Bone[]; skeleton: THREE.Skeleton | null }) => void;
+  onLoaded: (info: { bones: THREE.Bone[]; skeleton: THREE.Skeleton | null; clips: string[] }) => void;
   onSelectBone: (name: string) => void;
   highlightedBones: { name: string; color: string }[];
+  activeClip: string | null;
+  playing: boolean;
+  speed: number;
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
   const helperRef = useRef<THREE.SkeletonHelper | null>(null);
   const { scene: r3fScene } = useThree();
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const actionRef = useRef<THREE.AnimationAction | null>(null);
+  const clipsRef = useRef<THREE.AnimationClip[]>([]);
 
   useEffect(() => {
     cloned.traverse((n: any) => {
@@ -142,11 +153,21 @@ function Rig({
     helper.visible = showSkeleton;
     helperRef.current = helper;
     r3fScene.add(helper);
-    onLoaded({ bones: collectBones(cloned), skeleton: findSkeleton(cloned) });
+    const clips = (gltf.animations as THREE.AnimationClip[]) ?? [];
+    clipsRef.current = clips;
+    mixerRef.current = new THREE.AnimationMixer(cloned);
+    onLoaded({
+      bones: collectBones(cloned),
+      skeleton: findSkeleton(cloned),
+      clips: clips.map((c) => c.name),
+    });
     return () => {
       r3fScene.remove(helper);
       helper.dispose?.();
       helperRef.current = null;
+      mixerRef.current?.stopAllAction();
+      mixerRef.current = null;
+      actionRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
@@ -154,6 +175,38 @@ function Rig({
   useEffect(() => {
     if (helperRef.current) helperRef.current.visible = showSkeleton;
   }, [showSkeleton]);
+
+  // Swap / start / stop the active animation action.
+  useEffect(() => {
+    const mixer = mixerRef.current;
+    if (!mixer) return;
+    if (actionRef.current) {
+      actionRef.current.fadeOut(0.2);
+      actionRef.current = null;
+    }
+    if (!activeClip) return;
+    const clip = clipsRef.current.find((c) => c.name === activeClip);
+    if (!clip) return;
+    const action = mixer.clipAction(clip);
+    action.reset();
+    action.setEffectiveTimeScale(speed);
+    action.fadeIn(0.2).play();
+    action.paused = !playing;
+    actionRef.current = action;
+  }, [activeClip]);
+
+  useEffect(() => {
+    if (!actionRef.current) return;
+    actionRef.current.paused = !playing;
+  }, [playing]);
+
+  useEffect(() => {
+    actionRef.current?.setEffectiveTimeScale(speed);
+  }, [speed]);
+
+  useFrame((_, dt) => {
+    if (mixerRef.current && playing) mixerRef.current.update(dt);
+  });
 
   // Resolve selected bone object for TransformControls
   const selectedBone = useMemo(() => {
@@ -234,9 +287,27 @@ function ControllerMarker({
 
 /* --------------------------- Main page ---------------------------- */
 
-export default function RigControllerRoom() {
+export interface SceneCharacterRef {
+  id: string;
+  name: string;
+  url: string;
+  currentAnimation?: string;
+}
+
+export interface RigControllerRoomProps {
+  /** Characters currently present in the linked scene (e.g. the Locomotion Walker). */
+  sceneCharacters?: SceneCharacterRef[];
+  /** Push a rig change (URL swap + chosen clip) back to a scene character. */
+  onApplyToCharacter?: (characterId: string, patch: { url: string; currentAnimation?: string }) => void;
+}
+
+export default function RigControllerRoom({
+  sceneCharacters = [],
+  onApplyToCharacter,
+}: RigControllerRoomProps = {}) {
   const [url, setUrl] = useState<string>(DEFAULT_CHARACTER_URL);
   const [pendingUrl, setPendingUrl] = useState<string>(DEFAULT_CHARACTER_URL);
+  const [sourceLabel, setSourceLabel] = useState<string>("Xbot (Mixamo)");
   const [bones, setBones] = useState<THREE.Bone[]>([]);
   const [selectedBoneName, setSelectedBoneName] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -244,11 +315,25 @@ export default function RigControllerRoom() {
   const [controllerMap, setControllerMap] = useState<Record<ControllerKey, string | null>>(
     {} as Record<ControllerKey, string | null>,
   );
+  const [clips, setClips] = useState<string[]>([]);
+  const [activeClip, setActiveClip] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState(1);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
-  const onLoaded = ({ bones }: { bones: THREE.Bone[] }) => {
+  useEffect(() => {
+    if (sceneCharacters.length && !sceneCharacters.find((c) => c.id === targetCharId)) {
+      setTargetCharId(sceneCharacters[0].id);
+    }
+  }, [sceneCharacters, targetCharId]);
+
+  const onLoaded = ({ bones, clips }: { bones: THREE.Bone[]; clips: string[] }) => {
     setBones(bones);
     setSelectedBoneName(null);
     setControllerMap({} as Record<ControllerKey, string | null>);
+    setClips(clips);
+    setActiveClip(clips[0] ?? null);
   };
 
   const handleAutoSet = () => {
@@ -265,6 +350,32 @@ export default function RigControllerRoom() {
     const u = url;
     setUrl("");
     setTimeout(() => setUrl(u), 10);
+  };
+
+  const handleUploadFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setUrl(dataUrl);
+      setPendingUrl(file.name);
+      setSourceLabel(file.name);
+      toast.success(`Loaded ${file.name}`);
+    };
+    reader.onerror = () => toast.error("Failed to read file");
+    reader.readAsDataURL(file);
+  };
+
+  const handleLoadSceneCharacter = (c: SceneCharacterRef) => {
+    setUrl(c.url);
+    setPendingUrl(c.url);
+    setSourceLabel(c.name);
+    setTargetCharId(c.id);
+  };
+
+  const handleApplyToCharacter = () => {
+    if (!targetCharId || !onApplyToCharacter) return;
+    onApplyToCharacter(targetCharId, { url, currentAnimation: activeClip ?? undefined });
+    toast.success("Applied to scene character");
   };
 
   const highlightedBones = useMemo(
@@ -290,6 +401,40 @@ export default function RigControllerRoom() {
           </p>
         </div>
 
+        {sceneCharacters.length > 0 && (
+          <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
+            <Label className="text-[11px] flex items-center gap-1.5">
+              <Users className="w-3 h-3" /> Scene characters
+            </Label>
+            <div className="grid gap-1">
+              {sceneCharacters.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => handleLoadSceneCharacter(c)}
+                  className={`text-left text-[11px] px-2 py-1 rounded border transition ${
+                    targetCharId === c.id
+                      ? "border-foreground/40 bg-foreground/10"
+                      : "border-border/40 hover:bg-muted/30"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+            {onApplyToCharacter && (
+              <Button
+                size="sm"
+                className="w-full h-7"
+                onClick={handleApplyToCharacter}
+                disabled={!targetCharId}
+              >
+                <Send className="w-3 h-3 mr-1.5" />
+                Apply rig + clip to scene
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <Label className="text-xs">Model URL (.glb / .gltf)</Label>
           <div className="flex gap-1.5">
@@ -302,15 +447,34 @@ export default function RigControllerRoom() {
               size="sm"
               variant="outline"
               className="h-8"
-              onClick={() => setUrl(pendingUrl)}
+              onClick={() => { setUrl(pendingUrl); setSourceLabel(pendingUrl); }}
               disabled={!pendingUrl || pendingUrl === url}
             >
               <RefreshCw className="w-3 h-3" />
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground">
-            Default: Xbot (Mixamo). Paste any public glTF URL.
-          </p>
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUploadFile(f);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 w-full"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
         </div>
 
         <div className="flex gap-2">
@@ -320,6 +484,46 @@ export default function RigControllerRoom() {
           <Button size="sm" variant="outline" onClick={handleResetPose}>
             <RotateCcw className="w-3 h-3 mr-1.5" /> Reset pose
           </Button>
+        </div>
+
+        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
+          <div className="flex items-center justify-between">
+            <Label className="text-[11px]">Animations ({clips.length})</Label>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2"
+              onClick={() => setPlaying((p) => !p)}
+              disabled={!activeClip}
+            >
+              {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            </Button>
+          </div>
+          {clips.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground">No clips found in this glTF.</p>
+          ) : (
+            <ScrollArea className="h-28">
+              <div className="grid gap-0.5">
+                {clips.map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => setActiveClip(name)}
+                    className={`text-left text-[11px] px-2 py-0.5 rounded transition ${
+                      activeClip === name
+                        ? "bg-foreground/15 text-foreground"
+                        : "text-muted-foreground hover:bg-muted/30"
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+          <div>
+            <Label className="text-[10px]">Speed ×{speed.toFixed(2)}</Label>
+            <Slider value={[speed]} min={0} max={3} step={0.05} onValueChange={([v]) => setSpeed(v)} />
+          </div>
         </div>
 
         <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
@@ -445,6 +649,9 @@ export default function RigControllerRoom() {
                 onLoaded={onLoaded}
                 onSelectBone={setSelectedBoneName}
                 highlightedBones={highlightedBones}
+                activeClip={activeClip}
+                playing={playing}
+                speed={speed}
               />
             )}
           </Suspense>
