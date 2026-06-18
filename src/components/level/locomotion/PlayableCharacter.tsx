@@ -368,6 +368,15 @@ export default function PlayableCharacter({
     sphere: new THREE.Vector3(),
   }), []);
 
+  // Cache the static target list — rebuilding every frame walks the entire
+  // scene graph (including every skinned mesh bone) which spikes badly when
+  // more characters are spawned. Refresh ~4x per second; that's well within
+  // tolerance for collision since static geometry doesn't move.
+  const staticCache = useRef<{ targets: THREE.Object3D[]; nextAt: number }>({
+    targets: [],
+    nextAt: 0,
+  });
+
   useFrame((_, rawDt) => {
     if (!enabled || !rootRef.current) return;
     const dt = Math.min(0.05, rawDt); // clamp to keep physics stable
