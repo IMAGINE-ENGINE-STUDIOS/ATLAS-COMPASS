@@ -13,6 +13,14 @@ export interface BaseObject {
   layerId?: string; // optional; falls back to default layer
   locked?: boolean;
   /**
+   * Locomotion / interaction role for play mode.
+   *  - "pushable": small-object dynamics; the player can push/kick it.
+   *  - "sit":      acts as a sit marker (proximity prompt → sit animation).
+   *  - "use":      acts as a "use" marker (proximity prompt → use animation).
+   *  - omitted:    static (walkable / collidable scenery).
+   */
+  interaction?: "pushable" | "sit" | "use";
+  /**
    * Per-face material overrides. Keys are stable face identifiers that
    * depend on the object's shape:
    *  - Polygon flat:      "cap"
@@ -134,6 +142,25 @@ export interface CharacterObject extends BaseObject {
   paused: boolean;
   /** Crossfade duration in seconds when swapping clips. */
   crossfade?: number;
+  /**
+   * When true (and the editor is in Play mode), this character is driven by
+   * the LocomotionRuntime (input + physics + camera). Only one playable
+   * character is active at a time — the first match in scene order wins.
+   */
+  playable?: boolean;
+  /** Input source for the playable character. Default: "both". */
+  controlScheme?: "keyboard" | "gamepad" | "both";
+  /** Follow camera mode while controlled. Default: "third". */
+  cameraMode?: "third" | "first";
+  /** Tunable locomotion params. */
+  locomotion?: {
+    walkSpeed?: number;   // m/s, default 2.2
+    runSpeed?: number;    // m/s, default 5.0
+    jumpHeight?: number;  // m, default 1.2
+    gravity?: number;     // m/s^2, default 18 (snappy game feel)
+    height?: number;      // capsule total height, default 1.7
+    radius?: number;      // capsule radius, default 0.32
+  };
 }
 
 /** Default Xbot character (Three.js examples — MIT-licensed Mixamo rig). */

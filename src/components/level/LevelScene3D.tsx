@@ -25,6 +25,9 @@ import {
 } from "@/lib/face-system";
 import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 import LevelCharacter from "./LevelCharacter";
+import PlayableCharacter from "./locomotion/PlayableCharacter";
+import PushableRuntime from "./locomotion/PushableRuntime";
+import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 
 /* ---------- helpers ---------- */
 
@@ -807,23 +810,107 @@ function RenderObject({
   selectedId,
   onSelect,
   onFocus,
+  playing,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   onFocus?: (id: string) => void;
+  playing?: boolean;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
   if (obj.kind === "polygon") return <PolygonMesh obj={obj} selected={selected} onSelect={onSelect} />;
   if (obj.kind === "model") return <GLTFModelMesh obj={obj} onSelect={onSelect} />;
-  if (obj.kind === "character")
+  if (obj.kind === "character") {
+    const isPlayer = !!playing && !!(obj as CharacterObject).playable;
+    if (isPlayer) {
+      return (
+        <Suspense fallback={null}>
+          <PlayableCharacter obj={obj as CharacterObject} enabled={true} />
+        </Suspense>
+      );
+    }
     return (
       <Suspense fallback={null}>
         <LevelCharacter obj={obj as CharacterObject} onSelect={onSelect} />
       </Suspense>
     );
+  }
   return null;
+}
+
+/**
+ * Wraps a single scene object in its transform group, tagging userData with
+ * interaction hooks the locomotion runtime reads (sit/use markers, objId).
+ * When playing, pushable objects get a `PushableRuntime` so the player can
+ * shove them around at runtime without mutating React state.
+ *
+ * Playable characters skip the wrapper transform entirely — they self-manage
+ * world position via the locomotion runtime.
+ */
+function ObjectSlot({
+  obj,
+  selectedId,
+  onSelect,
+  playing,
+}: {
+  obj: SceneObject;
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
+  playing: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const isPlayer =
+    playing && obj.kind === "character" && !!(obj as CharacterObject).playable;
+  const isPushable = playing && obj.interaction === "pushable";
+  const interactionTag = obj.interaction === "sit" || obj.interaction === "use"
+    ? obj.interaction
+    : undefined;
+
+  // Tag userData so the locomotion raycaster can resolve markers.
+  useEffect(() => {
+    const g = groupRef.current;
+    if (!g) return;
+    g.userData.__objId = obj.id;
+    if (interactionTag) g.userData.__interaction = interactionTag;
+    else delete g.userData.__interaction;
+  }, [obj.id, interactionTag]);
+
+  if (isPlayer) {
+    // Detach from authored transform; the player drives its own world matrix.
+    return (
+      <RenderObject
+        obj={obj}
+        selectedId={selectedId}
+        onSelect={onSelect ? (id) => onSelect(id) : undefined}
+        playing={playing}
+      />
+    );
+  }
+
+  return (
+    <group
+      ref={groupRef}
+      name={`obj-${obj.id}`}
+      position={obj.position}
+      rotation={obj.rotation as any}
+      scale={obj.scale}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        (e as any).nativeEvent?.preventDefault?.();
+        (window as any).__levelFocusObject?.(obj.id);
+      }}
+    >
+      <RenderObject
+        obj={obj}
+        selectedId={selectedId}
+        onSelect={onSelect ? (id) => onSelect(id) : undefined}
+        playing={playing}
+      />
+      {isPushable && <PushableRuntime objectId={obj.id} groupRef={groupRef} />}
+    </group>
+  );
 }
 
 function RenderLight({ light, skipAmbient }: { light: SceneLight; skipAmbient?: boolean }) {
@@ -1170,23 +1257,21 @@ export function LevelSceneContents({
       {scene.terrain?.enabled && <RenderTerrain terrain={scene.terrain} />}
       <group ref={groupRef} onPointerMissed={() => onSelect?.(null)}>
         {scene.objects.map((o) => (
-          <group
+          <ObjectSlot
             key={o.id}
-            name={`obj-${o.id}`}
-            position={o.position}
-            rotation={o.rotation as any}
-            scale={o.scale}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              (e as any).nativeEvent?.preventDefault?.();
-              // ask parent (Canvas wrapper) to focus this object
-              (window as any).__levelFocusObject?.(o.id);
-            }}
-          >
-            <RenderObject obj={o} selectedId={selectedId} onSelect={onSelect ? (id) => onSelect(id) : undefined} />
-          </group>
+            obj={o}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            playing={!!playing}
+          />
         ))}
       </group>
+      {/* HUD prompt for sit / use markers — overlays the canvas via Html. */}
+      {playing && (
+        <Html fullscreen prepend zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+          <InteractionPromptUI />
+        </Html>
+      )}
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
       <FocusController
         target={focusRequest}
@@ -1353,8 +1438,21 @@ function LevelScene3DInner(
           )}
         </Suspense>
       </SceneErrorBoundary>
-      <OrbitControls ref={controlsRef} makeDefault enableDamping />
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enableDamping
+        enabled={!hasActivePlayer(rest)}
+      />
     </Canvas>
+  );
+}
+
+/** True when Play mode is on AND any character is flagged playable. */
+function hasActivePlayer(props: LevelSceneProps) {
+  if (!props.playing) return false;
+  return props.scene.objects.some(
+    (o) => o.kind === "character" && (o as CharacterObject).playable,
   );
 }
 
