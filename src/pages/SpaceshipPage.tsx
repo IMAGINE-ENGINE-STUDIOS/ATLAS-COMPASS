@@ -4033,6 +4033,63 @@ function SpaceshipPage() {
         />
       )}
 
+      {/* Unified Atlas tag clustering overlay */}
+      {isLoaded && (() => {
+        const allTags: AtlasTag[] = [];
+        // Business pins
+        businessDataRef.current.forEach((data, id) => {
+          allTags.push({
+            kind: "biz", id,
+            name: data.name,
+            lat: data.lat, lng: data.lng,
+            categoryId: amenityToCategoryId(data.category),
+            emoji: data.emoji,
+            website: data.website,
+          });
+        });
+        // Saved POIs
+        pois.forEach(p => {
+          allTags.push({
+            kind: "poi", id: `poi-${p.id}`,
+            name: p.name, lat: p.lat, lng: p.lng,
+            categoryId: amenityToCategoryId(p.category),
+          });
+        });
+        // Marketplace
+        if (showMarketplacePins) {
+          fetchMarketplaceProducts().forEach(p => {
+            allTags.push({
+              kind: "market", id: `marketplace-${p.id}`,
+              name: p.name, lat: p.sellerLat, lng: p.sellerLng,
+              categoryId: "shop",
+              emoji: p.emoji,
+            });
+          });
+        }
+        // Reference tagsVersion to keep this block re-running.
+        void tagsVersion;
+        return (
+          <AtlasTagsOverlay
+            viewer={viewerRef.current}
+            tags={allTags}
+            onSelect={(t) => {
+              if (t.kind === "biz") {
+                const data = businessDataRef.current.get(t.id);
+                if (data) setSelectedBusiness(data);
+              } else if (t.kind === "market") {
+                const productId = t.id.replace("marketplace-", "");
+                const prod = fetchMarketplaceProducts().find(p => p.id === productId);
+                if (prod) setSelectedMarketplaceProduct(prod);
+              } else if (t.kind === "poi") {
+                const poiId = t.id.replace("poi-", "");
+                const poi = pois.find(p => p.id === poiId);
+                if (poi) setSelectedPOI(poi);
+              }
+            }}
+          />
+        );
+      })()}
+
       {/* Loading Screen */}
       {/* Loading screen removed */}
 
