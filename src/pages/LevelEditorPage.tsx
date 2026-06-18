@@ -186,6 +186,32 @@ function makeCharacter(): CharacterObject {
   };
 }
 
+function makeTrajectory(): TrajectoryObject {
+  return {
+    id: newId("obj"),
+    kind: "trajectory",
+    name: "Trajectory",
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    visible: true,
+    points: [
+      [-3, 0.5, -3],
+      [-1, 0.5, 0],
+      [1, 0.5, 0],
+      [3, 0.5, 3],
+    ],
+    closed: false,
+    tension: 0.5,
+    speed: 2,
+    sections: [],
+    followers: [],
+    orientToPath: true,
+    loop: true,
+    color: "#3b82f6",
+  };
+}
+
 function makeLight(kind: SceneLight["kind"]): SceneLight {
   return {
     id: newId("lgt"),
