@@ -203,6 +203,34 @@ function SnapshotBridge({ bridgeRef }: { bridgeRef: React.MutableRefObject<RigBr
   return null;
 }
 
+/**
+ * In-canvas helper that snaps the OrbitControls camera to a preset whenever
+ * `tick` changes. We re-run on every tick (not just on preset change) so the
+ * Reset View button works even when the active preset is already "reset".
+ */
+function CameraDirector({
+  position,
+  target,
+  tick,
+}: {
+  position: [number, number, number];
+  target: [number, number, number];
+  tick: number;
+}) {
+  const { camera, controls } = useThree() as any;
+  useEffect(() => {
+    camera.position.set(position[0], position[1], position[2]);
+    if (controls && controls.target) {
+      controls.target.set(target[0], target[1], target[2]);
+      controls.update?.();
+    } else {
+      camera.lookAt(target[0], target[1], target[2]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
+  return null;
+}
+
 function Rig({
   url,
   targetHeight,
