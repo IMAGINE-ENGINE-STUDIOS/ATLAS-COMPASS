@@ -1557,10 +1557,10 @@ function LevelScene3DInner(
       gl={{ powerPreference: "high-performance", antialias: true, preserveDrawingBuffer: true }}
       onCreated={({ gl }) => {
         const canvas = gl.domElement;
-        // Expose a tiny global thumbnail capturer. Downsamples the live
-        // canvas to ~192x108 JPEG (~5 KB) — small enough to store inline on
-        // the level row without a storage round-trip.
-        (window as any).__levelThumbnail = (w = 192, h = 108, q = 0.55): string | null => {
+        // Expose a global thumbnail capturer. Captures the live canvas at
+        // a normal screenshot resolution (960x540 JPEG, ~40-80 KB) so the
+        // gallery tile looks crisp instead of pixelated.
+        (window as any).__levelThumbnail = (w = 960, h = 540, q = 0.82): string | null => {
           try {
             const off = document.createElement("canvas");
             off.width = w;
