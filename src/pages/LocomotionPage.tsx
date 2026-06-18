@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import { Button } from "@/components/ui/button";
@@ -145,15 +145,40 @@ function buildScene(opts: {
 
 export default function LocomotionPage() {
   const [playing, setPlaying] = useState(true);
-  const [smartPath, setSmartPath] = useState(true);
-  const [speed, setSpeed] = useState(2.5);
-  const [maxStep, setMaxStep] = useState(0.4);
-  const [slopeFactor, setSlopeFactor] = useState(0.6);
-
-  const scene = useMemo(
-    () => buildScene({ smartPath, speed, maxStep, slopeFactor }),
-    [smartPath, speed, maxStep, slopeFactor],
+  // Build the demo scene exactly once so live slider changes do NOT recreate
+  // objects (which would reset character position, generate new ids, and
+  // restart the trajectory phase). Sliders patch the trajectory in place.
+  const [scene, setScene] = useState<LevelScene>(() =>
+    buildScene({ smartPath: true, speed: 2.5, maxStep: 0.4, slopeFactor: 0.6 }),
   );
+
+  const traj = scene.objects.find(
+    (o) => o.kind === "trajectory",
+  ) as TrajectoryObject | undefined;
+  const smartPath = !!traj?.smartPath;
+  const speed = traj?.speed ?? 2.5;
+  const maxStep = traj?.maxStepHeight ?? 0.4;
+  const slopeFactor = traj?.slopeSpeedFactor ?? 0.6;
+
+  const patchTraj = useCallback((patch: Partial<TrajectoryObject>) => {
+    setScene((s) => ({
+      ...s,
+      objects: s.objects.map((o) =>
+        o.kind === "trajectory" ? { ...o, ...patch } : o,
+      ),
+    }));
+  }, []);
+
+  const resetCharacter = useCallback(() => {
+    setScene((s) => ({
+      ...s,
+      objects: s.objects.map((o) =>
+        o.id === "loco-char"
+          ? { ...o, position: [0, 0.5, 6] as [number, number, number] }
+          : o,
+      ),
+    }));
+  }, []);
 
   return (
     <div className="fixed inset-0 flex bg-slate-950 text-foreground">
@@ -189,7 +214,7 @@ export default function LocomotionPage() {
 
         <div className="rounded border border-border/40 p-3 space-y-3 bg-muted/10">
           <label className="flex items-center gap-2 text-sm font-medium">
-            <Switch checked={smartPath} onCheckedChange={setSmartPath} />
+            <Switch checked={smartPath} onCheckedChange={(v) => patchTraj({ smartPath: v })} />
             Smart path (terrain-aware)
           </label>
           <p className="text-[11px] text-muted-foreground leading-snug">
@@ -204,27 +229,30 @@ export default function LocomotionPage() {
             <Label className="text-xs">Base speed ({speed.toFixed(2)} u/s)</Label>
             <Slider
               value={[speed]} min={0.2} max={10} step={0.1}
-              onValueChange={([v]) => setSpeed(v)}
+              onValueChange={([v]) => patchTraj({ speed: v })}
             />
           </div>
           <div>
             <Label className="text-xs">Max step ({maxStep.toFixed(2)} m)</Label>
             <Slider
               value={[maxStep]} min={0.05} max={1.2} step={0.05}
-              onValueChange={([v]) => setMaxStep(v)}
+              onValueChange={([v]) => patchTraj({ maxStepHeight: v })}
             />
           </div>
           <div>
             <Label className="text-xs">Slope factor (×{slopeFactor.toFixed(2)})</Label>
             <Slider
               value={[slopeFactor]} min={0} max={2} step={0.05}
-              onValueChange={([v]) => setSlopeFactor(v)}
+              onValueChange={([v]) => patchTraj({ slopeSpeedFactor: v })}
             />
             <p className="text-[10px] text-muted-foreground mt-1">
               0 = ignore slope. Higher values exaggerate uphill slowdown /
               downhill speedup.
             </p>
           </div>
+          <Button size="sm" variant="outline" className="w-full" onClick={resetCharacter}>
+            Reset character position
+          </Button>
         </div>
 
         <div className="border-t border-border/40 pt-3">
