@@ -1305,6 +1305,7 @@ function SpaceshipPage() {
         description: r.name + (r.address ? ` — ${r.address}` : ""),
       });
       businessEntitiesRef.current.push(entity);
+      clampPinToSurface(entity, r.lng, r.lat);
     });
     viewer.scene.requestRender?.();
   }, []);
@@ -2361,6 +2362,7 @@ function SpaceshipPage() {
             description: tags.name + (addr ? ` — ${addr}` : ""),
           });
           businessEntitiesRef.current.push(entity);
+          clampPinToSurface(entity, _lng, _lat);
         });
         setTagsVersion(v => v + 1);
       } catch { /* ignore network/abort errors */ } finally {
@@ -2967,6 +2969,7 @@ function SpaceshipPage() {
         properties: { type: "marketplace", productId: p.id } as any,
       });
       marketplaceEntitiesRef.current.push(entity);
+      clampPinToSurface(entity, p.sellerLng, p.sellerLat);
     });
 
     // Click handler for marketplace pins
@@ -3013,6 +3016,7 @@ function SpaceshipPage() {
         properties: { type: "camera", camId: cam.id } as any,
       });
       cameraEntitiesRef.current.push(entity);
+      clampPinToSurface(entity, cam.lng, cam.lat);
     });
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -3083,6 +3087,7 @@ function SpaceshipPage() {
         properties: { type: "search-result", idx } as any,
       });
       searchResultEntitiesRef.current.push(entity);
+      clampPinToSurface(entity, r.lng, r.lat);
     });
   }, [unifiedResults, searchOpen, hoveredResultIdx, isLoaded]);
 
