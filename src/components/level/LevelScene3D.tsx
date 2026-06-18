@@ -840,6 +840,79 @@ function RenderObject({
   return null;
 }
 
+/**
+ * Wraps a single scene object in its transform group, tagging userData with
+ * interaction hooks the locomotion runtime reads (sit/use markers, objId).
+ * When playing, pushable objects get a `PushableRuntime` so the player can
+ * shove them around at runtime without mutating React state.
+ *
+ * Playable characters skip the wrapper transform entirely — they self-manage
+ * world position via the locomotion runtime.
+ */
+function ObjectSlot({
+  obj,
+  selectedId,
+  onSelect,
+  playing,
+}: {
+  obj: SceneObject;
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
+  playing: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const isPlayer =
+    playing && obj.kind === "character" && !!(obj as CharacterObject).playable;
+  const isPushable = playing && obj.interaction === "pushable";
+  const interactionTag = obj.interaction === "sit" || obj.interaction === "use"
+    ? obj.interaction
+    : undefined;
+
+  // Tag userData so the locomotion raycaster can resolve markers.
+  useEffect(() => {
+    const g = groupRef.current;
+    if (!g) return;
+    g.userData.__objId = obj.id;
+    if (interactionTag) g.userData.__interaction = interactionTag;
+    else delete g.userData.__interaction;
+  }, [obj.id, interactionTag]);
+
+  if (isPlayer) {
+    // Detach from authored transform; the player drives its own world matrix.
+    return (
+      <RenderObject
+        obj={obj}
+        selectedId={selectedId}
+        onSelect={onSelect ? (id) => onSelect(id) : undefined}
+        playing={playing}
+      />
+    );
+  }
+
+  return (
+    <group
+      ref={groupRef}
+      name={`obj-${obj.id}`}
+      position={obj.position}
+      rotation={obj.rotation as any}
+      scale={obj.scale}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        (e as any).nativeEvent?.preventDefault?.();
+        (window as any).__levelFocusObject?.(obj.id);
+      }}
+    >
+      <RenderObject
+        obj={obj}
+        selectedId={selectedId}
+        onSelect={onSelect ? (id) => onSelect(id) : undefined}
+        playing={playing}
+      />
+      {isPushable && <PushableRuntime objectId={obj.id} groupRef={groupRef} />}
+    </group>
+  );
+}
+
 function RenderLight({ light, skipAmbient }: { light: SceneLight; skipAmbient?: boolean }) {
   if (light.kind === "ambient" && skipAmbient) return null;
   const color = rgbaToColor(light.color);
