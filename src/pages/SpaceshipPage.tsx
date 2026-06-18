@@ -2288,6 +2288,7 @@ function SpaceshipPage() {
           });
           businessEntitiesRef.current.push(entity);
         });
+        setTagsVersion(v => v + 1);
       } catch { /* ignore network/abort errors */ } finally {
         if (!viewer.isDestroyed()) setIsLoadingBusinesses(false);
       }
