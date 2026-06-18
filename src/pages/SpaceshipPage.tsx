@@ -50,6 +50,7 @@ import {
   BoundingSphere, HeadingPitchRange, Matrix4,
   ClippingPolygon, ClippingPolygonCollection,
   CallbackProperty, ColorMaterialProperty, LabelStyle, HorizontalOrigin, VerticalOrigin,
+  HeightReference,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -794,6 +795,36 @@ function SpaceshipPage() {
   // Reactive count for the "Selected (n)" chip.
   const [selectedCount, setSelectedCount] = useState(getSelectedCount());
   useEffect(() => subscribeSelection(() => setSelectedCount(getSelectedCount())), []);
+
+  // ── Pin ground-clamping helper ─────────────────────────────────────────────
+  // In "realistic" mode the globe terrain is hidden and Google Photorealistic
+  // 3D Tiles are the only visible surface — Cesium's CLAMP_TO_GROUND falls
+  // back to sea level there, dropping pins under buildings. CLAMP_TO_3D_TILE
+  // anchors them to the photogrammetry top instead.
+  const viewModeRef = useRef<"realistic" | "osm">("realistic");
+  const pinHeightRef = useCallback(() => (
+    viewModeRef.current === "realistic"
+      ? HeightReference.CLAMP_TO_3D_TILE
+      : HeightReference.CLAMP_TO_GROUND
+  ), []);
+
+  // Re-anchor every existing pin billboard when the view mode toggles.
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+    const hr = viewMode === "realistic"
+      ? HeightReference.CLAMP_TO_3D_TILE
+      : HeightReference.CLAMP_TO_GROUND;
+    const refs = [
+      businessEntitiesRef, marketplaceEntitiesRef,
+      cameraEntitiesRef, searchResultEntitiesRef,
+    ];
+    refs.forEach(ref => {
+      ref.current?.forEach((e: any) => {
+        if (e?.billboard) e.billboard.heightReference = hr;
+      });
+    });
+    viewerRef.current?.scene.requestRender?.();
+  }, [viewMode]);
   const cameraEntitiesRef = useRef<any[]>([]);
   const [mapCameras, setMapCameras] = useState<TrafficCamera[]>([]);
 
@@ -1224,7 +1255,7 @@ function SpaceshipPage() {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: { near: 200, nearValue: 0.85, far: 30000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 45000, farValue: 0.15 } as any,
-          heightReference: 1,
+          heightReference: pinHeightRef(),
           alignedAxis: Cartesian3.ZERO,
         },
         properties: { type: "business-result" } as any,
@@ -2280,7 +2311,7 @@ function SpaceshipPage() {
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
               scaleByDistance: { near: 200, nearValue: selectedNow ? 1.0 : 0.8, far: 15000, farValue: selectedNow ? 0.35 : 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
-              heightReference: 1, // CLAMP_TO_GROUND
+              heightReference: pinHeightRef(),
               alignedAxis: Cartesian3.ZERO, // Always face camera
               eyeOffset: selectedNow ? new Cartesian3(0, 0, -50) : new Cartesian3(0, 0, 0),
             },
@@ -2888,7 +2919,7 @@ function SpaceshipPage() {
           scaleByDistance: { near: 100, nearValue: 1.0, far: 50000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 0, nearValue: 1.0, far: 80000, farValue: 0.4 } as any,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: 1, // CLAMP_TO_GROUND
+          heightReference: pinHeightRef(),
         },
         properties: { type: "marketplace", productId: p.id } as any,
       });
@@ -2934,7 +2965,7 @@ function SpaceshipPage() {
           scaleByDistance: { near: 200, nearValue: 1.0, far: 60000, farValue: 0.25 } as any,
           translucencyByDistance: { near: 0, nearValue: 1.0, far: 90000, farValue: 0.3 } as any,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: 1,
+          heightReference: pinHeightRef(),
         },
         properties: { type: "camera", camId: cam.id } as any,
       });
@@ -3004,7 +3035,7 @@ function SpaceshipPage() {
           scaleByDistance: { near: 200, nearValue: 1.0, far: 25000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 30000, farValue: 0.0 } as any,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: 1,
+          heightReference: pinHeightRef(),
         },
         properties: { type: "search-result", idx } as any,
       });
