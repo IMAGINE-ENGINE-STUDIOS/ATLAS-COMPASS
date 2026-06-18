@@ -1958,6 +1958,14 @@ function ObjectInspector({
           />
         </Suspense>
       )}
+      {obj.kind === "trajectory" && (
+        <TrajectoryInspector
+          obj={obj as TrajectoryObject}
+          disabled={disabled}
+          onPatch={(patch) => onPatch(patch as any)}
+          allObjects={allObjects}
+        />
+      )}
       {(obj.kind === "polygon" || obj.kind === "primitive" || obj.kind === "model") && (
         <FacePaintPanel
           obj={obj}
