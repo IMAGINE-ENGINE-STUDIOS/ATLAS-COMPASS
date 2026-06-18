@@ -10,7 +10,9 @@ import { splineDrivenIds } from "../locomotion/locomotionState";
 function buildCurve(obj: TrajectoryObject): THREE.CatmullRomCurve3 | null {
   if (!obj.points || obj.points.length < 2) return null;
   const pts = obj.points.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
-  const curve = new THREE.CatmullRomCurve3(pts, obj.closed, "catmullrom", obj.tension);
+  // Centripetal Catmull-Rom avoids loops/overshoot at sharp control points,
+  // producing a visibly smoother curve than the default "catmullrom" mode.
+  const curve = new THREE.CatmullRomCurve3(pts, obj.closed, "centripetal", obj.tension);
   return curve;
 }
 
@@ -47,7 +49,8 @@ export function TrajectoryRender({
   // Build colored line segments by sampling the curve and tinting per section.
   const segments = useMemo(() => {
     if (!curve) return [] as Array<{ pts: [number, number, number][]; color: string }>;
-    const SAMPLES = 200;
+    // Denser sampling = silkier curve, especially on long paths.
+    const SAMPLES = Math.min(600, Math.max(200, obj.points.length * 40));
     const points: THREE.Vector3[] = curve.getSpacedPoints(SAMPLES);
     const segs: Array<{ pts: [number, number, number][]; color: string }> = [];
     let current: { pts: [number, number, number][]; color: string } | null = null;
