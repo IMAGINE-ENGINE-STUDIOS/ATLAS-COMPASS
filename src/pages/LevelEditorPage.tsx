@@ -2294,6 +2294,9 @@ function CharacterInspector({
   const current = obj.currentAnimation || names[0] || "";
   return (
     <div className="space-y-3 pt-3 border-t border-border/40">
+      {/* ------------ Rig & Body (saved from Rig Controller Room) ------------ */}
+      <RigBodySection obj={obj} disabled={disabled} onPatch={onPatch} />
+
       {/* ------------ locomotion (playable character) ------------ */}
       <div className="rounded-md border border-blue-400/30 bg-blue-500/5 p-2 space-y-2">
         <div className="flex items-center justify-between">
