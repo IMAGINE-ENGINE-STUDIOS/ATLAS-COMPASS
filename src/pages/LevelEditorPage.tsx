@@ -48,6 +48,66 @@ import {
 import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 
+type ActiveTool = { key: string; label: string; icon: React.ReactNode; active: boolean };
+
+function ActiveToolBadges({ tools }: { tools: ActiveTool[] }) {
+  const [hiddenAt, setHiddenAt] = useState<Record<string, number>>({});
+  const prevActive = useRef<Record<string, boolean>>({});
+  const [, force] = useState(0);
+
+  useEffect(() => {
+    const now = Date.now();
+    const updates: Record<string, number> = {};
+    let changed = false;
+    for (const t of tools) {
+      const was = prevActive.current[t.key] ?? false;
+      if (was && !t.active) {
+        updates[t.key] = now;
+        changed = true;
+      }
+      prevActive.current[t.key] = t.active;
+    }
+    if (changed) setHiddenAt((p) => ({ ...p, ...updates }));
+  }, [tools.map((t) => `${t.key}:${t.active ? 1 : 0}`).join("|")]);
+
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const now = Date.now();
+  const visible = tools.filter((t) => {
+    if (t.active) return true;
+    const off = hiddenAt[t.key];
+    return !!off && now - off < 10000;
+  });
+
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1 mr-1">
+      {visible.map((t) => {
+        const off = hiddenAt[t.key];
+        const fading = !t.active && !!off;
+        return (
+          <div
+            key={t.key}
+            title={t.label}
+            className={`h-7 w-7 flex items-center justify-center rounded-md border transition-all duration-700 ease-out ${
+              t.active
+                ? "border-primary/70 bg-primary/15 text-primary shadow-[0_0_0_1px_hsl(var(--primary)/0.4)] opacity-100"
+                : "border-border/40 text-muted-foreground bg-transparent"
+            }`}
+            style={fading ? { opacity: Math.max(0, 1 - (now - off) / 10000) } : undefined}
+          >
+            {t.icon}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function rgbaToHex(c: RGBA): string {
   const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
   return `#${to(c[0])}${to(c[1])}${to(c[2])}`;
