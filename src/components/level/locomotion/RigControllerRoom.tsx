@@ -29,7 +29,7 @@ import { toast } from "sonner";
 interface LibraryCharacter {
   id: string;
   name: string;
-  category: "Human" | "Creature" | "Monster" | "Robot";
+  category: "Human" | "Creature" | "Robot";
   url: string;
   credit: string;
 }
