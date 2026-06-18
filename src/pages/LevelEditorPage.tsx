@@ -8,7 +8,7 @@ import {
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
-  X, ArrowUpRight,
+  X, ArrowUpRight, User,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
@@ -21,8 +21,10 @@ import {
   SceneTerrain, defaultTerrain,
   ModelMaterialOverride,
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
+  CharacterObject, DEFAULT_CHARACTER_URL,
 } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
+import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
 import AtlasMiniMap from "@/components/level/AtlasMiniMap";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
