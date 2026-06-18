@@ -1146,6 +1146,12 @@ export default function RigControllerRoom({
           mappedCount={mappedCount}
         />
 
+        <ObjectControllerBar
+          bridgeRef={bridgeRef}
+          selectedBoneName={selectedBoneName}
+          onClear={() => setSelectedBoneName(null)}
+        />
+
         <div>
           <Label className="text-xs">All bones ({bones.length})</Label>
           <ScrollArea className="h-48 mt-1 rounded border border-border/40">
