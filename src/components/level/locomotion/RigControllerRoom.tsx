@@ -888,6 +888,7 @@ export default function RigControllerRoom({
         <Canvas
           camera={{ position: [2.2, 1.6, 2.2], fov: 45, near: 0.05, far: 200 }}
           shadows
+          gl={{ preserveDrawingBuffer: true }}
         >
           <color attach="background" args={["#0b1220"]} />
           <ambientLight intensity={0.6} />
