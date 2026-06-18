@@ -814,12 +814,16 @@ function RenderObject({
   onSelect,
   onFocus,
   playing,
+  controlsRef,
+  onTrajectoryPointsChange,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   onFocus?: (id: string) => void;
   playing?: boolean;
+  controlsRef?: React.MutableRefObject<any>;
+  onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
@@ -846,6 +850,13 @@ function RenderObject({
         obj={obj as TrajectoryObject}
         selected={selected}
         onSelect={onSelect}
+        editable={!playing}
+        controlsRef={controlsRef}
+        onPointsChange={
+          onTrajectoryPointsChange
+            ? (pts) => onTrajectoryPointsChange(obj.id, pts)
+            : undefined
+        }
       />
     );
   }
