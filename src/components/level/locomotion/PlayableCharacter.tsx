@@ -135,11 +135,14 @@ function collectStaticTargets(root: THREE.Object3D, exclude: THREE.Object3D): TH
       // skip helpers/gizmos
       const ud = (o as any).userData ?? {};
       if (ud.__gizmo || ud.__nocast) return;
+      // Skinned meshes (characters) are very expensive to raycast and we
+      // handle character-vs-character separately with a cheap cylinder test.
+      if ((o as any).isSkinnedMesh) return;
       if ((o as any).isLine || (o as any).isLine2 || (o as any).isLineSegments || (o as any).isLineSegments2) return;
       // Skip anything inside a spline/trajectory group.
       let p: THREE.Object3D | null = o.parent;
       while (p) {
-        if (p.userData?.__spline || p.userData?.__nocast) return;
+        if (p.userData?.__spline || p.userData?.__nocast || p.userData?.__character) return;
         p = p.parent;
       }
       out.push(o);
