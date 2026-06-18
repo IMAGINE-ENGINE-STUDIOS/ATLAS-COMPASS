@@ -190,6 +190,28 @@ export default function PlayableCharacter({
   // Camera state
   const camOrbit = useRef({ yaw: 0, pitch: 0.25, dist: 4 });
   const pointerLocked = useRef(false);
+  // Smooth camera-mode blend. When `cameraMode` flips, `blend` runs from 0→1
+  // over `blendDuration` seconds; we lerp the eye and target from the previous
+  // mode's pose to the new one instead of snapping.
+  const camBlend = useRef({
+    from: cameraMode,
+    to: cameraMode,
+    t: 1,
+    duration: 0.45,
+    lastEye: new THREE.Vector3(),
+    lastTarget: new THREE.Vector3(),
+  });
+  useEffect(() => {
+    // Snapshot the *current* camera as the "from" pose so the blend starts
+    // exactly where the eye is right now (no visible pop).
+    camBlend.current.lastEye.copy(camera.position);
+    camBlend.current.lastTarget.copy(
+      camera.position.clone().add(camera.getWorldDirection(new THREE.Vector3())),
+    );
+    camBlend.current.from = camBlend.current.to;
+    camBlend.current.to = cameraMode;
+    camBlend.current.t = 0;
+  }, [cameraMode, camera]);
 
   // Pointer-lock + mouse look (active only when enabled).
   useEffect(() => {
@@ -426,46 +448,64 @@ export default function PlayableCharacter({
     if (visualRef.current) visualRef.current.rotation.y = yawRef.current;
 
     // ---- camera ----
-    if (cameraMode === "first") {
-      // Find a "head" bone if possible, else top of measured rig.
-      let headY = root.position.y + measuredHeight * 0.92;
-      const head = cloned.getObjectByName("mixamorigHead") ?? cloned.getObjectByName("Head");
-      if (head) {
-        const wp = new THREE.Vector3();
-        head.getWorldPosition(wp);
-        headY = wp.y + 0.08; // small bump so the cam sits at eye-level, not inside the skull
-      }
-      const pitch = camOrbit.current.pitch;
-      // Nudge the camera slightly forward so the rig's own head mesh doesn't
-      // clip into the near-plane (which looked like "I'm inside the skull").
-      const fwdX = -Math.sin(camYaw);
-      const fwdZ = -Math.cos(camYaw);
-      tmp.camPos.set(
-        root.position.x + fwdX * 0.18,
-        headY,
-        root.position.z + fwdZ * 0.18,
-      );
-      camera.position.copy(tmp.camPos);
-      tmp.camTarget.set(
-        tmp.camPos.x + fwdX * Math.cos(pitch),
-        headY + Math.sin(pitch),
-        tmp.camPos.z + fwdZ * Math.cos(pitch),
-      );
-      camera.lookAt(tmp.camTarget);
+    // Compute the eye + target for both modes, then blend between them based
+    // on `camBlend.t`. This makes mode swaps a smooth dolly instead of a jump.
+    const pitch = camOrbit.current.pitch;
+
+    // First-person pose
+    let fpHeadY = root.position.y + measuredHeight * 0.92;
+    const head = cloned.getObjectByName("mixamorigHead") ?? cloned.getObjectByName("Head");
+    if (head) {
+      const wp = new THREE.Vector3();
+      head.getWorldPosition(wp);
+      fpHeadY = wp.y + 0.08;
+    }
+    const fwdX = -Math.sin(camYaw);
+    const fwdZ = -Math.cos(camYaw);
+    const fpEye = new THREE.Vector3(
+      root.position.x + fwdX * 0.18,
+      fpHeadY,
+      root.position.z + fwdZ * 0.18,
+    );
+    const fpTarget = new THREE.Vector3(
+      fpEye.x + fwdX * Math.cos(pitch),
+      fpHeadY + Math.sin(pitch),
+      fpEye.z + fwdZ * Math.cos(pitch),
+    );
+
+    // Third-person pose
+    const tpDist = camOrbit.current.dist * Math.max(0.6, measuredHeight / 1.8);
+    const tpTargetY = root.position.y + measuredHeight * 0.7;
+    const tpTarget = new THREE.Vector3(root.position.x, tpTargetY, root.position.z);
+    const tpEye = new THREE.Vector3(
+      root.position.x + Math.sin(camYaw) * Math.cos(pitch) * tpDist,
+      tpTargetY + Math.sin(pitch) * tpDist,
+      root.position.z + Math.cos(camYaw) * Math.cos(pitch) * tpDist,
+    );
+
+    const cb = camBlend.current;
+    if (cb.t < 1) {
+      cb.t = Math.min(1, cb.t + dt / cb.duration);
+      // ease-in-out cubic
+      const k = cb.t < 0.5 ? 4 * cb.t * cb.t * cb.t : 1 - Math.pow(-2 * cb.t + 2, 3) / 2;
+      const fromEye = cb.from === "first" ? fpEye : tpEye;
+      const fromTarget = cb.from === "first" ? fpTarget : tpTarget;
+      // Use the snapshot eye/target so the blend starts at the *actual* last
+      // camera pose, not the freshly-recomputed one (which can jitter if the
+      // player moves during the swap).
+      const fromEyeSnap = cb.lastEye.clone().lerp(fromEye, k);
+      const fromTargetSnap = cb.lastTarget.clone().lerp(fromTarget, k);
+      const toEye = cb.to === "first" ? fpEye : tpEye;
+      const toTarget = cb.to === "first" ? fpTarget : tpTarget;
+      camera.position.copy(fromEyeSnap.lerp(toEye, k));
+      const finalTarget = fromTargetSnap.lerp(toTarget, k);
+      camera.lookAt(finalTarget);
+    } else if (cameraMode === "first") {
+      camera.position.copy(fpEye);
+      camera.lookAt(fpTarget);
     } else {
-      // Distance scales with rig height so a 1.8m character frames the same
-      // as a 3m one without the user having to fiddle.
-      const dist = camOrbit.current.dist * Math.max(0.6, measuredHeight / 1.8);
-      const pitch = camOrbit.current.pitch;
-      const targetY = root.position.y + measuredHeight * 0.7;
-      tmp.camTarget.set(root.position.x, targetY, root.position.z);
-      tmp.camPos.set(
-        root.position.x + Math.sin(camYaw) * Math.cos(pitch) * dist,
-        targetY + Math.sin(pitch) * dist,
-        root.position.z + Math.cos(camYaw) * Math.cos(pitch) * dist,
-      );
-      camera.position.lerp(tmp.camPos, Math.min(1, dt * 10));
-      camera.lookAt(tmp.camTarget);
+      camera.position.lerp(tpEye, Math.min(1, dt * 10));
+      camera.lookAt(tpTarget);
     }
   });
 

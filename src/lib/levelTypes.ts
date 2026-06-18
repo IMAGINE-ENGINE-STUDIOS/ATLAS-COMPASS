@@ -161,6 +161,12 @@ export interface CharacterObject extends BaseObject {
     height?: number;      // capsule total height, default 1.7
     radius?: number;      // capsule radius, default 0.32
   };
+  /**
+   * When true, the editor renders a walkability heatmap over the scene:
+   * green tiles = the character can stand here, red tiles = blocked
+   * (no ground, ceiling too low, or a step too tall to climb).
+   */
+  showNavMap?: boolean;
 }
 
 /** Default Xbot character (Three.js examples — MIT-licensed Mixamo rig). */

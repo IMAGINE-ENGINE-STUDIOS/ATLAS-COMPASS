@@ -2098,6 +2098,22 @@ function CharacterInspector({
                 />
               </div>
             </div>
+            <div className="flex items-center justify-between pt-1">
+              <Label className="text-[11px]">Show navigation map</Label>
+              <Switch
+                checked={!!obj.showNavMap}
+                onCheckedChange={(v) => onPatch({ showNavMap: v })}
+                disabled={disabled}
+              />
+            </div>
+            {obj.showNavMap && (
+              <p className="text-[10px] text-muted-foreground leading-snug">
+                <span className="inline-block w-2 h-2 mr-1 rounded-sm bg-emerald-500/70 align-middle" />
+                walkable ·{" "}
+                <span className="inline-block w-2 h-2 mx-1 rounded-sm bg-red-500/70 align-middle" />
+                blocked (no ground, ceiling too low, or slope &gt; 45°).
+              </p>
+            )}
           </>
         )}
       </div>

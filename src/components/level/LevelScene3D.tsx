@@ -28,6 +28,7 @@ import LevelCharacter from "./LevelCharacter";
 import PlayableCharacter from "./locomotion/PlayableCharacter";
 import PushableRuntime from "./locomotion/PushableRuntime";
 import InteractionPromptUI from "./locomotion/InteractionPromptUI";
+import NavigationMap from "./locomotion/NavigationMap";
 
 /* ---------- helpers ---------- */
 
@@ -1272,6 +1273,24 @@ export function LevelSceneContents({
           <InteractionPromptUI />
         </Html>
       )}
+      {/* Walkability heat-map for the first character that requests it. */}
+      {(() => {
+        const navChar = scene.objects.find(
+          (o) => o.kind === "character" && (o as CharacterObject).showNavMap,
+        ) as CharacterObject | undefined;
+        if (!navChar) return null;
+        const cfg = navChar.locomotion ?? {};
+        return (
+          <NavigationMap
+            centerXZ={[navChar.position[0], navChar.position[2]]}
+            charHeight={cfg.height ?? 1.7}
+            charRadius={cfg.radius ?? 0.32}
+            size={24}
+            resolution={36}
+            nonce={scene.objects.length}
+          />
+        );
+      })()}
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
       <FocusController
         target={focusRequest}
