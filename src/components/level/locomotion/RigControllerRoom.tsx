@@ -230,12 +230,33 @@ function Rig({
   // Normalize the model so its rendered height matches `targetHeight` (m).
   // glTF sample creatures (Fox, Horse, Flamingo…) ship at wildly different
   // unit scales — this brings every rig into real-world proportions.
+  //
+  // Box3.setFromObject is unreliable for SkinnedMesh (it ignores skinning and
+  // can return a near-zero or wildly inflated box depending on bind pose).
+  // We instead union each mesh's *geometry* bounding box transformed by that
+  // mesh's world matrix, which gives a stable T-pose size every time.
   const normalizedScale = useMemo(() => {
     try {
-      const box = new THREE.Box3().setFromObject(cloned);
-      const size = box.getSize(new THREE.Vector3());
+      cloned.updateMatrixWorld(true);
+      const union = new THREE.Box3();
+      const tmp = new THREE.Box3();
+      let found = false;
+      cloned.traverse((o: any) => {
+        const geom = o?.geometry as THREE.BufferGeometry | undefined;
+        if (!geom) return;
+        if (!geom.boundingBox) geom.computeBoundingBox();
+        if (!geom.boundingBox) return;
+        tmp.copy(geom.boundingBox).applyMatrix4(o.matrixWorld);
+        union.union(tmp);
+        found = true;
+      });
+      if (!found || union.isEmpty()) return 1;
+      const size = union.getSize(new THREE.Vector3());
       if (!isFinite(size.y) || size.y <= 0) return 1;
-      return targetHeight / size.y;
+      const s = targetHeight / size.y;
+      // Clamp to a sane band so a broken bbox can't produce an invisible or
+      // skybox-sized rig.
+      return Math.min(Math.max(s, 1e-4), 1e4);
     } catch {
       return 1;
     }
