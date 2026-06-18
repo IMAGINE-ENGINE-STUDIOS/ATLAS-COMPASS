@@ -1196,6 +1196,8 @@ export default function LevelEditorPage() {
         {/* Left: outline */}
         <aside className="border-r border-border/40 bg-card/40 overflow-y-auto">
           <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
+            {!rigRoomMode && (
+              <>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Add</p>
             <div className="grid grid-cols-3 gap-1">
               <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => addObject(makePrimitive("box"))}>
@@ -1277,6 +1279,8 @@ export default function LevelEditorPage() {
                 }}
               />
             </div>
+              </>
+            )}
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-3 mb-1">Lights</p>
             <div className="grid grid-cols-4 gap-1">
               <Button size="sm" variant="ghost" className="h-8 px-1" title="Directional"
