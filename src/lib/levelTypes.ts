@@ -208,6 +208,21 @@ export interface TrajectoryObject extends BaseObject {
   loop: boolean;
   /** Base curve color (used outside any section). */
   color: string;
+  /**
+   * Smart-path mode. When true, the follower walks the terrain instead of
+   * floating on the abstract curve:
+   *  - Y is snapped to surface via a down-raycast against terrain + scenery.
+   *  - Pitch is aligned to the surface slope (orientToPath also controls yaw).
+   *  - Travel speed is scaled by `slopeSpeedFactor` on inclines so uphill
+   *    is slower and downhill is faster (still capped at 2x base).
+   *  - Vertical jumps greater than `maxStepHeight` are smoothed over multiple
+   *    frames, so the character "steps" up/down stairs instead of teleporting.
+   */
+  smartPath?: boolean;
+  /** Max vertical step the character can climb instantly (m). Default 0.4. */
+  maxStepHeight?: number;
+  /** Speed scale per radian of slope (0 = ignore slope). Default 0.6. */
+  slopeSpeedFactor?: number;
 }
 
 /** Default Xbot character (Three.js examples — MIT-licensed Mixamo rig). */
