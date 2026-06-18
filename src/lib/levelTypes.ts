@@ -274,6 +274,21 @@ export interface LevelScene {
   animations: AnimationTrack[];
   layers?: SceneLayer[];
   terrain?: SceneTerrain;
+  /**
+   * Persisted character animation clips uploaded by the user for this level.
+   * Each entry mirrors `CharacterClipEntry` from the library — kept here so
+   * the gallery can show them again after a reload. (Blob URLs don't survive
+   * a reload; we store the original `.glb` as a data URL.)
+   */
+  userClipLibrary?: Array<{
+    id: string;
+    name: string;
+    category: string;
+    tags: string[];
+    url: string;        // data URL
+    clipName?: string;
+    loop: boolean;
+  }>;
   environment: {
     background: string;
     ambient: number;
