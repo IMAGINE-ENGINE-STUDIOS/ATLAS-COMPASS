@@ -59,6 +59,12 @@ import {
 import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
+import {
+  listRigSaves,
+  getCachedRigSaves,
+  onRigSavesChanged,
+  type RigSave,
+} from "@/lib/rigSaves";
 
 type ActiveTool = { key: string; label: string; icon: React.ReactNode; active: boolean };
 
