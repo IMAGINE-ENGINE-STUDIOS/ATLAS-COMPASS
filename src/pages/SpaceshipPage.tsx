@@ -1255,7 +1255,7 @@ function SpaceshipPage() {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: { near: 200, nearValue: 0.85, far: 30000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 45000, farValue: 0.15 } as any,
-          heightReference: 1,
+          heightReference: pinHeightRef(),
           alignedAxis: Cartesian3.ZERO,
         },
         properties: { type: "business-result" } as any,
@@ -2311,7 +2311,7 @@ function SpaceshipPage() {
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
               scaleByDistance: { near: 200, nearValue: selectedNow ? 1.0 : 0.8, far: 15000, farValue: selectedNow ? 0.35 : 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
-              heightReference: 1, // CLAMP_TO_GROUND
+              heightReference: pinHeightRef(),
               alignedAxis: Cartesian3.ZERO, // Always face camera
               eyeOffset: selectedNow ? new Cartesian3(0, 0, -50) : new Cartesian3(0, 0, 0),
             },
@@ -2919,7 +2919,7 @@ function SpaceshipPage() {
           scaleByDistance: { near: 100, nearValue: 1.0, far: 50000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 0, nearValue: 1.0, far: 80000, farValue: 0.4 } as any,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: 1, // CLAMP_TO_GROUND
+          heightReference: pinHeightRef(),
         },
         properties: { type: "marketplace", productId: p.id } as any,
       });
@@ -2965,7 +2965,7 @@ function SpaceshipPage() {
           scaleByDistance: { near: 200, nearValue: 1.0, far: 60000, farValue: 0.25 } as any,
           translucencyByDistance: { near: 0, nearValue: 1.0, far: 90000, farValue: 0.3 } as any,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: 1,
+          heightReference: pinHeightRef(),
         },
         properties: { type: "camera", camId: cam.id } as any,
       });
@@ -3035,7 +3035,7 @@ function SpaceshipPage() {
           scaleByDistance: { near: 200, nearValue: 1.0, far: 25000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 30000, farValue: 0.0 } as any,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: 1,
+          heightReference: pinHeightRef(),
         },
         properties: { type: "search-result", idx } as any,
       });
