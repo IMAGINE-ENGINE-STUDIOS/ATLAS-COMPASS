@@ -1584,6 +1584,58 @@ export default function LevelEditorPage() {
           }}
         />
       )}
+
+      <CharacterAnimationGallery
+        open={characterGalleryOpen}
+        onOpenChange={setCharacterGalleryOpen}
+        currentClip={
+          scene.objects.find((o) => o.id === selectedId && o.kind === "character") &&
+          (scene.objects.find((o) => o.id === selectedId) as CharacterObject | undefined)?.currentAnimation
+        }
+        extraEntries={userClipEntries}
+        onApply={(entry) => {
+          const obj = scene.objects.find((o) => o.id === selectedId);
+          if (!obj || obj.kind !== "character") return;
+          const patch: Partial<CharacterObject> = { currentAnimation: entry.clipName };
+          if (entry.source !== "builtin" && entry.url) patch.url = entry.url;
+          patchObject(obj.id, patch as any);
+        }}
+        onUserClipsParsed={async (entries) => {
+          const persisted = await Promise.all(
+            entries.map(async (e) => {
+              let url = e.url ?? "";
+              if (url.startsWith("blob:")) {
+                try {
+                  const blob = await fetch(url).then((r) => r.blob());
+                  url = await new Promise<string>((res, rej) => {
+                    const r = new FileReader();
+                    r.onload = () => res(r.result as string);
+                    r.onerror = () => rej(r.error);
+                    r.readAsDataURL(blob);
+                  });
+                } catch (err) {
+                  console.warn("[clip-persist] keeping blob url", err);
+                }
+              }
+              return {
+                id: e.id, name: e.name, category: String(e.category),
+                tags: e.tags, url, clipName: e.clipName, loop: e.loop,
+              };
+            }),
+          );
+          updateScene((s) => {
+            s.userClipLibrary = [...(s.userClipLibrary ?? []), ...persisted];
+            return s;
+          });
+        }}
+      />
+
+      <ObjectAnimationGallery
+        open={objectGalleryOpen}
+        onOpenChange={setObjectGalleryOpen}
+        target={objectGalleryTarget}
+        onApply={(track) => addTrack(track)}
+      />
     </div>
   );
 }
