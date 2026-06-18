@@ -5359,7 +5359,7 @@ function SpaceshipPage() {
                     <X className="w-3.5 h-3.5" />
                   </button>
                   {(() => {
-                    const bizEntityId = `biz-${selectedBusiness.id}`;
+                    const bizEntityId = `biz-${String(selectedBusiness.id ?? "")}`;
                     const sel = isTagSelected(bizEntityId);
                     return (
                       <button
