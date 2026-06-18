@@ -433,7 +433,12 @@ export default function PlayableCharacter({
     }
 
     // ---- ground / collision via raycast ----
-    const staticTargets = collectStaticTargets(threeScene, root);
+    const now = performance.now();
+    if (now >= staticCache.current.nextAt) {
+      staticCache.current.targets = collectStaticTargets(threeScene, root);
+      staticCache.current.nextAt = now + 250;
+    }
+    const staticTargets = staticCache.current.targets;
     // Down ray from a bit above the feet.
     tmp.raycaster.set(
       new THREE.Vector3(root.position.x, root.position.y + 1.2, root.position.z),
