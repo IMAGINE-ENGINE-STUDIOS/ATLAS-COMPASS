@@ -3,6 +3,7 @@ import { useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
 import type { CharacterObject } from "@/lib/levelTypes";
+import { modelForwardYawOffset } from "@/lib/modelOrientation";
 
 /**
  * Rigged character renderer.
@@ -86,7 +87,9 @@ export default function LevelCharacter({
         onSelect?.(obj.id);
       }}
     >
-      <primitive object={cloned} />
+      <group rotation={[0, modelForwardYawOffset(obj.url), 0]}>
+        <primitive object={cloned} />
+      </group>
     </group>
   );
 }
