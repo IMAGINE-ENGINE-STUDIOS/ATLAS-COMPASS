@@ -4,6 +4,7 @@ import { useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
 import type { CharacterObject } from "@/lib/levelTypes";
+import { modelForwardYawOffset } from "@/lib/modelOrientation";
 import {
   pushableRegistry,
   setInteractionPrompt,
