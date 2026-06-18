@@ -782,7 +782,9 @@ export default function PlayableCharacter({
   return (
     <group ref={rootRef} visible={obj.visible}>
       <group ref={visualRef} scale={visualScale}>
-        <primitive object={cloned} />
+        <group rotation={[0, modelForwardYawOffset(obj.url), 0]}>
+          <primitive object={cloned} />
+        </group>
       </group>
     </group>
   );
