@@ -1558,21 +1558,24 @@ function LevelScene3DInner(
       onCreated={({ gl }) => {
         const canvas = gl.domElement;
         // Expose a global thumbnail capturer. Captures the live canvas at
-        // a normal screenshot resolution (960x540 JPEG, ~40-80 KB) so the
-        // gallery tile looks crisp instead of pixelated.
-        (window as any).__levelThumbnail = (w = 960, h = 540, q = 0.82): string | null => {
+        // 16:9 1280x720 JPEG with cover-crop (no letterbox bars) and a
+        // forced re-render so the frame is fresh, not whatever was last
+        // painted. Result is ~80-150 KB — small enough to inline.
+        (window as any).__levelThumbnail = (w = 1280, h = 720, q = 0.9): string | null => {
           try {
             const off = document.createElement("canvas");
             off.width = w;
             off.height = h;
             const ctx = off.getContext("2d");
             if (!ctx) return null;
-            // Letterbox-fit so non-16:9 viewports don't squish.
             const cw = canvas.width || 1;
             const ch = canvas.height || 1;
-            const scale = Math.min(w / cw, h / ch);
+            // Cover-fit: scale the source to fill the 16:9 frame, crop overflow.
+            const scale = Math.max(w / cw, h / ch);
             const dw = cw * scale;
             const dh = ch * scale;
+            (ctx as any).imageSmoothingEnabled = true;
+            (ctx as any).imageSmoothingQuality = "high";
             ctx.fillStyle = "#0b1220";
             ctx.fillRect(0, 0, w, h);
             ctx.drawImage(canvas, (w - dw) / 2, (h - dh) / 2, dw, dh);
