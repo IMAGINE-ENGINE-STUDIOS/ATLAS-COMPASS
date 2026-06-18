@@ -1932,11 +1932,13 @@ function TextureSlot({
 }
 
 function CharacterInspector({
-  obj, disabled, onPatch,
+  obj, disabled, onPatch, userClips, onOpenGallery,
 }: {
   obj: CharacterObject;
   disabled?: boolean;
   onPatch: (patch: Partial<CharacterObject>) => void;
+  userClips?: CharacterClipEntry[];
+  onOpenGallery?: () => void;
 }) {
   const names = useCharacterAnimationNames(obj.url);
   const current = obj.currentAnimation || names[0] || "";
@@ -1949,6 +1951,30 @@ function CharacterInspector({
           {names.length} animation clip{names.length === 1 ? "" : "s"} · full body, finger & toe rig
         </p>
       </div>
+
+      {onOpenGallery && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-8 text-[11px]"
+          disabled={disabled}
+          onClick={onOpenGallery}
+        >
+          <Library className="w-3.5 h-3.5 mr-1" /> Browse 100 animations
+        </Button>
+      )}
+
+      <InlineAnimationPicker
+        currentClipName={current}
+        extraEntries={userClips}
+        onPick={(entry) => {
+          // If the entry is from a different rig URL, swap to its url so the
+          // clip can play. Otherwise just update the clip name.
+          const patch: Partial<CharacterObject> = { currentAnimation: entry.clipName };
+          if (entry.source !== "builtin" && entry.url) patch.url = entry.url;
+          onPatch(patch);
+        }}
+      />
 
       <div>
         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Animation</Label>
