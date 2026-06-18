@@ -788,6 +788,12 @@ function SpaceshipPage() {
   const [showMarketplacePins, setShowMarketplacePins] = useState<boolean>(savedUI.showMarketplacePins ?? false);
   const [selectedMarketplaceProduct, setSelectedMarketplaceProduct] = useState<MarketplaceProduct | null>(null);
   const marketplaceEntitiesRef = useRef<any[]>([]);
+  // Bumps whenever loaded atlas tags (businesses, marketplace) change so the
+  // unified cluster overlay re-derives its tag list.
+  const [tagsVersion, setTagsVersion] = useState(0);
+  // Reactive count for the "Selected (n)" chip.
+  const [selectedCount, setSelectedCount] = useState(getSelectedCount());
+  useEffect(() => subscribeSelection(() => setSelectedCount(getSelectedCount())), []);
   const cameraEntitiesRef = useRef<any[]>([]);
   const [mapCameras, setMapCameras] = useState<TrafficCamera[]>([]);
 
