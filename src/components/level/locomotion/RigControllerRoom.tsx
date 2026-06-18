@@ -48,6 +48,8 @@ interface LibraryCharacter {
   category: "Human" | "Creature" | "Robot";
   url: string;
   credit: string;
+  /** Real-world height in meters used to normalize the loaded model. */
+  realHeight: number;
 }
 
 const KHRONOS =
@@ -56,21 +58,29 @@ const THREE_EX = "https://threejs.org/examples/models/gltf";
 
 const CHARACTER_LIBRARY: LibraryCharacter[] = [
   // Humans
-  { id: "xbot",        name: "Xbot",          category: "Human",    url: `${THREE_EX}/Xbot.glb`,                                  credit: "three.js / Mixamo" },
-  { id: "soldier",     name: "Soldier",       category: "Human",    url: `${THREE_EX}/Soldier.glb`,                               credit: "three.js / Mixamo" },
-  { id: "michelle",    name: "Michelle",      category: "Human",    url: `${THREE_EX}/Michelle.glb`,                              credit: "three.js / Mixamo" },
-  { id: "cesium-man",  name: "Cesium Man",    category: "Human",    url: `${KHRONOS}/CesiumMan/glTF-Binary/CesiumMan.glb`,         credit: "Khronos (CC-BY)" },
-  { id: "rigged-fig",  name: "Rigged Figure", category: "Human",    url: `${KHRONOS}/RiggedFigure/glTF-Binary/RiggedFigure.glb`,   credit: "Khronos (CC0)" },
-  // Creatures
-  { id: "fox",         name: "Fox",           category: "Creature", url: `${KHRONOS}/Fox/glTF-Binary/Fox.glb`,                     credit: "Khronos (CC0)" },
-  { id: "brainstem",   name: "BrainStem",     category: "Creature", url: `${KHRONOS}/BrainStem/glTF-Binary/BrainStem.glb`,         credit: "Khronos (CC-BY)" },
-  { id: "flamingo",    name: "Flamingo",      category: "Creature", url: `${THREE_EX}/Flamingo.glb`,                              credit: "three.js" },
-  { id: "stork",       name: "Stork",         category: "Creature", url: `${THREE_EX}/Stork.glb`,                                 credit: "three.js" },
-  { id: "parrot",      name: "Parrot",        category: "Creature", url: `${THREE_EX}/Parrot.glb`,                                credit: "three.js" },
-  { id: "horse",       name: "Horse",         category: "Creature", url: `${THREE_EX}/Horse.glb`,                                 credit: "three.js" },
+  { id: "xbot",        name: "Xbot",          category: "Human",    url: `${THREE_EX}/Xbot.glb`,                                  credit: "three.js / Mixamo", realHeight: 1.8 },
+  { id: "soldier",     name: "Soldier",       category: "Human",    url: `${THREE_EX}/Soldier.glb`,                               credit: "three.js / Mixamo", realHeight: 1.8 },
+  { id: "michelle",    name: "Michelle",      category: "Human",    url: `${THREE_EX}/Michelle.glb`,                              credit: "three.js / Mixamo", realHeight: 1.7 },
+  { id: "cesium-man",  name: "Cesium Man",    category: "Human",    url: `${KHRONOS}/CesiumMan/glTF-Binary/CesiumMan.glb`,         credit: "Khronos (CC-BY)", realHeight: 1.8 },
+  { id: "rigged-fig",  name: "Rigged Figure", category: "Human",    url: `${KHRONOS}/RiggedFigure/glTF-Binary/RiggedFigure.glb`,   credit: "Khronos (CC0)",  realHeight: 1.8 },
+  // Creatures — heights are real-world averages in meters.
+  { id: "fox",         name: "Fox",           category: "Creature", url: `${KHRONOS}/Fox/glTF-Binary/Fox.glb`,                     credit: "Khronos (CC0)",  realHeight: 0.5 },
+  { id: "brainstem",   name: "BrainStem",     category: "Creature", url: `${KHRONOS}/BrainStem/glTF-Binary/BrainStem.glb`,         credit: "Khronos (CC-BY)", realHeight: 1.0 },
+  { id: "flamingo",    name: "Flamingo",      category: "Creature", url: `${THREE_EX}/Flamingo.glb`,                              credit: "three.js",        realHeight: 1.2 },
+  { id: "stork",       name: "Stork",         category: "Creature", url: `${THREE_EX}/Stork.glb`,                                 credit: "three.js",        realHeight: 1.0 },
+  { id: "parrot",      name: "Parrot",        category: "Creature", url: `${THREE_EX}/Parrot.glb`,                                credit: "three.js",        realHeight: 0.35 },
+  { id: "horse",       name: "Horse",         category: "Creature", url: `${THREE_EX}/Horse.glb`,                                 credit: "three.js",        realHeight: 1.6 },
   // Robots
-  { id: "robot-exp",   name: "Robot Expressive", category: "Robot", url: `${THREE_EX}/RobotExpressive/RobotExpressive.glb`,       credit: "three.js" },
+  { id: "robot-exp",   name: "Robot Expressive", category: "Robot", url: `${THREE_EX}/RobotExpressive/RobotExpressive.glb`,       credit: "three.js",        realHeight: 1.7 },
 ];
+
+/** Look up the real-world height (m) for a known model URL. */
+const HEIGHT_BY_URL: Record<string, number> = Object.fromEntries(
+  CHARACTER_LIBRARY.map((c) => [c.url, c.realHeight]),
+);
+function lookupRealHeight(url: string): number {
+  return HEIGHT_BY_URL[url] ?? 1.8; // default: adult human
+}
 
 /**
  * Rig Controller Room
@@ -186,6 +196,7 @@ function SnapshotBridge({ bridgeRef }: { bridgeRef: React.MutableRefObject<RigBr
 
 function Rig({
   url,
+  targetHeight,
   showSkeleton,
   selectedBoneName,
   transformMode,
@@ -200,6 +211,7 @@ function Rig({
   bridgeRef,
 }: {
   url: string;
+  targetHeight: number;
   showSkeleton: boolean;
   selectedBoneName: string | null;
   transformMode: "rotate" | "translate";
@@ -215,6 +227,19 @@ function Rig({
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+  // Normalize the model so its rendered height matches `targetHeight` (m).
+  // glTF sample creatures (Fox, Horse, Flamingo…) ship at wildly different
+  // unit scales — this brings every rig into real-world proportions.
+  const normalizedScale = useMemo(() => {
+    try {
+      const box = new THREE.Box3().setFromObject(cloned);
+      const size = box.getSize(new THREE.Vector3());
+      if (!isFinite(size.y) || size.y <= 0) return 1;
+      return targetHeight / size.y;
+    } catch {
+      return 1;
+    }
+  }, [cloned, targetHeight]);
   const helperRef = useRef<THREE.SkeletonHelper | null>(null);
   const { scene: r3fScene } = useThree();
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -306,7 +331,7 @@ function Rig({
 
   return (
     <>
-      <primitive object={cloned} />
+      <primitive object={cloned} scale={normalizedScale} />
       {highlightedBones.map((h) => (
         <ControllerMarker
           key={h.name}
@@ -914,6 +939,7 @@ export default function RigControllerRoom({
             {url && (
               <Rig
                 url={url}
+                targetHeight={lookupRealHeight(url)}
                 showSkeleton={showSkeleton}
                 selectedBoneName={selectedBoneName}
                 transformMode={transformMode}
