@@ -21,6 +21,40 @@ import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users } f
 import { toast } from "sonner";
 
 /**
+ * Curated free / open-licensed rigged characters. All URLs are public CDN
+ * sources (three.js examples + Khronos glTF Sample Models, both CC0 / CC-BY).
+ * Loading any of these populates the rig + clip list the same way an upload
+ * would.
+ */
+interface LibraryCharacter {
+  id: string;
+  name: string;
+  category: "Human" | "Creature" | "Monster" | "Robot";
+  url: string;
+  credit: string;
+}
+
+const KHRONOS =
+  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0";
+const THREE_EX = "https://threejs.org/examples/models/gltf";
+
+const CHARACTER_LIBRARY: LibraryCharacter[] = [
+  // Humans
+  { id: "xbot",        name: "Xbot",          category: "Human",    url: `${THREE_EX}/Xbot.glb`,                                  credit: "three.js / Mixamo" },
+  { id: "soldier",     name: "Soldier",       category: "Human",    url: `${THREE_EX}/Soldier.glb`,                               credit: "three.js / Mixamo" },
+  { id: "michelle",    name: "Michelle",      category: "Human",    url: `${THREE_EX}/Michelle.glb`,                              credit: "three.js / Mixamo" },
+  { id: "cesium-man",  name: "Cesium Man",    category: "Human",    url: `${KHRONOS}/CesiumMan/glTF-Binary/CesiumMan.glb`,         credit: "Khronos (CC-BY)" },
+  { id: "rigged-fig",  name: "Rigged Figure", category: "Human",    url: `${KHRONOS}/RiggedFigure/glTF-Binary/RiggedFigure.glb`,   credit: "Khronos (CC0)" },
+  // Creatures
+  { id: "fox",         name: "Fox",           category: "Creature", url: `${KHRONOS}/Fox/glTF-Binary/Fox.glb`,                     credit: "Khronos (CC0)" },
+  { id: "brainstem",   name: "BrainStem",     category: "Creature", url: `${KHRONOS}/BrainStem/glTF-Binary/BrainStem.glb`,         credit: "Khronos (CC-BY)" },
+  // Monsters
+  { id: "monster",     name: "Monster",       category: "Monster",  url: `${KHRONOS}/Monster/glTF-Binary/Monster.glb`,             credit: "Khronos (CC-BY)" },
+  // Robots
+  { id: "robot-exp",   name: "Robot Expressive", category: "Robot", url: `${THREE_EX}/RobotExpressive/RobotExpressive.glb`,       credit: "three.js" },
+];
+
+/**
  * Rig Controller Room
  * --------------------
  * A standalone exploration space for rigs and controllers.
@@ -372,6 +406,13 @@ export default function RigControllerRoom({
     setTargetCharId(c.id);
   };
 
+  const handleLoadLibrary = (c: LibraryCharacter) => {
+    setUrl(c.url);
+    setPendingUrl(c.url);
+    setSourceLabel(`${c.name} · ${c.credit}`);
+    toast.success(`Loaded ${c.name}`);
+  };
+
   const handleApplyToCharacter = () => {
     if (!targetCharId || !onApplyToCharacter) return;
     onApplyToCharacter(targetCharId, { url, currentAnimation: activeClip ?? undefined });
@@ -475,6 +516,43 @@ export default function RigControllerRoom({
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
+        </div>
+
+        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
+          <Label className="text-[11px]">Character library</Label>
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            Free rigged models. Click to load — replaces the current rig.
+          </p>
+          {(["Human", "Creature", "Monster", "Robot"] as const).map((cat) => {
+            const items = CHARACTER_LIBRARY.filter((c) => c.category === cat);
+            if (items.length === 0) return null;
+            return (
+              <div key={cat}>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mt-1.5 mb-1">
+                  {cat}
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {items.map((c) => {
+                    const active = url === c.url;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => handleLoadLibrary(c)}
+                        title={c.credit}
+                        className={`text-left text-[11px] px-2 py-1 rounded border transition truncate ${
+                          active
+                            ? "border-foreground/40 bg-foreground/10"
+                            : "border-border/40 hover:bg-muted/30"
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex gap-2">
