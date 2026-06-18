@@ -135,11 +135,14 @@ function collectStaticTargets(root: THREE.Object3D, exclude: THREE.Object3D): TH
       // skip helpers/gizmos
       const ud = (o as any).userData ?? {};
       if (ud.__gizmo || ud.__nocast) return;
+      // Skinned meshes (characters) are very expensive to raycast and we
+      // handle character-vs-character separately with a cheap cylinder test.
+      if ((o as any).isSkinnedMesh) return;
       if ((o as any).isLine || (o as any).isLine2 || (o as any).isLineSegments || (o as any).isLineSegments2) return;
       // Skip anything inside a spline/trajectory group.
       let p: THREE.Object3D | null = o.parent;
       while (p) {
-        if (p.userData?.__spline || p.userData?.__nocast) return;
+        if (p.userData?.__spline || p.userData?.__nocast || p.userData?.__character) return;
         p = p.parent;
       }
       out.push(o);
@@ -365,6 +368,15 @@ export default function PlayableCharacter({
     sphere: new THREE.Vector3(),
   }), []);
 
+  // Cache the static target list — rebuilding every frame walks the entire
+  // scene graph (including every skinned mesh bone) which spikes badly when
+  // more characters are spawned. Refresh ~4x per second; that's well within
+  // tolerance for collision since static geometry doesn't move.
+  const staticCache = useRef<{ targets: THREE.Object3D[]; nextAt: number }>({
+    targets: [],
+    nextAt: 0,
+  });
+
   useFrame((_, rawDt) => {
     if (!enabled || !rootRef.current) return;
     const dt = Math.min(0.05, rawDt); // clamp to keep physics stable
@@ -421,7 +433,12 @@ export default function PlayableCharacter({
     }
 
     // ---- ground / collision via raycast ----
-    const staticTargets = collectStaticTargets(threeScene, root);
+    const now = performance.now();
+    if (now >= staticCache.current.nextAt) {
+      staticCache.current.targets = collectStaticTargets(threeScene, root);
+      staticCache.current.nextAt = now + 250;
+    }
+    const staticTargets = staticCache.current.targets;
     // Down ray from a bit above the feet.
     tmp.raycaster.set(
       new THREE.Vector3(root.position.x, root.position.y + 1.2, root.position.z),
