@@ -63,30 +63,7 @@ const builtin = (
   loop,
 });
 
-const url = (
-  id: string,
-  name: string,
-  category: ClipCategory,
-  href: string,
-  clipName: string | undefined,
-  tags: string[] = [],
-  loop = true,
-): CharacterClipEntry => ({
-  id,
-  name,
-  category,
-  tags: [category, ...tags],
-  source: "url",
-  url: href,
-  clipName,
-  loop,
-});
-
 // ---------- catalogue --------------------------------------------------------
-
-const XBOT = "https://threejs.org/examples/models/gltf/Xbot.glb";
-const ROBOT = "https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb";
-const SOLDIER = "https://threejs.org/examples/models/gltf/Soldier.glb";
 
 export const CHARACTER_ANIMATION_LIBRARY: CharacterClipEntry[] = [
   // Only clips that play reliably on the default Xbot rig. Additional
