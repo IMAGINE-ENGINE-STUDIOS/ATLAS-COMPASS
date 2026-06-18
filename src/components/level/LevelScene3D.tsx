@@ -814,12 +814,16 @@ function RenderObject({
   onSelect,
   onFocus,
   playing,
+  controlsRef,
+  onTrajectoryPointsChange,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   onFocus?: (id: string) => void;
   playing?: boolean;
+  controlsRef?: React.MutableRefObject<any>;
+  onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
@@ -846,6 +850,13 @@ function RenderObject({
         obj={obj as TrajectoryObject}
         selected={selected}
         onSelect={onSelect}
+        editable={!playing}
+        controlsRef={controlsRef}
+        onPointsChange={
+          onTrajectoryPointsChange
+            ? (pts) => onTrajectoryPointsChange(obj.id, pts)
+            : undefined
+        }
       />
     );
   }
@@ -866,11 +877,15 @@ function ObjectSlot({
   selectedId,
   onSelect,
   playing,
+  controlsRef,
+  onTrajectoryPointsChange,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   playing: boolean;
+  controlsRef?: React.MutableRefObject<any>;
+  onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const isPlayer =
@@ -897,6 +912,8 @@ function ObjectSlot({
         selectedId={selectedId}
         onSelect={onSelect ? (id) => onSelect(id) : undefined}
         playing={playing}
+        controlsRef={controlsRef}
+        onTrajectoryPointsChange={onTrajectoryPointsChange}
       />
     );
   }
@@ -919,6 +936,8 @@ function ObjectSlot({
         selectedId={selectedId}
         onSelect={onSelect ? (id) => onSelect(id) : undefined}
         playing={playing}
+        controlsRef={controlsRef}
+        onTrajectoryPointsChange={onTrajectoryPointsChange}
       />
       {isPushable && <PushableRuntime objectId={obj.id} groupRef={groupRef} />}
     </group>
@@ -1161,6 +1180,11 @@ export interface LevelSceneProps {
       bottomHeights?: number[];
     },
   ) => void;
+  /** Drag-edit of trajectory control points in the viewport. */
+  onTrajectoryPointsChange?: (
+    id: string,
+    points: [number, number, number][],
+  ) => void;
   transformMode?: "translate" | "rotate" | "scale" | null;
   onObjectTransform?: (
     id: string,
@@ -1202,6 +1226,7 @@ export function LevelSceneContents({
   onPolygonOffsetsChange,
   onPolygonHeightsChange,
   onPolygonPatch,
+  onTrajectoryPointsChange,
   transformMode,
   onObjectTransform,
   snap,
@@ -1275,6 +1300,8 @@ export function LevelSceneContents({
             selectedId={selectedId}
             onSelect={onSelect}
             playing={!!playing}
+            controlsRef={controlsRef}
+            onTrajectoryPointsChange={onTrajectoryPointsChange}
           />
         ))}
       </group>

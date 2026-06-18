@@ -1,8 +1,8 @@
 import { useMemo, useRef, useEffect } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Line, Html } from "@react-three/drei";
 import * as THREE from "three";
-import type { TrajectoryObject, TrajectorySection, SceneObject } from "@/lib/levelTypes";
+import type { TrajectoryObject, TrajectorySection, SceneObject, Vec3 } from "@/lib/levelTypes";
 
 /* ---------- helpers ---------- */
 
@@ -26,11 +26,21 @@ export function TrajectoryRender({
   obj,
   selected,
   onSelect,
+  editable,
+  onPointsChange,
+  controlsRef,
 }: {
   obj: TrajectoryObject;
   selected?: boolean;
   onSelect?: (id: string) => void;
+  /** When true, control points can be dragged in the viewport. */
+  editable?: boolean;
+  /** Patches `points` after a drag. */
+  onPointsChange?: (points: Vec3[]) => void;
+  /** OrbitControls ref — drag temporarily disables camera control. */
+  controlsRef?: React.MutableRefObject<any>;
 }) {
+  const { camera, gl, scene: r3fScene } = useThree();
   const curve = useMemo(() => buildCurve(obj), [obj.points, obj.closed, obj.tension]);
 
   // Build colored line segments by sampling the curve and tinting per section.
@@ -67,6 +77,67 @@ export function TrajectoryRender({
     );
   }
 
+  const beginDrag = (i: number, e: any) => {
+    if (!editable || !onPointsChange) return;
+    e.stopPropagation();
+    if (controlsRef?.current) controlsRef.current.enabled = false;
+    const wrapper = r3fScene.getObjectByName(`obj-${obj.id}`);
+    const mat = new THREE.Matrix4();
+    if (wrapper) {
+      wrapper.updateWorldMatrix(true, false);
+      mat.copy(wrapper.matrixWorld);
+    }
+    const inv = mat.clone().invert();
+    const handleWorld = new THREE.Vector3(...obj.points[i]).applyMatrix4(mat);
+    const vertical = !!(e.shiftKey || e.nativeEvent?.shiftKey);
+    let plane: THREE.Plane;
+    if (vertical) {
+      // Vertical plane through handle facing camera (drag along world Y).
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      const n = new THREE.Vector3(camDir.x, 0, camDir.z);
+      if (n.lengthSq() < 1e-6) n.set(0, 0, 1);
+      n.normalize();
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, handleWorld);
+    } else {
+      // Horizontal world plane through the handle (drag on XZ).
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+        new THREE.Vector3(0, 1, 0),
+        handleWorld,
+      );
+    }
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const canvas = gl.domElement;
+    let latest: Vec3 | null = null;
+    const onMove = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, hit)) return;
+      const local = hit.clone().applyMatrix4(inv);
+      latest = [local.x, local.y, local.z];
+      const next = obj.points.map((p, j) => (j === i ? latest! : p));
+      onPointsChange(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (controlsRef?.current) controlsRef.current.enabled = true;
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const removePoint = (i: number, e: any) => {
+    if (!editable || !onPointsChange) return;
+    e.stopPropagation();
+    if (obj.points.length <= 2) return;
+    onPointsChange(obj.points.filter((_, j) => j !== i));
+  };
+
   return (
     <group onPointerDown={(e) => { e.stopPropagation(); onSelect?.(obj.id); }}>
       {segments.map((s, i) => (
@@ -81,9 +152,21 @@ export function TrajectoryRender({
       ))}
       {/* Control-point handles */}
       {obj.points.map((p, i) => (
-        <mesh key={i} position={p}>
-          <sphereGeometry args={[selected ? 0.18 : 0.12, 12, 12]} />
-          <meshBasicMaterial color={selected ? "#fbbf24" : "#94a3b8"} />
+        <mesh
+          key={i}
+          position={p}
+          onPointerDown={(e) => {
+            if (editable && selected) beginDrag(i, e);
+          }}
+          onDoubleClick={(e) => removePoint(i, e)}
+        >
+          <sphereGeometry args={[selected ? 0.2 : 0.12, 16, 16]} />
+          <meshBasicMaterial
+            color={selected ? (editable ? "#fbbf24" : "#facc15") : "#94a3b8"}
+            depthTest={false}
+            transparent
+            opacity={0.95}
+          />
         </mesh>
       ))}
       {/* Direction arrow on first segment */}
