@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft, Save, Plus, Trash2, Box, Circle, Square, Cylinder, Cone,
   Upload, Sun, Lightbulb, Film, Play, Pause, MapPin, Layers, Eye, EyeOff,
@@ -36,6 +36,7 @@ import {
 } from "@/lib/levelTypes";
 import type { TrajectoryObject, TrajectorySection } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
+import RigControllerRoom from "@/components/level/locomotion/RigControllerRoom";
 import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
 import AtlasMiniMap from "@/components/level/AtlasMiniMap";
 import { Button } from "@/components/ui/button";
@@ -241,6 +242,14 @@ function makeLight(kind: SceneLight["kind"]): SceneLight {
 export default function LevelEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  /**
+   * When mounted at /locomotion, the editor swaps its central viewport for
+   * the Rig Controller Room while keeping every sidebar (objects, layers,
+   * terrain, inspector, animations) so users can sculpt rigs surrounded by
+   * the full scene-creation toolset.
+   */
+  const rigRoomMode = location.pathname === "/locomotion";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -422,6 +431,18 @@ export default function LevelEditorPage() {
 
   // load
   useEffect(() => {
+    if (rigRoomMode) {
+      // Bootstrap an in-memory "Rig Room" workspace — no DB, no autosave.
+      const me = "rig-room";
+      setUserId(me);
+      setOwnerId(me);
+      setName("Rig Room");
+      setDescription("Standalone rig & scene workspace");
+      setIsPublic(false);
+      setScene(EMPTY_SCENE);
+      setLoading(false);
+      return;
+    }
     if (!id) return;
     (async () => {
       if (isLocalLevelId(id)) {
@@ -1445,6 +1466,26 @@ export default function LevelEditorPage() {
 
         {/* Center: viewport */}
         <main className="relative bg-slate-950">
+          {rigRoomMode ? (
+            <RigControllerRoom
+              sceneCharacters={scene.objects
+                .filter((o): o is CharacterObject => o.kind === "character")
+                .map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  url: c.url,
+                  currentAnimation: c.currentAnimation,
+                }))}
+              onApplyToCharacter={(cid, patch) => {
+                patchObject(cid, {
+                  url: patch.url,
+                  ...(patch.currentAnimation
+                    ? { currentAnimation: patch.currentAnimation }
+                    : {}),
+                } as any);
+              }}
+            />
+          ) : (
           <LevelScene3D
             scene={renderedScene}
             selectedId={selectedId}
@@ -1514,6 +1555,7 @@ export default function LevelEditorPage() {
             }}
             className="w-full h-full"
           />
+          )}
         </main>
 
         {/* Right: inspector */}
