@@ -262,6 +262,20 @@ export interface CharacterObject extends BaseObject {
   /** Crossfade duration in seconds when swapping clips. */
   crossfade?: number;
   /**
+   * Optional saved bone pose authored in the Rig Controller Room. When
+   * present, it's applied to the skeleton after the model loads so any
+   * skeleton edits (custom rest pose, fixed limb adjustments) carry over
+   * into gameplay. Shape matches `BonePose` in `@/lib/rigSaves`.
+   */
+  pose?: Array<{
+    n: string;
+    p: [number, number, number];
+    q: [number, number, number, number];
+    s: [number, number, number];
+  }>;
+  /** Id of the rig save this character was last bound to (for re-sync). */
+  rigSaveId?: string;
+  /**
    * When true (and the editor is in Play mode), this character is driven by
    * the LocomotionRuntime (input + physics + camera). Only one playable
    * character is active at a time — the first match in scene order wins.
