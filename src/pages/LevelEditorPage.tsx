@@ -1662,12 +1662,12 @@ export default function LevelEditorPage() {
         <aside
           className={
             isMobile
-              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
+              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto overflow-x-hidden bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out scrollbar-dark ${
                   mobilePanel === "left"
                     ? "translate-y-0"
                     : "translate-y-full pointer-events-none"
                 }`
-              : `border-r border-border/40 bg-card/40 overflow-y-auto relative transition-all duration-300 ${
+              : `border-r border-border/40 bg-card/40 overflow-y-auto overflow-x-hidden relative transition-all duration-300 scrollbar-dark ${
                   leftCollapsed ? "overflow-hidden" : ""
                 }`
           }
@@ -1696,7 +1696,7 @@ export default function LevelEditorPage() {
               </button>
             </div>
           )}
-          <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
+          <div className="p-3 border-b border-border/40 sticky top-0 z-10 shrink-0 bg-card/80 backdrop-blur-xl">
             {!rigRoomMode && (
               <>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Add</p>
@@ -1933,13 +1933,13 @@ export default function LevelEditorPage() {
         <aside
           className={
             isMobile
-              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
+              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto overflow-x-hidden bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out scrollbar-dark ${
                   mobilePanel === "right"
                     ? "translate-y-0"
                     : "translate-y-full pointer-events-none"
                 }`
               : rightOpen
-              ? "border-l border-border/40 bg-card/40 overflow-y-auto"
+              ? "border-l border-border/40 bg-card/40 overflow-y-auto overflow-x-hidden scrollbar-dark"
               : "hidden"
           }
         >

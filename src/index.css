@@ -103,4 +103,22 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+  .scrollbar-dark {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.6) transparent;
+  }
+  .scrollbar-dark::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.6);
+    border-radius: 3px;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.8);
+  }
 }
