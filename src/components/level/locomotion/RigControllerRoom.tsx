@@ -753,6 +753,11 @@ function XrayLiveMesh({
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
   const bones = useMemo(() => collectBones(cloned), [cloned]);
   const { scene, camera, controls } = useThree() as any;
+  // Frame the model ONCE per loaded rig. Without this guard the framing
+  // block was re-running whenever the `controls` reference changed (e.g.
+  // OrbitControls remount, a pose edit triggering re-render), which made
+  // the viewport "snap" back to 100% and felt like an unwanted zoom-in.
+  const framedRef = useRef<THREE.Object3D | null>(null);
 
   // Swap every mesh to a glowing cyan x-ray material and add a skeleton helper.
   useEffect(() => {
@@ -783,18 +788,21 @@ function XrayLiveMesh({
     helper.renderOrder = 999;
     scene.add(helper);
 
-    // Frame the model.
-    const box = new THREE.Box3().setFromObject(cloned);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z) || 1;
-    const dist = maxDim * 2.1;
-    camera.position.set(center.x, center.y + maxDim * 0.05, center.z + dist);
-    if (controls && controls.target) {
-      controls.target.copy(center);
-      controls.update?.();
-    } else {
-      camera.lookAt(center);
+    // Frame the model exactly once per cloned rig.
+    if (framedRef.current !== cloned) {
+      const box = new THREE.Box3().setFromObject(cloned);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const dist = maxDim * 2.1;
+      camera.position.set(center.x, center.y + maxDim * 0.05, center.z + dist);
+      if (controls && controls.target) {
+        controls.target.copy(center);
+        controls.update?.();
+      } else {
+        camera.lookAt(center);
+      }
+      framedRef.current = cloned;
     }
 
     return () => {
@@ -802,7 +810,11 @@ function XrayLiveMesh({
       helper.dispose?.();
       original.forEach((m, mesh) => { (mesh as any).material = m; });
     };
-  }, [cloned, scene, camera, controls]);
+    // Intentionally only react to `cloned` / `scene` changes — including
+    // `camera` or `controls` here causes the framing block to retrigger
+    // every time those refs are reassigned.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloned, scene]);
 
   return (
     <>
