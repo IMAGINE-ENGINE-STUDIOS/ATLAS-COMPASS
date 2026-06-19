@@ -248,12 +248,25 @@ function ComponentsPanel({
   objects,
   selectedIds,
   onSelect,
+  rigState,
+  selectedBoneName,
+  onSelectBone,
 }: {
   objects: SceneObject[];
   selectedIds: Set<string>;
   onSelect: (id: string, multi: boolean) => void;
+  rigState?: {
+    name: string;
+    url: string;
+    bones: { name: string; parentName: string | null }[];
+    selectedBoneName: string | null;
+  } | null;
+  selectedBoneName?: string | null;
+  onSelectBone?: (name: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [rigOpen, setRigOpen] = useState(true);
+  const [collapsedBones, setCollapsedBones] = useState<Set<string>>(new Set());
   const q = query.trim().toLowerCase();
 
   type GroupKey = "characters" | "objects" | "trajectories";
@@ -266,7 +279,69 @@ function ComponentsPanel({
     ];
   }, [objects, q]);
 
-  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  // Bone hierarchy tree (parent/child) for the live rig, when present.
+  type BoneTreeNode = { name: string; children: BoneTreeNode[]; depth: number };
+  const boneTree = useMemo<BoneTreeNode[]>(() => {
+    if (!rigState) return [];
+    const map = new Map<string, BoneTreeNode>();
+    rigState.bones.forEach((b) => map.set(b.name, { name: b.name, children: [], depth: 0 }));
+    const roots: BoneTreeNode[] = [];
+    rigState.bones.forEach((b) => {
+      const node = map.get(b.name)!;
+      const parent = b.parentName ? map.get(b.parentName) : null;
+      if (parent) parent.children.push(node);
+      else roots.push(node);
+    });
+    const fix = (n: BoneTreeNode, d: number) => { n.depth = d; n.children.forEach((c) => fix(c, d + 1)); };
+    roots.forEach((r) => fix(r, 0));
+    return roots;
+  }, [rigState]);
+
+  const boneMatches = (name: string) =>
+    !q || name.toLowerCase().includes(q);
+  const subtreeMatches = (n: BoneTreeNode): boolean =>
+    boneMatches(n.name) || n.children.some(subtreeMatches);
+
+  const toggleBone = (name: string) =>
+    setCollapsedBones((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+
+  const renderBone = (node: BoneTreeNode): JSX.Element | null => {
+    if (q && !subtreeMatches(node)) return null;
+    const isCollapsed = q ? false : collapsedBones.has(node.name);
+    const isSel = selectedBoneName === node.name;
+    const hit = q && boneMatches(node.name);
+    return (
+      <div key={node.name} style={{ paddingLeft: 8 + node.depth * 9 }}>
+        <div
+          className={`flex items-center gap-1 pr-1 py-0.5 rounded text-[10px] font-mono ${
+            isSel ? "bg-[rgba(34,255,136,0.18)] text-[#bbffd5]" : "hover:bg-muted/30 text-muted-foreground/80"
+          }`}
+        >
+          {node.children.length > 0 ? (
+            <button onClick={() => toggleBone(node.name)} className="text-muted-foreground hover:text-foreground shrink-0">
+              {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          ) : (
+            <span className="w-3 h-3 shrink-0" />
+          )}
+          <button
+            onClick={() => onSelectBone?.(node.name)}
+            className={`flex-1 min-w-0 text-left truncate ${hit ? "text-[#22ff88]" : ""}`}
+            title={node.name}
+          >
+            {node.name}
+          </button>
+        </div>
+        {!isCollapsed && node.children.length > 0 && node.children.map(renderBone)}
+      </div>
+    );
+  };
+
+  const total = groups.reduce((n, g) => n + g.items.length, 0) + (rigState ? 1 : 0);
 
   return (
     <div className="mt-4 mb-2">
@@ -291,9 +366,39 @@ function ComponentsPanel({
         {groups.map((g) => (
           <div key={g.key}>
             <p className="text-[9px] uppercase tracking-wider text-muted-foreground/70 px-1">
-              {g.label} · {g.items.length}
+              {g.label} · {g.items.length + (g.key === "characters" && rigState ? 1 : 0)}
             </p>
-            {g.items.length === 0 ? (
+            {g.key === "characters" && rigState && (
+              <div className="mb-1">
+                <div
+                  className={`w-full px-2 py-1 rounded text-[11px] flex items-center gap-1.5 ${
+                    selectedBoneName ? "bg-muted/20" : "bg-[rgba(34,255,136,0.10)]"
+                  }`}
+                  title={`Live rig — ${rigState.bones.length} bones`}
+                >
+                  <button
+                    onClick={() => setRigOpen((v) => !v)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    {rigOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  </button>
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: "#22ff88" }}
+                  />
+                  <span className="flex-1 truncate text-[#bbffd5]">{rigState.name}</span>
+                  <span className="text-[9px] uppercase tracking-wider opacity-50 tabular-nums">
+                    {rigState.bones.length} bones
+                  </span>
+                </div>
+                {rigOpen && boneTree.length > 0 && (
+                  <div className="mt-0.5 border-l border-[rgba(34,255,136,0.25)] ml-2">
+                    {boneTree.map(renderBone)}
+                  </div>
+                )}
+              </div>
+            )}
+            {g.items.length === 0 && !(g.key === "characters" && rigState) ? (
               <p className="text-[10px] text-muted-foreground/50 italic px-2 py-0.5">—</p>
             ) : (
               g.items.map((o) => (
@@ -349,6 +454,15 @@ export default function LevelEditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [playing, setPlaying] = useState(false);
+  // Live rig state surfaced from <RigControllerRoom/> so the left Components
+  // panel can mirror the rig's character + bone hierarchy.
+  const [rigState, setRigState] = useState<{
+    name: string;
+    url: string;
+    bones: { name: string; parentName: string | null }[];
+    selectedBoneName: string | null;
+  } | null>(null);
+  const [rigBoneRequest, setRigBoneRequest] = useState<string | null>(null);
   // Local copy/paste buffer for scene objects (Ctrl/Cmd+C / V / D).
   const clipboardRef = useRef<SceneObject[]>([]);
   const [showGrid, setShowGrid] = useState(true);
@@ -1531,6 +1645,9 @@ export default function LevelEditorPage() {
               objects={scene.objects}
               selectedIds={selectedIds}
               onSelect={(id, multi) => selectObject(id, multi)}
+              rigState={rigRoomMode ? rigState : null}
+              selectedBoneName={rigState?.selectedBoneName ?? null}
+              onSelectBone={(name) => setRigBoneRequest(name)}
             />
 
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
@@ -1569,6 +1686,8 @@ export default function LevelEditorPage() {
         <main className="relative bg-slate-950">
           {rigRoomMode ? (
             <RigControllerRoom
+              onRigStateChange={setRigState}
+              externalSelectedBoneName={rigBoneRequest}
               sceneCharacters={(() => {
                 // Rig room has no scene of its own, so surface every
                 // character authored across the user's local levels. The id

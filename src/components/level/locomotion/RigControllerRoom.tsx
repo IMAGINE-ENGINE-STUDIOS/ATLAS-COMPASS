@@ -1004,11 +1004,26 @@ export interface RigControllerRoomProps {
   sceneCharacters?: SceneCharacterRef[];
   /** Push a rig change (URL swap + chosen clip) back to a scene character. */
   onApplyToCharacter?: (characterId: string, patch: { url: string; currentAnimation?: string }) => void;
+  /**
+   * Emits the currently-loaded rig (character name, model url, bone list,
+   * and selected bone) whenever it changes. Lets the host (LevelEditorPage)
+   * mirror the rig + its bone hierarchy in the left-side Components panel.
+   */
+  onRigStateChange?: (state: {
+    name: string;
+    url: string;
+    bones: { name: string; parentName: string | null }[];
+    selectedBoneName: string | null;
+  } | null) => void;
+  /** Receive bone-selection requests from outside (e.g. Components panel). */
+  externalSelectedBoneName?: string | null;
 }
 
 export default function RigControllerRoom({
   sceneCharacters = [],
   onApplyToCharacter,
+  onRigStateChange,
+  externalSelectedBoneName,
 }: RigControllerRoomProps = {}) {
   const [url, setUrl] = useState<string>(DEFAULT_CHARACTER_URL);
   const [pendingUrl, setPendingUrl] = useState<string>(DEFAULT_CHARACTER_URL);
@@ -1026,6 +1041,37 @@ export default function RigControllerRoom({
   const [speed, setSpeed] = useState(1);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
+
+  // Emit the live rig state up to the host so the Components panel can render
+  // this character + its bone hierarchy without duplicating the GLTF load.
+  useEffect(() => {
+    if (!onRigStateChange) return;
+    if (bones.length === 0) {
+      onRigStateChange(null);
+      return;
+    }
+    const boneSet = new Set(bones);
+    const serialised = bones.map((b) => {
+      let p: THREE.Object3D | null = b.parent;
+      while (p && !(p as any).isBone) p = p.parent;
+      return {
+        name: b.name,
+        parentName: p && boneSet.has(p as THREE.Bone) ? (p as THREE.Bone).name : null,
+      };
+    });
+    onRigStateChange({
+      name: sourceLabel,
+      url,
+      bones: serialised,
+      selectedBoneName,
+    });
+  }, [bones, sourceLabel, url, selectedBoneName, onRigStateChange]);
+
+  // Allow the host to drive bone selection from the Components hierarchy.
+  useEffect(() => {
+    if (externalSelectedBoneName === undefined) return;
+    setSelectedBoneName(externalSelectedBoneName);
+  }, [externalSelectedBoneName]);
 
   // ----- cinematic camera presets -----
   // The viewport offers a Reset View + four canned angles. Each click bumps
