@@ -10,6 +10,7 @@ import {
 } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
+import { GLTFLoader } from "three-stdlib";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, Scaling, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Camera, Maximize2, Search, ChevronRight, ChevronDown, Bone as BoneIcon } from "lucide-react";
+import { Wand2, RotateCcw, Move, Scaling, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Camera, Maximize2, Search, ChevronRight, ChevronDown, Eye, EyeOff, Bone as BoneIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   listRigSaves,
@@ -52,6 +53,22 @@ interface RigBridge {
    * user added at runtime (anything tagged with userData.__custom).
    */
   resetSkeleton: (() => void) | null;
+  /**
+   * Skin (mesh) management. A "skin" is one or more SkinnedMeshes loaded
+   * from a .glb / .gltf file and re-bound to the CURRENT skeleton by
+   * matching bone names. The original skeleton inside the uploaded file
+   * is discarded — only its meshes are kept.
+   */
+  addSkin: ((data: ArrayBuffer, label: string) => Promise<SkinEntry | null>) | null;
+  removeSkin: ((id: string) => void) | null;
+  setSkinVisible: ((id: string, visible: boolean) => void) | null;
+}
+
+export interface SkinEntry {
+  id: string;
+  label: string;
+  meshCount: number;
+  visible: boolean;
 }
 
 /**
@@ -613,6 +630,86 @@ function Rig({
       });
       setTopologyVersion((v) => v + 1);
     };
+    // ---- Skin management ----------------------------------------------------
+    const skinGroups = new Map<string, THREE.Group>();
+    const gltfLoader = new GLTFLoader();
+    bridgeRef.current.addSkin = (data, label) => new Promise((resolve) => {
+      gltfLoader.parse(data, "", (gltf) => {
+        // Collect SkinnedMeshes from the uploaded scene.
+        const incoming: THREE.SkinnedMesh[] = [];
+        gltf.scene.traverse((o: any) => { if (o.isSkinnedMesh) incoming.push(o); });
+        if (incoming.length === 0) {
+          toast.error(`"${label}" has no skinned mesh — nothing to attach`);
+          resolve(null);
+          return;
+        }
+        // Build a lookup of current rig bones by name (case-insensitive).
+        const currentBones = collectBones(cloned);
+        const byName = new Map<string, THREE.Bone>();
+        currentBones.forEach((b) => byName.set(b.name.toLowerCase(), b));
+        let missing = 0;
+        let matched = 0;
+        // Container group that holds the new meshes and lives under the rig
+        // root, so the SkeletonHelper / transforms travel with the character.
+        const group = new THREE.Group();
+        group.name = `skin_${label}`;
+        cloned.add(group);
+        incoming.forEach((sm) => {
+          // Re-map each bone of the original skeleton to a bone in the live
+          // rig by matching names. Missing matches fall back to the Hips /
+          // root bone so the mesh still binds (it just won't deform that
+          // limb correctly until the user renames).
+          const fallback = byName.get("hips") ?? currentBones[0];
+          const remapped: THREE.Bone[] = sm.skeleton.bones.map((orig) => {
+            const hit = byName.get(orig.name.toLowerCase());
+            if (hit) { matched++; return hit; }
+            missing++;
+            return fallback;
+          });
+          const newSkel = new THREE.Skeleton(remapped, sm.skeleton.boneInverses);
+          const mesh = sm.clone() as THREE.SkinnedMesh;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.frustumCulled = false;
+          mesh.bind(newSkel, sm.bindMatrix);
+          group.add(mesh);
+        });
+        const id = `skin_${Math.random().toString(36).slice(2, 9)}`;
+        skinGroups.set(id, group);
+        const entry: SkinEntry = {
+          id,
+          label,
+          meshCount: incoming.length,
+          visible: true,
+        };
+        const msg = missing > 0
+          ? `Bound ${incoming.length} mesh${incoming.length === 1 ? "" : "es"} — ${matched} bones matched, ${missing} fell back`
+          : `Bound ${incoming.length} mesh${incoming.length === 1 ? "" : "es"} — all ${matched} bones matched`;
+        toast.success(msg);
+        resolve(entry);
+      }, (err) => {
+        toast.error(`Couldn't parse skin: ${(err as any)?.message ?? "unknown error"}`);
+        resolve(null);
+      });
+    });
+    bridgeRef.current.removeSkin = (id) => {
+      const g = skinGroups.get(id);
+      if (!g) return;
+      g.parent?.remove(g);
+      g.traverse((o: any) => {
+        if (o.isSkinnedMesh) {
+          o.geometry?.dispose?.();
+          const mat = o.material;
+          if (Array.isArray(mat)) mat.forEach((m) => m?.dispose?.());
+          else mat?.dispose?.();
+        }
+      });
+      skinGroups.delete(id);
+    };
+    bridgeRef.current.setSkinVisible = (id, visible) => {
+      const g = skinGroups.get(id);
+      if (g) g.visible = visible;
+    };
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
@@ -635,6 +732,11 @@ function Rig({
       bridgeRef.current.addBoneOnSpline = null;
       bridgeRef.current.deleteBone = null;
       bridgeRef.current.resetSkeleton = null;
+      bridgeRef.current.addSkin = null;
+      bridgeRef.current.removeSkin = null;
+      bridgeRef.current.setSkinVisible = null;
+      skinGroups.forEach((g) => g.parent?.remove(g));
+      skinGroups.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
@@ -1440,6 +1542,12 @@ export default function RigControllerRoom({
   // position. Stays armed until the user toggles it off.
   const [addBoneMode, setAddBoneMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const skinInputRef = useRef<HTMLInputElement | null>(null);
+  const [skins, setSkins] = useState<SkinEntry[]>([]);
+
+  // Reset skin list whenever the underlying skeleton (url) changes, since the
+  // <Rig/> instance is rebuilt and skin groups are disposed with it.
+  useEffect(() => { setSkins([]); }, [url]);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
   // Deep-link support: any page in the app can open the rig room for an
@@ -1551,6 +1659,9 @@ export default function RigControllerRoom({
     addBoneOnSpline: null,
     deleteBone: null,
     resetSkeleton: null,
+    addSkin: null,
+    removeSkin: null,
+    setSkinVisible: null,
   });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
   const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
@@ -1609,6 +1720,30 @@ export default function RigControllerRoom({
     };
     reader.onerror = () => toast.error("Failed to read file");
     reader.readAsDataURL(file);
+  };
+
+  const handleUploadSkin = async (file: File) => {
+    if (!bridgeRef.current.addSkin) {
+      toast.error("Skeleton not ready yet — load a character first");
+      return;
+    }
+    const buf = await file.arrayBuffer();
+    const entry = await bridgeRef.current.addSkin(buf, file.name);
+    if (entry) setSkins((prev) => [...prev, entry]);
+  };
+
+  const toggleSkin = (id: string) => {
+    setSkins((prev) => prev.map((s) => {
+      if (s.id !== id) return s;
+      const next = !s.visible;
+      bridgeRef.current.setSkinVisible?.(s.id, next);
+      return { ...s, visible: next };
+    }));
+  };
+
+  const removeSkin = (id: string) => {
+    bridgeRef.current.removeSkin?.(id);
+    setSkins((prev) => prev.filter((s) => s.id !== id));
   };
 
   const handleLoadSceneCharacter = (c: SceneCharacterRef) => {
@@ -2057,13 +2192,17 @@ export default function RigControllerRoom({
           onSelect={setSelectedBoneName}
         />
 
-        {/* ---- Model URL / Upload (moved to the bottom of the sidebar) ---- */}
+        {/* ──────────────── SKELETON ──────────────── */}
         <div className="space-y-1.5 pt-2 border-t border-border/30">
-          <Label className="text-xs">Model URL (.glb / .gltf)</Label>
+          <div className="flex items-baseline justify-between">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Skeleton</Label>
+            <span className="text-[9px] text-muted-foreground/70">.glb · mesh + bones</span>
+          </div>
           <div className="flex gap-1.5">
             <Input
               value={pendingUrl}
               onChange={(e) => setPendingUrl(e.target.value)}
+              placeholder="Skeleton URL (.glb / .gltf)"
               className="h-8 text-xs"
             />
             <Button
@@ -2072,31 +2211,96 @@ export default function RigControllerRoom({
               className="h-8"
               onClick={() => { setUrl(pendingUrl); setSourceLabel(pendingUrl); }}
               disabled={!pendingUrl || pendingUrl === url}
+              title="Load skeleton from URL"
             >
               <RefreshCw className="w-3 h-3" />
             </Button>
           </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUploadFile(f);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-7 w-full"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
-            </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleUploadFile(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 w-full"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-3 h-3 mr-1.5" /> Upload skeleton (.glb / .gltf)
+          </Button>
+        </div>
+
+        {/* ──────────────── SKINS ──────────────── */}
+        <div className="space-y-1.5 pt-2 border-t border-border/30">
+          <div className="flex items-baseline justify-between">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Skins · {skins.length}
+            </Label>
+            <span className="text-[9px] text-muted-foreground/70">mesh only · rebound by bone name</span>
           </div>
+          <input
+            ref={skinInputRef}
+            type="file"
+            accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleUploadSkin(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 w-full"
+            onClick={() => skinInputRef.current?.click()}
+            disabled={bones.length === 0}
+            title={bones.length === 0
+              ? "Load a skeleton first"
+              : "Upload a .glb whose mesh will be re-bound to the current skeleton"}
+          >
+            <Upload className="w-3 h-3 mr-1.5" /> Upload skin (.glb / .gltf)
+          </Button>
+          {skins.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground/70 italic">
+              No extra skins. Upload a mesh that shares this skeleton's bone names to layer it on top.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {skins.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-1.5 rounded border border-border/40 bg-muted/20 px-1.5 py-1"
+                >
+                  <button
+                    onClick={() => toggleSkin(s.id)}
+                    className="text-muted-foreground hover:text-foreground"
+                    title={s.visible ? "Hide skin" : "Show skin"}
+                  >
+                    {s.visible
+                      ? <Eye className="w-3 h-3" />
+                      : <EyeOff className="w-3 h-3" />}
+                  </button>
+                  <span className="flex-1 text-[11px] truncate" title={s.label}>{s.label}</span>
+                  <span className="text-[9px] text-muted-foreground">{s.meshCount}</span>
+                  <button
+                    onClick={() => removeSkin(s.id)}
+                    className="text-muted-foreground hover:text-destructive"
+                    title="Remove skin"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         </div>
