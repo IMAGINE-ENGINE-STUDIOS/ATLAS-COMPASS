@@ -1862,6 +1862,9 @@ export default function LevelEditorPage() {
                   patchObject(cid, {
                     url: patch.url,
                     ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                    ...(patch.pose ? { pose: patch.pose } : {}),
+                    ...(patch.rigSaveId ? { rigSaveId: patch.rigSaveId } : {}),
+                    ...(patch.source ? { source: patch.source } : {}),
                   } as any);
                   return;
                 }
@@ -1873,6 +1876,9 @@ export default function LevelEditorPage() {
                         ...o,
                         url: patch.url,
                         ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                        ...(patch.pose ? { pose: patch.pose } : {}),
+                        ...(patch.rigSaveId ? { rigSaveId: patch.rigSaveId } : {}),
+                        ...(patch.source ? { source: patch.source } : {}),
                       } as any)
                     : o,
                 );
@@ -3062,8 +3068,14 @@ function RigBodySection({
   }, []);
 
   const applySave = (s: RigSave) => {
-    onPatch({ url: s.model_url, source: s.name });
-    toast.success(`Rig set to "${s.name}"`);
+    onPatch({
+      url: s.model_url,
+      source: s.name,
+      pose: (s.pose ?? []) as any,
+      rigSaveId: s.id,
+      ...(s.active_clip ? { currentAnimation: s.active_clip } : {}),
+    } as any);
+    toast.success(`Rig "${s.name}" applied (pose + clip)`);
   };
 
   const filtered = useMemo(() => {

@@ -250,6 +250,7 @@ function Rig({
   speed,
   pendingPose,
   onPoseApplied,
+  onBoneEdited,
   bridgeRef,
 }: {
   url: string;
@@ -265,6 +266,7 @@ function Rig({
   speed: number;
   pendingPose: BonePose[] | null;
   onPoseApplied: () => void;
+  onBoneEdited?: () => void;
   bridgeRef: React.MutableRefObject<RigBridge>;
 }) {
   const gltf = useGLTF(url);
@@ -387,6 +389,7 @@ function Rig({
           mode={transformMode}
           space="local"
           size={0.6}
+          onMouseUp={() => onBoneEdited?.()}
         />
       )}
     </>
@@ -1041,8 +1044,17 @@ export interface SceneCharacterRef {
 export interface RigControllerRoomProps {
   /** Characters currently present in the linked scene (e.g. the Locomotion Walker). */
   sceneCharacters?: SceneCharacterRef[];
-  /** Push a rig change (URL swap + chosen clip) back to a scene character. */
-  onApplyToCharacter?: (characterId: string, patch: { url: string; currentAnimation?: string }) => void;
+  /** Push a rig change (URL swap + chosen clip + pose) back to a scene character. */
+  onApplyToCharacter?: (
+    characterId: string,
+    patch: {
+      url: string;
+      currentAnimation?: string;
+      pose?: BonePose[];
+      rigSaveId?: string;
+      source?: string;
+    },
+  ) => void;
   /**
    * Emits the currently-loaded rig (character name, model url, bone list,
    * and selected bone) whenever it changes. Lets the host (LevelEditorPage)
@@ -1300,8 +1312,16 @@ export default function RigControllerRoom({
 
   const handleApplyToCharacter = () => {
     if (!targetCharId || !onApplyToCharacter) return;
-    onApplyToCharacter(targetCharId, { url, currentAnimation: activeClip ?? undefined });
-    toast.success("Applied to scene character");
+    const root = bridgeRef.current.root;
+    const livePose = root ? capturePose(root) : undefined;
+    onApplyToCharacter(targetCharId, {
+      url,
+      currentAnimation: activeClip ?? undefined,
+      pose: livePose,
+      rigSaveId: activeSaveId ?? undefined,
+      source: sourceLabel,
+    });
+    toast.success("Applied to scene character (pose + clip)");
   };
 
   const highlightedBones = useMemo(
@@ -1746,6 +1766,16 @@ export default function RigControllerRoom({
                 speed={speed}
                 pendingPose={pendingPose}
                 onPoseApplied={() => setPendingPose(null)}
+                onBoneEdited={() => {
+                  // The user just nudged a bone via TransformControls. Auto-
+                  // pause the active clip so their edit stays visible (the
+                  // mixer would otherwise overwrite local transforms on the
+                  // next frame) and snapshot the live pose so a subsequent
+                  // Save captures the edit even if Play is hit afterwards.
+                  setPlaying(false);
+                  const root = bridgeRef.current.root;
+                  if (root) setPendingPose(capturePose(root));
+                }}
                 bridgeRef={bridgeRef}
               />
             )}

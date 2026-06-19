@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
 import type { CharacterObject } from "@/lib/levelTypes";
 import { modelForwardYawOffset } from "@/lib/modelOrientation";
+import { applyPose } from "@/lib/rigSaves";
 
 /**
  * Rigged character renderer.
@@ -39,6 +40,15 @@ export default function LevelCharacter({
       }
     });
   }, [cloned]);
+
+  // Apply any author-saved bone pose from the Rig Controller Room.
+  // We re-apply whenever the pose array, current clip, or pause state
+  // changes so a paused character with no clip still shows the saved pose
+  // (the mixer would otherwise overwrite local transforms on the next tick).
+  useEffect(() => {
+    if (!obj.pose || obj.pose.length === 0) return;
+    try { applyPose(cloned, obj.pose as any); } catch {}
+  }, [cloned, obj.pose, obj.currentAnimation, obj.paused]);
 
   // Drive the current animation clip.
   useEffect(() => {
