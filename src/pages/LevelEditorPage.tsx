@@ -2119,6 +2119,50 @@ export default function LevelEditorPage() {
         </aside>
       </div>
 
+      {/* Mobile bottom tab bar — toggles slide-up panels and quick play/save */}
+      {isMobile && (
+        <nav className="fixed inset-x-0 bottom-0 h-14 z-50 border-t border-border/60 bg-background/95 backdrop-blur-xl grid grid-cols-4 [padding-bottom:env(safe-area-inset-bottom)]">
+          <button
+            onClick={() => setMobilePanel((p) => (p === "left" ? null : "left"))}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors ${
+              mobilePanel === "left" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <LayersIcon className="w-5 h-5" />
+            Scene
+          </button>
+          <button
+            onClick={() => setMobilePanel((p) => (p === "right" ? null : "right"))}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors ${
+              mobilePanel === "right" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <Sparkles className="w-5 h-5" />
+            Inspect
+          </button>
+          <button
+            onClick={() => {
+              setMobilePanel(null);
+              setPlaying((p) => !p);
+            }}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors ${
+              playing ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            {playing ? "Pause" : "Play"}
+          </button>
+          <button
+            onClick={() => save()}
+            disabled={!isOwner || saving}
+            className="flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider text-muted-foreground disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            Save
+          </button>
+        </nav>
+      )}
+
       {/* Place on atlas dialog */}
       <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>
         <DialogContent>
