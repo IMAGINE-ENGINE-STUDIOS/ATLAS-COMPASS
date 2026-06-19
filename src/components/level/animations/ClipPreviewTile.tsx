@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
 import { Film } from "lucide-react";
 import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
-import { retargetClip, retargetClipWithBind } from "@/lib/animationRetarget";
+import { retargetClip, retargetClipProper } from "@/lib/animationRetarget";
 
 const DEFAULT_PREVIEW_RIG = "https://threejs.org/examples/models/gltf/Xbot.glb";
 
@@ -86,9 +86,14 @@ function PreviewRig({ entry }: { entry: CharacterClipEntry }) {
       ? pool.find((c) => c.name.toLowerCase() === entry.clipName!.toLowerCase()) || pool[0]
       : pool[0];
     if (!wanted) return;
-    const retargeted = sourceClone
-      ? retargetClipWithBind(wanted, sourceClone, cloned)
-      : retargetClip(wanted, cloned);
+    let retargeted: THREE.AnimationClip | null = null;
+    if (sourceClone) {
+      // Proper world-space retarget via SkeletonUtils. Falls back to the
+      // naive track-rename pass if the source rig has no skinned mesh or
+      // the bone maps don't overlap at all.
+      retargeted = retargetClipProper(wanted, sourceClone, cloned);
+    }
+    if (!retargeted) retargeted = retargetClip(wanted, cloned);
     const action = mixer.clipAction(retargeted);
     action.reset().play();
     return () => {
