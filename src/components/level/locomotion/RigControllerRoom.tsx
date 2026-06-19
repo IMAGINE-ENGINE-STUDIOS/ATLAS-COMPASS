@@ -1489,6 +1489,8 @@ export default function RigControllerRoom({
           controllerMap={controllerMap}
           selectedBoneName={selectedBoneName}
           onSelectBone={(boneName) => setSelectedBoneName(boneName)}
+          hoveredBone={hoveredBoneName}
+          onHoverBone={setHoveredBoneName}
           onClearControllers={mappedCount > 0 ? handleClearControllers : undefined}
           mappedCount={mappedCount}
         />
@@ -1496,6 +1498,7 @@ export default function RigControllerRoom({
         <ObjectControllerBar
           bridgeRef={bridgeRef}
           selectedBoneName={selectedBoneName}
+          hoveredBoneName={hoveredBoneName}
           onClear={() => setSelectedBoneName(null)}
         />
 
