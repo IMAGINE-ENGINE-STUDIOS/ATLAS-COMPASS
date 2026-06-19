@@ -1440,6 +1440,12 @@ export default function LevelEditorPage() {
               });
             })()}
 
+            <ComponentsPanel
+              objects={scene.objects}
+              selectedIds={selectedIds}
+              onSelect={(id, multi) => selectObject(id, multi)}
+            />
+
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
             {scene.lights.map((l) => (
               <button
