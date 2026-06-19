@@ -165,7 +165,7 @@ export default function CharacterAnimationGallery({
         <DialogHeader className="px-5 pt-4 pb-3 border-b border-border/40">
           <DialogTitle className="text-base">Character animation library</DialogTitle>
           <p className="text-[11px] text-muted-foreground">
-            {allEntries.length} clips · search, filter, or upload your own .glb
+            {allEntries.length} clips · upload .glb · .fbx · .dae · .bvh (Blender, Maya, iClone, MotionBuilder, Houdini…)
           </p>
         </DialogHeader>
 
