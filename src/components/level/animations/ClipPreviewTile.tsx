@@ -6,6 +6,13 @@ import { SkeletonUtils } from "three-stdlib";
 import { Film } from "lucide-react";
 import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
 import { retargetClip, retargetClipProper } from "@/lib/animationRetarget";
+import { scoreClipQuality, applyClipRepairs, type ClipQualityReport } from "@/lib/animationQuality";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 const DEFAULT_PREVIEW_RIG = "https://threejs.org/examples/models/gltf/Xbot.glb";
 
@@ -23,6 +30,7 @@ const DEFAULT_PREVIEW_RIG = "https://threejs.org/examples/models/gltf/Xbot.glb";
 export default function ClipPreviewTile({ entry }: { entry: CharacterClipEntry }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  const [quality, setQuality] = useState<ClipQualityReport | null>(null);
 
   useEffect(() => {
     if (!rootRef.current) return;
@@ -54,14 +62,23 @@ export default function ClipPreviewTile({ entry }: { entry: CharacterClipEntry }
         >
           <ambientLight intensity={0.6} />
           <directionalLight position={[2, 4, 3]} intensity={0.7} />
-          <PreviewRig entry={entry} />
+          <PreviewRig entry={entry} onQuality={setQuality} />
         </Canvas>
+      )}
+      {quality && quality.grade !== "good" && (
+        <QualityBadge report={quality} />
       )}
     </div>
   );
 }
 
-function PreviewRig({ entry }: { entry: CharacterClipEntry }) {
+function PreviewRig({
+  entry,
+  onQuality,
+}: {
+  entry: CharacterClipEntry;
+  onQuality?: (r: ClipQualityReport) => void;
+}) {
   // The rig: always Xbot for previews (the user's actual rig is what we
   // retarget *to* in the scene). For "builtin" clips the rig already contains
   // the clip. For "url" clips we additionally load the source glb to extract
@@ -94,13 +111,44 @@ function PreviewRig({ entry }: { entry: CharacterClipEntry }) {
       retargeted = retargetClipProper(wanted, sourceClone, cloned);
     }
     if (!retargeted) retargeted = retargetClip(wanted, cloned);
+
+    // Score the baked clip and — if quality is bad — auto-apply repairs and
+    // re-score. Whichever scores better wins. Deferred via requestIdleCallback
+    // so we don't block the first paint of the preview canvas.
+    const schedule = (cb: () => void) =>
+      (window as any).requestIdleCallback?.(cb, { timeout: 600 }) ?? setTimeout(cb, 80);
+    const clipToPlay = { current: retargeted };
+    schedule(() => {
+      try {
+        let report = scoreClipQuality(retargeted!, cloned);
+        if (report.grade === "bad" && Object.keys(report.repair).length > 0) {
+          const fixed = applyClipRepairs(retargeted!, report.repair);
+          const fixedReport = scoreClipQuality(fixed, cloned);
+          const score = (r: typeof report) =>
+            (r.grade === "good" ? 0 : r.grade === "warn" ? 1 : 2) + r.issues.length * 0.1;
+          if (score(fixedReport) < score(report)) {
+            // Hot-swap the playing action with the repaired clip.
+            try { mixer.uncacheClip(clipToPlay.current); } catch {}
+            const newAction = mixer.clipAction(fixed);
+            mixer.stopAllAction();
+            newAction.reset().play();
+            clipToPlay.current = fixed;
+            report = { ...fixedReport, issues: ["auto-repaired: " + fixedReport.issues.join("; ")] };
+          }
+        }
+        onQuality?.(report);
+      } catch (err) {
+        console.warn("[clip-quality] scoring failed", err);
+      }
+    });
+
     const action = mixer.clipAction(retargeted);
     action.reset().play();
     return () => {
       action.stop();
       mixer.stopAllAction();
     };
-  }, [entry.source, entry.clipName, clipGltf.animations, baseGltf.animations, mixer, cloned, sourceClone]);
+  }, [entry.source, entry.clipName, clipGltf.animations, baseGltf.animations, mixer, cloned, sourceClone, onQuality]);
 
   useFrame((_, dt) => mixer.update(dt));
 
@@ -108,5 +156,56 @@ function PreviewRig({ entry }: { entry: CharacterClipEntry }) {
     <group position={[0, -0.95, 0]} scale={1}>
       <primitive object={cloned} />
     </group>
+  );
+}
+
+function QualityBadge({ report }: { report: ClipQualityReport }) {
+  const color =
+    report.grade === "bad"  ? "bg-red-500/90 text-white" :
+    report.grade === "warn" ? "bg-amber-500/90 text-black" :
+                              "bg-emerald-500/90 text-black";
+  const label = report.grade === "bad" ? "QUALITY" : "CHECK";
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            className={`absolute top-1 right-1 z-10 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${color} shadow-md`}
+            aria-label="Retarget quality report"
+          >
+            {label}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="left" className="max-w-[280px] text-[10px] leading-relaxed">
+          <p className="font-semibold mb-1">
+            Retarget quality: <span className="uppercase">{report.grade}</span>
+          </p>
+          <ul className="space-y-0.5 mb-1">
+            <li>foot slide: <span className="tabular-nums">{report.footSlideMps.toFixed(2)} m/s</span></li>
+            <li>hip drift: <span className="tabular-nums">{report.hipDriftMeters.toFixed(2)} m</span></li>
+            <li>worst bone jump: <span className="tabular-nums">{report.worstQuatJumpRad.toFixed(2)} rad</span>{report.worstQuatBone ? ` (${report.worstQuatBone})` : ""}</li>
+          </ul>
+          {report.issues.length > 0 && (
+            <>
+              <p className="font-semibold mt-1.5">Issues</p>
+              <ul className="list-disc list-inside text-muted-foreground">
+                {report.issues.map((i, k) => <li key={k}>{i}</li>)}
+              </ul>
+            </>
+          )}
+          {report.suggestions.length > 0 && (
+            <>
+              <p className="font-semibold mt-1.5">Suggested fixes</p>
+              <ul className="list-disc list-inside text-muted-foreground">
+                {report.suggestions.map((s, k) => <li key={k}>{s}</li>)}
+              </ul>
+            </>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
