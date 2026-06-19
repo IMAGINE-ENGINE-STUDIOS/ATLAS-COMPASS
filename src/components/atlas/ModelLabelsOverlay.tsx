@@ -189,7 +189,7 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
               onClick={(e) => { e.stopPropagation(); onSelect?.(m); }}
             >
               <div
-                className="backdrop-blur-xl rounded-full pl-2 pr-3 py-1 flex items-center gap-1.5 transition-transform group-hover:scale-105"
+                className="backdrop-blur-xl rounded-full pl-1.5 pr-2.5 py-1 flex items-center gap-1 transition-transform group-hover:scale-105"
                 style={{
                   background: `${accent}22`,
                   border: `1px solid ${accent}66`,
@@ -197,10 +197,10 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
                 }}
               >
                 <span
-                  className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                  className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: `${accent}33`, color: accent }}
                 >
-                  <Icon className="w-3 h-3" />
+                  <Icon className="w-2.5 h-2.5" />
                 </span>
                 <span className="text-[11px] font-medium tracking-wide whitespace-nowrap" style={{ color: accent }}>
                   {m.name}
@@ -224,7 +224,7 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
             style={{ transform: "translate3d(-9999px,-9999px,0)" }}
           >
             <div
-              className="backdrop-blur-xl rounded-full px-2 py-1 flex items-center gap-1.5"
+              className="backdrop-blur-xl rounded-full px-1.5 py-1 flex items-center gap-1"
               style={{
                 background: `${cat.hex}1f`,
                 border: `1px solid ${cat.hex}55`,
@@ -243,7 +243,7 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
                     type="button"
                     title={m.name}
                     onClick={(e) => { e.stopPropagation(); onSelect?.(m); }}
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold transition-transform hover:scale-110"
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-transform hover:scale-110"
                     style={{
                       background: `${accent}33`,
                       border: `1.5px solid ${accent}`,

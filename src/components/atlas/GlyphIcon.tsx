@@ -55,7 +55,7 @@ export default function GlyphIcon({ name, alt, className, glow }: Props) {
       loading="lazy"
       draggable={false}
       className={
-        "inline-block shrink-0 object-contain select-none w-7 h-7 sm:w-8 sm:h-8 " +
+        "inline-block shrink-0 object-contain select-none w-6 h-6 sm:w-7 sm:h-7 " +
         (className ?? "")
       }
       style={

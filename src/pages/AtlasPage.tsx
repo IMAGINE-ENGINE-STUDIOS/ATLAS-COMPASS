@@ -24,15 +24,15 @@ interface Business {
 type BusinessCategory = "all" | "restaurant" | "cafe" | "hotel" | "shop" | "fuel" | "health" | "education" | "supermarket";
 
 const CATEGORIES: { key: BusinessCategory; label: string; icon: React.ReactNode; color: string }[] = [
-  { key: "all", label: "All", icon: <Layers className="w-4 h-4" />, color: "text-white" },
-  { key: "restaurant", label: "Restaurants", icon: <UtensilsCrossed className="w-4 h-4" />, color: "text-orange-400" },
-  { key: "cafe", label: "Cafés", icon: <Coffee className="w-4 h-4" />, color: "text-amber-400" },
-  { key: "supermarket", label: "Grocery", icon: <ShoppingCart className="w-4 h-4" />, color: "text-green-400" },
-  { key: "shop", label: "Shops", icon: <Store className="w-4 h-4" />, color: "text-emerald-400" },
-  { key: "hotel", label: "Hotels", icon: <Hotel className="w-4 h-4" />, color: "text-indigo-400" },
-  { key: "fuel", label: "Fuel", icon: <Fuel className="w-4 h-4" />, color: "text-red-400" },
-  { key: "health", label: "Health", icon: <Stethoscope className="w-4 h-4" />, color: "text-pink-400" },
-  { key: "education", label: "Education", icon: <GraduationCap className="w-4 h-4" />, color: "text-blue-400" },
+  { key: "all", label: "All", icon: <Layers className="w-3.5 h-3.5" />, color: "text-white" },
+  { key: "restaurant", label: "Restaurants", icon: <UtensilsCrossed className="w-3.5 h-3.5" />, color: "text-orange-400" },
+  { key: "cafe", label: "Cafés", icon: <Coffee className="w-3.5 h-3.5" />, color: "text-amber-400" },
+  { key: "supermarket", label: "Grocery", icon: <ShoppingCart className="w-3.5 h-3.5" />, color: "text-green-400" },
+  { key: "shop", label: "Shops", icon: <Store className="w-3.5 h-3.5" />, color: "text-emerald-400" },
+  { key: "hotel", label: "Hotels", icon: <Hotel className="w-3.5 h-3.5" />, color: "text-indigo-400" },
+  { key: "fuel", label: "Fuel", icon: <Fuel className="w-3.5 h-3.5" />, color: "text-red-400" },
+  { key: "health", label: "Health", icon: <Stethoscope className="w-3.5 h-3.5" />, color: "text-pink-400" },
+  { key: "education", label: "Education", icon: <GraduationCap className="w-3.5 h-3.5" />, color: "text-blue-400" },
 ];
 
 const RADIUS_OPTIONS = [1, 3, 5, 10, 25, 50];
@@ -63,14 +63,14 @@ function classifyBusiness(tags: Record<string, string>): { type: string; amenity
 
 function getIcon(amenity: string) {
   switch (amenity) {
-    case "restaurant": return <UtensilsCrossed className="w-4 h-4 text-orange-400" />;
-    case "cafe": return <Coffee className="w-4 h-4 text-amber-400" />;
-    case "hotel": return <Hotel className="w-4 h-4 text-indigo-400" />;
-    case "fuel": return <Fuel className="w-4 h-4 text-red-400" />;
-    case "health": return <Stethoscope className="w-4 h-4 text-pink-400" />;
-    case "education": return <GraduationCap className="w-4 h-4 text-blue-400" />;
-    case "supermarket": return <ShoppingCart className="w-4 h-4 text-green-400" />;
-    default: return <Store className="w-4 h-4 text-emerald-400" />;
+    case "restaurant": return <UtensilsCrossed className="w-3.5 h-3.5 text-orange-400" />;
+    case "cafe": return <Coffee className="w-3.5 h-3.5 text-amber-400" />;
+    case "hotel": return <Hotel className="w-3.5 h-3.5 text-indigo-400" />;
+    case "fuel": return <Fuel className="w-3.5 h-3.5 text-red-400" />;
+    case "health": return <Stethoscope className="w-3.5 h-3.5 text-pink-400" />;
+    case "education": return <GraduationCap className="w-3.5 h-3.5 text-blue-400" />;
+    case "supermarket": return <ShoppingCart className="w-3.5 h-3.5 text-green-400" />;
+    default: return <Store className="w-3.5 h-3.5 text-emerald-400" />;
   }
 }
 
@@ -200,42 +200,42 @@ export default function AtlasPage() {
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-black/60 backdrop-blur-2xl border-b border-white/[0.06]">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link to="/atlas" className="p-2 rounded-xl hover:bg-white/5 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-white/60" />
+        <div className="max-w-7xl mx-auto px-3 py-2.5 flex items-center gap-2.5">
+          <Link to="/atlas" className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+            <ArrowLeft className="w-4 h-4 text-white/60" />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold tracking-tight flex items-center gap-2">
-              <Globe className="w-5 h-5 text-primary" />
+            <h1 className="text-lg font-bold tracking-tight flex items-center gap-1.5">
+              <Globe className="w-4 h-4 text-primary" />
               Atlas Geofencing
             </h1>
-            <div className="flex items-center gap-1.5 text-xs text-white/40">
-              <MapPin className="w-3 h-3" />
+            <div className="flex items-center gap-1 text-xs text-white/40">
+              <MapPin className="w-2.5 h-2.5" />
               <span className="truncate">{locationName}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Radius selector */}
             <div className="relative">
               <button
                 onClick={() => setShowRadiusMenu(!showRadiusMenu)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/[0.08] text-xs font-medium hover:bg-white/[0.1] transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-medium hover:bg-white/[0.1] transition-colors"
               >
-                <Radius className="w-3.5 h-3.5 text-primary" />
+                <Radius className="w-3 h-3 text-primary" />
                 {radiusKm}km
-                <ChevronDown className="w-3 h-3 text-white/40" />
+                <ChevronDown className="w-2.5 h-2.5 text-white/40" />
               </button>
               <AnimatePresence>
                 {showRadiusMenu && (
                   <motion.div
                     initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                    className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-xl p-1 min-w-[100px] z-50"
+                    className="absolute right-0 top-full mt-1 bg-[#1a1a24] border border-white/[0.1] rounded-lg p-1 min-w-[85px] z-50"
                   >
                     {RADIUS_OPTIONS.map(r => (
                       <button
                         key={r}
                         onClick={() => { setRadiusKm(r); setShowRadiusMenu(false); }}
-                        className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors ${r === radiusKm ? "bg-primary/20 text-primary" : "hover:bg-white/5 text-white/70"}`}
+                        className={`w-full text-left px-2.5 py-1 rounded-md text-xs transition-colors ${r === radiusKm ? "bg-primary/20 text-primary" : "hover:bg-white/5 text-white/70"}`}
                       >
                         {r} km
                       </button>
@@ -244,20 +244,20 @@ export default function AtlasPage() {
                 )}
               </AnimatePresence>
             </div>
-            <button onClick={() => { if (center) fetchBusinesses(); }} className="p-2 rounded-xl bg-white/[0.06] border border-white/[0.08] hover:bg-white/[0.1] transition-colors">
-              <Crosshair className="w-4 h-4 text-white/60" />
+            <button onClick={() => { if (center) fetchBusinesses(); }} className="p-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] hover:bg-white/[0.1] transition-colors">
+              <Crosshair className="w-3.5 h-3.5 text-white/60" />
             </button>
           </div>
         </div>
 
         {/* Category pills */}
-        <div className="max-w-7xl mx-auto px-4 pb-3">
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+        <div className="max-w-7xl mx-auto px-3 pb-2.5">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar">
             {CATEGORIES.map(cat => (
               <button
                 key={cat.key}
                 onClick={() => setCategory(cat.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
                   category === cat.key
                     ? "bg-primary/20 text-primary border border-primary/30"
                     : "bg-white/[0.04] text-white/50 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/70"
@@ -271,19 +271,19 @@ export default function AtlasPage() {
         </div>
 
         {/* Search bar */}
-        <div className="max-w-7xl mx-auto px-4 pb-3">
+        <div className="max-w-7xl mx-auto px-3 pb-2.5">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Filter results by name or type…"
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-primary/40 transition-colors"
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-9 pr-9 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-primary/40 transition-colors"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="w-4 h-4 text-white/30 hover:text-white/60" />
+                <X className="w-3.5 h-3.5 text-white/30 hover:text-white/60" />
               </button>
             )}
           </div>
@@ -291,9 +291,9 @@ export default function AtlasPage() {
       </header>
 
       {/* Results */}
-      <main className="max-w-7xl mx-auto px-4 py-4">
+      <main className="max-w-7xl mx-auto px-3 py-3">
         {/* Stats bar */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <span className="text-xs text-white/40 font-mono">
             {loading ? "Scanning area…" : `${filtered.length} businesses within ${radiusKm}km`}
           </span>
@@ -302,55 +302,55 @@ export default function AtlasPage() {
               to={`/atlas?lat=${center?.lat}&lng=${center?.lng}`}
               className="text-xs text-primary/70 hover:text-primary transition-colors flex items-center gap-1"
             >
-              <Eye className="w-3 h-3" /> View on Globe
+              <Eye className="w-2.5 h-2.5" /> View on Globe
             </Link>
           )}
         </div>
 
         {loading && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <div className="flex flex-col items-center justify-center py-16 gap-2.5">
+            <Loader2 className="w-7 h-7 text-primary animate-spin" />
             <span className="text-sm text-white/40">Scanning {radiusKm}km radius…</span>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-center text-sm text-red-300">
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center text-sm text-red-300">
             {error}
           </div>
         )}
 
         {!loading && !error && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-white/30">
-            <MapPin className="w-10 h-10" />
+          <div className="flex flex-col items-center justify-center py-16 gap-2.5 text-white/30">
+            <MapPin className="w-9 h-9" />
             <span className="text-sm">No businesses found. Try increasing the radius or changing category.</span>
           </div>
         )}
 
         {!loading && !error && (
-          <div className="grid gap-2">
+          <div className="grid gap-1.5">
             {filtered.map(b => (
               <motion.div
                 key={b.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`group bg-white/[0.03] border rounded-2xl p-3.5 cursor-pointer transition-all hover:bg-white/[0.06] ${
+                className={`group bg-white/[0.03] border rounded-xl p-3 cursor-pointer transition-all hover:bg-white/[0.06] ${
                   selectedBusiness?.id === b.id ? "border-primary/40 bg-primary/[0.04]" : "border-white/[0.06]"
                 }`}
                 onClick={() => setSelectedBusiness(selectedBusiness?.id === b.id ? null : b)}
               >
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
                     {getIcon(b.amenity)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-1.5">
                       <h3 className="text-sm font-semibold truncate">{b.name}</h3>
                       <span className="text-[10px] font-mono text-white/30 flex-shrink-0">
                         {b.distance ? `${b.distance.toFixed(1)}km` : "—"}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] uppercase tracking-wider text-white/40 font-medium">{b.type}</span>
                       {b.address && <span className="text-[10px] text-white/25 truncate">· {b.address}</span>}
                     </div>
@@ -365,13 +365,13 @@ export default function AtlasPage() {
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="flex gap-2 mt-3 pt-3 border-t border-white/[0.06]">
+                      <div className="flex gap-1.5 mt-2.5 pt-2.5 border-t border-white/[0.06]">
                         <Button
                           size="sm"
                           onClick={(e) => { e.stopPropagation(); navigateToAtlas(b); }}
-                          className="flex-1 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 rounded-xl text-xs"
+                          className="flex-1 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 rounded-lg text-xs"
                         >
-                          <Navigation className="w-3.5 h-3.5" />
+                          <Navigation className="w-3 h-3" />
                           Navigate
                         </Button>
                         <Button
@@ -381,13 +381,13 @@ export default function AtlasPage() {
                             e.stopPropagation();
                             window.open(`https://www.google.com/maps/search/?api=1&query=${b.lat},${b.lng}`, "_blank");
                           }}
-                          className="flex-1 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] border border-white/[0.06] rounded-xl text-xs"
+                          className="flex-1 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] border border-white/[0.06] rounded-lg text-xs"
                         >
-                          <MapPin className="w-3.5 h-3.5" />
+                          <MapPin className="w-3 h-3" />
                           Google Maps
                         </Button>
                       </div>
-                      <div className="mt-2 text-[10px] font-mono text-white/20">
+                      <div className="mt-1.5 text-[10px] font-mono text-white/20">
                         {b.lat.toFixed(5)}, {b.lng.toFixed(5)}
                       </div>
                     </motion.div>
