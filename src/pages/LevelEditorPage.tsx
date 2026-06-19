@@ -1253,6 +1253,12 @@ export default function LevelEditorPage() {
     if (!isMobile) setMobilePanel(null);
   }, [isMobile]);
 
+  // Desktop-only sidebar visibility. Right inspector is hidden by default and
+  // revealed by the toolbar toggle next to Undo; left outline can be collapsed
+  // by the chevron arrow on its inner edge.
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
