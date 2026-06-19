@@ -3223,34 +3223,41 @@ function CharacterInspector({
         </Button>
       )}
 
-      <InlineAnimationPicker
-        currentClipName={current}
-        extraEntries={userClips}
-        onPick={(entry) => {
-          // If the entry is from a different rig URL, swap to its url so the
-          // clip can play. Otherwise just update the clip name.
-          const patch: Partial<CharacterObject> = { currentAnimation: entry.clipName };
-          if (entry.source !== "builtin" && entry.url) patch.url = entry.url;
-          onPatch(patch);
-        }}
-      />
-
       <div>
         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Animation</Label>
-        <Select
-          value={current}
-          onValueChange={(v) => onPatch({ currentAnimation: v })}
-          disabled={disabled || names.length === 0}
-        >
-          <SelectTrigger className="h-8 text-xs mt-1">
-            <SelectValue placeholder={names.length === 0 ? "No clips" : "Pick a clip"} />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            {names.map((n) => (
-              <SelectItem key={n} value={n} className="text-xs">{n}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              className="w-full h-8 text-xs mt-1 justify-between font-normal"
+              disabled={disabled || names.length === 0}
+            >
+              <span className="truncate">{current || (names.length === 0 ? "No clips" : "Pick a clip")}</span>
+              <ChevronDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[260px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search clip…" className="h-8 text-xs" />
+              <CommandList className="max-h-72">
+                <CommandEmpty className="text-xs py-2">No matches</CommandEmpty>
+                <CommandGroup>
+                  {names.map((n) => (
+                    <CommandItem
+                      key={n}
+                      value={n}
+                      className="text-xs"
+                      onSelect={() => onPatch({ currentAnimation: n })}
+                    >
+                      <span className="truncate">{n}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div>
