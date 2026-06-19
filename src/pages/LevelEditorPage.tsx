@@ -1428,6 +1428,20 @@ export default function LevelEditorPage() {
               selectedBoneName={rigState?.selectedBoneName ?? null}
               onSelectBone={(name) => setRigBoneRequest(name)}
               hideBoneHierarchy={rigRoomMode}
+              layers={scene.layers && scene.layers.length ? scene.layers : defaultLayers()}
+              onToggleLock={(id, locked) => patchObject(id, { locked } as any)}
+              onAssignLayer={(id, layerId) => assignObjectsToLayer([id], layerId)}
+              isLocked={(o) => isObjectLocked(o)}
+              onDelete={(id) => {
+                removeObject(id);
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(id);
+                  return next;
+                });
+                if (selectedId === id) setSelectedId(null);
+                if (editingPolygonId === id) setEditingPolygonId(null);
+              }}
             />
 
             <div className="flex items-center justify-between mb-2">
