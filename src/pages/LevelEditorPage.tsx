@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
 import { Sparkles, Library, ChevronLeft, Search } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import CharacterAnimationGallery from "@/components/level/animations/CharacterAnimationGallery";
 import ObjectAnimationGallery from "@/components/level/animations/ObjectAnimationGallery";
 import InlineAnimationPicker from "@/components/level/animations/InlineAnimationPicker";
@@ -1242,6 +1243,15 @@ export default function LevelEditorPage() {
     [layerLockMap],
   );
   const selectedObjectLocked = isObjectLocked(scene.objects.find((o) => o.id === selectedId));
+
+  // Mobile-only adaptations: compact top bar, full-bleed canvas, and the
+  // left/right inspector panels become slide-up bottom sheets triggered by a
+  // fixed tab bar. Desktop layout is untouched.
+  const isMobile = useIsMobile();
+  const [mobilePanel, setMobilePanel] = useState<"left" | "right" | null>(null);
+  useEffect(() => {
+    if (!isMobile) setMobilePanel(null);
+  }, [isMobile]);
 
   if (loading) {
     return (
