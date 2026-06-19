@@ -45,8 +45,8 @@ export default function TeleportPickerOverlay({
     const findOwner = (o: THREE.Object3D | null): THREE.Object3D | null => {
       let cur: THREE.Object3D | null = o;
       while (cur) {
-        const id = (cur.userData as any)?.objectId as string | undefined;
-        if (id) return cur;
+        const ud = cur.userData as any;
+        if (ud?.__objId || (cur.name && cur.name.startsWith("obj-"))) return cur;
         cur = cur.parent;
       }
       return null;
@@ -69,8 +69,11 @@ export default function TeleportPickerOverlay({
       );
       if (first) {
         const owner = findOwner(first.object);
-        const id = owner ? ((owner.userData as any).objectId as string) : undefined;
-        const name = owner?.name || (owner?.userData as any)?.objectName;
+        const ud = (owner?.userData as any) ?? {};
+        const id: string | undefined =
+          ud.__objId ??
+          (owner?.name?.startsWith("obj-") ? owner.name.slice(4) : undefined);
+        const name = id ? `Object ${id.slice(0, 6)}` : undefined;
         return {
           p: [first.point.x, first.point.y, first.point.z] as [number, number, number],
           id,
