@@ -1055,6 +1055,7 @@ export default function RigControllerRoom({
   const [sourceLabel, setSourceLabel] = useState<string>("Xbot (Mixamo)");
   const [bones, setBones] = useState<THREE.Bone[]>([]);
   const [selectedBoneName, setSelectedBoneName] = useState<string | null>(null);
+  const [hoveredBoneName, setHoveredBoneName] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [transformMode, setTransformMode] = useState<"rotate" | "translate">("rotate");
   const [controllerMap, setControllerMap] = useState<Record<ControllerKey, string | null>>(
