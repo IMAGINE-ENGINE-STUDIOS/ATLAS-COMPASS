@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil, Footprints } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { EMPTY_SCENE } from "@/lib/levelTypes";
+import { buildObstacleCourseScene } from "@/lib/obstacleCoursePreset";
 import { createLocalLevel, deleteLocalLevel, getLocalLevelOwnerId, isLocalLevelId, listLocalLevels } from "@/lib/localLevels";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -70,6 +71,37 @@ export default function LevelsListPage() {
     }
   };
 
+  const createObstacleCourse = async () => {
+    const scene = buildObstacleCourseScene();
+    const uid = await ensureLevelSession({ allowAnonymous: false });
+    if (!uid) {
+      const local = createLocalLevel(scene);
+      // give it a recognisable name in local storage
+      try {
+        const { updateLocalLevel } = await import("@/lib/localLevels");
+        updateLocalLevel(local.id, { name: "Locomotion Obstacle Course" });
+      } catch {}
+      navigate(`/level/${local.id}`);
+      return;
+    }
+    const { data, error } = await withTimeout(
+      supabase
+        .from("levels")
+        .insert({ owner_id: uid, name: "Locomotion Obstacle Course", scene: scene as any })
+        .select("id")
+        .single(),
+      5000,
+      { data: null, error: { message: "Level creation timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
+    );
+    if (error || !data) {
+      toast.error("Backend unreachable, creating a local draft");
+      const local = createLocalLevel(scene);
+      navigate(`/level/${local.id}`);
+    } else {
+      navigate(`/level/${data.id}`);
+    }
+  };
+
   const deleteLevel = async (id: string) => {
     if (!confirm("Delete this level? This cannot be undone.")) return;
     if (isLocalLevelId(id)) {
@@ -94,9 +126,14 @@ export default function LevelsListPage() {
           <Layers className="w-5 h-5 text-primary" />
           <h1 className="text-lg font-semibold">Levels</h1>
           <div className="ml-auto">
-            <Button onClick={createLevel} size="sm">
-              <Plus className="w-4 h-4 mr-1" /> New Level
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={createObstacleCourse} size="sm" variant="outline">
+                <Footprints className="w-4 h-4 mr-1" /> Obstacle Course
+              </Button>
+              <Button onClick={createLevel} size="sm">
+                <Plus className="w-4 h-4 mr-1" /> New Level
+              </Button>
+            </div>
           </div>
         </div>
       </header>
