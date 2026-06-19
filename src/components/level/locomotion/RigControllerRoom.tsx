@@ -1328,31 +1328,29 @@ export default function RigControllerRoom({
         `}
       >
         <div className={sidebarOpen ? "" : "hidden"}>
-          {/* ——— Header: Room identity ——— */}
-          <div className="relative -mx-4 -mt-4 mb-5 px-4 pt-5 pb-4 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.04] to-transparent">
-            <div className="flex items-start gap-3">
-              <div className="relative mt-0.5 shrink-0">
-                <div className="w-8 h-8 rounded-full border border-white/[0.12] bg-white/[0.03] backdrop-blur-md flex items-center justify-center">
-                  <BoneIcon className="w-3.5 h-3.5 text-white/70" />
-                </div>
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400/80 shadow-[0_0_6px_rgba(52,211,153,0.45)]" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/90 leading-none">
-                  Rig Controller Room
+          {/* ═══════════ COMMAND DECK HEADER ═══════════ */}
+          <div className="relative -mx-4 -mt-4 mb-4 px-4 pt-4 pb-3 border-b border-white/[0.08] bg-[linear-gradient(180deg,hsl(var(--primary)/0.06),transparent_70%)]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-primary/70 tracking-[0.18em]">{`//`}</span>
+                <h2 className="text-[12px] font-bold uppercase tracking-[0.28em] text-white leading-none">
+                  CTRL · ROOM
                 </h2>
-                <p className="text-[10px] text-white/40 mt-1.5 leading-relaxed">
-                  A command space for skeletal animation. The viewport renders your
-                  rigged character in real-time. The left bar hosts controller mapping,
-                  clip playback, pose saving and speed control — everything needed to
-                  compose, preview and export character motion.
-                </p>
               </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm border border-primary/40 bg-primary/10">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_hsl(var(--primary))]" />
+                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-primary">{playing ? "LIVE" : "STBY"}</span>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[9px] uppercase tracking-[0.15em] text-white/40">
+              <div className="flex flex-col"><span className="text-white/30">BONES</span><span className="text-white/90 tabular-nums">{String(bones.length).padStart(3,"0")}</span></div>
+              <div className="flex flex-col"><span className="text-white/30">CLIPS</span><span className="text-white/90 tabular-nums">{String(clips.length).padStart(3,"0")}</span></div>
+              <div className="flex flex-col"><span className="text-white/30">SAVES</span><span className="text-white/90 tabular-nums">{String(saves.length).padStart(3,"0")}</span></div>
             </div>
           </div>
 
           {sidebarExtras && (
-            <div className="mb-4 -mx-4 px-4 pb-3 border-b border-border/30">
+            <div className="mb-3 -mx-4 px-4 pb-3 border-b border-border/30">
               {sidebarExtras}
             </div>
           )}
@@ -1391,88 +1389,217 @@ export default function RigControllerRoom({
           </div>
         )}
 
-        {/* ---- Saved rig selector : glass pill with searchable dropdown ---- */}
-        <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Saved rig</span>
+        {/* ═══════════ HERO RIG DECK ═══════════ */}
+        {(() => {
+          const sel = activeSaveId ? saves.find((s) => s.id === activeSaveId) : null;
+          return (
+            <div className="relative bg-[linear-gradient(180deg,hsl(var(--card)),hsl(var(--background)))] border border-white/10 p-3 space-y-3"
+              style={{ clipPath: "polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)" }}
+            >
+              {/* Corner brackets */}
+              <span className="absolute top-0 right-0 w-3 h-3 border-t border-r border-primary/60" />
+              <span className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-primary/60" />
+
+              {/* Thumbnail panel */}
+              <div className="relative aspect-square w-full bg-black border border-white/[0.08] overflow-hidden">
+                {sel?.thumbnail ? (
+                  <img src={sel.thumbnail} alt={sel.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-white/20">
+                    <BoneIcon className="w-12 h-12" />
+                  </div>
+                )}
+                {/* Scanline overlay */}
+                <div className="absolute inset-0 pointer-events-none bg-[repeating-linear-gradient(180deg,transparent_0,transparent_3px,rgba(255,255,255,0.02)_3px,rgba(255,255,255,0.02)_4px)]" />
+                {/* Telemetry overlay */}
+                <div className="absolute top-2 left-2 right-2 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">
+                  <span className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${playing ? "bg-primary animate-pulse" : "bg-white/30"}`} />
+                    {playing ? "REC" : "IDLE"}
+                  </span>
+                  <span className="text-white/40 tabular-nums">×{speed.toFixed(2)}</span>
+                </div>
+                {/* Name bar */}
+                <div className="absolute bottom-0 inset-x-0 px-2.5 py-1.5 bg-gradient-to-t from-black/95 to-transparent">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-primary/80">{sel ? "ACTIVE RIG" : "SOURCE"}</div>
+                  <div className="text-[13px] font-semibold text-white truncate leading-tight">
+                    {sel?.name ?? (sourceLabel || "Default rig")}
+                  </div>
+                </div>
+              </div>
+
+              {/* Transport row — bold game-controller buttons */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1.5">
+                <button
+                  onClick={() => setPlaying((p) => !p)}
+                  disabled={!activeClip}
+                  className={`group h-11 flex items-center justify-center gap-2 border font-mono text-[10px] uppercase tracking-[0.25em] transition-all disabled:opacity-30 ${
+                    playing
+                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_18px_hsl(var(--primary)/0.55)]"
+                      : "bg-white/[0.04] text-white border-white/15 hover:bg-white/[0.1] hover:border-primary/50"
+                  }`}
+                  title={playing ? "Pause" : "Play"}
+                >
+                  {playing ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                  <span>{playing ? "PAUSE" : "PLAY"}</span>
+                </button>
+                <button
+                  onClick={handleAutoSet}
+                  disabled={bones.length === 0}
+                  className="w-11 h-11 grid place-items-center border border-white/15 bg-white/[0.04] text-white/80 hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all disabled:opacity-30"
+                  title="Auto-set controllers"
+                >
+                  <Wand2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleResetPose}
+                  className="w-11 h-11 grid place-items-center border border-white/15 bg-white/[0.04] text-white/80 hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all"
+                  title="Reset pose"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={bones.length === 0}
+                  className="w-11 h-11 grid place-items-center border border-primary/40 bg-primary/15 text-primary hover:bg-primary hover:text-primary-foreground transition-all disabled:opacity-30"
+                  title="Save rig"
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* THROTTLE — speed */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.25em]">
+                  <span className="text-white/40">THROTTLE</span>
+                  <span className="text-primary text-[12px] tabular-nums font-bold">×{speed.toFixed(2)}</span>
+                </div>
+                <div className="relative">
+                  <Slider
+                    value={[speed]}
+                    min={0}
+                    max={3}
+                    step={0.05}
+                    onValueChange={([v]) => setSpeed(v)}
+                  />
+                  <div className="absolute inset-x-0 -bottom-2 flex justify-between pointer-events-none font-mono text-[8px] text-white/25 tabular-nums">
+                    <span>0.0</span><span>1.0</span><span>2.0</span><span>3.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ═══════════ CLIPS RAIL ═══════════ */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
-              <span className="font-mono tabular-nums text-[10px] text-white/40">
-                {String(saves.length).padStart(3, "0")}
-              </span>
-              <button
-                onClick={handleSave}
-                disabled={bones.length === 0}
-                className="flex items-center gap-1 h-6 px-2.5 rounded-full bg-white text-black text-[10px] font-medium hover:bg-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Save className="w-3 h-3" /> Save
-              </button>
+              <span className="font-mono text-[9px] text-primary/60 tracking-[0.18em]">{`>`}</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/70 font-semibold">CLIPS</span>
+              <span className="font-mono text-[9px] tabular-nums text-white/30">{String(clips.length).padStart(3,"0")}</span>
+            </div>
+            <button
+              onClick={() => setAnimOpen((o) => !o)}
+              className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/40 hover:text-white transition flex items-center gap-1"
+            >
+              {animOpen ? "HIDE" : "SHOW"}
+              <ChevronDown className={`w-3 h-3 transition-transform ${animOpen ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+          {animOpen && (
+            clips.length === 0 ? (
+              <p className="font-mono text-[10px] text-white/30 px-1 py-2">// no clips loaded</p>
+            ) : (
+              <ScrollArea className="max-h-40">
+                <div className="grid grid-cols-1 gap-1 pr-1.5">
+                  {clips.map((name) => {
+                    const isActive = activeClip === name;
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => setActiveClip(name)}
+                        className={`group flex items-center gap-2 px-2.5 py-2 border text-left transition-all ${
+                          isActive
+                            ? "bg-primary/10 border-primary/60 text-white shadow-[inset_2px_0_0_hsl(var(--primary))]"
+                            : "bg-white/[0.02] border-white/10 text-white/70 hover:border-white/30 hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <span className={`font-mono text-[9px] tabular-nums ${isActive ? "text-primary" : "text-white/30"}`}>
+                          {isActive ? "●" : "○"}
+                        </span>
+                        <span className="flex-1 truncate text-[11px] font-medium">{name}</span>
+                        {isActive && playing && (
+                          <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-primary animate-pulse">LIVE</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )
+          )}
+        </div>
+
+        {/* ═══════════ LIBRARY — saved rigs ═══════════ */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[9px] text-primary/60 tracking-[0.18em]">{`>`}</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/70 font-semibold">LIBRARY</span>
+              <span className="font-mono text-[9px] tabular-nums text-white/30">{String(saves.length).padStart(3,"0")}</span>
             </div>
           </div>
-
-          {/* Selected rig — rendered identically to a row in the Level object bar */}
-          {activeSaveId && (() => {
-            const sel = saves.find((s) => s.id === activeSaveId);
-            if (!sel) return null;
-            return (
-              <div
-                className="w-full text-left px-2 py-1 rounded text-[11px] flex items-center gap-1.5 bg-primary/20 text-primary"
-                title={`${sel.name} (rig)`}
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: "#22ff88" }}
-                />
-                <span className="flex-1 truncate">{sel.name}</span>
-                <span className="text-[9px] uppercase tracking-wider opacity-50">rig</span>
-              </div>
-            );
-          })()}
-
-          {/* Inline search engine */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
-            <Input
+          {/* Console-style search */}
+          <div className="relative flex items-center border border-white/10 bg-black/40 focus-within:border-primary/50 transition">
+            <span className="pl-2.5 font-mono text-[10px] text-primary/70 select-none">{`>`}</span>
+            <input
               value={saveSearch}
               onChange={(e) => setSaveSearch(e.target.value)}
-              placeholder="Search saved rigs…"
-              className="h-9 pl-9 text-xs rounded-full bg-white/[0.04] border-white/10 placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-white/20"
+              placeholder="search rigs…"
+              className="flex-1 bg-transparent h-8 px-2 font-mono text-[11px] text-white placeholder:text-white/25 focus:outline-none"
             />
+            <Search className="w-3 h-3 text-white/30 mr-2.5" />
           </div>
-
-          {/* Results list, always visible */}
-          <div className="max-h-56 overflow-y-auto -mx-1 px-1 space-y-0.5">
+          {/* List */}
+          <div className="max-h-56 overflow-y-auto -mx-1 px-1 space-y-1">
             {saves.length === 0 ? (
-              <p className="text-[10px] text-white/40 text-center py-3">
-                {savesLoading ? "Loading…" : "No saves yet."}
+              <p className="font-mono text-[10px] text-white/30 text-center py-3">
+                {savesLoading ? "// loading…" : "// empty — press SAVE to record"}
               </p>
             ) : (
               saves
                 .filter((s) => s.name.toLowerCase().includes(saveSearch.toLowerCase()))
-                .map((s) => {
+                .map((s, i) => {
                   const active = activeSaveId === s.id;
                   return (
                     <div
                       key={s.id}
-                      className={`group flex items-center gap-2 rounded-xl px-2 py-1.5 transition cursor-pointer ${
-                        active ? "bg-white/[0.08]" : "hover:bg-white/[0.05]"
+                      className={`group flex items-center gap-2 pl-2 pr-1 py-1.5 border transition cursor-pointer ${
+                        active
+                          ? "border-primary/50 bg-primary/[0.08] shadow-[inset_2px_0_0_hsl(var(--primary))]"
+                          : "border-white/[0.06] bg-white/[0.015] hover:border-white/20 hover:bg-white/[0.04]"
                       }`}
                     >
+                      <span className={`font-mono text-[9px] tabular-nums w-5 shrink-0 ${active ? "text-primary" : "text-white/25"}`}>
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
                       <button
                         onClick={() => handleLoadSave(s)}
                         className="flex-1 flex items-center gap-2 text-left min-w-0"
                       >
-                        <div className="w-7 h-7 rounded-lg overflow-hidden bg-gradient-to-br from-slate-800 to-black flex-shrink-0 flex items-center justify-center">
+                        <div className="w-7 h-7 overflow-hidden bg-black border border-white/10 flex-shrink-0 grid place-items-center">
                           {s.thumbnail ? (
                             <img src={s.thumbnail} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            <Save className="w-3 h-3 text-white/30" />
+                            <BoneIcon className="w-3 h-3 text-white/30" />
                           )}
                         </div>
-                        <div className="min-w-0">
-                          <p className={`text-[11px] truncate ${active ? "text-white font-medium" : "text-white/80"}`}>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-[11px] truncate leading-tight ${active ? "text-white font-semibold" : "text-white/80"}`}>
                             {s.name}
                           </p>
-                          <p className="font-mono tabular-nums text-[9px] text-white/30">
+                          <p className="font-mono tabular-nums text-[9px] text-white/30 leading-tight">
                             {new Date(s.created_at).toLocaleDateString()}
                           </p>
                         </div>
@@ -1482,7 +1609,7 @@ export default function RigControllerRoom({
                           e.stopPropagation();
                           handleDeleteSave(s);
                         }}
-                        className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 rounded-full hover:bg-red-500/20 text-white/30 hover:text-red-400 transition"
+                        className="opacity-0 group-hover:opacity-100 grid place-items-center w-7 h-7 text-white/40 hover:text-destructive hover:bg-destructive/10 transition"
                         title="Delete"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -1492,104 +1619,6 @@ export default function RigControllerRoom({
                 })
             )}
           </div>
-
-          <div className="flex gap-1.5 pt-0.5">
-            <Button
-              size="sm"
-              className="flex-1 h-8 rounded-full text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/10 backdrop-blur-xl"
-              onClick={handleAutoSet}
-              disabled={bones.length === 0}
-            >
-              <Wand2 className="w-3 h-3 mr-1.5" /> Auto-set
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 rounded-full px-3 text-[11px] text-white/70 hover:text-white hover:bg-white/[0.06] border border-white/10"
-              onClick={handleResetPose}
-            >
-              <RotateCcw className="w-3 h-3 mr-1.5" /> Reset
-            </Button>
-          </div>
-        </div>
-
-
-        {/* ---- Animations : collapsible ---- */}
-        <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden">
-          <button
-            onClick={() => setAnimOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/[0.03] transition"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Animations</span>
-              <span className="font-mono tabular-nums text-[10px] text-white/40">
-                {String(clips.length).padStart(3, "0")}
-              </span>
-              {activeClip && (
-                <span className="text-[10px] text-white/60 truncate max-w-[120px]">· {activeClip}</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPlaying((p) => !p);
-                }}
-                disabled={!activeClip}
-                className="w-6 h-6 rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 flex items-center justify-center text-white disabled:opacity-40 transition"
-              >
-                {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ml-[1px]" />}
-              </button>
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${animOpen ? "rotate-180" : ""}`}
-              />
-            </div>
-          </button>
-          {animOpen && (
-            <div className="px-3 pb-3 space-y-2.5 border-t border-white/[0.06] pt-2.5">
-              {clips.length === 0 ? (
-                <p className="text-[10px] text-white/40">No clips found in this glTF.</p>
-              ) : (
-                <ScrollArea className="h-32">
-                  <div className="flex flex-wrap gap-1.5 pr-1.5">
-                    {clips.map((name) => {
-                      const isActive = activeClip === name;
-                      return (
-                        <button
-                          key={name}
-                          onClick={() => setActiveClip(name)}
-                          className={`text-[11px] px-2.5 py-1 rounded-full border transition backdrop-blur-xl ${
-                            isActive
-                              ? "bg-white text-black border-white shadow-[0_2px_10px_rgba(255,255,255,0.25)]"
-                              : "bg-white/[0.04] text-white/75 border-white/10 hover:bg-white/[0.1] hover:text-white"
-                          }`}
-                        >
-                          {name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ---- Speed : Atlas-style full-width tag ---- */}
-        <div className="rounded-full bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] px-4 py-2.5 flex items-center gap-3">
-          <span className="text-[9px] uppercase tracking-[0.22em] text-white/50 font-medium">Speed</span>
-          <div className="flex-1 relative">
-            <Slider
-              value={[speed]}
-              min={0}
-              max={3}
-              step={0.05}
-              onValueChange={([v]) => setSpeed(v)}
-            />
-          </div>
-          <span className="font-mono tabular-nums text-[11px] text-white tracking-tight min-w-[42px] text-right">
-            ×{speed.toFixed(2)}
-          </span>
         </div>
 
         <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
