@@ -142,6 +142,45 @@ export type Database = {
         }
         Relationships: []
       }
+      geometries: {
+        Row: {
+          created_at: string
+          csv_content: string
+          description: string | null
+          id: string
+          is_public: boolean
+          name: string
+          owner_id: string
+          shape_count: number
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          csv_content: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name: string
+          owner_id: string
+          shape_count?: number
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          csv_content?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name?: string
+          owner_id?: string
+          shape_count?: number
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       level_snapshots: {
         Row: {
           client_saved_at: string

@@ -61,6 +61,7 @@ import {
 import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
+import { GeometryPanel } from "@/components/level/geometry/GeometryPanel";
 import {
   listRigSaves,
   getCachedRigSaves,
@@ -1011,6 +1012,18 @@ export default function LevelEditorPage() {
         ? currentLayerId
         : s.layers[0].id;
       s.objects.push({ ...o, layerId: o.layerId ?? targetLayer } as SceneObject);
+      return s;
+    });
+
+  const addObjects = (objs: SceneObject[]) =>
+    updateScene((s) => {
+      if (!s.layers || s.layers.length === 0) s.layers = defaultLayers();
+      const targetLayer = s.layers.find((l) => l.id === currentLayerId)
+        ? currentLayerId
+        : s.layers[0].id;
+      for (const o of objs) {
+        s.objects.push({ ...o, layerId: o.layerId ?? targetLayer } as SceneObject);
+      }
       return s;
     });
 
@@ -2033,6 +2046,7 @@ export default function LevelEditorPage() {
                   onClearFacePaint={() => setPaintedFaces(new Set())}
                   userClips={userClipEntries}
                   onOpenCharacterGallery={() => setCharacterGalleryOpen(true)}
+                  onSpawnObjects={(objs) => addObjects(objs)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
@@ -2434,7 +2448,7 @@ function Vec3Field({
 function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
-  userClips, onOpenCharacterGallery, allObjects = [],
+  userClips, onOpenCharacterGallery, onSpawnObjects, allObjects = [],
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -2452,6 +2466,7 @@ function ObjectInspector({
   onClearFacePaint: () => void;
   userClips: CharacterClipEntry[];
   onOpenCharacterGallery: () => void;
+  onSpawnObjects?: (objs: SceneObject[]) => void;
   allObjects?: SceneObject[];
 }) {
   return (
@@ -2619,6 +2634,14 @@ function ObjectInspector({
           onClearSelection={onClearFacePaint}
           onPatchFaceOverrides={(faceOverrides) => onPatch({ faceOverrides } as any)}
           onPatchModelOverrides={(materialOverrides) => onPatch({ materialOverrides } as any)}
+          disabled={disabled}
+        />
+      )}
+      {onSpawnObjects && obj.kind !== "character" && obj.kind !== "trajectory" && (
+        <GeometryPanel
+          anchor={obj.position}
+          selectedObject={obj}
+          onSpawn={onSpawnObjects}
           disabled={disabled}
         />
       )}
