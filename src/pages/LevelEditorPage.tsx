@@ -2146,7 +2146,7 @@ export default function LevelEditorPage() {
 
       {/* Mobile bottom tab bar — toggles slide-up panels and quick play/save */}
       {isMobile && (
-        <nav className="fixed inset-x-0 bottom-0 h-14 z-50 border-t border-border/60 bg-background/95 backdrop-blur-xl grid grid-cols-4 [padding-bottom:env(safe-area-inset-bottom)]">
+        <nav className="fixed inset-x-0 bottom-0 h-14 z-50 border-t border-border/60 bg-background/95 backdrop-blur-xl grid grid-cols-5 [padding-bottom:env(safe-area-inset-bottom)]">
           <button
             onClick={() => setMobilePanel((p) => (p === "left" ? null : "left"))}
             className={`flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors ${
@@ -2178,12 +2178,25 @@ export default function LevelEditorPage() {
             {playing ? "Pause" : "Play"}
           </button>
           <button
-            onClick={() => save()}
+            onClick={() => {
+              setMobilePanel(null);
+              openPlaceDialog();
+            }}
+            disabled={!isOwner}
+            className="flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider text-muted-foreground disabled:opacity-50"
+          >
+            <MapPin className="w-5 h-5" />
+            Map
+          </button>
+          <button
+            onClick={() => {
+              setMobilePanel(null);
+              save();
+            }}
             disabled={!isOwner || saving}
             className="flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider text-muted-foreground disabled:opacity-50"
           >
             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            Save
           </button>
         </nav>
       )}
