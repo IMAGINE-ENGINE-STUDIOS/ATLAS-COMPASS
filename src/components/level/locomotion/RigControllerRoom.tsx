@@ -1528,6 +1528,12 @@ export default function RigControllerRoom({
           </div>
           <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
         </div>
+
+        {sidebarExtras && (
+          <div className="pt-3 border-t border-border/30 -mx-4 px-4">
+            {sidebarExtras}
+          </div>
+        )}
       </aside>
 
       {/* Viewport */}
