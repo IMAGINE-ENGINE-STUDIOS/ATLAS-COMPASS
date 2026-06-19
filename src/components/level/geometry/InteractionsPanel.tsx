@@ -413,50 +413,6 @@ function PresetEditor({
           {PRESET_TYPES.map((p) => <SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>)}
         </SelectContent>
       </Select>
-
-      {/* Trigger selector for preset actions */}
-      <div className="grid grid-cols-[auto_1fr] gap-1 items-center">
-        <Label className="text-[9px] uppercase">Trigger</Label>
-        <Select
-          value={i.trigger ?? "always"}
-          onValueChange={(v) => patch(i.id, { trigger: v as ObjectInteraction["trigger"] })}
-          disabled={disabled}
-        >
-          <SelectTrigger className="h-5 text-[10px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="always" className="text-xs">auto-run (always)</SelectItem>
-            <SelectItem value="onClick" className="text-xs">on click</SelectItem>
-            <SelectItem value="onPlayerNear" className="text-xs">player nearby</SelectItem>
-            <SelectItem value="onWalkThrough" className="text-xs">walked through</SelectItem>
-            <SelectItem value="key" className="text-xs">key press</SelectItem>
-          </SelectContent>
-        </Select>
-        {i.trigger === "onPlayerNear" && (
-          <>
-            <Label className="text-[9px]">Distance</Label>
-            <Input
-              type="number"
-              step={0.1}
-              value={i.triggerDistance ?? 2}
-              onChange={(e) => patch(i.id, { triggerDistance: parseFloat(e.target.value) || 0 })}
-              className="h-5 text-[10px]"
-              disabled={disabled}
-            />
-          </>
-        )}
-        {i.trigger === "key" && (
-          <>
-            <Label className="text-[9px]">Key</Label>
-            <Input
-              value={i.triggerKey ?? "E"}
-              onChange={(e) => patch(i.id, { triggerKey: e.target.value })}
-              placeholder="E or Shift+E"
-              className="h-5 text-[10px]"
-              disabled={disabled}
-            />
-          </>
-        )}
-      </div>
       {preset.type === "rotateContinuously" && (
         <div className="grid grid-cols-[1fr_2fr] gap-1 items-center">
           <Label className="text-[10px]">Speed (rad/s)</Label>
