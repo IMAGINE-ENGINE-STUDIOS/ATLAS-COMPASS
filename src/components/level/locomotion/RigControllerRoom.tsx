@@ -1392,101 +1392,91 @@ export default function RigControllerRoom({
             </div>
           </div>
 
-          {/* Custom searchable dropdown */}
-          <div ref={saveDropdownRef} className="relative">
-            <button
-              onClick={() => setSaveDropdownOpen((o) => !o)}
-              className="w-full flex items-center justify-between h-9 px-3 text-xs rounded-full bg-white/[0.04] border border-white/10 hover:bg-white/[0.07] transition text-left"
-            >
-              <span className={activeSaveId ? "text-white" : "text-white/40"}>
-                {activeSaveId
-                  ? (saves.find((s) => s.id === activeSaveId)?.name ?? "Select a saved rig…")
-                  : "Select a saved rig…"}
-              </span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${saveDropdownOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {saveDropdownOpen && (
-              <div className="absolute z-50 left-0 right-0 mt-1.5 rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden">
-                {/* Search */}
-                <div className="p-2 border-b border-white/[0.06]">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-                    <Input
-                      value={saveSearch}
-                      onChange={(e) => setSaveSearch(e.target.value)}
-                      placeholder="Search saved rigs…"
-                      className="h-8 pl-8 text-xs rounded-full bg-white/[0.04] border-white/10 placeholder:text-white/30"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-                {/* List */}
-                <div className="max-h-56 overflow-y-auto p-1.5 space-y-0.5">
-                  {saves.length === 0 ? (
-                    <p className="text-[10px] text-white/40 text-center py-3">
-                      {savesLoading ? "Loading…" : "No saves yet."}
-                    </p>
+          {/* Selected rig preview */}
+          {activeSaveId && (() => {
+            const sel = saves.find((s) => s.id === activeSaveId);
+            if (!sel) return null;
+            return (
+              <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.04] border border-white/10 p-2">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-slate-800 to-black flex-shrink-0 flex items-center justify-center ring-1 ring-white/10">
+                  {sel.thumbnail ? (
+                    <img src={sel.thumbnail} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    saves
-                      .filter((s) => s.name.toLowerCase().includes(saveSearch.toLowerCase()))
-                      .map((s) => {
-                        const active = activeSaveId === s.id;
-                        return (
-                          <div
-                            key={s.id}
-                            className={`group flex items-center gap-2 rounded-xl px-2 py-1.5 transition cursor-pointer ${
-                              active
-                                ? "bg-white/[0.08]"
-                                : "hover:bg-white/[0.05]"
-                            }`}
-                          >
-                            <button
-                              onClick={() => {
-                                handleLoadSave(s);
-                                setSaveDropdownOpen(false);
-                                setSaveSearch("");
-                              }}
-                              className="flex-1 flex items-center gap-2 text-left min-w-0"
-                            >
-                              <div className="w-7 h-7 rounded-lg overflow-hidden bg-gradient-to-br from-slate-800 to-black flex-shrink-0 flex items-center justify-center">
-                                {s.thumbnail ? (
-                                  <img
-                                    src={s.thumbnail}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <Save className="w-3 h-3 text-white/30" />
-                                )}
-                              </div>
-                              <div className="min-w-0">
-                                <p className={`text-[11px] truncate ${active ? "text-white font-medium" : "text-white/80"}`}>
-                                  {s.name}
-                                </p>
-                                <p className="text-[9px] text-white/30">
-                                  {new Date(s.created_at).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSave(s);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 rounded-full hover:bg-red-500/20 text-white/30 hover:text-red-400 transition"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        );
-                      })
+                    <Save className="w-4 h-4 text-white/30" />
                   )}
                 </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-white font-medium truncate">{sel.name}</p>
+                  <p className="font-mono tabular-nums text-[9px] text-white/40">
+                    {new Date(sel.created_at).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
+            );
+          })()}
+
+          {/* Inline search engine */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
+            <Input
+              value={saveSearch}
+              onChange={(e) => setSaveSearch(e.target.value)}
+              placeholder="Search saved rigs…"
+              className="h-9 pl-9 text-xs rounded-full bg-white/[0.04] border-white/10 placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-white/20"
+            />
+          </div>
+
+          {/* Results list, always visible */}
+          <div className="max-h-56 overflow-y-auto -mx-1 px-1 space-y-0.5">
+            {saves.length === 0 ? (
+              <p className="text-[10px] text-white/40 text-center py-3">
+                {savesLoading ? "Loading…" : "No saves yet."}
+              </p>
+            ) : (
+              saves
+                .filter((s) => s.name.toLowerCase().includes(saveSearch.toLowerCase()))
+                .map((s) => {
+                  const active = activeSaveId === s.id;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`group flex items-center gap-2 rounded-xl px-2 py-1.5 transition cursor-pointer ${
+                        active ? "bg-white/[0.08]" : "hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <button
+                        onClick={() => handleLoadSave(s)}
+                        className="flex-1 flex items-center gap-2 text-left min-w-0"
+                      >
+                        <div className="w-7 h-7 rounded-lg overflow-hidden bg-gradient-to-br from-slate-800 to-black flex-shrink-0 flex items-center justify-center">
+                          {s.thumbnail ? (
+                            <img src={s.thumbnail} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Save className="w-3 h-3 text-white/30" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-[11px] truncate ${active ? "text-white font-medium" : "text-white/80"}`}>
+                            {s.name}
+                          </p>
+                          <p className="font-mono tabular-nums text-[9px] text-white/30">
+                            {new Date(s.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSave(s);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 rounded-full hover:bg-red-500/20 text-white/30 hover:text-red-400 transition"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })
             )}
           </div>
 
@@ -1511,56 +1501,82 @@ export default function RigControllerRoom({
         </div>
 
 
-        {/* ---- Animations : glass pill list ---- */}
-        <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] p-3 space-y-2.5">
-          <div className="flex items-center justify-between">
+        {/* ---- Animations : collapsible ---- */}
+        <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden">
+          <button
+            onClick={() => setAnimOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/[0.03] transition"
+          >
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Animations</span>
               <span className="font-mono tabular-nums text-[10px] text-white/40">
                 {String(clips.length).padStart(3, "0")}
               </span>
+              {activeClip && (
+                <span className="text-[10px] text-white/60 truncate max-w-[120px]">· {activeClip}</span>
+              )}
             </div>
-            <button
-              onClick={() => setPlaying((p) => !p)}
-              disabled={!activeClip}
-              className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 flex items-center justify-center text-white disabled:opacity-40 transition"
-            >
-              {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ml-[1px]" />}
-            </button>
-          </div>
-          {clips.length === 0 ? (
-            <p className="text-[10px] text-white/40">No clips found in this glTF.</p>
-          ) : (
-            <ScrollArea className="h-32">
-              <div className="flex flex-wrap gap-1.5 pr-1.5">
-                {clips.map((name) => {
-                  const isActive = activeClip === name;
-                  return (
-                    <button
-                      key={name}
-                      onClick={() => setActiveClip(name)}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition backdrop-blur-xl ${
-                        isActive
-                          ? "bg-white text-black border-white shadow-[0_2px_10px_rgba(255,255,255,0.25)]"
-                          : "bg-white/[0.04] text-white/75 border-white/10 hover:bg-white/[0.1] hover:text-white"
-                      }`}
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPlaying((p) => !p);
+                }}
+                disabled={!activeClip}
+                className="w-6 h-6 rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 flex items-center justify-center text-white disabled:opacity-40 transition"
+              >
+                {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ml-[1px]" />}
+              </button>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${animOpen ? "rotate-180" : ""}`}
+              />
+            </div>
+          </button>
+          {animOpen && (
+            <div className="px-3 pb-3 space-y-2.5 border-t border-white/[0.06] pt-2.5">
+              {clips.length === 0 ? (
+                <p className="text-[10px] text-white/40">No clips found in this glTF.</p>
+              ) : (
+                <ScrollArea className="h-32">
+                  <div className="flex flex-wrap gap-1.5 pr-1.5">
+                    {clips.map((name) => {
+                      const isActive = activeClip === name;
+                      return (
+                        <button
+                          key={name}
+                          onClick={() => setActiveClip(name)}
+                          className={`text-[11px] px-2.5 py-1 rounded-full border transition backdrop-blur-xl ${
+                            isActive
+                              ? "bg-white text-black border-white shadow-[0_2px_10px_rgba(255,255,255,0.25)]"
+                              : "bg-white/[0.04] text-white/75 border-white/10 hover:bg-white/[0.1] hover:text-white"
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
           )}
-          <div className="pt-1">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Speed</span>
-              <span className="font-mono tabular-nums text-[10px] text-white/70">
-                ×{speed.toFixed(2)}
-              </span>
-            </div>
-            <Slider value={[speed]} min={0} max={3} step={0.05} onValueChange={([v]) => setSpeed(v)} />
+        </div>
+
+        {/* ---- Speed : Atlas-style full-width tag ---- */}
+        <div className="rounded-full bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] px-4 py-2.5 flex items-center gap-3">
+          <span className="text-[9px] uppercase tracking-[0.22em] text-white/50 font-medium">Speed</span>
+          <div className="flex-1 relative">
+            <Slider
+              value={[speed]}
+              min={0}
+              max={3}
+              step={0.05}
+              onValueChange={([v]) => setSpeed(v)}
+            />
           </div>
+          <span className="font-mono tabular-nums text-[11px] text-white tracking-tight min-w-[42px] text-right">
+            ×{speed.toFixed(2)}
+          </span>
         </div>
 
         <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
