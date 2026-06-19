@@ -551,6 +551,61 @@ function Rig({
       setTopologyVersion((v) => v + 1);
       return true;
     };
+    bridgeRef.current.addBoneOnSpline = (parentName) => {
+      let parent: THREE.Object3D | null = null;
+      cloned.traverse((o) => { if (!parent && o.name === parentName) parent = o; });
+      if (!parent) return null;
+      const p = parent as THREE.Object3D;
+      // Anchor point in WORLD space: midpoint between the selected bone and
+      // its parent along the spine. If the selection IS a root bone (its
+      // parent isn't a bone), fall back to the first child bone instead.
+      p.updateWorldMatrix(true, false);
+      const selfWorld = new THREE.Vector3().setFromMatrixPosition(p.matrixWorld);
+      const boneSet = new Set(collectBones(cloned));
+      let neighbor: THREE.Object3D | null = null;
+      if (p.parent && boneSet.has(p.parent as THREE.Bone)) neighbor = p.parent;
+      else neighbor = (p.children.find((c) => (c as any).isBone) as THREE.Object3D | undefined) ?? null;
+      const target = new THREE.Vector3();
+      if (neighbor) {
+        neighbor.updateWorldMatrix(true, false);
+        const nWorld = new THREE.Vector3().setFromMatrixPosition(neighbor.matrixWorld);
+        target.copy(selfWorld).lerp(nWorld, 0.5);
+      } else {
+        // No neighbor — offset 0.15m up the world Y so the new bone is visible.
+        target.copy(selfWorld).add(new THREE.Vector3(0, 0.15, 0));
+      }
+      const local = p.worldToLocal(target.clone());
+      const bone = new THREE.Bone();
+      bone.name = `custom_bone_${Math.random().toString(36).slice(2, 7)}`;
+      bone.position.copy(local);
+      (bone as any).userData.__custom = true;
+      p.add(bone);
+      setTopologyVersion((v) => v + 1);
+      return bone.name;
+    };
+    bridgeRef.current.resetSkeleton = () => {
+      // 1. Remove every runtime-added bone (deepest first so parents survive).
+      const customs: THREE.Object3D[] = [];
+      cloned.traverse((o) => { if ((o as any).userData?.__custom) customs.push(o); });
+      customs.sort((a, b) => depthOf(b) - depthOf(a));
+      customs.forEach((b) => b.parent?.remove(b));
+      // 2. Restore the bind pose on every SkinnedMesh's skeleton.
+      cloned.traverse((o: any) => {
+        if (o.isSkinnedMesh && o.skeleton) {
+          try { o.skeleton.pose(); } catch { /* ignore */ }
+        }
+      });
+      // 3. Reset transforms on any remaining bone whose bind matrix is known.
+      const bones = collectBones(cloned);
+      bones.forEach((b) => {
+        // SkeletonUtils.clone preserves the authored local transform on the
+        // bone object itself, but a previous pose() call already restored it
+        // via boneInverses, so we just need to flag matrices as dirty.
+        b.updateMatrix();
+        b.updateMatrixWorld(true);
+      });
+      setTopologyVersion((v) => v + 1);
+    };
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
@@ -570,7 +625,9 @@ function Rig({
       actionRef.current = null;
       if (bridgeRef.current.root === cloned) bridgeRef.current.root = null;
       bridgeRef.current.addBoneAt = null;
+      bridgeRef.current.addBoneOnSpline = null;
       bridgeRef.current.deleteBone = null;
+      bridgeRef.current.resetSkeleton = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
