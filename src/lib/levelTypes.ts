@@ -196,6 +196,12 @@ export interface ObjectInteraction {
   id: string;
   name: string;
   kind: "preset" | "script" | "js";
+  /** When kind === "preset": how the action is triggered. */
+  trigger?: "onClick" | "onPlayerNear" | "onWalkThrough" | "always" | "key";
+  /** Distance for onPlayerNear trigger. */
+  triggerDistance?: number;
+  /** Key for key trigger, e.g. "E" or "Shift+E". */
+  triggerKey?: string;
   /** When kind === "preset". */
   preset?: PresetAction;
   /** When kind === "script": list of when→then blocks. */
