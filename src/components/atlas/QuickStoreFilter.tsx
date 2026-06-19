@@ -60,7 +60,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
   return (
     <div
       ref={rootRef}
-      className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1.5"
+      className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1"
     >
       {/* Up arrow + category list (expanded) */}
       {open && (
@@ -68,11 +68,11 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
           <button
             onClick={() => step(-1)}
             aria-label="Previous filter"
-            className="w-9 h-9 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] flex items-center justify-center text-white/85 hover:text-white hover:bg-black/85 transition-all animate-fade-in"
+            className="w-8 h-8 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] flex items-center justify-center text-white/85 hover:text-white hover:bg-black/85 transition-all animate-fade-in"
           >
-            <ChevronUp className="w-4 h-4" />
+            <ChevronUp className="w-3.5 h-3.5" />
           </button>
-          <div className="flex flex-col gap-1.5 p-2 rounded-2xl bg-black/70 backdrop-blur-xl border border-white/[0.08] animate-fade-in max-h-[60vh] overflow-y-auto no-scrollbar">
+          <div className="flex flex-col gap-1 p-1.5 rounded-xl bg-black/70 backdrop-blur-xl border border-white/[0.08] animate-fade-in max-h-[51vh] overflow-y-auto no-scrollbar">
             {options.map(opt => {
               const active = opt.key === value;
               const hex = opt.hex || "#94a3b8";
@@ -81,7 +81,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
                   key={opt.key}
                   onClick={() => { onChange(opt.key); }}
                   title={opt.label}
-                  className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full transition-all backdrop-blur-xl"
+                  className="flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full transition-all backdrop-blur-xl"
                   style={active ? {
                     background: `${hex}22`,
                     border: `1px solid ${hex}66`,
@@ -92,7 +92,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
                   }}
                 >
                   <span
-                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
                     style={active ? { background: `${hex}33`, color: hex } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}
                   >
                     {opt.icon}
@@ -119,7 +119,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
         onClick={() => { setOpen(o => !o); onActivate?.(current?.key ?? value); }}
         title={open ? `Filter: ${current?.label}` : "Hold to choose store filter"}
         aria-label="Quick store filter"
-        className="relative flex items-center gap-2 pl-2.5 pr-3.5 py-1.5 rounded-full backdrop-blur-xl border transition-all select-none touch-none"
+        className="relative flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full backdrop-blur-xl border transition-all select-none touch-none"
         style={open ? {
           background: `${current?.hex || "#94a3b8"}22`,
           borderColor: `${current?.hex || "#94a3b8"}66`,
@@ -132,17 +132,17 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
         }}
       >
         <span
-          className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+          className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
           style={open ? { background: `${current?.hex || "#94a3b8"}33` } : { background: "rgba(255,255,255,0.06)" }}
         >
-          {current?.icon ?? <Store className="w-3.5 h-3.5" />}
+          {current?.icon ?? <Store className="w-3 h-3" />}
         </span>
         <span className="text-[11px] font-medium tracking-wide whitespace-nowrap">
           {current?.label ?? "Stores"}
         </span>
         {/* Active dot indicator */}
         {value && value !== "all" && (
-          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black/70" />
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-black/70" />
         )}
       </button>
 
@@ -151,15 +151,15 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
         <button
           onClick={() => step(1)}
           aria-label="Next filter"
-          className="w-9 h-9 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] flex items-center justify-center text-white/85 hover:text-white hover:bg-black/85 transition-all animate-fade-in"
+          className="w-8 h-8 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] flex items-center justify-center text-white/85 hover:text-white hover:bg-black/85 transition-all animate-fade-in"
         >
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="w-3.5 h-3.5" />
         </button>
       )}
 
       {/* Label chip */}
       {open && current && (
-        <div className="px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] text-[10px] font-mono text-white/85 animate-fade-in whitespace-nowrap">
+        <div className="px-2 py-1 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] text-[10px] font-mono text-white/85 animate-fade-in whitespace-nowrap">
           {current.label}
         </div>
       )}

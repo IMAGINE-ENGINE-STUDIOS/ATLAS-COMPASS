@@ -76,7 +76,7 @@ const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string })
     height={20}
     loading="lazy"
     draggable={false}
-    className="w-7 h-7 sm:w-7 sm:h-7 object-contain select-none shrink-0"
+    className="w-6 h-6 sm:w-6 sm:h-6 object-contain select-none shrink-0"
     style={{ filter: `drop-shadow(0 0 4px ${hex}aa) drop-shadow(0 0 1px ${hex})` }}
   />
 );
@@ -258,8 +258,8 @@ const PRESETS: SearchResult[] = [
 /* ── HUD Panel Glass ── */
 function GlassPanel({ children, className = "", onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
   return (
-    <div onClick={onClick} className={`bg-black/75 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] ${className}`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent rounded-2xl pointer-events-none" />
+    <div onClick={onClick} className={`bg-black/75 backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_16px_40px_rgba(0,0,0,0.5)] ${className}`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent rounded-xl pointer-events-none" />
       <div className="relative z-10">{children}</div>
     </div>
   );
@@ -267,24 +267,24 @@ function GlassPanel({ children, className = "", onClick }: { children: React.Rea
 
 function getTypeIcon(type: string) {
   switch (type) {
-    case "Mountain": return <Mountain className="w-4 h-4 text-green-400" />;
-    case "Port": return <Anchor className="w-4 h-4 text-blue-400" />;
-    case "Airport": return <Plane className="w-4 h-4 text-cyan-400" />;
-    case "Plaza": return <SquareIcon className="w-4 h-4 text-purple-400" />;
-    case "Highway": return <Navigation className="w-4 h-4 text-orange-400" />;
-    case "Landmark": return <Eye className="w-4 h-4 text-pink-400" />;
-    case "Coordinate": return <Crosshair className="w-4 h-4 text-yellow-400" />;
-    case "Restaurant": return <UtensilsCrossed className="w-4 h-4 text-orange-400" />;
-    case "Hotel": return <Hotel className="w-4 h-4 text-indigo-400" />;
-    case "Shop": case "Store": return <Store className="w-4 h-4 text-emerald-400" />;
-    case "Fuel": return <Fuel className="w-4 h-4 text-red-400" />;
-    case "Education": return <GraduationCap className="w-4 h-4 text-blue-400" />;
-    case "Health": return <Stethoscope className="w-4 h-4 text-red-400" />;
-    case "Supermarket": return <ShoppingCart className="w-4 h-4 text-green-400" />;
-    case "Cafe": return <Coffee className="w-4 h-4 text-amber-400" />;
-    case "Business": return <Building2 className="w-4 h-4 text-sky-400" />;
-    case "City": return <Building2 className="w-4 h-4 text-primary" />;
-    default: return <MapPin className="w-4 h-4 text-primary" />;
+    case "Mountain": return <Mountain className="w-3.5 h-3.5 text-green-400" />;
+    case "Port": return <Anchor className="w-3.5 h-3.5 text-blue-400" />;
+    case "Airport": return <Plane className="w-3.5 h-3.5 text-cyan-400" />;
+    case "Plaza": return <SquareIcon className="w-3.5 h-3.5 text-purple-400" />;
+    case "Highway": return <Navigation className="w-3.5 h-3.5 text-orange-400" />;
+    case "Landmark": return <Eye className="w-3.5 h-3.5 text-pink-400" />;
+    case "Coordinate": return <Crosshair className="w-3.5 h-3.5 text-yellow-400" />;
+    case "Restaurant": return <UtensilsCrossed className="w-3.5 h-3.5 text-orange-400" />;
+    case "Hotel": return <Hotel className="w-3.5 h-3.5 text-indigo-400" />;
+    case "Shop": case "Store": return <Store className="w-3.5 h-3.5 text-emerald-400" />;
+    case "Fuel": return <Fuel className="w-3.5 h-3.5 text-red-400" />;
+    case "Education": return <GraduationCap className="w-3.5 h-3.5 text-blue-400" />;
+    case "Health": return <Stethoscope className="w-3.5 h-3.5 text-red-400" />;
+    case "Supermarket": return <ShoppingCart className="w-3.5 h-3.5 text-green-400" />;
+    case "Cafe": return <Coffee className="w-3.5 h-3.5 text-amber-400" />;
+    case "Business": return <Building2 className="w-3.5 h-3.5 text-sky-400" />;
+    case "City": return <Building2 className="w-3.5 h-3.5 text-primary" />;
+    default: return <MapPin className="w-3.5 h-3.5 text-primary" />;
   }
 }
 
@@ -357,7 +357,7 @@ function createPinCanvas(icon: string, name: string, bgColor: string, favicon?: 
   const ctx = canvas.getContext("2d")!;
 
   // Layout — mirrors ModelLabelsOverlay single-pill style:
-  // pl-2 pr-3 py-1 + 20px circle + 6px gap + 11px text + leader line
+  // pl-1.5 pr-2.5 py-1 + 20px circle + 6px gap + 11px text + leader line
   const padL = 6 * dpr;
   const padR = 10 * dpr;
   const padY = 5 * dpr;
@@ -4175,8 +4175,8 @@ function SpaceshipPage() {
       {/* Business Store Loading Overlay */}
       {isLoaded && isLoadingBusinesses && (
         <div className="absolute inset-0 z-40 bg-[#0a0a1a]/40 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in pointer-events-none">
-          <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-primary animate-spin" />
-          <p className="mt-4 text-white/90 text-sm font-mono tracking-wide">LOADING STORES...</p>
+          <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-primary animate-spin" />
+          <p className="mt-3 text-white/90 text-sm font-mono tracking-wide">LOADING STORES...</p>
         </div>
       )}
       
@@ -4187,8 +4187,8 @@ function SpaceshipPage() {
           <div
             className="absolute top-20 left-1/2 -translate-x-1/2 z-30"
           >
-            <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/40 rounded-full px-5 py-2 flex items-center gap-2">
-              <Paintbrush className="w-4 h-4 text-emerald-400 animate-pulse" />
+            <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/40 rounded-full px-4 py-1.5 flex items-center gap-1.5">
+              <Paintbrush className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
               <span className="text-sm font-medium text-emerald-300">
                 TARGETING BRUSH · {brushSubMode.toUpperCase()}
               </span>
@@ -4213,8 +4213,8 @@ function SpaceshipPage() {
           <div
             className="absolute top-20 left-1/2 -translate-x-1/2 z-30"
           >
-            <div className="bg-cyan-500/20 backdrop-blur-xl border border-cyan-500/40 rounded-full px-5 py-2 flex items-center gap-2">
-              <Move className="w-4 h-4 text-cyan-400 animate-pulse" />
+            <div className="bg-cyan-500/20 backdrop-blur-xl border border-cyan-500/40 rounded-full px-4 py-1.5 flex items-center gap-1.5">
+              <Move className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
               <span className="text-sm font-medium text-cyan-300">DRAGGING MODEL</span>
               <span className="text-xs text-cyan-400/60">— Release to place</span>
             </div>
@@ -4227,40 +4227,40 @@ function SpaceshipPage() {
         <>
           {/* Top Bar */}
           <div
-            className="absolute top-0 left-0 right-0 z-20 p-2 sm:p-4"
+            className="absolute top-0 left-0 right-0 z-20 p-1.5 sm:p-3"
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="flex items-center gap-2.5">
                 <Link to="/">
-                  <GlassPanel className="p-2.5 cursor-pointer hover:bg-black/75 transition-colors">
-                    <ArrowLeft className="w-5 h-5 text-white/70" />
+                  <GlassPanel className="p-2 cursor-pointer hover:bg-black/75 transition-colors">
+                    <ArrowLeft className="w-4 h-4 text-white/70" />
                   </GlassPanel>
                 </Link>
-                <GlassPanel className="hidden sm:flex px-4 py-2.5 items-center gap-2">
+                <GlassPanel className="hidden sm:flex px-3 py-2 items-center gap-1.5">
                   <GlyphIcon name="atlas" alt="Atlas" glow="#22d3ee" />
                   <span className="text-sm font-bold text-white">ATLAS</span>
                   <span className="text-xs text-white/70 font-mono">ATLAS</span>
                 </GlassPanel>
               </div>
 
-              <GlassPanel className="flex items-center flex-nowrap gap-1 p-1.5 overflow-x-auto max-w-[calc(100vw-5rem)] sm:max-w-none sm:flex-wrap sm:overflow-visible">
+              <GlassPanel className="flex items-center flex-nowrap gap-1 p-1 overflow-x-auto max-w-[calc(100vw-5rem)] sm:max-w-none sm:flex-wrap sm:overflow-visible">
                   <button
                     onClick={toggleBuildings}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Toggle Buildings On/Off"
                   >
                     <GlyphIcon name="layers" alt="Toggle Buildings" glow={showBuildings ? "#22d3ee" : undefined} />
                   </button>
                   <button
                     onClick={resetView}
-                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors shrink-0"
+                    className="p-1 rounded-md text-white/75 hover:text-white transition-colors shrink-0"
                     title="Global View"
                   >
                     <GlyphIcon name="compass" alt="Global View" />
                   </button>
                   <button
                     onClick={() => setPoisPanelOpen(!poisPanelOpen)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${poisPanelOpen ? "bg-yellow-500/20 text-yellow-400" : "text-white/75 hover:text-white"}`}
                     title="Interest Points"
                   >
                     <GlyphIcon name="poi" alt="Interest Points" glow={poisPanelOpen ? "#facc15" : undefined} />
@@ -4268,7 +4268,7 @@ function SpaceshipPage() {
                   {/* Tile Brush Toggle */}
                   <button
                     onClick={() => { setBrushMode(!brushMode); setBrushPanelOpen(!brushMode); }}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
                     title="Tile Brush — Place 3D Models"
                   >
                     <GlyphIcon name="brush" alt="Tile Brush" glow={brushMode ? "#34d399" : undefined} />
@@ -4276,7 +4276,7 @@ function SpaceshipPage() {
                   {/* Directions Toggle */}
                   <button
                     onClick={() => setDirectionsOpen(!directionsOpen)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${directionsOpen ? "bg-blue-500/20 text-blue-400" : "text-white/75 hover:text-white"}`}
                     title="Directions & Routes"
                   >
                     <GlyphIcon name="route" alt="Directions" glow={directionsOpen ? "#60a5fa" : undefined} />
@@ -4288,7 +4288,7 @@ function SpaceshipPage() {
                       setShowCargoRoutes(next);
                       setShowLiveTraffic(next);
                     }}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${showCargoRoutes ? "bg-amber-500/20 text-amber-400" : "text-white/75 hover:text-white"}`}
                     title="Trade Routes"
                   >
                     <GlyphIcon name="cargo" alt="Trade Routes" glow={showCargoRoutes ? "#fbbf24" : undefined} />
@@ -4296,7 +4296,7 @@ function SpaceshipPage() {
                   {/* Uber Direct Delivery */}
                   <button
                     onClick={() => setDeliveryPanelOpen(!deliveryPanelOpen)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${deliveryPanelOpen ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
                     title="Uber Direct Delivery"
                   >
                     <GlyphIcon name="speed" alt="Delivery" glow={deliveryPanelOpen ? "#22d3ee" : undefined} />
@@ -4304,7 +4304,7 @@ function SpaceshipPage() {
                   {/* Marketplace Pins Toggle */}
                   <button
                     onClick={() => setShowMarketplacePins(!showMarketplacePins)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${showMarketplacePins ? "bg-violet-500/20 text-violet-400" : "text-white/75 hover:text-white"}`}
                     title="Marketplace Products"
                   >
                     <GlyphIcon name="market" alt="Marketplace" glow={showMarketplacePins ? "#a78bfa" : undefined} />
@@ -4312,7 +4312,7 @@ function SpaceshipPage() {
                   {/* Intelligence — Traffic Cameras */}
                   <button
                     onClick={() => setIntelligenceOpen(o => !o)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${intelligenceOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Intelligence — Live Traffic Cameras"
                   >
                     <GlyphIcon name="camera" alt="Traffic Cameras" glow={intelligenceOpen ? "#f87171" : undefined} />
@@ -4320,17 +4320,17 @@ function SpaceshipPage() {
                   {/* Recordings Gallery */}
                   <button
                     onClick={() => setRecordingsOpen(o => !o)}
-                    className={`p-2 sm:p-1.5 rounded-lg transition-colors shrink-0 ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${recordingsOpen ? "bg-red-500/20 text-red-400" : "text-white/75 hover:text-white"}`}
                     title="Camera recordings gallery"
                   >
                     <GlyphIcon name="telemetry" alt="Recordings" glow={recordingsOpen ? "#f87171" : undefined} />
                   </button>
                   <button
                     onClick={toggleFullscreen}
-                    className="p-1.5 rounded-lg text-white/75 hover:text-white transition-colors shrink-0"
+                    className="p-1 rounded-md text-white/75 hover:text-white transition-colors shrink-0"
                     title="Fullscreen"
                   >
-                    {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                   </button>
                 </GlassPanel>
             </div>
@@ -4343,37 +4343,37 @@ function SpaceshipPage() {
           
             {showCargoRoutes && (
               <div
-                className="absolute bottom-24 left-4 z-30 w-[calc(100vw-2rem)] max-w-72"
+                className="absolute bottom-24 left-4 z-30 w-[calc(100vw-2rem)] max-w-64"
               >
-                <GlassPanel className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Ship className="w-5 h-5 text-amber-400" />
+                <GlassPanel className="p-3">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Ship className="w-4 h-4 text-amber-400" />
                     <span className="text-sm font-bold text-white">Trade Routes</span>
                     <button onClick={() => { setShowCargoRoutes(false); setShowLiveTraffic(false); setSelectedRoute(null); }} className="ml-auto">
-                      <X className="w-4 h-4 text-white/75 hover:text-white" />
+                      <X className="w-3.5 h-3.5 text-white/75 hover:text-white" />
                     </button>
                   </div>
 
                   {/* Live Traffic Stats */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-2 text-center">
+                  <div className="grid grid-cols-2 gap-1.5 mb-2.5">
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-1.5 text-center">
                       <div className="text-lg font-bold font-mono text-yellow-400">{liveTrafficStats.planes.toLocaleString()}</div>
                       <div className="text-[9px] text-yellow-400/60 uppercase">✈ Live Aircraft</div>
                     </div>
-                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-2 text-center">
+                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-1.5 text-center">
                       <div className="text-lg font-bold font-mono text-cyan-400">{liveTrafficStats.ships.toLocaleString()}</div>
                       <div className="text-[9px] text-cyan-400/60 uppercase">🚢 Live Vessels</div>
                     </div>
                   </div>
-                  <div className="text-[9px] text-white/70 font-mono text-center mb-3">
+                  <div className="text-[9px] text-white/70 font-mono text-center mb-2.5">
                     Aircraft: OpenSky · 10s | Ships: AISStream · Real-time WS
                   </div>
 
                   {/* Type / Category Filter */}
-                  <div className="flex gap-1.5 mb-2">
+                  <div className="flex gap-1 mb-1.5">
                     {(["all","maritime","air"] as const).map(f => (
                       <button key={f} onClick={() => setCargoFilter(f)}
-                        className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-all ${
+                        className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all ${
                           cargoFilter === f
                             ? f === "maritime" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
                             : f === "air" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30"
@@ -4382,28 +4382,28 @@ function SpaceshipPage() {
                         }`}>{f === "all" ? "All" : f === "maritime" ? "Sea" : "Air"}</button>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-1 mb-3">
+                  <div className="flex flex-wrap gap-1 mb-2.5">
                     {[{id:"all" as const,label:"All",icon:"🌐"}, ...CARGO_CATEGORIES.filter(c => cargoFilter === "all" || (cargoFilter === "maritime" ? !c.id.startsWith("air-") : c.id.startsWith("air-")))].map(c => (
                       <button key={c.id} onClick={() => setCargoTypeFilter(c.id as any)}
-                        className={`px-2 py-1 rounded-lg text-[9px] font-mono transition-all ${cargoTypeFilter === c.id ? "bg-white/10 text-white border border-white/20" : "bg-black/65 text-white/25 border border-white/[0.05] hover:text-white/80"}`}>
+                        className={`px-1.5 py-1 rounded-md text-[9px] font-mono transition-all ${cargoTypeFilter === c.id ? "bg-white/10 text-white border border-white/20" : "bg-black/65 text-white/25 border border-white/[0.05] hover:text-white/80"}`}>
                         {c.icon} {c.label}
                       </button>
                     ))}
                   </div>
 
                   {/* Route count */}
-                  <div className="flex items-center justify-between text-[9px] text-white/70 font-mono mb-3">
+                  <div className="flex items-center justify-between text-[9px] text-white/70 font-mono mb-2.5">
                     <span>{(cargoFilter === "all" ? ALL_CARGO_ROUTES : ALL_CARGO_ROUTES.filter(r => r.type === cargoFilter)).length} routes</span>
                   </div>
 
                   {/* Selected Route Card */}
                   {selectedRoute && (
-                    <div className="bg-black/70 border border-white/[0.08] rounded-xl p-3 mb-2">
-                      <div className="flex items-center justify-between mb-2">
+                    <div className="bg-black/70 border border-white/[0.08] rounded-lg p-2.5 mb-1.5">
+                      <div className="flex items-center justify-between mb-1.5">
                         <span className="text-xs font-bold text-white">{selectedRoute.name}</span>
-                        <button onClick={() => setSelectedRoute(null)}><X className="w-3 h-3 text-white/70" /></button>
+                        <button onClick={() => setSelectedRoute(null)}><X className="w-2.5 h-2.5 text-white/70" /></button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                         <div><span className="text-white/70">Type</span><br/><span className="text-white font-mono">{CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.icon} {CARGO_CATEGORIES.find(c=>c.id===selectedRoute.category)?.label}</span></div>
                         <div><span className="text-white/70">Distance</span><br/><span className="text-white font-mono">{selectedRoute.distance}</span></div>
                         <div><span className="text-white/70">Transit</span><br/><span className="text-white font-mono">{selectedRoute.transitTime}</span></div>
@@ -4413,7 +4413,7 @@ function SpaceshipPage() {
                   )}
 
                   {/* Route Category Legend */}
-                  <div className="mt-3 space-y-1 border-t border-white/[0.06] pt-2">
+                  <div className="mt-2.5 space-y-1 border-t border-white/[0.06] pt-1.5">
                     <div className="text-[9px] text-white/70 uppercase tracking-wider mb-1">Route Categories</div>
                     <div className="flex flex-wrap gap-1">
                       {CARGO_CATEGORIES.slice(0, 7).map(c => (
@@ -4433,23 +4433,23 @@ function SpaceshipPage() {
           
             {directionsOpen && (
               <div
-                className="absolute top-20 left-4 z-30 w-[calc(100vw-2rem)] max-w-96"
+                className="absolute top-20 left-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
-                <GlassPanel className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Route className="w-5 h-5 text-blue-400" />
+                <GlassPanel className="p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <Route className="w-4 h-4 text-blue-400" />
                       <span className="text-sm font-bold text-white">Directions</span>
                     </div>
                     <button onClick={() => setDirectionsOpen(false)}>
-                      <X className="w-4 h-4 text-white/75 hover:text-white" />
+                      <X className="w-3.5 h-3.5 text-white/75 hover:text-white" />
                     </button>
                   </div>
 
                   {/* Origin Input */}
-                  <div className="relative mb-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
+                  <div className="relative mb-2.5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <div className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0" />
                       <span className="text-[10px] text-white/75 uppercase tracking-wider">From</span>
                     </div>
                     <input
@@ -4464,13 +4464,13 @@ function SpaceshipPage() {
                         }
                       }}
                       placeholder="Search origin address..."
-                      className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/85 transition-colors"
+                      className="w-full bg-black/70 border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/85 transition-colors"
                     />
                     {showOriginResults && originResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-xl">
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-36 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-lg">
                         {originResults.map((r, i) => (
                           <button key={i} onClick={() => selectRoutePoint(r, "origin")}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-black/75 text-sm text-white/80 truncate">
+                            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-black/75 text-sm text-white/80 truncate">
                             {getTypeIcon(r.type)}
                             <span className="truncate">{r.name}</span>
                           </button>
@@ -4480,9 +4480,9 @@ function SpaceshipPage() {
                   </div>
 
                   {/* Destination Input */}
-                  <div className="relative mb-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
+                  <div className="relative mb-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
                       <span className="text-[10px] text-white/75 uppercase tracking-wider">To</span>
                     </div>
                     <input
@@ -4497,13 +4497,13 @@ function SpaceshipPage() {
                         }
                       }}
                       placeholder="Search destination address..."
-                      className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/85 transition-colors"
+                      className="w-full bg-black/70 border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-400/40 placeholder:text-white/85 transition-colors"
                     />
                     {showDestResults && destResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-xl">
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-36 overflow-y-auto bg-black/90 backdrop-blur-xl border border-white/[0.1] rounded-lg">
                         {destResults.map((r, i) => (
                           <button key={i} onClick={() => selectRoutePoint(r, "dest")}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-black/75 text-sm text-white/80 truncate">
+                            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-black/75 text-sm text-white/80 truncate">
                             {getTypeIcon(r.type)}
                             <span className="truncate">{r.name}</span>
                           </button>
@@ -4516,30 +4516,30 @@ function SpaceshipPage() {
                   <button
                     onClick={() => { if (originPoint && destPoint) fetchRoute(originPoint, destPoint); }}
                     disabled={!originPoint || !destPoint || routeLoading}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500/20 border border-blue-500/30 rounded-xl text-sm font-medium text-blue-400 hover:bg-blue-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed mb-3"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-sm font-medium text-blue-400 hover:bg-blue-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed mb-2.5"
                   >
                     {routeLoading ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Calculating...</>
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculating...</>
                     ) : (
-                      <><Navigation className="w-4 h-4" /> Get Directions</>
+                      <><Navigation className="w-3.5 h-3.5" /> Get Directions</>
                     )}
                   </button>
 
                   {/* Route Error */}
                   {routeError && (
-                    <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
-                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-1.5 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 mb-2.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-[11px] text-red-300">{routeError}</p>
                     </div>
                   )}
 
                   {/* Route Info */}
                   {routeInfo && (
-                    <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
-                      <p className="text-[9px] text-white/75 uppercase tracking-wider mb-2">Route Summary</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex items-center gap-2">
-                          <Ruler className="w-4 h-4 text-blue-400" />
+                    <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5 mb-2.5">
+                      <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1.5">Route Summary</p>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <Ruler className="w-3.5 h-3.5 text-blue-400" />
                           <div>
                             <p className="text-[9px] text-white/70">Distance</p>
                             <p className="text-sm font-mono text-white">
@@ -4549,8 +4549,8 @@ function SpaceshipPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-blue-400" />
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-blue-400" />
                           <div>
                             <p className="text-[9px] text-white/70">Duration</p>
                             <p className="text-sm font-mono text-white">
@@ -4568,20 +4568,20 @@ function SpaceshipPage() {
                   {routeInfo && !journeyActive && (
                     <button
                       onClick={startJourney}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500/20 border border-green-500/30 rounded-xl text-sm font-medium text-green-400 hover:bg-green-500/30 transition-colors mb-3"
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-sm font-medium text-green-400 hover:bg-green-500/30 transition-colors mb-2.5"
                     >
-                      <Play className="w-4 h-4" /> Start Journey
+                      <Play className="w-3.5 h-3.5" /> Start Journey
                     </button>
                   )}
 
                   {/* Journey Progress */}
                   {journeyActive && (
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-2">
+                    <div className="mb-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[10px] text-white/75 uppercase tracking-wider">Navigating...</span>
                         <span className="text-xs font-mono text-blue-400">{journeyProgress}%</span>
                       </div>
-                      <div className="w-full h-1.5 bg-black/75 rounded-full overflow-hidden mb-3">
+                      <div className="w-full h-1 bg-black/75 rounded-full overflow-hidden mb-2.5">
                         <div
                           className="h-full bg-gradient-to-r from-green-500 to-blue-500 rounded-full transition-all duration-100"
                           style={{ width: `${journeyProgress}%` }}
@@ -4589,9 +4589,9 @@ function SpaceshipPage() {
                       </div>
                       <button
                         onClick={stopJourney}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
                       >
-                        <StopIcon className="w-4 h-4" /> Stop Journey
+                        <StopIcon className="w-3.5 h-3.5" /> Stop Journey
                       </button>
                     </div>
                   )}
@@ -4600,9 +4600,9 @@ function SpaceshipPage() {
                   {(routeInfo || originPoint || destPoint) && (
                     <button
                       onClick={clearRoute}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors"
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-sm text-white/80 hover:text-white transition-colors"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Clear Route
+                      <Trash2 className="w-3 h-3" /> Clear Route
                     </button>
                   )}
                 </GlassPanel>
@@ -4612,8 +4612,8 @@ function SpaceshipPage() {
 
           {/* ── UBER DIRECT DELIVERY PANEL ── */}
           {deliveryPanelOpen && (
-            <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96">
-              <GlassPanel className="p-4">
+            <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80">
+              <GlassPanel className="p-3">
                 <AtlasDeliveryPanel
                   onClose={() => { setDeliveryPanelOpen(false); setDeliveryPickupPrefill(undefined); }}
                   initialPickup={deliveryPickupPrefill}
@@ -4628,17 +4628,17 @@ function SpaceshipPage() {
               <div
                 className={isMobile
                   ? "absolute inset-x-3 bottom-24 z-40 max-h-[calc(100dvh-9rem)]"
-                  : "absolute top-1/2 left-1/2 z-40 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
+                  : "absolute top-1/2 left-1/2 z-40 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-3"
                 }
               >
-                <GlassPanel className={isMobile ? "max-h-[calc(100dvh-9rem)] overflow-y-auto p-4" : "p-5"}>
-                  <div className="mb-4 flex items-start gap-2">
-                    <MapPin className="mt-0.5 w-5 h-5 text-yellow-400 shrink-0" />
+                <GlassPanel className={isMobile ? "max-h-[calc(100dvh-9rem)] overflow-y-auto p-3" : "p-4"}>
+                  <div className="mb-3 flex items-start gap-1.5">
+                    <MapPin className="mt-0.5 w-4 h-4 text-yellow-400 shrink-0" />
                     <h3 className="min-w-0 text-sm font-bold text-white">Create Point of Interest</h3>
                   </div>
-                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-4">
+                  <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5 mb-3">
                     <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1">Exact Coordinates</p>
-                    <div className="grid grid-cols-1 gap-2 text-xs font-mono text-white/70 xs:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-1.5 text-xs font-mono text-white/70 xs:grid-cols-3">
                       <div><span className="text-[8px] text-white/70">LAT</span><p>{namingPOI.lat.toFixed(6)}°</p></div>
                       <div><span className="text-[8px] text-white/70">LNG</span><p>{namingPOI.lng.toFixed(6)}°</p></div>
                       <div><span className="text-[8px] text-white/70">ALT</span><p>{formatAlt(namingPOI.alt)}</p></div>
@@ -4649,20 +4649,20 @@ function SpaceshipPage() {
                     onChange={(e) => setPoiName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && poiName.trim()) confirmPOI(); if (e.key === "Escape") setNamingPOI(null); }}
                     placeholder="Name this point..."
-                    className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/85 transition-colors mb-3"
+                    className="w-full bg-black/70 border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/85 transition-colors mb-2.5"
                   />
                   <textarea
                     value={poiDescription} onChange={(e) => setPoiDescription(e.target.value)}
                     placeholder="Description (optional)..." rows={3}
-                    className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/85 transition-colors resize-none"
+                    className="w-full bg-black/70 border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-yellow-400/40 placeholder:text-white/85 transition-colors resize-none"
                   />
-                  <div className={isMobile ? "mt-4 flex flex-col-reverse gap-2" : "mt-4 flex gap-2"}>
+                  <div className={isMobile ? "mt-3 flex flex-col-reverse gap-1.5" : "mt-3 flex gap-1.5"}>
                     <button onClick={confirmPOI} disabled={!poiName.trim()}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded-xl text-sm font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                      <Check className="w-4 h-4" /> Save Point
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 border border-yellow-500/30 rounded-lg text-sm font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                      <Check className="w-3.5 h-3.5" /> Save Point
                     </button>
                     <button onClick={() => setNamingPOI(null)}
-                      className="px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors">
+                      className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-sm text-white/80 hover:text-white transition-colors">
                       Cancel
                     </button>
                   </div>
@@ -4675,18 +4675,18 @@ function SpaceshipPage() {
           
             {pendingPlacement && (
               <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-md px-4"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-md px-3"
               >
-                <GlassPanel className="p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Paintbrush className="w-5 h-5 text-emerald-400" />
+                <GlassPanel className="p-4">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <Paintbrush className="w-4 h-4 text-emerald-400" />
                     <h3 className="text-sm font-bold text-white">Place 3D Model</h3>
                   </div>
 
                   {/* Coordinates */}
-                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-4">
+                  <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5 mb-3">
                     <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1">Placement Location</p>
-                    <div className="grid grid-cols-3 gap-2 text-xs font-mono text-white/70">
+                    <div className="grid grid-cols-3 gap-1.5 text-xs font-mono text-white/70">
                       <div><span className="text-[8px] text-white/70">LAT</span><p>{pendingPlacement.lat.toFixed(6)}°</p></div>
                       <div><span className="text-[8px] text-white/70">LNG</span><p>{pendingPlacement.lng.toFixed(6)}°</p></div>
                       <div><span className="text-[8px] text-white/70">ALT</span><p>{formatAlt(pendingPlacement.alt)}</p></div>
@@ -4696,20 +4696,20 @@ function SpaceshipPage() {
                   {/* File Upload */}
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className={`w-full border-2 border-dashed rounded-xl p-4 mb-4 cursor-pointer transition-colors text-center ${
+                    className={`w-full border-2 border-dashed rounded-lg p-3 mb-3 cursor-pointer transition-colors text-center ${
                       modelFile
                         ? "border-emerald-500/40 bg-emerald-500/5"
                         : "border-white/[0.1] bg-black/60 hover:border-emerald-500/30"
                     }`}
                   >
                     {modelFile ? (
-                      <div className="flex items-center gap-3 justify-center">
-                        <Box className="w-5 h-5 text-emerald-400" />
+                      <div className="flex items-center gap-2.5 justify-center">
+                        <Box className="w-4 h-4 text-emerald-400" />
                         <div className="text-left">
-                          <p className="text-sm text-white font-medium truncate max-w-[200px]">{modelFile.name}</p>
-                          <div className="flex items-center gap-2">
+                          <p className="text-sm text-white font-medium truncate max-w-[170px]">{modelFile.name}</p>
+                          <div className="flex items-center gap-1.5">
                             <p className="text-[10px] text-white/70">{(modelFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                            <span className={`text-[9px] px-1 py-0.5 rounded-full ${
                               getFormatCategory(modelFile.name) === "native" ? "bg-emerald-500/20 text-emerald-400" :
                               getFormatCategory(modelFile.name) === "convertible" ? "bg-amber-500/20 text-amber-400" :
                               "bg-red-500/20 text-red-400"
@@ -4723,7 +4723,7 @@ function SpaceshipPage() {
                       </div>
                     ) : (
                       <>
-                        <Upload className="w-8 h-8 text-white/85 mx-auto mb-2" />
+                        <Upload className="w-7 h-7 text-white/85 mx-auto mb-1.5" />
                         <p className="text-sm text-white/75">Upload 3D Model</p>
                         <p className="text-[10px] text-white/85 mt-1 leading-relaxed">
                           glTF · OBJ · FBX · STL · PLY · DAE · AutoCAD · SketchUp · Blender · Unreal & more
@@ -4731,8 +4731,8 @@ function SpaceshipPage() {
                       </>
                     )}
                     {convertError && (
-                      <div className="mt-2 flex items-start gap-2 text-left bg-red-500/10 border border-red-500/20 rounded-lg p-2">
-                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <div className="mt-1.5 flex items-start gap-1.5 text-left bg-red-500/10 border border-red-500/20 rounded-md p-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
                         <p className="text-[11px] text-red-300">{convertError}</p>
                       </div>
                     )}
@@ -4743,13 +4743,13 @@ function SpaceshipPage() {
                     type="text" value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
                     placeholder="Model name..."
-                    className="w-full bg-black/70 border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-400/40 placeholder:text-white/85 transition-colors mb-3"
+                    className="w-full bg-black/70 border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-emerald-400/40 placeholder:text-white/85 transition-colors mb-2.5"
                   />
 
                   {/* Category Picker */}
-                  <div className="mb-3">
-                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1.5">Category</p>
-                    <div className="flex flex-wrap gap-1.5">
+                  <div className="mb-2.5">
+                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1">Category</p>
+                    <div className="flex flex-wrap gap-1">
                       {MODEL_CATEGORIES.map((c) => {
                         const Icon = c.icon;
                         const active = modelCategory === c.id;
@@ -4758,14 +4758,14 @@ function SpaceshipPage() {
                             key={c.id}
                             type="button"
                             onClick={() => setModelCategory(c.id)}
-                            className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-all"
+                            className="flex items-center gap-1 px-1.5 py-1 rounded-full text-[10px] font-medium transition-all"
                             style={{
                               background: active ? `${c.hex}33` : "rgba(0,0,0,0.5)",
                               border: `1px solid ${active ? c.hex : "rgba(255,255,255,0.08)"}`,
                               color: active ? c.hex : "rgba(255,255,255,0.7)",
                             }}
                           >
-                            <Icon className="w-3 h-3" />
+                            <Icon className="w-2.5 h-2.5" />
                             {c.label}
                           </button>
                         );
@@ -4774,10 +4774,10 @@ function SpaceshipPage() {
                   </div>
 
                   {/* Scale & Heading Controls */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="grid grid-cols-2 gap-2.5 mb-3">
                     <div>
                       <div className="flex items-center gap-1 mb-1">
-                        <Scale className="w-3 h-3 text-white/75" />
+                        <Scale className="w-2.5 h-2.5 text-white/75" />
                         <p className="text-[9px] text-white/75 uppercase tracking-wider">Scale</p>
                       </div>
                       <input
@@ -4790,7 +4790,7 @@ function SpaceshipPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-1 mb-1">
-                        <RotateCcw className="w-3 h-3 text-white/75" />
+                        <RotateCcw className="w-2.5 h-2.5 text-white/75" />
                         <p className="text-[9px] text-white/75 uppercase tracking-wider">Heading</p>
                       </div>
                       <input
@@ -4804,16 +4804,16 @@ function SpaceshipPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <button
                       onClick={confirmModelPlacement}
                       disabled={!modelFile || !modelName.trim() || convertingModel}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-sm font-medium text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-sm font-medium text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       {convertingModel ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> {convertProgress || "Converting..."}</>
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {convertProgress || "Converting..."}</>
                       ) : (
-                        <><Check className="w-4 h-4" /> Place Model</>
+                        <><Check className="w-3.5 h-3.5" /> Place Model</>
                       )}
                     </button>
                     <button
@@ -4826,7 +4826,7 @@ function SpaceshipPage() {
                         setConvertProgress("");
                         if (fileInputRef.current) fileInputRef.current.value = "";
                       }}
-                      className="px-4 py-2 bg-black/70 border border-white/[0.08] rounded-xl text-sm text-white/80 hover:text-white transition-colors"
+                      className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-sm text-white/80 hover:text-white transition-colors"
                     >
                       Cancel
                     </button>
@@ -4840,27 +4840,27 @@ function SpaceshipPage() {
           
             {brushPanelOpen && !pendingPlacement && (
               <div
-                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
+                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-72"
               >
-                <GlassPanel className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Paintbrush className="w-4 h-4 text-emerald-400" />
+                <GlassPanel className="p-3">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <Paintbrush className="w-3.5 h-3.5 text-emerald-400" />
                       <span className="text-sm font-bold text-white">Targeting Brush</span>
                       <span className="text-[10px] text-white/70 font-mono">({placedModels.length})</span>
                     </div>
                     <button onClick={() => { setBrushPanelOpen(false); setBrushMode(false); }}>
-                      <X className="w-4 h-4 text-white/75 hover:text-white" />
+                      <X className="w-3.5 h-3.5 text-white/75 hover:text-white" />
                     </button>
                   </div>
 
                   {/* Mode tabs */}
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-xl mb-3">
+                  <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg mb-2.5">
                     {(["reticle", "area", "stamp", "tiles"] as const).map((m) => (
                       <button
                         key={m}
                         onClick={() => setBrushSubMode(m)}
-                        className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                        className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
                           brushSubMode === m
                             ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
                             : "text-white/60 hover:text-white border border-transparent"
@@ -4879,16 +4879,16 @@ function SpaceshipPage() {
 
                   {/* ── Reticle mode body ── */}
                   {brushSubMode === "reticle" && (
-                    <div className="space-y-3">
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                    <div className="space-y-2.5">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-emerald-400/80 leading-relaxed">
                           Move the mouse to read live coordinates. <span className="font-bold">Double-click</span> to lock target.
                         </p>
                       </div>
-                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
-                        <p className="text-[9px] text-white/70 uppercase tracking-wider mb-2">Cursor</p>
+                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
+                        <p className="text-[9px] text-white/70 uppercase tracking-wider mb-1.5">Cursor</p>
                         {cursorInfo ? (
-                          <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-white/85">
+                          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono text-white/85">
                             <div><span className="text-[8px] text-white/60 block">LAT</span>{cursorInfo.lat.toFixed(6)}°</div>
                             <div><span className="text-[8px] text-white/60 block">LNG</span>{cursorInfo.lng.toFixed(6)}°</div>
                             <div><span className="text-[8px] text-white/60 block">ALT</span>{formatAlt(cursorInfo.alt)}</div>
@@ -4898,14 +4898,14 @@ function SpaceshipPage() {
                         )}
                       </div>
                       {reticleTarget && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
-                          <p className="text-[9px] text-emerald-300 uppercase tracking-wider mb-2">Locked Target</p>
-                          <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-white/90 mb-3">
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">
+                          <p className="text-[9px] text-emerald-300 uppercase tracking-wider mb-1.5">Locked Target</p>
+                          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono text-white/90 mb-2.5">
                             <div><span className="text-[8px] text-white/60 block">LAT</span>{reticleTarget.lat.toFixed(6)}°</div>
                             <div><span className="text-[8px] text-white/60 block">LNG</span>{reticleTarget.lng.toFixed(6)}°</div>
                             <div><span className="text-[8px] text-white/60 block">ALT</span>{formatAlt(reticleTarget.alt)}</div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-1.5">
                             <button
                               onClick={() => {
                                 if (!reticleTarget) return;
@@ -4913,7 +4913,7 @@ function SpaceshipPage() {
                                 setPoiName("");
                                 setPoiDescription("");
                               }}
-                              className="flex-1 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors"
+                              className="flex-1 px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-md text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors"
                             >
                               Save POI
                             </button>
@@ -4922,16 +4922,16 @@ function SpaceshipPage() {
                                 if (!reticleTarget) return;
                                 navigator.clipboard?.writeText(`${reticleTarget.lat.toFixed(6)}, ${reticleTarget.lng.toFixed(6)}`);
                               }}
-                              className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/80 hover:text-white transition-colors"
+                              className="px-2.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/80 hover:text-white transition-colors"
                             >
                               Copy
                             </button>
                             <button
                               onClick={() => setReticleTarget(null)}
-                              className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/60 hover:text-white transition-colors"
+                              className="px-2.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/60 hover:text-white transition-colors"
                               title="Clear lock"
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-2.5 h-2.5" />
                             </button>
                           </div>
                         </div>
@@ -4941,13 +4941,13 @@ function SpaceshipPage() {
 
                   {/* ── Area mode body ── */}
                   {brushSubMode === "area" && (
-                    <div className="space-y-3">
-                      <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3">
+                    <div className="space-y-2.5">
+                      <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-cyan-300/80 leading-relaxed">
                           <span className="font-bold">Double-click</span> the globe to set the area center. Adjust radius below, then Scan.
                         </p>
                       </div>
-                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
+                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-[9px] text-white/70 uppercase tracking-wider">Radius</p>
                           <p className="text-[11px] text-white/85 font-mono">
@@ -4965,13 +4965,13 @@ function SpaceshipPage() {
                         </p>
                       </div>
                       {areaCenter ? (
-                        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3">
-                          <p className="text-[9px] text-cyan-300 uppercase tracking-wider mb-2">Center</p>
-                          <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-white/90 mb-3">
+                        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-2.5">
+                          <p className="text-[9px] text-cyan-300 uppercase tracking-wider mb-1.5">Center</p>
+                          <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono text-white/90 mb-2.5">
                             <div><span className="text-[8px] text-white/60 block">LAT</span>{areaCenter.lat.toFixed(6)}°</div>
                             <div><span className="text-[8px] text-white/60 block">LNG</span>{areaCenter.lng.toFixed(6)}°</div>
                           </div>
-                          <div className="flex gap-2 mb-2">
+                          <div className="flex gap-1.5 mb-1.5">
                             <button
                               disabled={areaScanning}
                               onClick={async () => {
@@ -4986,9 +4986,9 @@ function SpaceshipPage() {
                                   setAreaScanning(false);
                                 }
                               }}
-                              className="flex-1 px-3 py-1.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
+                              className="flex-1 px-2.5 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-md text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
                             >
-                              {areaScanning ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Scan POIs"}
+                              {areaScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
                             </button>
                             <button
                               onClick={() => {
@@ -5016,22 +5016,22 @@ function SpaceshipPage() {
                                 a.href = url; a.download = `area-${Date.now()}.geojson`; a.click();
                                 URL.revokeObjectURL(url);
                               }}
-                              className="px-3 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/80 hover:text-white transition-colors"
+                              className="px-2.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/80 hover:text-white transition-colors"
                             >
                               GeoJSON
                             </button>
                             <button
                               onClick={() => { setAreaCenter(null); setAreaScanResults([]); }}
-                              className="px-2 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/60 hover:text-white transition-colors"
+                              className="px-1.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/60 hover:text-white transition-colors"
                               title="Clear area"
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-2.5 h-2.5" />
                             </button>
                           </div>
                           {areaScanResults.length > 0 && (
-                            <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                            <div className="max-h-36 overflow-y-auto space-y-1 mt-1.5">
                               {areaScanResults.map((r, i) => (
-                                <div key={i} className="px-2 py-1.5 rounded-lg bg-black/40 hover:bg-black/60 transition-colors">
+                                <div key={i} className="px-1.5 py-1 rounded-md bg-black/40 hover:bg-black/60 transition-colors">
                                   <p className="text-[11px] text-white/90 truncate">{r.name}</p>
                                   <p className="text-[9px] text-white/50 font-mono">
                                     {r.type}{r.distance != null ? ` · ${(r.distance/1000).toFixed(2)} km` : ""}
@@ -5042,7 +5042,7 @@ function SpaceshipPage() {
                           )}
                         </div>
                       ) : (
-                        <div className="text-center py-4 text-[11px] text-white/40">
+                        <div className="text-center py-3 text-[11px] text-white/40">
                           Double-click globe to set center
                         </div>
                       )}
@@ -5051,8 +5051,8 @@ function SpaceshipPage() {
 
                   {/* ── Stamp mode body ── */}
                   {brushSubMode === "stamp" && (
-                    <div className="space-y-3">
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                    <div className="space-y-2.5">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-emerald-400/80 leading-relaxed">
                           {stampModelInfo
                             ? <><span className="font-bold">Double-click</span> the globe to stamp another copy — no dialog. Clear the model below to switch.</>
@@ -5061,21 +5061,21 @@ function SpaceshipPage() {
                         </p>
                       </div>
                       {stampModelInfo && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 flex items-center gap-3">
-                          <Box className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5 flex items-center gap-2.5">
+                          <Box className="w-4 h-4 text-emerald-400 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-[11px] text-white truncate font-medium">{stampModelInfo.name}</p>
                             <p className="text-[9px] text-white/60 truncate">{stampModelInfo.fileName}</p>
                           </div>
                           <button
                             onClick={clearStampModel}
-                            className="px-2 py-1 rounded-lg text-[10px] text-white/70 hover:text-white border border-white/[0.08] hover:bg-black/60 transition-colors"
+                            className="px-1.5 py-1 rounded-md text-[10px] text-white/70 hover:text-white border border-white/[0.08] hover:bg-black/60 transition-colors"
                           >
                             Clear
                           </button>
                         </div>
                       )}
-                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
+                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-[9px] text-white/70 uppercase tracking-wider">Min spacing</p>
                           <p className="text-[11px] text-white/85 font-mono">
@@ -5094,8 +5094,8 @@ function SpaceshipPage() {
 
                   {/* ── Tiles mode body ── */}
                   {brushSubMode === "tiles" && (
-                    <div className="space-y-3">
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                    <div className="space-y-2.5">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-emerald-400/80 leading-relaxed">
                           Select <span className="font-bold">Web Mercator XYZ map tiles</span> (the actual tiles the Earth is built from).
                           Choose a tool, then double-click the globe.
@@ -5103,12 +5103,12 @@ function SpaceshipPage() {
                       </div>
 
                       {/* Tool picker */}
-                      <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-xl">
+                      <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg">
                         {(["grid", "rectangle", "lasso"] as const).map(t => (
                           <button
                             key={t}
                             onClick={() => { setTilesTool(t); setRectStart(null); setLassoPoints([]); }}
-                            className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                            className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
                               tilesTool === t
                                 ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
                                 : "text-white/60 hover:text-white border border-transparent"
@@ -5120,7 +5120,7 @@ function SpaceshipPage() {
                       </div>
 
                       {/* Zoom (tile size) */}
-                      <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3">
+                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-[9px] text-white/70 uppercase tracking-wider">Tile zoom (z)</p>
                           <p className="text-[11px] text-white/85 font-mono">
@@ -5140,13 +5140,13 @@ function SpaceshipPage() {
 
                       {/* Tool-specific hint / lasso close */}
                       {tilesTool === "rectangle" && rectStart && (
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2 text-[10px] text-amber-300">
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-1.5 text-[10px] text-amber-300">
                           First corner set at {rectStart.lat.toFixed(4)}, {rectStart.lng.toFixed(4)}. Double-click the opposite corner.
-                          <button onClick={() => setRectStart(null)} className="ml-2 underline">cancel</button>
+                          <button onClick={() => setRectStart(null)} className="ml-1.5 underline">cancel</button>
                         </div>
                       )}
                       {tilesTool === "lasso" && (
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2 text-[10px] text-amber-300 flex items-center justify-between gap-2">
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-1.5 text-[10px] text-amber-300 flex items-center justify-between gap-1.5">
                           <span>{lassoPoints.length} vertex{lassoPoints.length === 1 ? "" : "es"}</span>
                           <div className="flex gap-1">
                             <button
@@ -5169,11 +5169,11 @@ function SpaceshipPage() {
                                 setSelectedTiles(next);
                                 setLassoPoints([]);
                               }}
-                              className="px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-500/30 text-emerald-200 disabled:opacity-40"
+                              className="px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-500/30 text-emerald-200 disabled:opacity-40"
                             >
                               Close & select
                             </button>
-                            <button onClick={() => setLassoPoints([])} className="px-2 py-0.5 rounded bg-black/60 border border-white/10 text-white/70">
+                            <button onClick={() => setLassoPoints([])} className="px-1.5 py-0.5 rounded bg-black/60 border border-white/10 text-white/70">
                               clear
                             </button>
                           </div>
@@ -5181,12 +5181,12 @@ function SpaceshipPage() {
                       )}
 
                       {/* Selection summary + batch actions */}
-                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
-                        <div className="flex items-center justify-between mb-2">
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">
+                        <div className="flex items-center justify-between mb-1.5">
                           <p className="text-[9px] text-emerald-300 uppercase tracking-wider">Selection</p>
                           <p className="text-[11px] text-white/90 font-mono">{selectedTiles.size} tile{selectedTiles.size === 1 ? "" : "s"}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                           <button
                             disabled={selectedTiles.size === 0 || tilesScanning}
                             onClick={async () => {
@@ -5217,9 +5217,9 @@ function SpaceshipPage() {
                                 setTilesScanning(false);
                               }
                             }}
-                            className="px-2 py-1.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
+                            className="px-1.5 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-md text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
                           >
-                            {tilesScanning ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Scan POIs"}
+                            {tilesScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
                           </button>
                           <button
                             disabled={selectedTiles.size === 0 || !stampModelRef.current}
@@ -5246,7 +5246,7 @@ function SpaceshipPage() {
                                 await stampModelAt({ lat, lng, alt });
                               }
                             }}
-                            className="px-2 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
+                            className="px-1.5 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-md text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
                           >
                             Stamp each
                           </button>
@@ -5274,22 +5274,22 @@ function SpaceshipPage() {
                               a.href = url; a.download = `tiles-z${tileZoom}-${Date.now()}.geojson`; a.click();
                               URL.revokeObjectURL(url);
                             }}
-                            className="px-2 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/80 hover:text-white transition-colors disabled:opacity-40"
+                            className="px-1.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/80 hover:text-white transition-colors disabled:opacity-40"
                           >
                             Export GeoJSON
                           </button>
                           <button
                             disabled={selectedTiles.size === 0}
                             onClick={() => { setSelectedTiles(new Set()); setTilesScanResults([]); }}
-                            className="px-2 py-1.5 bg-black/70 border border-white/[0.08] rounded-lg text-[11px] text-white/60 hover:text-white transition-colors disabled:opacity-40"
+                            className="px-1.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/60 hover:text-white transition-colors disabled:opacity-40"
                           >
                             Clear
                           </button>
                         </div>
                         {tilesScanResults.length > 0 && (
-                          <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                          <div className="max-h-36 overflow-y-auto space-y-1 mt-1.5">
                             {tilesScanResults.map((r, i) => (
-                              <div key={i} className="px-2 py-1.5 rounded-lg bg-black/40 hover:bg-black/60 transition-colors">
+                              <div key={i} className="px-1.5 py-1 rounded-md bg-black/40 hover:bg-black/60 transition-colors">
                                 <p className="text-[11px] text-white/90 truncate">{r.name}</p>
                                 <p className="text-[9px] text-white/50 font-mono">{r.type}</p>
                               </div>
@@ -5301,18 +5301,18 @@ function SpaceshipPage() {
                   )}
 
                   {/* Placed models list (shared across all modes) */}
-                  <div className="mt-3 pt-3 border-t border-white/[0.06]">
-                    <p className="text-[9px] text-white/60 uppercase tracking-wider mb-2">Placed models ({placedModels.length})</p>
+                  <div className="mt-2.5 pt-2.5 border-t border-white/[0.06]">
+                    <p className="text-[9px] text-white/60 uppercase tracking-wider mb-1.5">Placed models ({placedModels.length})</p>
                   {placedModels.length === 0 ? (
-                    <div className="text-center py-6">
-                      <Box className="w-8 h-8 text-white/10 mx-auto mb-2" />
+                    <div className="text-center py-5">
+                      <Box className="w-7 h-7 text-white/10 mx-auto mb-1.5" />
                       <p className="text-xs text-white/70">No models placed yet</p>
                     </div>
                   ) : (
-                    <div className="max-h-60 overflow-y-auto space-y-1">
+                    <div className="max-h-56 overflow-y-auto space-y-1">
                       {placedModels.map((model) => (
-                        <div key={model.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-black/70 group transition-colors">
-                          <Box className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div key={model.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-black/70 group transition-colors">
+                          <Box className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-white truncate">{model.name}</p>
                             <p className="text-[10px] text-white/70 font-mono">
@@ -5323,17 +5323,17 @@ function SpaceshipPage() {
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button
                               onClick={() => flyToModel(model)}
-                              className="p-1 rounded-lg text-white/85 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                              className="p-1 rounded-md text-white/85 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
                               title="Fly to"
                             >
-                              <Move className="w-3.5 h-3.5" />
+                              <Move className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => deleteModel(model.id)}
-                              className="p-1 rounded-lg text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="p-1 rounded-md text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all"
                               title="Delete"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
@@ -5350,46 +5350,46 @@ function SpaceshipPage() {
           
             {selectedPOI && (
               <div
-                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-96"
+                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
               >
-                <GlassPanel className="p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-yellow-400 shrink-0" />
+                <GlassPanel className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-yellow-400 shrink-0" />
                       <h3 className="text-sm font-bold text-white">{selectedPOI.name}</h3>
                     </div>
                     <button onClick={() => { setSelectedPOI(null); setEditingNotes(false); }}>
-                      <X className="w-4 h-4 text-white/75 hover:text-white" />
+                      <X className="w-3.5 h-3.5 text-white/75 hover:text-white" />
                     </button>
                   </div>
-                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
-                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-2">Coordinates</p>
-                    <div className="grid grid-cols-3 gap-3 text-xs font-mono text-white/80">
+                  <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5 mb-2.5">
+                    <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1.5">Coordinates</p>
+                    <div className="grid grid-cols-3 gap-2.5 text-xs font-mono text-white/80">
                       <div><span className="text-[8px] text-white/70 block">LATITUDE</span>{formatCoord(selectedPOI.lat, true)}</div>
                       <div><span className="text-[8px] text-white/70 block">LONGITUDE</span>{formatCoord(selectedPOI.lng, false)}</div>
                       <div><span className="text-[8px] text-white/70 block">ELEVATION</span>{formatAlt(selectedPOI.alt)}</div>
                     </div>
                   </div>
                   {selectedPOI.description && (
-                    <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
+                    <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5 mb-2.5">
                       <p className="text-[9px] text-white/75 uppercase tracking-wider mb-1">Description</p>
                       <p className="text-xs text-white/70 leading-relaxed">{selectedPOI.description}</p>
                     </div>
                   )}
-                  <div className="bg-black/65 border border-white/[0.06] rounded-xl p-3 mb-3">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5 mb-2.5">
+                    <div className="flex items-center justify-between mb-1.5">
                       <p className="text-[9px] text-white/75 uppercase tracking-wider flex items-center gap-1">
-                        <FileText className="w-3 h-3" /> Notes
+                        <FileText className="w-2.5 h-2.5" /> Notes
                       </p>
                       {!editingNotes ? (
                         <button onClick={() => { setEditingNotes(true); setEditNotesValue(selectedPOI.notes); }}
                           className="text-[10px] text-primary/60 hover:text-primary flex items-center gap-1 transition-colors">
-                          <Edit3 className="w-3 h-3" /> {selectedPOI.notes ? "Edit" : "Add"}
+                          <Edit3 className="w-2.5 h-2.5" /> {selectedPOI.notes ? "Edit" : "Add"}
                         </button>
                       ) : (
                         <button onClick={saveNotes}
                           className="text-[10px] text-yellow-400/60 hover:text-yellow-400 flex items-center gap-1 transition-colors">
-                          <Save className="w-3 h-3" /> Save
+                          <Save className="w-2.5 h-2.5" /> Save
                         </button>
                       )}
                     </div>
@@ -5398,24 +5398,24 @@ function SpaceshipPage() {
                         onChange={(e) => setEditNotesValue(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Escape") setEditingNotes(false); }}
                         rows={4}
-                        className="w-full bg-black/70 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-yellow-400/30 placeholder:text-white/85 transition-colors resize-none"
+                        className="w-full bg-black/70 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-yellow-400/30 placeholder:text-white/85 transition-colors resize-none"
                         placeholder="Add notes..."
                       />
                     ) : (
                       <p className="text-xs text-white/80 leading-relaxed">{selectedPOI.notes || "No notes yet."}</p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <button onClick={() => flyToPOI(selectedPOI)}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-xl text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
-                      <Navigation className="w-3.5 h-3.5" /> Fly To
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-primary/10 border border-primary/20 rounded-lg text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
+                      <Navigation className="w-3 h-3" /> Fly To
                     </button>
                     <button onClick={() => deletePOI(selectedPOI.id)}
-                      className="px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400 hover:bg-red-500/20 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
+                      className="px-2.5 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 hover:bg-red-500/20 transition-colors">
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <p className="text-[9px] text-white/85 font-mono mt-3 text-center">
+                  <p className="text-[9px] text-white/85 font-mono mt-2.5 text-center">
                     Created {new Date(selectedPOI.createdAt).toLocaleString()}
                   </p>
                 </GlassPanel>
@@ -5429,13 +5429,13 @@ function SpaceshipPage() {
               <div
                 className={`animate-scale-in ${isMobile
                   ? "absolute inset-x-3 bottom-28 z-40"
-                  : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
+                  : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-3"
                 }`}
               >
                 <div className="relative">
                   <button onClick={() => setSelectedBusiness(null)}
-                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-colors">
-                    <X className="w-3.5 h-3.5" />
+                    className="absolute -top-2 -right-2 z-10 w-6 h-6 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-colors">
+                    <X className="w-3 h-3" />
                   </button>
                   {(() => {
                     const bizEntityId = `biz-${String(selectedBusiness.id ?? "")}`;
@@ -5453,7 +5453,7 @@ function SpaceshipPage() {
                           emoji: selectedBusiness.emoji,
                         })}
                         title={sel ? "Unselect" : "Select (mark as gold)"}
-                        className="absolute -top-2 -left-2 z-10 w-7 h-7 rounded-full backdrop-blur-xl flex items-center justify-center transition-colors"
+                        className="absolute -top-2 -left-2 z-10 w-6 h-6 rounded-full backdrop-blur-xl flex items-center justify-center transition-colors"
                         style={sel ? {
                           background: "linear-gradient(135deg,#FFE56A,#B8860B)",
                           border: "1px solid #FFD700",
@@ -5463,7 +5463,7 @@ function SpaceshipPage() {
                           border: "1px solid rgba(255,255,255,0.1)",
                         }}
                       >
-                        <Star className={`w-3.5 h-3.5 ${sel ? "fill-[#1a1300] text-[#1a1300]" : "text-white/80"}`} />
+                        <Star className={`w-3 h-3 ${sel ? "fill-[#1a1300] text-[#1a1300]" : "text-white/80"}`} />
                       </button>
                     );
                   })()}
@@ -5513,7 +5513,7 @@ function SpaceshipPage() {
             <div
               className={`animate-scale-in ${isMobile
                 ? "absolute inset-x-3 bottom-28 z-40"
-                : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4"
+                : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-3"
               }`}
             >
               <MarketplaceProductCard
@@ -5555,32 +5555,32 @@ function SpaceshipPage() {
           
             {poisPanelOpen && !selectedPOI && !brushPanelOpen && (
               <div
-                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-80"
+                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-72"
               >
-                <GlassPanel className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-yellow-400" />
+                <GlassPanel className="p-3">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-yellow-400" />
                       <span className="text-sm font-bold text-white">Interest Points</span>
                       <span className="text-[10px] text-white/70 font-mono">({pois.length})</span>
                     </div>
                     <button onClick={() => setPoisPanelOpen(false)}>
-                      <X className="w-4 h-4 text-white/75 hover:text-white" />
+                      <X className="w-3.5 h-3.5 text-white/75 hover:text-white" />
                     </button>
                   </div>
-                  <p className="text-[10px] text-white/70 mb-3">Double-click anywhere to add a point.</p>
+                  <p className="text-[10px] text-white/70 mb-2.5">Double-click anywhere to add a point.</p>
                   {pois.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Plus className="w-8 h-8 text-white/10 mx-auto mb-2" />
+                    <div className="text-center py-7">
+                      <Plus className="w-7 h-7 text-white/10 mx-auto mb-1.5" />
                       <p className="text-xs text-white/70">No points yet</p>
                     </div>
                   ) : (
-                    <div className="max-h-72 overflow-y-auto space-y-1">
+                    <div className="max-h-64 overflow-y-auto space-y-1">
                       {pois.map((poi) => (
-                        <div key={poi.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-black/70 group transition-colors">
+                        <div key={poi.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-black/70 group transition-colors">
                           <button onClick={() => { setSelectedPOI(poi); setEditingNotes(false); }}
-                            className="flex-1 flex items-center gap-3 text-left min-w-0">
-                            <MapPin className="w-4 h-4 text-yellow-400 shrink-0" />
+                            className="flex-1 flex items-center gap-2.5 text-left min-w-0">
+                            <MapPin className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-white truncate">{poi.name}</p>
                               <p className="text-[10px] text-white/70 font-mono">{poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}</p>
@@ -5589,12 +5589,12 @@ function SpaceshipPage() {
                           </button>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button onClick={() => flyToPOI(poi)}
-                              className="p-1 rounded-lg text-white/85 hover:text-primary hover:bg-primary/10 transition-all" title="Fly to">
-                              <Navigation className="w-3.5 h-3.5" />
+                              className="p-1 rounded-md text-white/85 hover:text-primary hover:bg-primary/10 transition-all" title="Fly to">
+                              <Navigation className="w-3 h-3" />
                             </button>
                             <button onClick={() => deletePOI(poi.id)}
-                              className="p-1 rounded-lg text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete">
-                              <Trash2 className="w-3.5 h-3.5" />
+                              className="p-1 rounded-md text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete">
+                              <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
@@ -5624,23 +5624,23 @@ function SpaceshipPage() {
 
           {/* Selected (gold) tags chip */}
           {selectedCount > 0 && (
-            <div className="absolute right-3 sm:right-4 top-[calc(50%+140px)] z-30 flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full backdrop-blur-xl animate-fade-in"
+            <div className="absolute right-3 sm:right-4 top-[calc(50%+140px)] z-30 flex items-center gap-1 pl-1.5 pr-1 py-1 rounded-full backdrop-blur-xl animate-fade-in"
               style={{
                 background: "linear-gradient(135deg, rgba(255,215,0,0.18), rgba(184,134,11,0.18))",
                 border: "1px solid #FFD70066",
                 boxShadow: "0 4px 18px rgba(255,215,0,0.25)",
               }}
             >
-              <Star className="w-3 h-3 fill-yellow-300 text-yellow-300" />
+              <Star className="w-2.5 h-2.5 fill-yellow-300 text-yellow-300" />
               <span className="text-[10px] font-semibold tracking-wide text-yellow-200">
                 {selectedCount} selected
               </span>
               <button
                 onClick={() => clearSelected()}
                 title="Clear selection"
-                className="w-5 h-5 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-yellow-200/90 hover:text-yellow-100"
+                className="w-4 h-4 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-yellow-200/90 hover:text-yellow-100"
               >
-                <X className="w-3 h-3" />
+                <X className="w-2.5 h-2.5" />
               </button>
             </div>
           )}
@@ -5722,24 +5722,24 @@ function SpaceshipPage() {
           />
 
            {/* Bottom HUD — Coordinates & Search */}
-          <div className="absolute bottom-0 left-0 right-0 z-20 p-2 sm:p-4">
+          <div className="absolute bottom-0 left-0 right-0 z-20 p-1.5 sm:p-3">
             {/* Bottom bar content */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2">
-              <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 flex-1 min-w-0">
-                <div className="flex items-center gap-2 sm:gap-4">
-                  <img src={targetPng} alt="Target" width={16} height={16} className="w-3.5 h-3.5 object-contain shrink-0" />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-1.5">
+              <GlassPanel className="px-2.5 py-1.5 sm:px-3 sm:py-2.5 flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-3">
+                  <img src={targetPng} alt="Target" width={16} height={16} className="w-3 h-3 object-contain shrink-0" />
                   {cursorInfo ? (
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                       <div className="min-w-0">
                         <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Lat</p>
                         <p className="text-xs sm:text-sm text-white truncate tabular-nums tracking-tight">{formatCoord(cursorInfo.lat, true)}</p>
                       </div>
-                      <div className="w-px h-6 sm:h-8 bg-white/10 hidden sm:block" />
+                      <div className="w-px h-5 sm:h-7 bg-white/10 hidden sm:block" />
                       <div className="min-w-0">
                         <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Lng</p>
                         <p className="text-xs sm:text-sm text-white truncate tabular-nums tracking-tight">{formatCoord(cursorInfo.lng, false)}</p>
                       </div>
-                      <div className="w-px h-6 sm:h-8 bg-white/10 hidden sm:block" />
+                      <div className="w-px h-5 sm:h-7 bg-white/10 hidden sm:block" />
                       <div className="min-w-0">
                         <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
                         <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">{formatAlt(cursorInfo.alt)}</p>
@@ -5748,10 +5748,10 @@ function SpaceshipPage() {
                   ) : (
                     <p className="text-[10px] sm:text-xs text-white/70">Hover for coordinates</p>
                   )}
-                  <div className="w-px h-6 sm:h-8 bg-white/10 ml-auto" />
-                  <div className="relative flex items-center gap-1.5 cursor-text flex-1 min-w-0"
+                  <div className="w-px h-5 sm:h-7 bg-white/10 ml-auto" />
+                  <div className="relative flex items-center gap-1 cursor-text flex-1 min-w-0"
                     onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); } }}>
-                    <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+                    <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary shrink-0" />
                     {searchOpen ? (
                       <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search stores, addresses…"
                         className="flex-1 bg-transparent text-white text-xs sm:text-sm outline-none placeholder:text-white/70 min-w-0"
@@ -5761,10 +5761,10 @@ function SpaceshipPage() {
                       <span className="text-[10px] sm:text-xs text-white/70 truncate" style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>Search stores, addresses…</span>
                     )}
                     {searchOpen && searchQuery && (
-                      <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0"><X className="w-3 h-3 text-white/70 hover:text-white/85" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0"><X className="w-2.5 h-2.5 text-white/70 hover:text-white/85" /></button>
                     )}
                     {searchOpen && (
-                      <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0"><X className="w-3.5 h-3.5 text-white/75" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setSearchOpen(false); }} className="shrink-0"><X className="w-3 h-3 text-white/75" /></button>
                     )}
 
                     {/* Results live in the dedicated left-side SearchResultsPanel mounted below */}
@@ -5772,24 +5772,24 @@ function SpaceshipPage() {
                 </div>
               </GlassPanel>
 
-              <GlassPanel className="px-3 py-2 sm:px-4 sm:py-3 shrink-0">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <img src={eyePng} alt="Eye" width={16} height={16} className="w-3.5 h-3.5 sm:w-4 sm:h-4 object-contain shrink-0" />
+              <GlassPanel className="px-2.5 py-1.5 sm:px-3 sm:py-2.5 shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2.5">
+                  <img src={eyePng} alt="Eye" width={16} height={16} className="w-3 h-3 sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
                     <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">{formatAlt(cameraAlt)}</p>
                   </div>
-                  <div className="w-px h-6 sm:h-8 bg-white/10" />
+                  <div className="w-px h-5 sm:h-7 bg-white/10" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">Mode</p>
                     <div className="flex items-center gap-1">
                       <button onClick={() => switchViewMode("realistic")}
-                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
-                        <span className="flex items-center gap-1"><Satellite className="w-3 h-3" /> <span className="hidden sm:inline">Realistic</span><span className="sm:hidden">3D</span></span>
+                        className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
+                        <span className="flex items-center gap-1"><Satellite className="w-2.5 h-2.5" /> <span className="hidden sm:inline">Realistic</span><span className="sm:hidden">3D</span></span>
                       </button>
                       <button onClick={() => switchViewMode("osm")}
-                        className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
-                        <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> OSM</span>
+                        className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
+                        <span className="flex items-center gap-1"><Building2 className="w-2.5 h-2.5" /> OSM</span>
                       </button>
                     </div>
                   </div>
@@ -5810,7 +5810,7 @@ function SpaceshipPage() {
       {isLoaded && !hudVisible && (
         <button
           onClick={() => setHudVisible(true)}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-black/75 backdrop-blur-xl border border-white/[0.08] rounded-full px-4 py-2 text-white/75 hover:text-white transition-colors text-xs font-mono"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-black/75 backdrop-blur-xl border border-white/[0.08] rounded-full px-3 py-1.5 text-white/75 hover:text-white transition-colors text-xs font-mono"
         >
           Show HUD
         </button>
@@ -5871,14 +5871,14 @@ class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="w-full h-screen bg-[#0a0a1a] flex flex-col items-center justify-center text-white gap-4">
+        <div className="w-full h-screen bg-[#0a0a1a] flex flex-col items-center justify-center text-white gap-3">
           <div className="text-4xl">🌍</div>
           <h2 className="text-lg font-semibold">Atlas encountered an issue</h2>
           <p className="text-sm text-white/80 max-w-sm text-center">{this.state.error || "Something went wrong"}</p>
           {this.state.retryCount < 3 && <p className="text-xs text-white/70">Auto-recovering…</p>}
           <button
             onClick={() => this.setState({ hasError: false, error: "", retryCount: 0 })}
-            className="mt-2 px-5 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition-colors"
+            className="mt-1.5 px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
           >
             Try Again
           </button>
