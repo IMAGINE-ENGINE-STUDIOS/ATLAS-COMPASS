@@ -1634,7 +1634,6 @@ export default function RigControllerRoom({
               <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
         </div>
 
         </div>
