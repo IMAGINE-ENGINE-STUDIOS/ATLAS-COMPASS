@@ -34,6 +34,8 @@ import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
 import { TrajectoryRender, TrajectoryRunner } from "./trajectory/TrajectoryRuntime";
 import { ScenePathOverlay } from "./geometry/ScenePathOverlay";
+import PerfSampler from "./perf/PerfSampler";
+import PerfHUD from "./perf/PerfHUD";
 
 /* ---------- helpers ---------- */
 
@@ -1551,6 +1553,7 @@ function LevelScene3DInner(
     };
   }, []);
   return (
+    <>
     <Canvas
       key={canvasKey}
       className={className}
@@ -1629,7 +1632,12 @@ function LevelScene3DInner(
       />
       <KeyboardCameraController controlsRef={controlsRef} enabled={!hasActivePlayer(rest)} />
       <ResetCameraController nonce={resetReq} controlsRef={controlsRef} />
+      <PerfSampler />
     </Canvas>
+    {/* DOM-overlay performance HUD (toggle with `) — rendered as a sibling
+        so it sits outside the WebGL canvas and never affects scene state. */}
+    <PerfHUD />
+    </>
   );
 }
 
