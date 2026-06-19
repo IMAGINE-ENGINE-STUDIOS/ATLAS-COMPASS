@@ -2501,8 +2501,17 @@ export default function LevelEditorPage() {
         onApply={(entry) => {
           const obj = scene.objects.find((o) => o.id === selectedId);
           if (!obj || obj.kind !== "character") return;
-          const patch: Partial<CharacterObject> = { currentAnimation: entry.clipName };
-          if (entry.source !== "builtin" && entry.url) patch.url = entry.url;
+          const patch: Partial<CharacterObject> = {};
+          if (entry.source === "builtin") {
+            // Built-in Xbot clip — play by name and clear any external clip.
+            patch.currentAnimation = entry.clipName;
+            patch.externalClipUrl = undefined;
+          } else if (entry.url) {
+            // Mixamo / RPM / user upload — retarget onto the existing rig
+            // without ever swapping the host character model.
+            patch.externalClipUrl = entry.url;
+            patch.currentAnimation = entry.clipName ?? undefined;
+          }
           patchObject(obj.id, patch as any);
         }}
         onUserClipsParsed={async (entries) => {
