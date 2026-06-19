@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Upload, Check } from "lucide-react";
-import { GLTFLoader } from "three-stdlib";
+import { GLTFLoader, FBXLoader } from "three-stdlib";
+import type { AnimationClip } from "three";
 import { toast } from "sonner";
 import {
   CHARACTER_ANIMATION_LIBRARY,
@@ -73,19 +74,41 @@ export default function CharacterAnimationGallery({
     if (!files || files.length === 0) return;
     setUploading(true);
     const newEntries: CharacterClipEntry[] = [];
-    const loader = new GLTFLoader();
+    const gltfLoader = new GLTFLoader();
+    const fbxLoader = new FBXLoader();
     try {
       for (const file of Array.from(files)) {
-        if (!/\.glb$|\.gltf$/i.test(file.name)) continue;
+        const isGltf = /\.(glb|gltf)$/i.test(file.name);
+        const isFbx  = /\.fbx$/i.test(file.name);
+        if (!isGltf && !isFbx) {
+          toast.warning(`Skipped ${file.name} — unsupported format`);
+          continue;
+        }
         const url = URL.createObjectURL(file);
-        const gltf = await loader.loadAsync(url);
-        for (const clip of gltf.animations) {
+        let clips: AnimationClip[] = [];
+        try {
+          if (isGltf) {
+            const gltf = await gltfLoader.loadAsync(url);
+            clips = gltf.animations ?? [];
+          } else {
+            // FBX loader returns a Group with `.animations` populated. We
+            // keep the same blob URL so the runtime can re-parse the file
+            // to pull the skinned mesh + clip together.
+            const group = await fbxLoader.loadAsync(url);
+            clips = (group as any).animations ?? [];
+          }
+        } catch (e) {
+          console.error("[clip-upload] parse failed for", file.name, e);
+          toast.error(`Could not parse ${file.name}`);
+          continue;
+        }
+        for (const clip of clips) {
           const category = inferUploadedCategory(clip.name);
           newEntries.push({
             id: `user-${Math.random().toString(36).slice(2, 9)}`,
             name: clip.name || file.name,
             category,
-            tags: [category, "user"],
+            tags: [category, "user", isFbx ? "fbx" : "glb"],
             source: "user",
             url,
             clipName: clip.name,
@@ -101,7 +124,7 @@ export default function CharacterAnimationGallery({
       }
     } catch (err) {
       console.error("[clip-upload]", err);
-      toast.error("Failed to read .glb — see console");
+      toast.error("Failed to read upload — see console");
     } finally {
       setUploading(false);
     }
@@ -130,7 +153,7 @@ export default function CharacterAnimationGallery({
           <input
             ref={fileRef}
             type="file"
-            accept=".glb,.gltf"
+            accept=".glb,.gltf,.fbx"
             multiple
             className="hidden"
             onChange={(e) => onUpload(e.target.files)}
@@ -143,7 +166,7 @@ export default function CharacterAnimationGallery({
             onClick={() => fileRef.current?.click()}
           >
             <Upload className="w-3.5 h-3.5 mr-1" />
-            {uploading ? "Reading…" : "Upload .glb"}
+            {uploading ? "Reading…" : "Upload .glb / .fbx"}
           </Button>
         </div>
 
