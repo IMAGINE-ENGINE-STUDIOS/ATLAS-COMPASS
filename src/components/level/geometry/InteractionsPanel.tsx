@@ -661,10 +661,34 @@ function ButtonsTab({
               </>
             )}
             <Label className="text-[10px]">Action</Label>
-            <Select value={b.actionId} onValueChange={(v) => patch(b.id, { actionId: v })} disabled={disabled}>
+            <Select
+              value={b.actionId}
+              onValueChange={(v) => {
+                if (v.startsWith("__new:")) {
+                  const type = v.slice("__new:".length) as PresetActionType;
+                  const act = makePresetInteraction(type, interactions);
+                  onPatch({
+                    interactions: [...interactions, act],
+                    actionButtons: buttons.map((x) => (x.id === b.id ? { ...x, actionId: act.id } : x)),
+                  });
+                  return;
+                }
+                patch(b.id, { actionId: v });
+              }}
+              disabled={disabled}
+            >
               <SelectTrigger className="h-5 text-[10px]"><SelectValue placeholder="Pick interaction…" /></SelectTrigger>
               <SelectContent>
+                {interactions.length > 0 && (
+                  <div className="px-2 py-1 text-[9px] uppercase text-muted-foreground">Existing</div>
+                )}
                 {interactions.map((i) => <SelectItem key={i.id} value={i.id} className="text-xs">{i.name}</SelectItem>)}
+                <div className="px-2 py-1 text-[9px] uppercase text-muted-foreground border-t border-border/40 mt-1">Create new</div>
+                {PRESET_TYPES.map((p) => (
+                  <SelectItem key={`new-${p.value}`} value={`__new:${p.value}`} className="text-xs">
+                    + {p.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
