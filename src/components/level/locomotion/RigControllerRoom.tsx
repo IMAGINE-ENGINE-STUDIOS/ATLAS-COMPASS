@@ -1542,6 +1542,12 @@ export default function RigControllerRoom({
   // position. Stays armed until the user toggles it off.
   const [addBoneMode, setAddBoneMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const skinInputRef = useRef<HTMLInputElement | null>(null);
+  const [skins, setSkins] = useState<SkinEntry[]>([]);
+
+  // Reset skin list whenever the underlying skeleton (url) changes, since the
+  // <Rig/> instance is rebuilt and skin groups are disposed with it.
+  useEffect(() => { setSkins([]); }, [url]);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
   // Deep-link support: any page in the app can open the rig room for an
