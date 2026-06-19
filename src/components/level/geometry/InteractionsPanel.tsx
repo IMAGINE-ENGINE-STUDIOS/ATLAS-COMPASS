@@ -31,6 +31,30 @@ const PRESET_TYPES: { value: PresetActionType; label: string }[] = [
   { value: "spawnGeometry", label: "Spawn geometry (CSV)" },
 ];
 
+function defaultPresetFor(type: PresetActionType): PresetAction {
+  switch (type) {
+    case "rotateContinuously": return { type, axis: [0, 1, 0], speed: 1 };
+    case "toggleVisibility":   return { type };
+    case "teleportPlayer":     return { type, target: [0, 0, 0] };
+    case "playSound":          return { type, url: "" };
+    case "openUrl":            return { type, url: "https://" };
+    case "spawnGeometry":      return { type, csv: "" };
+  }
+}
+
+function makePresetInteraction(
+  type: PresetActionType,
+  existing: ObjectInteraction[],
+): ObjectInteraction {
+  const label = PRESET_TYPES.find((p) => p.value === type)?.label ?? "Action";
+  return {
+    id: newId("act"),
+    name: `${label} ${existing.length + 1}`,
+    kind: "preset",
+    preset: defaultPresetFor(type),
+  };
+}
+
 export function InteractionsPanel({
   obj,
   paths,
