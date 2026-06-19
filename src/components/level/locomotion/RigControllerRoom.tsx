@@ -416,6 +416,28 @@ function CameraDirector({
   return null;
 }
 
+function SelectedBoneFocusDirector({
+  bridgeRef,
+  selectedBoneName,
+}: {
+  bridgeRef: React.MutableRefObject<RigBridge>;
+  selectedBoneName: string | null;
+}) {
+  const { controls } = useThree() as any;
+  useEffect(() => {
+    if (!selectedBoneName || !controls?.target) return;
+    const root = bridgeRef.current.root;
+    const bone = root ? findObjectByName(root, selectedBoneName) : null;
+    if (!bone) return;
+    const p = new THREE.Vector3();
+    bone.updateWorldMatrix(true, false);
+    p.setFromMatrixPosition(bone.matrixWorld);
+    controls.target.copy(p);
+    controls.update?.();
+  }, [bridgeRef, controls, selectedBoneName]);
+  return null;
+}
+
 function Rig({
   url,
   targetHeight,
