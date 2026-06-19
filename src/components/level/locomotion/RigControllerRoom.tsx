@@ -257,6 +257,8 @@ function Rig({
   pendingPose,
   onPoseApplied,
   onBoneEdited,
+  addBoneMode,
+  onTopologyChanged,
   bridgeRef,
 }: {
   url: string;
@@ -273,10 +275,15 @@ function Rig({
   pendingPose: BonePose[] | null;
   onPoseApplied: () => void;
   onBoneEdited?: () => void;
+  addBoneMode?: boolean;
+  onTopologyChanged?: (bones: THREE.Bone[]) => void;
   bridgeRef: React.MutableRefObject<RigBridge>;
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+  // Topology version bumps when bones are added/removed so we can re-emit
+  // the bone list and rebuild the SkeletonHelper.
+  const [topologyVersion, setTopologyVersion] = useState(0);
   // Render every rig at its native scale (scale = 1). Bounding-box based
   // normalization broke skinned meshes and pushed characters off-camera,
   // so the room now trusts each glTF's authored size.
@@ -309,6 +316,28 @@ function Rig({
     clipsRef.current = clips;
     mixerRef.current = new THREE.AnimationMixer(cloned);
     bridgeRef.current.root = cloned;
+    // Expose topology mutators to the sidebar via the shared bridge.
+    bridgeRef.current.addBoneAt = (parentName, worldPoint) => {
+      let parent: THREE.Object3D | null = null;
+      cloned.traverse((o) => { if (!parent && o.name === parentName) parent = o; });
+      if (!parent) return null;
+      const local = (parent as THREE.Object3D).worldToLocal(worldPoint.clone());
+      const bone = new THREE.Bone();
+      bone.name = `custom_bone_${Math.random().toString(36).slice(2, 7)}`;
+      bone.position.copy(local);
+      (bone as any).userData.__custom = true;
+      (parent as THREE.Object3D).add(bone);
+      setTopologyVersion((v) => v + 1);
+      return bone.name;
+    };
+    bridgeRef.current.deleteBone = (name) => {
+      let target: THREE.Object3D | null = null;
+      cloned.traverse((o) => { if (!target && o.name === name) target = o; });
+      if (!target || !(target as THREE.Object3D).parent) return false;
+      (target as THREE.Object3D).parent!.remove(target as THREE.Object3D);
+      setTopologyVersion((v) => v + 1);
+      return true;
+    };
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
@@ -327,9 +356,33 @@ function Rig({
       mixerRef.current = null;
       actionRef.current = null;
       if (bridgeRef.current.root === cloned) bridgeRef.current.root = null;
+      bridgeRef.current.addBoneAt = null;
+      bridgeRef.current.deleteBone = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
+
+  // Rebuild SkeletonHelper + re-emit bone list whenever topology mutates.
+  useEffect(() => {
+    if (topologyVersion === 0) return;
+    if (helperRef.current) {
+      r3fScene.remove(helperRef.current);
+      helperRef.current.dispose?.();
+    }
+    const helper = new THREE.SkeletonHelper(cloned);
+    const hmat = helper.material as any;
+    hmat.linewidth = 2;
+    hmat.depthTest = false;
+    hmat.transparent = true;
+    hmat.opacity = 0.95;
+    helper.renderOrder = 999;
+    helper.visible = showSkeleton;
+    helperRef.current = helper;
+    r3fScene.add(helper);
+    const next = collectBones(cloned);
+    onTopologyChanged?.(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topologyVersion]);
 
   useEffect(() => {
     if (helperRef.current) helperRef.current.visible = showSkeleton;
