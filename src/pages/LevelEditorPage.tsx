@@ -366,9 +366,39 @@ function ComponentsPanel({
         {groups.map((g) => (
           <div key={g.key}>
             <p className="text-[9px] uppercase tracking-wider text-muted-foreground/70 px-1">
-              {g.label} · {g.items.length}
+              {g.label} · {g.items.length + (g.key === "characters" && rigState ? 1 : 0)}
             </p>
-            {g.items.length === 0 ? (
+            {g.key === "characters" && rigState && (
+              <div className="mb-1">
+                <div
+                  className={`w-full px-2 py-1 rounded text-[11px] flex items-center gap-1.5 ${
+                    selectedBoneName ? "bg-muted/20" : "bg-[rgba(34,255,136,0.10)]"
+                  }`}
+                  title={`Live rig — ${rigState.bones.length} bones`}
+                >
+                  <button
+                    onClick={() => setRigOpen((v) => !v)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    {rigOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  </button>
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: "#22ff88" }}
+                  />
+                  <span className="flex-1 truncate text-[#bbffd5]">{rigState.name}</span>
+                  <span className="text-[9px] uppercase tracking-wider opacity-50 tabular-nums">
+                    {rigState.bones.length} bones
+                  </span>
+                </div>
+                {rigOpen && boneTree.length > 0 && (
+                  <div className="mt-0.5 border-l border-[rgba(34,255,136,0.25)] ml-2">
+                    {boneTree.map(renderBone)}
+                  </div>
+                )}
+              </div>
+            )}
+            {g.items.length === 0 && !(g.key === "characters" && rigState) ? (
               <p className="text-[10px] text-muted-foreground/50 italic px-2 py-0.5">—</p>
             ) : (
               g.items.map((o) => (
