@@ -1972,7 +1972,9 @@ export default function LevelEditorPage() {
         {/* Right: inspector */}
         <aside
           className={
-            isMobile
+            playing
+              ? "hidden"
+              : isMobile
               ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto overflow-x-hidden bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out scrollbar-dark ${
                   mobilePanel === "right"
                     ? "translate-y-0"
