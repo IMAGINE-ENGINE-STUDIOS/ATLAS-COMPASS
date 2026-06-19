@@ -882,7 +882,12 @@ function BoneHierarchyPanel({
 }) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const selectedRowRef = useRef<HTMLButtonElement | null>(null);
   const tree = useMemo(() => buildBoneTree(bones), [bones]);
+
+  useEffect(() => {
+    selectedRowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [selectedBoneName]);
 
   const q = query.trim().toLowerCase();
   const matches = (b: THREE.Bone) =>
@@ -910,8 +915,8 @@ function BoneHierarchyPanel({
     return (
       <div key={node.bone.uuid} style={{ paddingLeft: node.depth * 10 }}>
         <div
-          className={`group flex items-center gap-1 pl-1 pr-2 py-0.5 rounded text-[11px] font-mono ${
-            isSel ? "bg-[rgba(34,255,136,0.18)] text-[#bbffd5]" : "hover:bg-muted/30 text-muted-foreground"
+          className={`group flex items-center gap-1 pl-1 pr-2 py-1 rounded-md text-[11px] font-mono transition-colors ${
+            isSel ? "bg-[rgba(34,255,136,0.24)] text-[#d8ffe7] ring-1 ring-[rgba(34,255,136,0.55)] shadow-[0_0_14px_rgba(34,255,136,0.16)]" : "hover:bg-muted/30 text-muted-foreground"
           }`}
         >
           {node.children.length > 0 ? (
@@ -926,13 +931,14 @@ function BoneHierarchyPanel({
             <span className="w-3 h-3 shrink-0" />
           )}
           <button
+            ref={isSel ? selectedRowRef : undefined}
             onClick={() => onSelect(node.bone.name)}
-            className={`flex-1 min-w-0 text-left truncate ${
+            className={`flex-1 min-w-0 text-left truncate leading-tight ${
               hit ? "text-[#22ff88]" : ""
             }`}
             title={node.bone.name}
           >
-            {node.bone.name}
+            {prettifyBoneName(node.bone.name) || node.bone.name}
           </button>
         </div>
         {!isCollapsed && node.children.length > 0 && (
@@ -975,6 +981,16 @@ function BoneHierarchyPanel({
           className="h-7 pl-7 text-[11px]"
         />
       </div>
+      {selectedBoneName && (
+        <button
+          onClick={() => onSelect(selectedBoneName)}
+          className="w-full min-w-0 rounded-md px-2 py-1 text-left font-mono text-[10px] leading-tight bg-[rgba(34,255,136,0.12)] text-[#bbffd5] border border-[rgba(34,255,136,0.28)]"
+          title={selectedBoneName}
+        >
+          <span className="block uppercase tracking-[0.16em] text-[8px] text-[#22ff88]">Selected bone</span>
+          <span className="block truncate">{prettifyBoneName(selectedBoneName)}</span>
+        </button>
+      )}
       <ScrollArea className="h-56 -mx-0.5">
         <div className="pr-1">
           {tree.length === 0 ? (
