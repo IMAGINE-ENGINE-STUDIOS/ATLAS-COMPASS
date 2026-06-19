@@ -2651,6 +2651,15 @@ function ObjectInspector({
           disabled={disabled}
         />
       )}
+      {onPatchScenePaths && obj.kind !== "trajectory" && (
+        <InteractionsPanel
+          obj={obj}
+          paths={scenePaths}
+          onPatch={onPatch}
+          onPatchPaths={onPatchScenePaths}
+          disabled={disabled}
+        />
+      )}
       {onDelete && (
         <Button
           size="sm"
