@@ -1582,35 +1582,6 @@ export default function LevelEditorPage() {
           >
             <Redo2 className="w-3.5 h-3.5" />
           </Button>
-          <div className={`flex items-center gap-0.5 px-1 h-8 rounded-md border border-border/40 bg-card/40 ${isMobile ? "scale-90 origin-left" : ""}`}>
-            <Button
-              size="sm"
-              variant={transformMode === "translate" ? "secondary" : "ghost"}
-              className="h-6 px-1.5"
-              onClick={() => setTransformMode((m) => (m === "translate" ? null : "translate"))}
-              title="Move (G)"
-            >
-              <Move3d className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              size="sm"
-              variant={transformMode === "rotate" ? "secondary" : "ghost"}
-              className="h-6 px-1.5"
-              onClick={() => setTransformMode((m) => (m === "rotate" ? null : "rotate"))}
-              title="Rotate (R)"
-            >
-              <Rotate3d className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              size="sm"
-              variant={transformMode === "scale" ? "secondary" : "ghost"}
-              className="h-6 px-1.5"
-              onClick={() => setTransformMode((m) => (m === "scale" ? null : "scale"))}
-              title="Scale (T)"
-            >
-              <Scaling className="w-3.5 h-3.5" />
-            </Button>
-          </div>
           {!isMobile && (
             <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
               <button
@@ -1682,9 +1653,14 @@ export default function LevelEditorPage() {
             </span>
           )}
           {!isMobile && (
-            <Button size="sm" onClick={() => save()} disabled={!isOwner || saving}>
-              {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
-              Save
+            <Button
+              size="sm"
+              onClick={() => save()}
+              disabled={!isOwner || saving}
+              className="h-8 w-8 p-0"
+              title="Save"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             </Button>
           )}
         </div>

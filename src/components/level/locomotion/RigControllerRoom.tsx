@@ -288,7 +288,12 @@ function Rig({
       }
     });
     const helper = new THREE.SkeletonHelper(cloned);
-    (helper.material as any).linewidth = 2;
+    const hmat = helper.material as any;
+    hmat.linewidth = 2;
+    hmat.depthTest = false;
+    hmat.transparent = true;
+    hmat.opacity = 0.95;
+    helper.renderOrder = 999;
     helper.visible = showSkeleton;
     helperRef.current = helper;
     r3fScene.add(helper);
@@ -1154,6 +1159,15 @@ export default function RigControllerRoom({
     setActiveCamera(id);
     setCameraTick((t) => t + 1);
   };
+
+  // Expose reset to the global header button so the camera icon in the top
+  // toolbar also recenters the rig room scene.
+  useEffect(() => {
+    (window as any).__levelResetCamera = () => focusCamera("reset");
+    return () => {
+      if ((window as any).__levelResetCamera) delete (window as any).__levelResetCamera;
+    };
+  }, []);
 
   // ----- save system state -----
   const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
