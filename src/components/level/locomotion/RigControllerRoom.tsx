@@ -950,7 +950,10 @@ function XrayBodyMap({
       </div>
 
       {/* Live x-ray viewport */}
-      <div className="relative h-[300px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]">
+      <div
+        className="relative h-[300px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]"
+        style={{ containerType: "inline-size" }}
+      >
         <Canvas
           camera={{ position: [0, 1.4, 2.6], fov: 35, near: 0.01, far: 200 }}
           gl={{ antialias: true, alpha: false }}
@@ -1002,19 +1005,24 @@ function XrayBodyMap({
           </g>
         </svg>
         {/* Hovered/selected bone readout */}
-        <div className="absolute left-2 bottom-2 right-2 flex items-center justify-between gap-2 pointer-events-none">
+        <div className="absolute left-2 bottom-2 right-2 flex items-end justify-between gap-1.5 pointer-events-none">
           <span
-            className="text-[10px] font-mono truncate px-1.5 py-0.5 rounded"
+            className="font-mono px-1.5 py-0.5 rounded flex-1 min-w-0 break-all leading-tight"
             style={{
+              fontSize: "clamp(8px, 2.2cqw, 11px)",
               background: "rgba(0,0,0,0.5)",
               color: display ? "#22ff88" : "rgba(190,236,255,0.7)",
               border: display ? "1px solid #22ff8855" : "1px solid transparent",
               textShadow: display ? "0 0 6px #22ff8866" : undefined,
             }}
+            title={display ? prettifyBoneName(display) : undefined}
           >
             {display ? prettifyBoneName(display) : "hover any bone…"}
           </span>
-          <span className="text-[9px] uppercase tracking-wider text-cyan-300/70 bg-black/40 px-1.5 py-0.5 rounded">
+          <span
+            className="uppercase tracking-wider text-cyan-300/70 bg-black/40 px-1.5 py-0.5 rounded shrink-0 leading-tight"
+            style={{ fontSize: "clamp(7px, 1.8cqw, 9px)" }}
+          >
             live
           </span>
         </div>
