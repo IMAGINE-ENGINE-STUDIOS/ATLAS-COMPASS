@@ -2648,6 +2648,7 @@ function ObjectInspector({
           anchor={obj.position}
           selectedObject={obj}
           onSpawn={onSpawnObjects}
+          onAddPaths={onPatchScenePaths ? (paths) => onPatchScenePaths([...(scenePaths ?? []), ...paths]) : undefined}
           disabled={disabled}
         />
       )}
