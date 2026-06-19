@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon, Camera, Maximize2 } from "lucide-react";
+import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon, Camera, Maximize2, Search, ChevronRight, ChevronDown, Bone as BoneIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -566,6 +566,158 @@ function ObjectControllerBar({
 }
 
 /* --------------------- X-ray body map (controllers) ---------------------- */
+
+/* --------------------- Bone hierarchy + searcher ---------------------- */
+
+/**
+ * Build a parent/child tree of the rig's bones rooted under the scene's
+ * top-level bones (those whose parent isn't itself a bone). Walks the live
+ * THREE object graph rather than a flat list so the indentation truly
+ * reflects the skeleton hierarchy.
+ */
+interface BoneNode { bone: THREE.Bone; depth: number; children: BoneNode[]; }
+
+function buildBoneTree(bones: THREE.Bone[]): BoneNode[] {
+  const set = new Set(bones);
+  const nodeMap = new Map<THREE.Bone, BoneNode>();
+  bones.forEach((b) => nodeMap.set(b, { bone: b, depth: 0, children: [] }));
+  const roots: BoneNode[] = [];
+  bones.forEach((b) => {
+    const node = nodeMap.get(b)!;
+    let parent: THREE.Object3D | null = b.parent;
+    while (parent && !(parent as any).isBone) parent = parent.parent;
+    if (parent && set.has(parent as THREE.Bone)) {
+      const pn = nodeMap.get(parent as THREE.Bone)!;
+      node.depth = pn.depth + 1;
+      pn.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+  // Recompute depth via DFS in case insertion order misordered it.
+  const fix = (n: BoneNode, d: number) => { n.depth = d; n.children.forEach((c) => fix(c, d + 1)); };
+  roots.forEach((r) => fix(r, 0));
+  return roots;
+}
+
+function BoneHierarchyPanel({
+  bones,
+  selectedBoneName,
+  onSelect,
+}: {
+  bones: THREE.Bone[];
+  selectedBoneName: string | null;
+  onSelect: (n: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const tree = useMemo(() => buildBoneTree(bones), [bones]);
+
+  const q = query.trim().toLowerCase();
+  const matches = (b: THREE.Bone) =>
+    !q || b.name.toLowerCase().includes(q) || prettifyBoneName(b.name).toLowerCase().includes(q);
+
+  // While searching, auto-expand everything so hits remain visible.
+  const effectiveCollapsed = q ? new Set<string>() : collapsed;
+
+  const toggle = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+
+  /** A node is rendered if it matches OR any of its descendants matches. */
+  const subtreeMatches = (node: BoneNode): boolean =>
+    matches(node.bone) || node.children.some(subtreeMatches);
+
+  const renderNode = (node: BoneNode): JSX.Element | null => {
+    if (q && !subtreeMatches(node)) return null;
+    const isCollapsed = effectiveCollapsed.has(node.bone.name);
+    const isSel = selectedBoneName === node.bone.name;
+    const hit = q && matches(node.bone);
+    return (
+      <div key={node.bone.uuid} style={{ paddingLeft: node.depth * 10 }}>
+        <div
+          className={`group flex items-center gap-1 pl-1 pr-2 py-0.5 rounded text-[11px] font-mono ${
+            isSel ? "bg-[rgba(34,255,136,0.18)] text-[#bbffd5]" : "hover:bg-muted/30 text-muted-foreground"
+          }`}
+        >
+          {node.children.length > 0 ? (
+            <button
+              onClick={() => toggle(node.bone.name)}
+              className="text-muted-foreground hover:text-foreground shrink-0"
+              title={isCollapsed ? "Expand" : "Collapse"}
+            >
+              {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          ) : (
+            <span className="w-3 h-3 shrink-0" />
+          )}
+          <button
+            onClick={() => onSelect(node.bone.name)}
+            className={`flex-1 min-w-0 text-left truncate ${
+              hit ? "text-[#22ff88]" : ""
+            }`}
+            title={node.bone.name}
+          >
+            {node.bone.name}
+          </button>
+        </div>
+        {!isCollapsed && node.children.length > 0 && (
+          <div>{node.children.map(renderNode)}</div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="rounded-md border p-2 space-y-1.5"
+      style={{
+        background: "linear-gradient(180deg, rgba(34,255,136,0.04), rgba(34,255,136,0.01))",
+        borderColor: "rgba(34,255,136,0.25)",
+      }}
+    >
+      <div className="flex items-center justify-between px-0.5">
+        <span
+          className="text-[10px] uppercase tracking-[0.22em] font-semibold flex items-center gap-1"
+          style={{ color: "#22ff88" }}
+        >
+          <BoneIcon className="w-3 h-3" /> Hierarchy · {bones.length}
+        </span>
+        {query && (
+          <button
+            onClick={() => setQuery("")}
+            className="text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            clear
+          </button>
+        )}
+      </div>
+      <div className="relative">
+        <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search bones…"
+          className="h-7 pl-7 text-[11px]"
+        />
+      </div>
+      <ScrollArea className="h-56 -mx-0.5">
+        <div className="pr-1">
+          {tree.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground italic px-2 py-2">Loading rig…</p>
+          ) : (
+            tree.map(renderNode)
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+/* --------------------- X-ray body map ---------------------- */
 
 /**
  * Live X-ray mini-viewport. Clones the *currently selected* character glTF,
@@ -1275,30 +1427,11 @@ export default function RigControllerRoom({
           onClear={() => setSelectedBoneName(null)}
         />
 
-        <div>
-          <Label className="text-xs">All bones ({bones.length})</Label>
-          <ScrollArea className="h-48 mt-1 rounded border border-border/40">
-            <ul className="text-[11px] font-mono">
-              {bones.map((b) => (
-                <li key={b.uuid}>
-                  <button
-                    onClick={() => setSelectedBoneName(b.name)}
-                    className={`block w-full text-left px-2 py-0.5 truncate hover:bg-muted/30 ${
-                      selectedBoneName === b.name ? "bg-muted/40 text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {b.name}
-                  </button>
-                </li>
-              ))}
-              {bones.length === 0 && (
-                <li className="px-2 py-2 text-[11px] text-muted-foreground">
-                  Loading rig…
-                </li>
-              )}
-            </ul>
-          </ScrollArea>
-        </div>
+        <BoneHierarchyPanel
+          bones={bones}
+          selectedBoneName={selectedBoneName}
+          onSelect={setSelectedBoneName}
+        />
 
         {/* ---- Model URL / Upload (moved to the bottom of the sidebar) ---- */}
         <div className="space-y-1.5 pt-2 border-t border-border/30">

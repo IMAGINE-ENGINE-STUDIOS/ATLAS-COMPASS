@@ -239,6 +239,93 @@ function makeLight(kind: SceneLight["kind"]): SceneLight {
   };
 }
 
+/**
+ * Components/ — searchable section in the left sidebar that groups every
+ * scene component (characters, objects, trajectories) and live-filters as the
+ * user types. Sits above the Lights section.
+ */
+function ComponentsPanel({
+  objects,
+  selectedIds,
+  onSelect,
+}: {
+  objects: SceneObject[];
+  selectedIds: Set<string>;
+  onSelect: (id: string, multi: boolean) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+
+  type GroupKey = "characters" | "objects" | "trajectories";
+  const groups: { key: GroupKey; label: string; items: SceneObject[] }[] = useMemo(() => {
+    const all = objects.filter((o) => !q || o.name.toLowerCase().includes(q) || o.kind.toLowerCase().includes(q));
+    return [
+      { key: "characters",   label: "Characters",   items: all.filter((o) => o.kind === "character") },
+      { key: "objects",      label: "Objects",      items: all.filter((o) => o.kind === "primitive" || o.kind === "polygon" || o.kind === "model") },
+      { key: "trajectories", label: "Trees / Splines", items: all.filter((o) => o.kind === "trajectory") },
+    ];
+  }, [objects, q]);
+
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+
+  return (
+    <div className="mt-4 mb-2">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Components / <span className="tabular-nums opacity-70">{total}</span>
+        </p>
+        {query && (
+          <button onClick={() => setQuery("")} className="text-[10px] text-muted-foreground hover:text-foreground">clear</button>
+        )}
+      </div>
+      <div className="relative mb-1.5">
+        <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search components…"
+          className="h-7 pl-7 text-[11px]"
+        />
+      </div>
+      <div className="space-y-2">
+        {groups.map((g) => (
+          <div key={g.key}>
+            <p className="text-[9px] uppercase tracking-wider text-muted-foreground/70 px-1">
+              {g.label} · {g.items.length}
+            </p>
+            {g.items.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground/50 italic px-2 py-0.5">—</p>
+            ) : (
+              g.items.map((o) => (
+                <button
+                  key={o.id}
+                  onClick={(e) => onSelect(o.id, e.ctrlKey || e.metaKey)}
+                  className={`w-full text-left px-2 py-1 rounded text-[11px] flex items-center gap-1.5 ${
+                    selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/30 text-muted-foreground"
+                  }`}
+                  title={`${o.name} (${o.kind})`}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{
+                      background:
+                        o.kind === "character" ? "#22ff88" :
+                        o.kind === "trajectory" ? "#7be7ff" :
+                        "#fbbf24",
+                    }}
+                  />
+                  <span className="flex-1 truncate">{o.name}</span>
+                  <span className="text-[9px] uppercase tracking-wider opacity-50">{o.kind}</span>
+                </button>
+              ))
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LevelEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1439,6 +1526,12 @@ export default function LevelEditorPage() {
                 );
               });
             })()}
+
+            <ComponentsPanel
+              objects={scene.objects}
+              selectedIds={selectedIds}
+              onSelect={(id, multi) => selectObject(id, multi)}
+            />
 
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
             {scene.lights.map((l) => (
