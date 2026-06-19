@@ -1606,7 +1606,7 @@ export default function RigControllerRoom({
       {/* Viewport */}
       <main className="flex-1 relative">
         <Canvas
-          camera={{ position: [3.6, 2.2, 3.6], fov: 52, near: 0.05, far: 200 }}
+          camera={{ position: [5, 3.5, 5], fov: 52, near: 0.05, far: 200 }}
           shadows
           gl={{ preserveDrawingBuffer: true }}
         >
