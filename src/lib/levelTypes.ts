@@ -129,6 +129,19 @@ export interface BaseObject {
    * Models use `materialOverrides` (per-mesh) instead.
    */
   faceOverrides?: Record<string, FaceOverride>;
+  /**
+   * Optional role inside the Train System (see `LevelScene.trainSystem`).
+   * Tags an object as the locomotive, a car, a door, the driver's cabin,
+   * the track centreline marker, or a station stop marker. The TrainRuntime
+   * reads these to drive motion, doors, and boarding during Play mode.
+   */
+  trainRole?: "locomotive" | "car" | "door" | "cabin" | "stopMarker";
+  /**
+   * When `trainRole === "door"`, the world-space offset added to the door's
+   * authored position while the door is fully open. Defaults to [0, 0, 1.2]
+   * (slides 1.2m along the door's local +Z). Closed = authored position.
+   */
+  doorOpenOffset?: Vec3;
 }
 
 export interface ScenePath {
