@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon, Camera, Maximize2, Search, ChevronRight, ChevronDown, Bone as BoneIcon } from "lucide-react";
+import { Wand2, RotateCcw, Move, Scaling, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon, Camera, Maximize2, Search, ChevronRight, ChevronDown, Bone as BoneIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -265,7 +265,7 @@ function Rig({
   targetHeight: number;
   showSkeleton: boolean;
   selectedBoneName: string | null;
-  transformMode: "rotate" | "translate";
+  transformMode: "rotate" | "translate" | "scale";
   onLoaded: (info: { bones: THREE.Bone[]; skeleton: THREE.Skeleton | null; clips: string[] }) => void;
   onSelectBone: (name: string) => void;
   highlightedBones: { name: string; color: string }[];
@@ -834,29 +834,44 @@ function XrayBoneHotspot({
   onSelect: (name: string) => void;
 }) {
   const ref = useRef<THREE.Mesh>(null);
-  useEffect(() => {
+  // Track the bone's world position each frame and keep the hotspot in the
+  // root scene so its hit-area scale is unaffected by Mixamo bones (which
+  // are often scaled ~0.01 and make re-parented spheres unhittable).
+  useFrame(() => {
     if (!ref.current) return;
-    bone.add(ref.current);
-    return () => { bone.remove(ref.current!); };
-  }, [bone]);
+    bone.updateWorldMatrix(true, false);
+    ref.current.position.setFromMatrixPosition(bone.matrixWorld);
+  });
   // Green highlight when hovered or actively selected (per design spec).
   const color = selected ? "#22ff88" : hovered ? "#5cff9e" : "#5fd9ff";
-  const r = selected ? 0.032 : hovered ? 0.026 : 0.014;
+  const visR = selected ? 0.032 : hovered ? 0.026 : 0.014;
+  const hitR = 0.05; // larger invisible pick radius so bones are easy to click
   return (
     <mesh
       ref={ref}
       onPointerOver={(e) => { e.stopPropagation(); onHover(bone.name); }}
       onPointerOut={(e) => { e.stopPropagation(); onHover(null); }}
       onClick={(e) => { e.stopPropagation(); onSelect(bone.name); }}
+      renderOrder={1000}
     >
-      <sphereGeometry args={[r, 12, 12]} />
+      <sphereGeometry args={[hitR, 12, 12]} />
       <meshBasicMaterial
-        color={color}
         transparent
-        opacity={selected ? 1 : hovered ? 0.95 : 0.7}
+        opacity={0}
         depthTest={false}
-        toneMapped={false}
+        depthWrite={false}
       />
+      {/* Visible dot */}
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[visR, 12, 12]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={selected ? 1 : hovered ? 0.95 : 0.7}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </mesh>
       {(hovered || selected) && (
         <Html
           center
@@ -1060,7 +1075,7 @@ export default function RigControllerRoom({
   const [selectedBoneName, setSelectedBoneName] = useState<string | null>(null);
   const [hoveredBoneName, setHoveredBoneName] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(true);
-  const [transformMode, setTransformMode] = useState<"rotate" | "translate">("rotate");
+  const [transformMode, setTransformMode] = useState<"rotate" | "translate" | "scale">("rotate");
   const [controllerMap, setControllerMap] = useState<Record<ControllerKey, string | null>>(
     {} as Record<ControllerKey, string | null>,
   );
@@ -1491,6 +1506,13 @@ export default function RigControllerRoom({
               onClick={() => setTransformMode("translate")}
             >
               <Move className="w-3 h-3 mr-1" /> Move
+            </Button>
+            <Button
+              size="sm" variant={transformMode === "scale" ? "default" : "outline"}
+              className="h-7 flex-1"
+              onClick={() => setTransformMode("scale")}
+            >
+              <Scaling className="w-3 h-3 mr-1" /> Scale
             </Button>
           </div>
         </div>
