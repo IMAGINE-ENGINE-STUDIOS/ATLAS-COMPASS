@@ -1217,8 +1217,17 @@ export default function LevelEditorPage() {
 
   const editorSidebarPanels = (
           <div className="p-3">
+            <ComponentsPanel
+              objects={scene.objects}
+              selectedIds={selectedIds}
+              onSelect={(id, multi) => selectObject(id, multi)}
+              rigState={rigRoomMode ? rigState : null}
+              selectedBoneName={rigState?.selectedBoneName ?? null}
+              onSelectBone={(name) => setRigBoneRequest(name)}
+            />
+
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Layers</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4">Layers</p>
               <button
                 onClick={addLayer}
                 title="Add layer"
@@ -1353,15 +1362,6 @@ export default function LevelEditorPage() {
                 );
               });
             })()}
-
-            <ComponentsPanel
-              objects={scene.objects}
-              selectedIds={selectedIds}
-              onSelect={(id, multi) => selectObject(id, multi)}
-              rigState={rigRoomMode ? rigState : null}
-              selectedBoneName={rigState?.selectedBoneName ?? null}
-              onSelectBone={(name) => setRigBoneRequest(name)}
-            />
 
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
             {scene.lights.map((l) => (
