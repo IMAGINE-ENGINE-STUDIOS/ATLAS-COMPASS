@@ -330,6 +330,13 @@ export interface CharacterObject extends BaseObject {
   source?: string;
   /** Name of the active animation clip (must match one in the glTF). */
   currentAnimation?: string;
+  /**
+   * Optional URL of an external .glb whose first clip is retargeted onto
+   * this character's existing rig and played instead of (or alongside) the
+   * built-in clips. Used by the Mixamo/RPM gallery so picking an animation
+   * never swaps the actual character model.
+   */
+  externalClipUrl?: string;
   /** Playback speed multiplier (1 = normal). */
   animationSpeed: number;
   /** True to freeze on the current frame. */

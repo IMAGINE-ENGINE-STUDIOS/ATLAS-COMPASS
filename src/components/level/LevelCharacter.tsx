@@ -5,6 +5,7 @@ import { SkeletonUtils } from "three-stdlib";
 import type { CharacterObject } from "@/lib/levelTypes";
 import { modelForwardYawOffset } from "@/lib/modelOrientation";
 import { applyPose } from "@/lib/rigSaves";
+import { retargetClipProper } from "@/lib/animationRetarget";
 
 /**
  * Rigged character renderer.
@@ -99,9 +100,90 @@ export default function LevelCharacter({
     >
       <group rotation={[0, modelForwardYawOffset(obj.url), 0]}>
         <primitive object={cloned} />
+        {obj.externalClipUrl && (
+          <ExternalClipPlayer
+            key={obj.externalClipUrl}
+            url={obj.externalClipUrl}
+            target={cloned}
+            mixer={mixer}
+            actions={actions as any}
+            speed={obj.animationSpeed ?? 1}
+            paused={!!obj.paused}
+            crossfade={obj.crossfade ?? 0.25}
+          />
+        )}
       </group>
     </group>
   );
+}
+
+/**
+ * Loads an external .glb (e.g. Ready Player Me / Mixamo clip pack), retargets
+ * its first clip onto the parent character's existing skeleton, and plays it
+ * through that character's mixer. Never mutates the host model — this is the
+ * path used by the Animation Gallery so picking a clip can't crash by
+ * swapping the host glTF.
+ */
+function ExternalClipPlayer({
+  url,
+  target,
+  mixer,
+  actions,
+  speed,
+  paused,
+  crossfade,
+}: {
+  url: string;
+  target: THREE.Object3D;
+  mixer: THREE.AnimationMixer;
+  actions: Record<string, THREE.AnimationAction | null>;
+  speed: number;
+  paused: boolean;
+  crossfade: number;
+}) {
+  const src = useGLTF(url);
+  const actionRef = useRef<THREE.AnimationAction | null>(null);
+
+  useEffect(() => {
+    if (!src?.scene || !src.animations?.length || !mixer) return;
+    let cancelled = false;
+    const sourceClone = SkeletonUtils.clone(src.scene);
+    let retargeted: THREE.AnimationClip | null = null;
+    try {
+      retargeted = retargetClipProper(src.animations[0], sourceClone, target);
+    } catch (err) {
+      console.warn("[ExternalClipPlayer] retarget failed", err);
+    }
+    if (cancelled || !retargeted) return;
+
+    // Fade out any builtin actions still running on the host mixer.
+    Object.values(actions || {}).forEach((a) => {
+      if (a && a.isRunning()) a.fadeOut(crossfade);
+    });
+
+    const action = mixer.clipAction(retargeted, target);
+    action.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(crossfade).play();
+    action.timeScale = speed;
+    action.paused = paused;
+    actionRef.current = action;
+
+    return () => {
+      cancelled = true;
+      try { action.fadeOut(crossfade); } catch {}
+      try { mixer.uncacheClip(retargeted!); } catch {}
+      actionRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, target, mixer]);
+
+  useEffect(() => {
+    const a = actionRef.current;
+    if (!a) return;
+    a.timeScale = speed;
+    a.paused = paused;
+  }, [speed, paused]);
+
+  return null;
 }
 
 /**
