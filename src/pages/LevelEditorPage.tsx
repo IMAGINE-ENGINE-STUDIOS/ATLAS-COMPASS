@@ -1843,6 +1843,7 @@ export default function LevelEditorPage() {
             </>
           )}
         </aside>
+        )}
 
         {/* Center: viewport */}
         <main
