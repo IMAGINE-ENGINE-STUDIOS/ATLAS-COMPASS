@@ -1868,6 +1868,8 @@ export default function RigControllerRoom({
                   const root = bridgeRef.current.root;
                   if (root) setPendingPose(capturePose(root));
                 }}
+                addBoneMode={addBoneMode}
+                onTopologyChanged={(next) => setBones(next)}
                 bridgeRef={bridgeRef}
               />
             )}
