@@ -1386,9 +1386,18 @@ export default function RigControllerRoom({
         <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Saved rig</span>
-            <span className="font-mono tabular-nums text-[10px] text-white/40">
-              {String(saves.length).padStart(3, "0")}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono tabular-nums text-[10px] text-white/40">
+                {String(saves.length).padStart(3, "0")}
+              </span>
+              <button
+                onClick={handleSave}
+                disabled={bones.length === 0}
+                className="flex items-center gap-1 h-6 px-2.5 rounded-full bg-white text-black text-[10px] font-medium hover:bg-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Save className="w-3 h-3" /> Save
+              </button>
+            </div>
           </div>
 
           {/* Custom searchable dropdown */}
