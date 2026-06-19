@@ -98,11 +98,11 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
   const stopRecording   = () => active && cameraRecordings.stop(active.id);
 
   return (
-    <div className="absolute top-20 right-4 z-40 w-[calc(100vw-2rem)] max-w-[391px]">
-      <div className="rounded-xl bg-black/85 backdrop-blur-2xl border border-white/[0.1] shadow-2xl overflow-hidden">
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-white/[0.06]">
-          <div className="w-6 h-6 rounded-md bg-red-500/20 flex items-center justify-center">
-            <Radio className="w-2.5.5 h-2.5.5 text-red-400 animate-pulse" />
+    <div className="absolute top-20 right-4 z-40 w-[calc(100vw-2rem)] max-w-[460px]">
+      <div className="rounded-2xl bg-black/85 backdrop-blur-2xl border border-white/[0.1] shadow-2xl overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]">
+          <div className="w-7 h-7 rounded-lg bg-red-500/20 flex items-center justify-center">
+            <Radio className="w-3.5 h-3.5 text-red-400 animate-pulse" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold text-white truncate">{camera.name}</p>
@@ -112,21 +112,21 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
             <button
               onClick={onOpenGallery}
               title={`Recordings gallery (${galleryCount})`}
-              className="relative p-1 rounded-md text-white/70 hover:text-white hover:bg-white/[0.06]"
+              className="relative p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.06]"
             >
-              <Film className="w-2.5.5 h-2.5.5" />
+              <Film className="w-3.5 h-3.5" />
               {galleryCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[11.9px] h-[11.9px] px-1 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
                   {galleryCount}
                 </span>
               )}
             </button>
           )}
-          <button onClick={() => setTick(t => t + 1)} className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/[0.06]">
-            <RefreshCw className="w-2.5.5 h-2.5.5" />
+          <button onClick={() => setTick(t => t + 1)} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.06]">
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onClose} className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/[0.06]">
-            <X className="w-2.5.5 h-2.5.5" />
+          <button onClick={onClose} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.06]">
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="aspect-video bg-black relative">
@@ -139,49 +139,49 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
           ) : (
             <img ref={imgRef} key={tick} src={imageSrc} alt={camera.name} crossOrigin="anonymous" className="w-full h-full object-contain" />
           )}
-          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-full bg-red-500/80 text-white text-[10px] font-bold tracking-wider">LIVE</div>
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-500/80 text-white text-[10px] font-bold tracking-wider">LIVE</div>
           {active && (
-            <div className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-black/70 border text-[10px] font-mono flex items-center gap-1 ${
+            <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/70 border text-[10px] font-mono flex items-center gap-1 ${
               active.state === "recording" ? "border-red-500/50 text-red-300" : "border-amber-400/50 text-amber-300"
             }`}>
-              <span className={`w-1 h-1 rounded-full ${active.state === "recording" ? "bg-red-500 animate-pulse" : "bg-amber-400"}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${active.state === "recording" ? "bg-red-500 animate-pulse" : "bg-amber-400"}`} />
               {active.state === "recording" ? "REC" : "PAUSED"} {formatDuration(active.durationSec)}
             </div>
           )}
         </div>
         {/* Capture controls */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-t border-white/[0.06] bg-black/40">
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-white/[0.06] bg-black/40">
           <button
             onClick={takeScreenshot}
-            className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white/[0.06] text-white/80 border border-white/[0.08] hover:bg-white/[0.12] hover:text-white transition"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-white/[0.06] text-white/80 border border-white/[0.08] hover:bg-white/[0.12] hover:text-white transition"
             title="Save current frame as PNG"
           >
-            <Camera className="w-2.5 h-2.5" /> Screenshot
+            <Camera className="w-3 h-3" /> Screenshot
           </button>
           {!active && (
             <button
               onClick={startRecording}
-              className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 transition"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 transition"
               title="Record live feed (unlimited duration)"
             >
-              <Video className="w-2.5 h-2.5" /> Record
+              <Video className="w-3 h-3" /> Record
             </button>
           )}
           {active?.state === "recording" && (
             <>
               <button
                 onClick={pauseRecording}
-                className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition"
                 title="Pause"
               >
-                <Pause className="w-2.5 h-2.5" /> Pause
+                <Pause className="w-3 h-3" /> Pause
               </button>
               <button
                 onClick={stopRecording}
-                className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-500/30 text-red-200 border border-red-500/50 hover:bg-red-500/40 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-500/30 text-red-200 border border-red-500/50 hover:bg-red-500/40 transition"
                 title="Stop & save"
               >
-                <Square className="w-2.5 h-2.5" /> Stop
+                <Square className="w-3 h-3" /> Stop
               </button>
             </>
           )}
@@ -189,17 +189,17 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
             <>
               <button
                 onClick={resumeRecording}
-                className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition"
                 title="Resume"
               >
-                <Play className="w-2.5 h-2.5" /> Resume
+                <Play className="w-3 h-3" /> Resume
               </button>
               <button
                 onClick={stopRecording}
-                className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-500/30 text-red-200 border border-red-500/50 hover:bg-red-500/40 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-500/30 text-red-200 border border-red-500/50 hover:bg-red-500/40 transition"
                 title="Stop & save"
               >
-                <Square className="w-2.5 h-2.5" /> Stop
+                <Square className="w-3 h-3" /> Stop
               </button>
             </>
           )}
@@ -207,10 +207,10 @@ export default function CameraViewerPopup({ camera, onClose, onOpenGallery }: Pr
           {onOpenGallery && (
             <button
               onClick={onOpenGallery}
-              className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white transition"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/60 hover:text-white transition"
               title="Open recordings gallery"
             >
-              <Film className="w-2.5 h-2.5" /> Gallery
+              <Film className="w-3 h-3" /> Gallery
             </button>
           )}
         </div>

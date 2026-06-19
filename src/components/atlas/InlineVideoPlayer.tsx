@@ -102,22 +102,22 @@ export default function InlineVideoPlayer({
         crossOrigin={crossOrigin || undefined}
         className="w-full h-full object-contain bg-black"
       />
-      <div className="absolute bottom-12 right-2 flex items-center gap-1">
+      <div className="absolute bottom-12 right-2 flex items-center gap-1.5">
         {levels.length > 1 && (
           <div className="relative">
             <button
               onClick={() => setMenuOpen(v => !v)}
               title="Quality"
-              className="px-1.5 py-1 rounded-sm bg-black/70 hover:bg-black/90 border border-white/15 text-[10px] font-bold text-white flex items-center gap-1"
+              className="px-2 py-1 rounded-md bg-black/70 hover:bg-black/90 border border-white/15 text-[10px] font-bold text-white flex items-center gap-1"
             >
-              <Settings className="w-2.5 h-2.5" />
+              <Settings className="w-3 h-3" />
               {currentLevel === -1 ? "AUTO" : (levels.find(l => l.id === currentLevel)?.label ?? "")}
             </button>
             {menuOpen && (
-              <div className="absolute bottom-full right-0 mb-1 min-w-[74.8px] rounded-md bg-black/95 border border-white/15 shadow-xl overflow-hidden">
+              <div className="absolute bottom-full right-0 mb-1 min-w-[88px] rounded-lg bg-black/95 border border-white/15 shadow-xl overflow-hidden">
                 <button
                   onClick={() => setLevel(-1)}
-                  className={`w-full text-left px-1.5.5 py-1 text-[10px] font-mono hover:bg-white/10 ${currentLevel === -1 ? "text-emerald-300" : "text-white/80"}`}
+                  className={`w-full text-left px-2.5 py-1.5 text-[10px] font-mono hover:bg-white/10 ${currentLevel === -1 ? "text-emerald-300" : "text-white/80"}`}
                 >
                   AUTO
                 </button>
@@ -125,7 +125,7 @@ export default function InlineVideoPlayer({
                   <button
                     key={l.id}
                     onClick={() => setLevel(l.id)}
-                    className={`w-full text-left px-1.5.5 py-1 text-[10px] font-mono hover:bg-white/10 ${currentLevel === l.id ? "text-emerald-300" : "text-white/80"}`}
+                    className={`w-full text-left px-2.5 py-1.5 text-[10px] font-mono hover:bg-white/10 ${currentLevel === l.id ? "text-emerald-300" : "text-white/80"}`}
                   >
                     {l.label}
                   </button>
@@ -137,9 +137,9 @@ export default function InlineVideoPlayer({
         <button
           onClick={enterFullscreen}
           title="Fullscreen"
-          className="p-1 rounded-sm bg-black/70 hover:bg-black/90 border border-white/15 text-white"
+          className="p-1.5 rounded-md bg-black/70 hover:bg-black/90 border border-white/15 text-white"
         >
-          <Maximize2 className="w-2.5.5 h-2.5.5" />
+          <Maximize2 className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>

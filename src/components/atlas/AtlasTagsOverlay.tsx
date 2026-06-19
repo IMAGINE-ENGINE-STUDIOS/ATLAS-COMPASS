@@ -153,7 +153,7 @@ export default function AtlasTagsOverlay({
             style={{ transform: "translate3d(-9999px,-9999px,0)" }}
           >
             <div
-              className="backdrop-blur-xl rounded-full px-1.5 py-1 flex items-center gap-1"
+              className="backdrop-blur-xl rounded-full px-2 py-1 flex items-center gap-1.5"
               style={{
                 background: `${cat.hex}1f`,
                 border: `1px solid ${hasGold ? "#FFD700" : cat.hex + "55"}`,
@@ -176,7 +176,7 @@ export default function AtlasTagsOverlay({
                     type="button"
                     title={m.name}
                     onClick={(e) => { e.stopPropagation(); onSelect?.(m); }}
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-transform hover:scale-110 relative overflow-hidden"
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold transition-transform hover:scale-110 relative overflow-hidden"
                     style={{
                       background: logo ? "#fff" : (sel ? "linear-gradient(135deg,#FFE56A,#B8860B)" : `${accent}33`),
                       border: `1.5px solid ${accent}`,
@@ -188,13 +188,13 @@ export default function AtlasTagsOverlay({
                       <img
                         src={logo}
                         alt=""
-                        className="w-3.5 h-3.5 object-contain"
+                        className="w-4 h-4 object-contain"
                         loading="lazy"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                       />
                     ) : initials}
                     {sel && (
-                      <Star className="w-1.5 h-1.5 absolute -top-0.5 -right-0.5 fill-yellow-300 text-yellow-300" />
+                      <Star className="w-2 h-2 absolute -top-0.5 -right-0.5 fill-yellow-300 text-yellow-300" />
                     )}
                   </button>
                 );

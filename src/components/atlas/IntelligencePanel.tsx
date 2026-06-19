@@ -159,60 +159,60 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
   if (!open) return null;
 
   return (
-    <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-[357px]">
-      <div className="rounded-xl bg-black/75 backdrop-blur-2xl border border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-7rem)]">
+    <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-[420px]">
+      <div className="rounded-2xl bg-black/75 backdrop-blur-2xl border border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-7rem)]">
         {/* Header */}
-        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-white/[0.06]">
-          <div className="w-7 h-7 rounded-md bg-red-500/15 border border-red-500/30 flex items-center justify-center">
-            <Cctv className="w-3.5 h-3.5 text-red-400" />
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+          <div className="w-8 h-8 rounded-lg bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+            <Cctv className="w-4 h-4 text-red-400" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white leading-none">Intelligence</p>
             <p className="text-[10px] text-white/60 mt-0.5">Live traffic cameras · {total.toLocaleString()} indexed</p>
           </div>
           <button onClick={() => fetchCameras(true)} title="Reload"
-            className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/[0.06] transition">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.06] transition">
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
-          <button onClick={onClose} className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/[0.06] transition">
-            <X className="w-3.5 h-3.5" />
+          <button onClick={onClose} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.06] transition">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Toolbar */}
-        <div className="px-2.5 py-1.5 border-b border-white/[0.06] flex items-center gap-1.5">
+        <div className="px-3 py-2 border-b border-white/[0.06] flex items-center gap-2">
           <div className="flex-1 relative">
-            <Search className="w-2.5.5 h-2.5.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40" />
             <input
               value={filter}
               onChange={e => setFilter(e.target.value)}
               placeholder="Search cameras…"
-              className="w-full bg-black/40 border border-white/[0.06] rounded-md pl-6 pr-1.5 py-1 text-xs text-white placeholder-white/40 focus:outline-none focus:border-red-500/40"
+              className="w-full bg-black/40 border border-white/[0.06] rounded-lg pl-7 pr-2 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-red-500/40"
             />
           </div>
           <button
             onClick={() => triggerSync(true)}
             disabled={syncing}
             title="Sync from upstream DOT/ArcGIS sources"
-            className="flex items-center gap-1 px-1.5.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 transition disabled:opacity-60"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 transition disabled:opacity-60"
           >
-            {syncing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Globe className="w-2.5 h-2.5" />}
+            {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Globe className="w-3 h-3" />}
             {syncing ? "Syncing" : "Sync"}
           </button>
         </div>
 
         {/* Source chips */}
         {sources.length > 0 && (
-          <div className="flex gap-1 overflow-x-auto no-scrollbar px-2.5 py-1.5 border-b border-white/[0.06]">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar px-3 py-2 border-b border-white/[0.06]">
             <button onClick={() => setSourceFilter("")}
-              className={`shrink-0 px-1.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition ${
+              className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition ${
                 sourceFilter === ""
                   ? "bg-red-500/20 text-red-300 border border-red-500/30"
                   : "bg-black/40 text-white/60 border border-white/[0.06] hover:text-white"
               }`}>All · {cameras.length}</button>
             {sources.map(([src, n]) => (
               <button key={src} onClick={() => setSourceFilter(src === sourceFilter ? "" : src)}
-                className={`shrink-0 px-1.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition ${
+                className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition ${
                   sourceFilter === src
                     ? "bg-red-500/20 text-red-300 border border-red-500/30"
                     : "bg-black/40 text-white/60 border border-white/[0.06] hover:text-white"
@@ -222,27 +222,27 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
         )}
 
         {/* List */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-1">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
           {error && (
-            <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/30 rounded-md p-1.5">{error}</div>
+            <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2">{error}</div>
           )}
           {!error && cameras.length === 0 && !loading && (
-            <div className="text-center py-5 text-xs text-white/60">
+            <div className="text-center py-6 text-xs text-white/60">
               No cameras yet. Tap <span className="text-red-300 font-bold">Sync</span> to ingest the live DOT / ArcGIS feeds.
             </div>
           )}
           {loading && cameras.length === 0 && (
-            <div className="flex items-center justify-center gap-1.5 py-5 text-xs text-white/70">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" /> Loading cameras…
+            <div className="flex items-center justify-center gap-2 py-6 text-xs text-white/70">
+              <Loader2 className="w-4 h-4 animate-spin text-red-400" /> Loading cameras…
             </div>
           )}
           {filtered.map(cam => (
             <button
               key={cam.id}
               onClick={() => onSelectCamera(cam)}
-              className="w-full text-left flex items-center gap-1.5 p-1.5 rounded-lg bg-black/40 hover:bg-white/[0.06] border border-white/[0.04] hover:border-red-500/20 transition group"
+              className="w-full text-left flex items-center gap-2 p-2 rounded-xl bg-black/40 hover:bg-white/[0.06] border border-white/[0.04] hover:border-red-500/20 transition group"
             >
-              <div className="w-12 h-9 rounded-md overflow-hidden bg-black/70 border border-white/[0.06] shrink-0 relative">
+              <div className="w-14 h-10 rounded-lg overflow-hidden bg-black/70 border border-white/[0.06] shrink-0 relative">
                 <img
                   src={`${PROXY_URL}?url=${encodeURIComponent(cam.imageUrl)}`}
                   alt={cam.name}
@@ -250,15 +250,15 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
                   className="w-full h-full object-cover"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                 />
-                <span className="absolute top-0.5 left-0.5 w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+                <span className="absolute top-0.5 left-0.5 w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-semibold text-white truncate">{cam.name}</p>
-                <div className="flex items-center gap-1 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-[9px] uppercase font-mono text-red-300/80">{cam.source}</span>
                   {cam.streamUrl && (
                     <span className="flex items-center gap-0.5 text-[9px] text-emerald-400 font-mono">
-                      <Radio className="w-1.5.5 h-1.5.5" /> LIVE
+                      <Radio className="w-2.5 h-2.5" /> LIVE
                     </span>
                   )}
                   <span className="text-[9px] text-white/40 font-mono truncate">
@@ -266,11 +266,11 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
                   </span>
                 </div>
               </div>
-              <MapPin className="w-2.5.5 h-2.5.5 text-white/20 group-hover:text-red-400 transition" />
+              <MapPin className="w-3.5 h-3.5 text-white/20 group-hover:text-red-400 transition" />
             </button>
           ))}
           {!loading && filtered.length === 0 && cameras.length > 0 && (
-            <div className="text-center py-3 text-[11px] text-white/50">No cameras match the filter.</div>
+            <div className="text-center py-4 text-[11px] text-white/50">No cameras match the filter.</div>
           )}
         </div>
       </div>

@@ -53,12 +53,12 @@ function StepInput({ label, value, step, min, max, decimals, onChange }: {
   };
   return (
     <div className="flex items-center gap-1">
-      <span className="text-[9px] text-white/75 uppercase tracking-wider w-7 shrink-0">{label}</span>
+      <span className="text-[9px] text-white/75 uppercase tracking-wider w-8 shrink-0">{label}</span>
       <button
         onClick={() => onChange(clamp(value - step))}
-        className="w-5 h-5 rounded-sm bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.12] transition-colors"
+        className="w-6 h-6 rounded-md bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.12] transition-colors"
       >
-        <Minus className="w-2.5 h-2.5 text-white/80" />
+        <Minus className="w-3 h-3 text-white/80" />
       </button>
       <input
         type="number"
@@ -67,13 +67,13 @@ function StepInput({ label, value, step, min, max, decimals, onChange }: {
           const v = parseFloat(e.target.value);
           if (!isNaN(v)) onChange(clamp(v));
         }}
-        className="w-16 bg-black/70 border border-white/[0.08] rounded-sm px-1.5 py-1 text-xs font-mono text-white text-center focus:outline-none focus:border-cyan-500/40"
+        className="w-20 bg-black/70 border border-white/[0.08] rounded-md px-2 py-1 text-xs font-mono text-white text-center focus:outline-none focus:border-cyan-500/40"
       />
       <button
         onClick={() => onChange(clamp(value + step))}
-        className="w-5 h-5 rounded-sm bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.12] transition-colors"
+        className="w-6 h-6 rounded-md bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.12] transition-colors"
       >
-        <Plus className="w-2.5 h-2.5 text-white/80" />
+        <Plus className="w-3 h-3 text-white/80" />
       </button>
     </div>
   );
@@ -83,8 +83,8 @@ function RotationSlider({ label, value, min, max, onChange }: {
   label: string; value: number; min: number; max: number; onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[9px] text-white/75 uppercase tracking-wider w-10 shrink-0">{label}</span>
+    <div className="flex items-center gap-2">
+      <span className="text-[9px] text-white/75 uppercase tracking-wider w-12 shrink-0">{label}</span>
       <input
         type="range"
         min={min}
@@ -92,12 +92,12 @@ function RotationSlider({ label, value, min, max, onChange }: {
         step={1}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="flex-1 h-1 appearance-none rounded-full bg-black/80 cursor-pointer
-          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5.5 [&::-webkit-slider-thumb]:h-2.5.5
+        className="flex-1 h-1.5 appearance-none rounded-full bg-black/80 cursor-pointer
+          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
           [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:border-2
           [&::-webkit-slider-thumb]:border-cyan-600 [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(0,200,255,0.4)]"
       />
-      <span className="text-[10px] font-mono text-white/85 w-9 text-right">{value}°</span>
+      <span className="text-[10px] font-mono text-white/85 w-10 text-right">{value}°</span>
     </div>
   );
 }
@@ -132,21 +132,21 @@ export default function ModelTransformWidget({
   const sliderToScale = (v: number) => Math.pow(10, (v - 100) / 50);
 
   const tabs = [
-    { key: "position" as const, label: "Position", icon: <Move className="w-2.5.5 h-2.5.5" /> },
-    { key: "rotation" as const, label: "Rotation", icon: <RotateCcw className="w-2.5.5 h-2.5.5" /> },
-    { key: "scale" as const, label: "Scale", icon: <Scale className="w-2.5.5 h-2.5.5" /> },
+    { key: "position" as const, label: "Position", icon: <Move className="w-3.5 h-3.5" /> },
+    { key: "rotation" as const, label: "Rotation", icon: <RotateCcw className="w-3.5 h-3.5" /> },
+    { key: "scale" as const, label: "Scale", icon: <Scale className="w-3.5 h-3.5" /> },
   ];
 
   return (
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 w-[289px] max-w-[calc(100vw-2rem)]">
-      <div className="bg-black/80 backdrop-blur-2xl border border-white/[0.1] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.06)] overflow-hidden">
+    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 w-[340px] max-w-[calc(100vw-2rem)]">
+      <div className="bg-black/80 backdrop-blur-2xl border border-white/[0.1] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.06)] overflow-hidden">
         {/* Gradient top accent */}
         <div className="h-[2px] bg-gradient-to-r from-cyan-500/60 via-purple-500/40 to-cyan-500/60" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-1.5.5 border-b border-white/[0.06]">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="w-5 h-5 rounded-md bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
               <span className="text-xs">🏗️</span>
             </div>
             <div className="min-w-0">
@@ -156,19 +156,19 @@ export default function ModelTransformWidget({
           </div>
           <button
             onClick={onClose}
-            className="w-6 h-6 rounded-md bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-red-500/20 hover:border-red-500/30 transition-all"
+            className="w-7 h-7 rounded-lg bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-red-500/20 hover:border-red-500/30 transition-all"
           >
-            <X className="w-2.5.5 h-2.5.5 text-white/80" />
+            <X className="w-3.5 h-3.5 text-white/80" />
           </button>
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 px-2.5 py-1.5 border-b border-white/[0.04]">
+        <div className="flex gap-1 px-3 py-2 border-b border-white/[0.04]">
           {tabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
                 tab === t.key
                   ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
                   : "text-white/75 hover:text-white/85 border border-transparent hover:bg-black/70"
@@ -181,7 +181,7 @@ export default function ModelTransformWidget({
         </div>
 
         {/* Content */}
-        <div className="px-3 py-2.5 space-y-1.5.5">
+        <div className="px-4 py-3 space-y-2.5">
           {tab === "position" && (
             <>
               <StepInput label="Lat" value={data.lat} step={0.0001} decimals={6} onChange={v => update({ lat: v })} />
@@ -192,18 +192,18 @@ export default function ModelTransformWidget({
                   setData(snapped);
                   onUpdate(snapped);
                 })}
-                className="w-full mt-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[11px] font-medium hover:bg-emerald-500/25 transition-all"
+                className="w-full mt-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[11px] font-medium hover:bg-emerald-500/25 transition-all"
               >
-                <ArrowDown className="w-2.5.5 h-2.5.5" />
+                <ArrowDown className="w-3.5 h-3.5" />
                 Snap to Ground
               </button>
               {onCropTile && (
-                <div className="mt-1.5 pt-1.5 border-t border-white/[0.06] space-y-1">
+                <div className="mt-2 pt-2 border-t border-white/[0.06] space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] text-white/75 uppercase tracking-wider">Crop Tile</span>
                     <span className="text-[9px] text-white/55">radius m</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min={1}
@@ -213,66 +213,66 @@ export default function ModelTransformWidget({
                         const v = parseFloat(e.target.value);
                         if (!isNaN(v)) setCropInput(Math.max(1, v));
                       }}
-                      className="w-16 bg-black/70 border border-white/[0.08] rounded-sm px-1.5 py-1 text-xs font-mono text-white text-center focus:outline-none focus:border-fuchsia-500/40"
+                      className="w-20 bg-black/70 border border-white/[0.08] rounded-md px-2 py-1 text-xs font-mono text-white text-center focus:outline-none focus:border-fuchsia-500/40"
                     />
                     <button
                       onClick={() => onCropTile(cropInput)}
-                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-fuchsia-500/15 border border-fuchsia-500/25 text-fuchsia-300 text-[11px] font-medium hover:bg-fuchsia-500/25 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-fuchsia-500/15 border border-fuchsia-500/25 text-fuchsia-300 text-[11px] font-medium hover:bg-fuchsia-500/25 transition-all"
                       title="Clip a circular hole in surrounding 3D tiles so the model sits in place of buildings/terrain"
                     >
-                      <Scissors className="w-2.5.5 h-2.5.5" />
+                      <Scissors className="w-3.5 h-3.5" />
                       {cropRadius > 0 ? "Update Crop" : "Crop Tile"}
                     </button>
                     {cropRadius > 0 && onUncropTile && (
                       <button
                         onClick={onUncropTile}
-                        className="px-1.5 py-1.5 rounded-lg bg-black/70 border border-white/[0.08] text-white/70 text-[10px] hover:bg-red-500/15 hover:text-red-300 hover:border-red-500/30 transition-all"
+                        className="px-2 py-2 rounded-xl bg-black/70 border border-white/[0.08] text-white/70 text-[10px] hover:bg-red-500/15 hover:text-red-300 hover:border-red-500/30 transition-all"
                         title="Remove the tile crop"
                       >
-                        <X className="w-2.5.5 h-2.5.5" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
                   {cropRadius > 0 && cropBase && onCropBaseChange && (
-                    <div className="mt-1.5 pt-1.5 border-t border-white/[0.06] space-y-1.5">
+                    <div className="mt-2 pt-2 border-t border-white/[0.06] space-y-2">
                       {/* Shape */}
-                      <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-[9px] text-white/75 uppercase tracking-wider">Base shape</span>
-                        <div className="flex rounded-md bg-black/70 border border-white/[0.08] overflow-hidden">
+                        <div className="flex rounded-lg bg-black/70 border border-white/[0.08] overflow-hidden">
                           <button
                             onClick={() => onCropBaseChange({ shape: "circle" })}
-                            className={`flex items-center gap-1 px-1.5 py-1 text-[10px] ${cropBase.shape === "circle" ? "bg-fuchsia-500/20 text-fuchsia-300" : "text-white/70 hover:text-white"}`}
-                          ><CircleIcon className="w-2.5 h-2.5" />Circle</button>
+                            className={`flex items-center gap-1 px-2 py-1 text-[10px] ${cropBase.shape === "circle" ? "bg-fuchsia-500/20 text-fuchsia-300" : "text-white/70 hover:text-white"}`}
+                          ><CircleIcon className="w-3 h-3" />Circle</button>
                           <button
                             onClick={() => onCropBaseChange({ shape: "square" })}
-                            className={`flex items-center gap-1 px-1.5 py-1 text-[10px] border-l border-white/[0.08] ${cropBase.shape === "square" ? "bg-fuchsia-500/20 text-fuchsia-300" : "text-white/70 hover:text-white"}`}
-                          ><SquareIcon className="w-2.5 h-2.5" />Square</button>
+                            className={`flex items-center gap-1 px-2 py-1 text-[10px] border-l border-white/[0.08] ${cropBase.shape === "square" ? "bg-fuchsia-500/20 text-fuchsia-300" : "text-white/70 hover:text-white"}`}
+                          ><SquareIcon className="w-3 h-3" />Square</button>
                         </div>
                       </div>
                       {/* Wireframe toggle */}
                       <button
                         onClick={() => onCropBaseChange({ wireframe: !cropBase.wireframe })}
-                        className={`w-full flex items-center justify-between px-2.5 py-1 rounded-md border text-[10px] transition-all ${cropBase.wireframe ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-300" : "bg-black/70 border-white/[0.08] text-white/75 hover:text-white"}`}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-[10px] transition-all ${cropBase.wireframe ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-300" : "bg-black/70 border-white/[0.08] text-white/75 hover:text-white"}`}
                       >
-                        <span className="flex items-center gap-1"><Grid3x3 className="w-2.5 h-2.5" />Wireframe + Ruler</span>
-                        <span className={`w-6 h-2.5.5 rounded-full relative transition-colors ${cropBase.wireframe ? "bg-cyan-500/70" : "bg-white/15"}`}>
-                          <span className={`absolute top-0.5 w-1.5.5 h-1.5.5 rounded-full bg-white transition-all ${cropBase.wireframe ? "left-3.5" : "left-0.5"}`} />
+                        <span className="flex items-center gap-1.5"><Grid3x3 className="w-3 h-3" />Wireframe + Ruler</span>
+                        <span className={`w-7 h-3.5 rounded-full relative transition-colors ${cropBase.wireframe ? "bg-cyan-500/70" : "bg-white/15"}`}>
+                          <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${cropBase.wireframe ? "left-3.5" : "left-0.5"}`} />
                         </span>
                       </button>
                       {/* Terrain brush — pick an operation, drag on the globe to apply */}
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <span className="text-[9px] text-white/75 uppercase tracking-wider">Terrain</span>
                         <div className="grid grid-cols-4 gap-1">
                           {([
-                            { k: "raise",   label: "Raise",   icon: <ArrowUp className="w-2.5 h-2.5" /> },
-                            { k: "lower",   label: "Lower",   icon: <ArrowDown className="w-2.5 h-2.5" /> },
-                            { k: "smooth",  label: "Smooth",  icon: <Waves className="w-2.5 h-2.5" /> },
-                            { k: "flatten", label: "Flatten", icon: <Layers className="w-2.5 h-2.5" /> },
+                            { k: "raise",   label: "Raise",   icon: <ArrowUp className="w-3 h-3" /> },
+                            { k: "lower",   label: "Lower",   icon: <ArrowDown className="w-3 h-3" /> },
+                            { k: "smooth",  label: "Smooth",  icon: <Waves className="w-3 h-3" /> },
+                            { k: "flatten", label: "Flatten", icon: <Layers className="w-3 h-3" /> },
                           ] as const).map(t => (
                             <button
                               key={t.k}
                               onClick={() => onCropBaseChange({ tool: t.k })}
-                              className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-md border text-[9px] font-medium transition-all ${
+                              className={`flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg border text-[9px] font-medium transition-all ${
                                 cropBase.tool === t.k
                                   ? "bg-amber-500/20 border-amber-400/40 text-amber-200"
                                   : "bg-black/70 border-white/[0.08] text-white/70 hover:text-white"
@@ -284,45 +284,45 @@ export default function ModelTransformWidget({
                           ))}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] text-white/70 w-12">Radius</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-white/70 w-14">Radius</span>
                         <input type="range" min={1} max={20} step={1} value={cropBase.brushRadius}
                           onChange={e => onCropBaseChange({ brushRadius: Number(e.target.value) })}
-                          className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
-                        <span className="text-[10px] font-mono text-white/80 w-7 text-right">{cropBase.brushRadius}m</span>
+                          className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
+                        <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushRadius}m</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] text-white/70 w-12">Strength</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-white/70 w-14">Strength</span>
                         <input type="range" min={0.1} max={2} step={0.1} value={cropBase.brushStrength}
                           onChange={e => onCropBaseChange({ brushStrength: Number(e.target.value) })}
-                          className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
-                        <span className="text-[10px] font-mono text-white/80 w-7 text-right">{cropBase.brushStrength.toFixed(1)}</span>
+                          className="flex-1 h-1 appearance-none rounded-full bg-black/80 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400" />
+                        <span className="text-[10px] font-mono text-white/80 w-8 text-right">{cropBase.brushStrength.toFixed(1)}</span>
                       </div>
                       {cropBase.tool === "flatten" && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-white/70 w-12">Target</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] text-white/70 w-14">Target</span>
                           <input type="number" step={0.5} value={cropBase.flattenHeight ?? 0}
                             onChange={e => {
                               const v = parseFloat(e.target.value);
                               if (!isNaN(v)) onCropBaseChange({ flattenHeight: v });
                             }}
-                            className="flex-1 bg-black/70 border border-white/[0.08] rounded-sm px-1.5 py-1 text-[10px] font-mono text-white text-center focus:outline-none focus:border-amber-500/40" />
-                          <span className="text-[10px] font-mono text-white/60 w-7 text-right">m</span>
+                            className="flex-1 bg-black/70 border border-white/[0.08] rounded-md px-2 py-1 text-[10px] font-mono text-white text-center focus:outline-none focus:border-amber-500/40" />
+                          <span className="text-[10px] font-mono text-white/60 w-8 text-right">m</span>
                         </div>
                       )}
                       {/* Edit toggle + reset */}
-                      <div className="flex gap-1">
+                      <div className="flex gap-1.5">
                         <button
                           onClick={onToggleTerrainEditing}
-                          className={`flex-1 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md border text-[10px] font-medium transition-all ${terrainEditing ? "bg-amber-500/25 border-amber-400/40 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.35)]" : "bg-black/70 border-white/[0.08] text-white/75 hover:text-white"}`}
+                          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-medium transition-all ${terrainEditing ? "bg-amber-500/25 border-amber-400/40 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.35)]" : "bg-black/70 border-white/[0.08] text-white/75 hover:text-white"}`}
                         >
-                          <Pencil className="w-2.5 h-2.5" />
+                          <Pencil className="w-3 h-3" />
                           {terrainEditing ? "Editing — click globe (Shift = invert)" : "Edit terrain"}
                         </button>
                         {onResetTerrain && (
                           <button onClick={onResetTerrain} title="Flatten the height field"
-                            className="px-1.5 py-1 rounded-md bg-black/70 border border-white/[0.08] text-white/75 hover:bg-white/10 transition-all">
-                            <RotateCw className="w-2.5 h-2.5" />
+                            className="px-2 py-1.5 rounded-lg bg-black/70 border border-white/[0.08] text-white/75 hover:bg-white/10 transition-all">
+                            <RotateCw className="w-3 h-3" />
                           </button>
                         )}
                       </div>
@@ -340,9 +340,9 @@ export default function ModelTransformWidget({
               <RotationSlider label="Roll" value={data.roll} min={-180} max={180} onChange={v => update({ roll: v })} />
               <button
                 onClick={() => update({ heading: 0, pitch: 0, roll: 0 })}
-                className="w-full mt-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-black/70 border border-white/[0.08] text-white/75 text-[11px] font-medium hover:bg-black/80 transition-all"
+                className="w-full mt-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-black/70 border border-white/[0.08] text-white/75 text-[11px] font-medium hover:bg-black/80 transition-all"
               >
-                <RotateCcw className="w-2.5.5 h-2.5.5" />
+                <RotateCcw className="w-3.5 h-3.5" />
                 Reset Rotation
               </button>
             </>
@@ -350,8 +350,8 @@ export default function ModelTransformWidget({
 
           {tab === "scale" && (
             <>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-white/75 uppercase tracking-wider w-10 shrink-0">Scale</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-white/75 uppercase tracking-wider w-12 shrink-0">Scale</span>
                 <input
                   type="range"
                   min={0}
@@ -359,20 +359,20 @@ export default function ModelTransformWidget({
                   step={1}
                   value={scaleToSlider(data.scale)}
                   onChange={e => update({ scale: Math.round(sliderToScale(Number(e.target.value)) * 100) / 100 })}
-                  className="flex-1 h-1 appearance-none rounded-full bg-black/80 cursor-pointer
-                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5.5 [&::-webkit-slider-thumb]:h-2.5.5
+                  className="flex-1 h-1.5 appearance-none rounded-full bg-black/80 cursor-pointer
+                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:border-2
                     [&::-webkit-slider-thumb]:border-cyan-600 [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(0,200,255,0.4)]"
                 />
-                <span className="text-[10px] font-mono text-white/85 w-10 text-right">{data.scale}x</span>
+                <span className="text-[10px] font-mono text-white/85 w-12 text-right">{data.scale}x</span>
               </div>
               {/* Quick presets */}
-              <div className="flex gap-1 mt-1">
+              <div className="flex gap-1.5 mt-1">
                 {[0.1, 0.5, 1, 5, 10, 50].map(s => (
                   <button
                     key={s}
                     onClick={() => update({ scale: s })}
-                    className={`flex-1 px-1 py-1 rounded-md text-[10px] font-mono transition-all ${
+                    className={`flex-1 px-1 py-1.5 rounded-lg text-[10px] font-mono transition-all ${
                       data.scale === s
                         ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
                         : "bg-black/70 text-white/75 border border-white/[0.06] hover:bg-black/80"
@@ -387,18 +387,18 @@ export default function ModelTransformWidget({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-1.5 px-3 py-2.5 border-t border-white/[0.06]">
+        <div className="flex gap-2 px-4 py-3 border-t border-white/[0.06]">
           <button
             onClick={onClose}
-            className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-black/70 border border-white/[0.08] text-white/80 text-xs font-medium hover:bg-black/80 transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-black/70 border border-white/[0.08] text-white/80 text-xs font-medium hover:bg-black/80 transition-all"
           >
             Cancel
           </button>
           <button
             onClick={() => onApply(data)}
-            className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-medium hover:bg-cyan-500/30 transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-medium hover:bg-cyan-500/30 transition-all"
           >
-            <Check className="w-2.5.5 h-2.5.5" />
+            <Check className="w-3.5 h-3.5" />
             Apply
           </button>
         </div>
