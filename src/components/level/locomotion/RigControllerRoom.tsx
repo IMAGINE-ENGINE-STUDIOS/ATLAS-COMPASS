@@ -1201,7 +1201,12 @@ export default function RigControllerRoom({
   }, []);
 
   // ----- save system state -----
-  const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
+  const bridgeRef = useRef<RigBridge>({
+    root: null,
+    snapshot: null,
+    addBoneAt: null,
+    deleteBone: null,
+  });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
   const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
   const [savesLoading, setSavesLoading] = useState(false);
