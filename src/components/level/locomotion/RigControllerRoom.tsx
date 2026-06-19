@@ -1936,6 +1936,7 @@ export default function RigControllerRoom({
           bones={bones}
           controllerMap={controllerMap}
           selectedBoneName={selectedBoneName}
+          addBoneMode={addBoneMode}
           onSelectBone={(boneName) => setSelectedBoneName(boneName)}
           hoveredBone={hoveredBoneName}
           onHoverBone={setHoveredBoneName}
