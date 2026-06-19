@@ -34,6 +34,12 @@ import {
 interface RigBridge {
   root: THREE.Object3D | null;
   snapshot: (() => string | null) | null;
+  /**
+   * Topology editing — implemented inside <Rig/> (where the live cloned
+   * skeleton lives) and called by the surrounding sidebar UI.
+   */
+  addBoneAt: ((parentName: string, worldPoint: THREE.Vector3) => string | null) | null;
+  deleteBone: ((name: string) => boolean) | null;
 }
 
 /**
