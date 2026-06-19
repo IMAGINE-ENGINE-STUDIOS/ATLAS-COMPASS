@@ -1800,6 +1800,8 @@ export default function LevelEditorPage() {
               </button>
             ))}
           </div>
+            </>
+          )}
         </aside>
 
         {/* Center: viewport */}
