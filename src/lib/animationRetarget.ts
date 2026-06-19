@@ -137,3 +137,138 @@ export function retargetClip(
   const out = new THREE.AnimationClip(clip.name, clip.duration, newTracks, clip.blendMode);
   return out;
 }
+
+// ---------- bind-pose aware retargeting -------------------------------------
+
+/**
+ * Snapshot every bone's local bind transform (the local TRS that is set on
+ * the rig BEFORE any animation runs). We treat the current local transform
+ * as bind — callers must pass a freshly cloned, unanimated skeleton.
+ */
+type BindPose = Map<
+  string,
+  {
+    name: string;
+    quat: THREE.Quaternion;
+    pos: THREE.Vector3;
+    bone: THREE.Object3D;
+  }
+>;
+
+function snapshotBindPose(root: THREE.Object3D): BindPose {
+  const map: BindPose = new Map();
+  root.traverse((n: any) => {
+    if (!n.isBone) return;
+    map.set(normalise(n.name), {
+      name: n.name,
+      quat: n.quaternion.clone(),
+      pos: n.position.clone(),
+      bone: n,
+    });
+  });
+  return map;
+}
+
+/** World Y of a bone — used to scale Hips position tracks across rigs. */
+function worldY(bone: THREE.Object3D): number {
+  const v = new THREE.Vector3();
+  bone.updateWorldMatrix(true, false);
+  v.setFromMatrixPosition(bone.matrixWorld);
+  return v.y;
+}
+
+/**
+ * Bind-pose aware retargeting.
+ *
+ * For each quaternion track we recompute the local rotation so the target
+ * bone applies the SAME delta from its bind pose that the source bone
+ * applied from ITS bind pose:
+ *
+ *     Rt(t) = Bt · Bs⁻¹ · Rs(t)
+ *
+ * For the Hips position track we scale by the ratio of target/source hip
+ * height (in world units), and rebase the offset so the source bind hip
+ * position maps to the target bind hip position. This avoids the classic
+ * "Mixamo cm vs RPM m" explosion as well as the "RPM hip height vs Xbot hip
+ * height" foot-clipping.
+ *
+ * `sourceRoot` MUST be the un-animated source skeleton (the clip's own glTF
+ * scene, freshly cloned). `targetRoot` is the rig the clip will play on.
+ */
+export function retargetClipWithBind(
+  clip: THREE.AnimationClip,
+  sourceRoot: THREE.Object3D,
+  targetRoot: THREE.Object3D,
+): THREE.AnimationClip {
+  const targetIndex = indexBones(targetRoot);
+  const sourceBind = snapshotBindPose(sourceRoot);
+  const targetBind = snapshotBindPose(targetRoot);
+
+  // Compute Hips scale once (positions are local-space, so we use parent-relative
+  // bind translation magnitudes as a fallback when world Y is unavailable).
+  let hipScale = 1;
+  let hipDelta = new THREE.Vector3();
+  const srcHips = Array.from(sourceBind.values()).find((b) =>
+    ALIASES.Hips.some((a) => normalise(a) === normalise(b.name)),
+  );
+  const tgtHipsName = findTargetBone("Hips", targetIndex);
+  const tgtHips = tgtHipsName ? targetBind.get(normalise(tgtHipsName)) : undefined;
+  if (srcHips && tgtHips) {
+    const sy = worldY(srcHips.bone);
+    const ty = worldY(tgtHips.bone);
+    if (sy > 1e-3 && ty > 1e-3) hipScale = ty / sy;
+    hipDelta = tgtHips.pos.clone().sub(srcHips.pos.clone().multiplyScalar(hipScale));
+  }
+
+  const newTracks: THREE.KeyframeTrack[] = [];
+  const _q = new THREE.Quaternion();
+  const _bsInv = new THREE.Quaternion();
+
+  for (const track of clip.tracks) {
+    const dot = track.name.indexOf(".");
+    if (dot < 0) { newTracks.push(track); continue; }
+    const sourceBoneName = track.name.slice(0, dot);
+    const property = track.name.slice(dot);
+    const mappedTargetName = findTargetBone(sourceBoneName, targetIndex);
+    if (!mappedTargetName) continue;
+
+    const sBind = sourceBind.get(normalise(sourceBoneName));
+    const tBind = targetBind.get(normalise(mappedTargetName));
+
+    if (property === ".quaternion" && sBind && tBind && track instanceof THREE.QuaternionKeyframeTrack) {
+      const values = (track.values as Float32Array).slice();
+      _bsInv.copy(sBind.quat).invert();
+      for (let i = 0; i < values.length; i += 4) {
+        _q.set(values[i], values[i + 1], values[i + 2], values[i + 3]);
+        // Rt = Bt · Bs⁻¹ · Rs
+        _q.premultiply(_bsInv).premultiply(tBind.quat);
+        values[i] = _q.x; values[i + 1] = _q.y; values[i + 2] = _q.z; values[i + 3] = _q.w;
+      }
+      newTracks.push(new THREE.QuaternionKeyframeTrack(mappedTargetName + property, track.times.slice() as any, values));
+      continue;
+    }
+
+    if (property === ".position" && track instanceof THREE.VectorKeyframeTrack) {
+      // Only meaningful on the Hips (root motion). For every other bone the
+      // bone-local translation is bind data, not animation, so dropping it
+      // is safer than scaling it across rigs.
+      const isHips = ALIASES.Hips.some((a) => normalise(a) === normalise(sourceBoneName));
+      if (!isHips) continue;
+      const values = (track.values as Float32Array).slice();
+      for (let i = 0; i < values.length; i += 3) {
+        values[i]     = values[i]     * hipScale + hipDelta.x;
+        values[i + 1] = values[i + 1] * hipScale + hipDelta.y;
+        values[i + 2] = values[i + 2] * hipScale + hipDelta.z;
+      }
+      newTracks.push(new THREE.VectorKeyframeTrack(mappedTargetName + property, track.times.slice() as any, values));
+      continue;
+    }
+
+    // Scale tracks etc. — pass through with renamed bone.
+    const cloned = track.clone();
+    cloned.name = mappedTargetName + property;
+    newTracks.push(cloned);
+  }
+
+  return new THREE.AnimationClip(clip.name, clip.duration, newTracks, clip.blendMode);
+}

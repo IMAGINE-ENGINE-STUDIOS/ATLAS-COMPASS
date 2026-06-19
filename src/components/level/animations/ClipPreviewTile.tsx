@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
 import { Film } from "lucide-react";
 import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
-import { retargetClip } from "@/lib/animationRetarget";
+import { retargetClip, retargetClipWithBind } from "@/lib/animationRetarget";
 
 const DEFAULT_PREVIEW_RIG = "https://threejs.org/examples/models/gltf/Xbot.glb";
 
@@ -72,6 +72,13 @@ function PreviewRig({ entry }: { entry: CharacterClipEntry }) {
   const cloned = useMemo(() => SkeletonUtils.clone(baseGltf.scene), [baseGltf.scene]);
   const mixer = useMemo(() => new THREE.AnimationMixer(cloned), [cloned]);
 
+  // Un-animated clone of the SOURCE rig — used as the bind-pose reference
+  // when retargeting clips whose source rig differs from the preview rig.
+  const sourceClone = useMemo(() => {
+    if (entry.source !== "url") return null;
+    try { return SkeletonUtils.clone(clipGltf.scene); } catch { return null; }
+  }, [entry.source, clipGltf.scene]);
+
   useEffect(() => {
     const pool = entry.source === "url" ? clipGltf.animations : baseGltf.animations;
     if (!pool || pool.length === 0) return;
@@ -79,14 +86,16 @@ function PreviewRig({ entry }: { entry: CharacterClipEntry }) {
       ? pool.find((c) => c.name.toLowerCase() === entry.clipName!.toLowerCase()) || pool[0]
       : pool[0];
     if (!wanted) return;
-    const retargeted = retargetClip(wanted, cloned);
+    const retargeted = sourceClone
+      ? retargetClipWithBind(wanted, sourceClone, cloned)
+      : retargetClip(wanted, cloned);
     const action = mixer.clipAction(retargeted);
     action.reset().play();
     return () => {
       action.stop();
       mixer.stopAllAction();
     };
-  }, [entry.source, entry.clipName, clipGltf.animations, baseGltf.animations, mixer, cloned]);
+  }, [entry.source, entry.clipName, clipGltf.animations, baseGltf.animations, mixer, cloned, sourceClone]);
 
   useFrame((_, dt) => mixer.update(dt));
 
