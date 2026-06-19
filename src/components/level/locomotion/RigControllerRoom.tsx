@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_CHARACTER_URL } from "@/lib/levelTypes";
-import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon, Camera, Maximize2 } from "lucide-react";
+import { Wand2, RotateCcw, Move, RefreshCw, Upload, Play, Pause, Send, Users, Save, Trash2, Image as ImageIcon, Camera, Maximize2, Search, ChevronRight, ChevronDown, Bone as BoneIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
