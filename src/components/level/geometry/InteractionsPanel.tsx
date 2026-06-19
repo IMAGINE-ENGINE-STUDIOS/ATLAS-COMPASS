@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Play, Route, Zap, MousePointerClick } from "lucide-react";
+import { Plus, Trash2, Play, Route, Zap, MousePointerClick, Crosshair } from "lucide-react";
 import type {
   SceneObject,
   ScenePath,
@@ -20,6 +20,8 @@ import type {
 import { newId } from "@/lib/levelTypes";
 import { toast } from "sonner";
 import { runPresetAction } from "./runtime";
+import { requestTeleportPick } from "@/components/level/teleportPicker";
+import { useLevelStore } from "@/lib/levelStore";
 
 const PRESET_TYPES: { value: PresetActionType; label: string }[] = [
   { value: "rotateContinuously", label: "Rotate continuously" },
