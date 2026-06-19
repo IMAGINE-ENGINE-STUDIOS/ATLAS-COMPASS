@@ -2550,6 +2550,7 @@ function FocusController({
   controlsRef?: React.MutableRefObject<any>;
   onDone?: () => void;
 }) {
+  // placeholder for diff anchor
   const { camera } = useThree();
   const animRef = useRef<{
     fromPos: THREE.Vector3;
