@@ -1468,6 +1468,7 @@ export function LevelSceneContents({
         scene.terrain.shape === "plane" && (
           <TerrainSculptOverlay sculpt={sculpt} controlsRef={controlsRef} />
         )}
+      <TeleportPickerOverlay groupRef={groupRef} />
     </FacePaintContext.Provider>
   );
 }
