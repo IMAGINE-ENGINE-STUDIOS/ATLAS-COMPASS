@@ -261,6 +261,11 @@ function ComponentsPanel({
   selectedBoneName,
   onSelectBone,
   hideBoneHierarchy,
+  layers,
+  onToggleLock,
+  onDelete,
+  onAssignLayer,
+  isLocked,
 }: {
   objects: SceneObject[];
   selectedIds: Set<string>;
@@ -274,6 +279,11 @@ function ComponentsPanel({
   selectedBoneName?: string | null;
   onSelectBone?: (name: string) => void;
   hideBoneHierarchy?: boolean;
+  layers: SceneLayer[];
+  onToggleLock: (id: string, locked: boolean) => void;
+  onDelete: (id: string) => void;
+  onAssignLayer: (id: string, layerId: string) => void;
+  isLocked: (o: SceneObject) => boolean;
 }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
