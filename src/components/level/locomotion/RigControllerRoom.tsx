@@ -424,6 +424,8 @@ function Rig({
   transformMode,
   onLoaded,
   onSelectBone,
+  hoveredBoneName,
+  onHoverBone,
   highlightedBones,
   activeClip,
   playing,
@@ -442,6 +444,8 @@ function Rig({
   transformMode: "rotate" | "translate" | "scale";
   onLoaded: (info: { bones: THREE.Bone[]; skeleton: THREE.Skeleton | null; clips: string[] }) => void;
   onSelectBone: (name: string) => void;
+  hoveredBoneName: string | null;
+  onHoverBone: (name: string | null) => void;
   highlightedBones: { name: string; color: string }[];
   activeClip: string | null;
   playing: boolean;
@@ -455,6 +459,7 @@ function Rig({
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+  const liveBones = useMemo(() => collectBones(cloned), [cloned, topologyVersion]);
   // Topology version bumps when bones are added/removed so we can re-emit
   // the bone list and rebuild the SkeletonHelper.
   const [topologyVersion, setTopologyVersion] = useState(0);
@@ -623,6 +628,18 @@ function Rig({
           boneName={h.name}
           color={h.color}
           selected={selectedBoneName === h.name}
+          onSelect={onSelectBone}
+        />
+      ))}
+      <BoneSplineOverlay root={cloned} selectedBoneName={selectedBoneName} expanded={!!addBoneMode} />
+      {liveBones.map((b) => (
+        <BonePickHotspot
+          key={b.uuid}
+          bone={b}
+          selected={selectedBoneName === b.name}
+          hovered={hoveredBoneName === b.name}
+          armed={addBoneMode && selectedBoneName === b.name}
+          onHover={onHoverBone}
           onSelect={onSelectBone}
         />
       ))}
