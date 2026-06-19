@@ -28,6 +28,7 @@ import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 import LevelCharacter from "./LevelCharacter";
 import PlayableCharacter from "./locomotion/PlayableCharacter";
 import PushableRuntime from "./locomotion/PushableRuntime";
+import TeleportPickerOverlay from "./play/TeleportPickerOverlay";
 import { characterRegistry } from "./locomotion/locomotionState";
 import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
