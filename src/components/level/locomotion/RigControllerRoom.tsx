@@ -1192,6 +1192,31 @@ export default function RigControllerRoom({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
+  // Deep-link support: any page in the app can open the rig room for an
+  // arbitrary character by navigating to /locomotion?url=<glb>&name=<label>
+  // &target=<levelId:objId>. We honor it ONCE on mount so subsequent in-room
+  // model swaps aren't clobbered by the original query.
+  const deepLinkAppliedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkAppliedRef.current) return;
+    if (typeof window === "undefined") return;
+    const qs = new URLSearchParams(window.location.search);
+    const linkUrl = qs.get("url");
+    const linkName = qs.get("name");
+    const linkTarget = qs.get("target");
+    if (linkUrl) {
+      setUrl(linkUrl);
+      setPendingUrl(linkName ?? linkUrl);
+      setSourceLabel(linkName ?? "Character");
+      setActiveSaveId(null);
+    }
+    if (linkTarget) {
+      setTargetCharId(linkTarget);
+    }
+    deepLinkAppliedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Emit the live rig state up to the host so the Components panel can render
   // this character + its bone hierarchy without duplicating the GLTF load.
   useEffect(() => {

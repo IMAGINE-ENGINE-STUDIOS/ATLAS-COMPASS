@@ -2848,8 +2848,30 @@ function CharacterInspector({
 }) {
   const names = useCharacterAnimationNames(obj.url);
   const current = obj.currentAnimation || names[0] || "";
+  const navigate = useNavigate();
+  const { id: routeLevelId } = useParams<{ id: string }>();
+  const openInRigRoom = () => {
+    const params = new URLSearchParams();
+    // Always carry the URL so the rig room can load *any* character, even
+    // when it isn't part of a saved local level (uploaded ad-hoc, library
+    // rig, etc.). When we also know the level id we pass an apply-target id
+    // so "Apply to scene character" writes back to the right object.
+    params.set("url", obj.url);
+    params.set("name", obj.name || obj.source || "Character");
+    if (routeLevelId) params.set("target", `${routeLevelId}:${obj.id}`);
+    navigate(`/locomotion?${params.toString()}`);
+  };
   return (
     <div className="space-y-3 pt-3 border-t border-border/40">
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full h-8 text-[11px] gap-1.5 border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/10"
+        disabled={disabled}
+        onClick={openInRigRoom}
+      >
+        Open in Rig Room →
+      </Button>
       {/* ------------ Rig & Body (saved from Rig Controller Room) ------------ */}
       <RigBodySection obj={obj} disabled={disabled} onPatch={onPatch} />
 
