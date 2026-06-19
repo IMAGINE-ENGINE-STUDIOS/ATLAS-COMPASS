@@ -761,7 +761,7 @@ export function buildMasterLevelScene(): LevelScene {
     brakeDistance: 24, // m
     stopDurationSeconds: 10,
     doorAnimSeconds: 1.4,
-    carSpacing: 8.5,
+    carSpacing: 9,
     possessKey: "P",
   };
 
