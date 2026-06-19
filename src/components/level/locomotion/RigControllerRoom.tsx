@@ -34,6 +34,12 @@ import {
 interface RigBridge {
   root: THREE.Object3D | null;
   snapshot: (() => string | null) | null;
+  /**
+   * Topology editing — implemented inside <Rig/> (where the live cloned
+   * skeleton lives) and called by the surrounding sidebar UI.
+   */
+  addBoneAt: ((parentName: string, worldPoint: THREE.Vector3) => string | null) | null;
+  deleteBone: ((name: string) => boolean) | null;
 }
 
 /**
@@ -251,6 +257,8 @@ function Rig({
   pendingPose,
   onPoseApplied,
   onBoneEdited,
+  addBoneMode,
+  onTopologyChanged,
   bridgeRef,
 }: {
   url: string;
@@ -267,10 +275,15 @@ function Rig({
   pendingPose: BonePose[] | null;
   onPoseApplied: () => void;
   onBoneEdited?: () => void;
+  addBoneMode?: boolean;
+  onTopologyChanged?: (bones: THREE.Bone[]) => void;
   bridgeRef: React.MutableRefObject<RigBridge>;
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+  // Topology version bumps when bones are added/removed so we can re-emit
+  // the bone list and rebuild the SkeletonHelper.
+  const [topologyVersion, setTopologyVersion] = useState(0);
   // Render every rig at its native scale (scale = 1). Bounding-box based
   // normalization broke skinned meshes and pushed characters off-camera,
   // so the room now trusts each glTF's authored size.
@@ -303,6 +316,28 @@ function Rig({
     clipsRef.current = clips;
     mixerRef.current = new THREE.AnimationMixer(cloned);
     bridgeRef.current.root = cloned;
+    // Expose topology mutators to the sidebar via the shared bridge.
+    bridgeRef.current.addBoneAt = (parentName, worldPoint) => {
+      let parent: THREE.Object3D | null = null;
+      cloned.traverse((o) => { if (!parent && o.name === parentName) parent = o; });
+      if (!parent) return null;
+      const local = (parent as THREE.Object3D).worldToLocal(worldPoint.clone());
+      const bone = new THREE.Bone();
+      bone.name = `custom_bone_${Math.random().toString(36).slice(2, 7)}`;
+      bone.position.copy(local);
+      (bone as any).userData.__custom = true;
+      (parent as THREE.Object3D).add(bone);
+      setTopologyVersion((v) => v + 1);
+      return bone.name;
+    };
+    bridgeRef.current.deleteBone = (name) => {
+      let target: THREE.Object3D | null = null;
+      cloned.traverse((o) => { if (!target && o.name === name) target = o; });
+      if (!target || !(target as THREE.Object3D).parent) return false;
+      (target as THREE.Object3D).parent!.remove(target as THREE.Object3D);
+      setTopologyVersion((v) => v + 1);
+      return true;
+    };
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
@@ -321,9 +356,33 @@ function Rig({
       mixerRef.current = null;
       actionRef.current = null;
       if (bridgeRef.current.root === cloned) bridgeRef.current.root = null;
+      bridgeRef.current.addBoneAt = null;
+      bridgeRef.current.deleteBone = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
+
+  // Rebuild SkeletonHelper + re-emit bone list whenever topology mutates.
+  useEffect(() => {
+    if (topologyVersion === 0) return;
+    if (helperRef.current) {
+      r3fScene.remove(helperRef.current);
+      helperRef.current.dispose?.();
+    }
+    const helper = new THREE.SkeletonHelper(cloned);
+    const hmat = helper.material as any;
+    hmat.linewidth = 2;
+    hmat.depthTest = false;
+    hmat.transparent = true;
+    hmat.opacity = 0.95;
+    helper.renderOrder = 999;
+    helper.visible = showSkeleton;
+    helperRef.current = helper;
+    r3fScene.add(helper);
+    const next = collectBones(cloned);
+    onTopologyChanged?.(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topologyVersion]);
 
   useEffect(() => {
     if (helperRef.current) helperRef.current.visible = showSkeleton;
@@ -371,7 +430,18 @@ function Rig({
 
   return (
     <>
-      <primitive object={cloned} scale={normalizedScale} />
+      <group
+        onClick={(e: any) => {
+          if (!addBoneMode) return;
+          if (!selectedBoneName) return;
+          e.stopPropagation();
+          const wp = e.point as THREE.Vector3;
+          const newName = bridgeRef.current.addBoneAt?.(selectedBoneName, wp);
+          if (newName) onSelectBone(newName);
+        }}
+      >
+        <primitive object={cloned} scale={normalizedScale} />
+      </group>
       {highlightedBones.map((h) => (
         <ControllerMarker
           key={h.name}
@@ -753,6 +823,11 @@ function XrayLiveMesh({
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
   const bones = useMemo(() => collectBones(cloned), [cloned]);
   const { scene, camera, controls } = useThree() as any;
+  // Frame the model ONCE per loaded rig. Without this guard the framing
+  // block was re-running whenever the `controls` reference changed (e.g.
+  // OrbitControls remount, a pose edit triggering re-render), which made
+  // the viewport "snap" back to 100% and felt like an unwanted zoom-in.
+  const framedRef = useRef<THREE.Object3D | null>(null);
 
   // Swap every mesh to a glowing cyan x-ray material and add a skeleton helper.
   useEffect(() => {
@@ -783,18 +858,21 @@ function XrayLiveMesh({
     helper.renderOrder = 999;
     scene.add(helper);
 
-    // Frame the model.
-    const box = new THREE.Box3().setFromObject(cloned);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z) || 1;
-    const dist = maxDim * 2.1;
-    camera.position.set(center.x, center.y + maxDim * 0.05, center.z + dist);
-    if (controls && controls.target) {
-      controls.target.copy(center);
-      controls.update?.();
-    } else {
-      camera.lookAt(center);
+    // Frame the model exactly once per cloned rig.
+    if (framedRef.current !== cloned) {
+      const box = new THREE.Box3().setFromObject(cloned);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const dist = maxDim * 2.1;
+      camera.position.set(center.x, center.y + maxDim * 0.05, center.z + dist);
+      if (controls && controls.target) {
+        controls.target.copy(center);
+        controls.update?.();
+      } else {
+        camera.lookAt(center);
+      }
+      framedRef.current = cloned;
     }
 
     return () => {
@@ -802,7 +880,11 @@ function XrayLiveMesh({
       helper.dispose?.();
       original.forEach((m, mesh) => { (mesh as any).material = m; });
     };
-  }, [cloned, scene, camera, controls]);
+    // Intentionally only react to `cloned` / `scene` changes — including
+    // `camera` or `controls` here causes the framing block to retrigger
+    // every time those refs are reassigned.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloned, scene]);
 
   return (
     <>
@@ -974,6 +1056,7 @@ function XrayBodyMap({
           <OrbitControls
             makeDefault
             enablePan={false}
+            enableZoom={false}
             autoRotate
             autoRotateSpeed={0.8}
             minDistance={0.4}
@@ -1102,6 +1185,10 @@ export default function RigControllerRoom({
   const [playing, setPlaying] = useState(false);
   const [animOpen, setAnimOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
+  // Bone authoring mode: when true, clicking on the rig in the main viewport
+  // anchors a new bone (child of the currently selected bone) at the click
+  // position. Stays armed until the user toggles it off.
+  const [addBoneMode, setAddBoneMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
@@ -1182,7 +1269,12 @@ export default function RigControllerRoom({
   }, []);
 
   // ----- save system state -----
-  const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
+  const bridgeRef = useRef<RigBridge>({
+    root: null,
+    snapshot: null,
+    addBoneAt: null,
+    deleteBone: null,
+  });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
   const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
   const [savesLoading, setSavesLoading] = useState(false);
@@ -1776,6 +1868,8 @@ export default function RigControllerRoom({
                   const root = bridgeRef.current.root;
                   if (root) setPendingPose(capturePose(root));
                 }}
+                addBoneMode={addBoneMode}
+                onTopologyChanged={(next) => setBones(next)}
                 bridgeRef={bridgeRef}
               />
             )}
@@ -1784,6 +1878,51 @@ export default function RigControllerRoom({
         </Canvas>
         <div className="absolute top-3 left-3 px-3 py-1.5 rounded-md bg-background/70 backdrop-blur border border-border/40 text-[11px] text-muted-foreground">
           {selectedBoneName ? <>Selected: <span className="text-foreground font-mono">{selectedBoneName}</span></> : "Click a controller marker or bone in the list"}
+        </div>
+
+        {/* Bone topology editor — Add / Delete. Lives just under the selection
+            readout so the affordances are next to what they act on. */}
+        <div className="absolute top-14 left-3 flex items-center gap-1 px-1.5 py-1 rounded-md bg-background/70 backdrop-blur border border-border/40">
+          <Button
+            size="sm"
+            variant={addBoneMode ? "default" : "ghost"}
+            className="h-7 px-2 text-[11px] gap-1"
+            onClick={() => {
+              if (!selectedBoneName) {
+                toast.error("Select a parent bone first");
+                return;
+              }
+              setAddBoneMode((v) => !v);
+            }}
+            title={selectedBoneName
+              ? `Click on the rig to anchor a new bone as a child of "${selectedBoneName}"`
+              : "Select a bone first to anchor children to it"}
+          >
+            <BoneIcon className="w-3 h-3" />
+            {addBoneMode ? "Click to place…" : "Add bone"}
+          </Button>
+          <div className="w-px h-4 bg-border/40 mx-0.5" />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[11px] gap-1 text-red-300 hover:text-red-200 hover:bg-red-500/10"
+            disabled={!selectedBoneName}
+            onClick={() => {
+              if (!selectedBoneName) return;
+              const name = selectedBoneName;
+              if (!window.confirm(`Delete bone "${name}" and all its children?`)) return;
+              const ok = bridgeRef.current.deleteBone?.(name);
+              if (ok) {
+                setSelectedBoneName(null);
+                toast.success(`Removed ${prettifyBoneName(name)}`);
+              } else {
+                toast.error("Couldn't delete that bone");
+              }
+            }}
+            title="Delete the selected bone"
+          >
+            <Trash2 className="w-3 h-3" /> Delete
+          </Button>
         </div>
 
         {/* Cinematic camera deck — Reset + 4 preset angles. */}
