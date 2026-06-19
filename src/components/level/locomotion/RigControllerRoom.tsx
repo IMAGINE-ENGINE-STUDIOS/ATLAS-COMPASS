@@ -1017,6 +1017,12 @@ export interface RigControllerRoomProps {
   } | null) => void;
   /** Receive bone-selection requests from outside (e.g. Components panel). */
   externalSelectedBoneName?: string | null;
+  /**
+   * Extra panels rendered at the bottom of the rig-room aside. Used by the
+   * Locomotion page to embed the editor's Layers / Components / Lights
+   * panels into this sidebar instead of the LevelEditorPage left aside.
+   */
+  sidebarExtras?: React.ReactNode;
 }
 
 export default function RigControllerRoom({
@@ -1024,6 +1030,7 @@ export default function RigControllerRoom({
   onApplyToCharacter,
   onRigStateChange,
   externalSelectedBoneName,
+  sidebarExtras,
 }: RigControllerRoomProps = {}) {
   const [url, setUrl] = useState<string>(DEFAULT_CHARACTER_URL);
   const [pendingUrl, setPendingUrl] = useState<string>(DEFAULT_CHARACTER_URL);
