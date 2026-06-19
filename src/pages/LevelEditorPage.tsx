@@ -1855,6 +1855,7 @@ export default function LevelEditorPage() {
             <RigControllerRoom
               onRigStateChange={setRigState}
               externalSelectedBoneName={rigBoneRequest}
+              sidebarExtras={editorSidebarPanels}
               sceneCharacters={(() => {
                 // Rig room has no scene of its own, so surface every
                 // character authored across the user's local levels. The id
