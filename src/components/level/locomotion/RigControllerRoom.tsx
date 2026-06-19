@@ -288,7 +288,12 @@ function Rig({
       }
     });
     const helper = new THREE.SkeletonHelper(cloned);
-    (helper.material as any).linewidth = 2;
+    const hmat = helper.material as any;
+    hmat.linewidth = 2;
+    hmat.depthTest = false;
+    hmat.transparent = true;
+    hmat.opacity = 0.95;
+    helper.renderOrder = 999;
     helper.visible = showSkeleton;
     helperRef.current = helper;
     r3fScene.add(helper);
