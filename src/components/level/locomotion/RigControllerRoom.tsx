@@ -1427,30 +1427,11 @@ export default function RigControllerRoom({
           onClear={() => setSelectedBoneName(null)}
         />
 
-        <div>
-          <Label className="text-xs">All bones ({bones.length})</Label>
-          <ScrollArea className="h-48 mt-1 rounded border border-border/40">
-            <ul className="text-[11px] font-mono">
-              {bones.map((b) => (
-                <li key={b.uuid}>
-                  <button
-                    onClick={() => setSelectedBoneName(b.name)}
-                    className={`block w-full text-left px-2 py-0.5 truncate hover:bg-muted/30 ${
-                      selectedBoneName === b.name ? "bg-muted/40 text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {b.name}
-                  </button>
-                </li>
-              ))}
-              {bones.length === 0 && (
-                <li className="px-2 py-2 text-[11px] text-muted-foreground">
-                  Loading rig…
-                </li>
-              )}
-            </ul>
-          </ScrollArea>
-        </div>
+        <BoneHierarchyPanel
+          bones={bones}
+          selectedBoneName={selectedBoneName}
+          onSelect={setSelectedBoneName}
+        />
 
         {/* ---- Model URL / Upload (moved to the bottom of the sidebar) ---- */}
         <div className="space-y-1.5 pt-2 border-t border-border/30">
