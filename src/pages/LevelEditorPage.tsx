@@ -1207,6 +1207,19 @@ export default function LevelEditorPage() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
 
+  // Auto-open the right inspector when any object, character, or light gets
+  // selected so the contextual bar (Object/Terrain/Animate/Level) pops into
+  // view. Users can still hide it via the "Show inspector" toggle.
+  useEffect(() => {
+    if (isMobile) return;
+    const hasSelection =
+      !!selectedId ||
+      selectedIds.size > 0 ||
+      !!selectedLightId ||
+      selectedLightIds.size > 0;
+    if (hasSelection) setRightOpen(true);
+  }, [selectedId, selectedIds, selectedLightId, selectedLightIds, isMobile]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
