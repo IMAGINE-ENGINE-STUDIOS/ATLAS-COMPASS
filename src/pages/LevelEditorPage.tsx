@@ -1274,16 +1274,18 @@ export default function LevelEditorPage() {
         <Link to="/levels" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" />
         </Link>
-        <Layers className="w-4 h-4 text-primary" />
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={!isOwner}
-          className={`h-8 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold ${
-            isMobile ? "w-28 shrink-0" : "w-64"
-          }`}
-        />
-        <div className={`flex items-center gap-2 ${isMobile ? "ml-2" : "ml-auto"}`}>
+        {!isMobile && (
+          <>
+            <Layers className="w-4 h-4 text-primary" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!isOwner}
+              className="h-8 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold w-64"
+            />
+          </>
+        )}
+        <div className={`flex items-center gap-2 ${isMobile ? "ml-0" : "ml-auto"}`}>
           <ActiveToolBadges
             tools={[
               {
@@ -1312,6 +1314,7 @@ export default function LevelEditorPage() {
             onClick={undo}
             disabled={historyRef.current.past.length === 0}
             title="Undo (Ctrl/Cmd+Z)"
+            className={isMobile ? "h-7 w-7 px-0" : ""}
           >
             <Undo2 className="w-3.5 h-3.5" />
           </Button>
@@ -1321,10 +1324,11 @@ export default function LevelEditorPage() {
             onClick={redo}
             disabled={historyRef.current.future.length === 0}
             title="Redo (Ctrl/Cmd+Shift+Z)"
+            className={isMobile ? "h-7 w-7 px-0" : ""}
           >
             <Redo2 className="w-3.5 h-3.5" />
           </Button>
-          <div className="flex items-center gap-0.5 px-1 h-8 rounded-md border border-border/40 bg-card/40">
+          <div className={`flex items-center gap-0.5 px-1 h-8 rounded-md border border-border/40 bg-card/40 ${isMobile ? "scale-90 origin-left" : ""}`}>
             <Button
               size="sm"
               variant={transformMode === "translate" ? "secondary" : "ghost"}
@@ -1353,61 +1357,82 @@ export default function LevelEditorPage() {
               <Scaling className="w-3.5 h-3.5" />
             </Button>
           </div>
-          <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
-            <button
+          {!isMobile && (
+            <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
+              <button
+                onClick={() => setSnapEnabled((v) => !v)}
+                className={`flex items-center gap-1 text-[11px] ${snapEnabled ? "text-primary" : "text-muted-foreground"}`}
+                title="Toggle snap to grid"
+              >
+                <Magnet className="w-3.5 h-3.5" /> Snap
+              </button>
+              {snapEnabled && (
+                <Select value={String(snapSize)} onValueChange={(v) => setSnapSize(parseFloat(v))}>
+                  <SelectTrigger className="h-6 w-16 text-[11px] px-1 border-transparent bg-transparent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0.1, 0.25, 0.5, 1, 2, 5].map((v) => (
+                      <SelectItem key={v} value={String(v)} className="text-xs">{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+          {isMobile && (
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => setSnapEnabled((v) => !v)}
-              className={`flex items-center gap-1 text-[11px] ${snapEnabled ? "text-primary" : "text-muted-foreground"}`}
               title="Toggle snap to grid"
+              className="h-7 w-7 px-0"
             >
-              <Magnet className="w-3.5 h-3.5" /> Snap
-            </button>
-            {snapEnabled && (
-              <Select value={String(snapSize)} onValueChange={(v) => setSnapSize(parseFloat(v))}>
-                <SelectTrigger className="h-6 w-16 text-[11px] px-1 border-transparent bg-transparent">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[0.1, 0.25, 0.5, 1, 2, 5].map((v) => (
-                    <SelectItem key={v} value={String(v)} className="text-xs">{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <Button size="sm" variant="ghost" onClick={() => setShowGrid((v) => !v)} title="Toggle grid">
+              <Magnet className={`w-3.5 h-3.5 ${snapEnabled ? "text-primary" : ""}`} />
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => setShowGrid((v) => !v)} title="Toggle grid" className={isMobile ? "h-7 w-7 px-0" : ""}>
             {showGrid ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setPlaying((p) => !p)} title="Play / Pause">
-            {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={openPlaceDialog}
-            disabled={!isOwner}
-            title="Place on Atlas"
-          >
-            <MapPin className="w-3.5 h-3.5 mr-1" /> Place on Atlas
-          </Button>
-          <span
-            className={`text-[11px] ${
-              autosaveStatus === "saving" || autosaveStatus === "dirty"
-                ? "text-amber-400"
-                : autosaveStatus === "error"
-                ? "text-destructive"
-                : "text-muted-foreground"
-            }`}
-            title="All changes are saved automatically"
-          >
-            {autosaveStatus === "saving" ? "Saving…" :
-             autosaveStatus === "dirty" ? "Unsaved" :
-             autosaveStatus === "error" ? "Save failed" :
-             autosaveStatus === "saved" ? "Saved" : ""}
-          </span>
-          <Button size="sm" onClick={() => save()} disabled={!isOwner || saving}>
-            {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
-            Save
-          </Button>
+          {!isMobile && (
+            <Button size="sm" variant="ghost" onClick={() => setPlaying((p) => !p)} title="Play / Pause">
+              {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            </Button>
+          )}
+          {!isMobile && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openPlaceDialog}
+              disabled={!isOwner}
+              title="Place on Atlas"
+            >
+              <MapPin className="w-3.5 h-3.5 mr-1" /> Place on Atlas
+            </Button>
+          )}
+          {!isMobile && (
+            <span
+              className={`text-[11px] ${
+                autosaveStatus === "saving" || autosaveStatus === "dirty"
+                  ? "text-amber-400"
+                  : autosaveStatus === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }`}
+              title="All changes are saved automatically"
+            >
+              {autosaveStatus === "saving" ? "Saving…" :
+               autosaveStatus === "dirty" ? "Unsaved" :
+               autosaveStatus === "error" ? "Save failed" :
+               autosaveStatus === "saved" ? "Saved" : ""}
+            </span>
+          )}
+          {!isMobile && (
+            <Button size="sm" onClick={() => save()} disabled={!isOwner || saving}>
+              {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+              Save
+            </Button>
+          )}
         </div>
       </header>
 
