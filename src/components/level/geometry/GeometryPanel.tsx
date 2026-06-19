@@ -41,7 +41,7 @@ export function GeometryPanel({
   };
 
   const spawnFromRows = (rows: PrimitiveRow[]) => {
-    const objs = csvToSceneObjects({ primitives: rows, triangles: [], errors: [] }, anchor);
+    const objs = csvToSceneObjects({ primitives: rows, triangles: [], paths: [], errors: [] }, anchor);
     onSpawn(objs);
     toast.success(`Spawned ${objs.length} shape${objs.length === 1 ? "" : "s"}`);
   };
