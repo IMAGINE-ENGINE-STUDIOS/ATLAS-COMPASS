@@ -1241,6 +1241,7 @@ export default function LevelEditorPage() {
               rigState={rigRoomMode ? rigState : null}
               selectedBoneName={rigState?.selectedBoneName ?? null}
               onSelectBone={(name) => setRigBoneRequest(name)}
+              hideBoneHierarchy={rigRoomMode}
             />
 
             <div className="flex items-center justify-between mb-2">
