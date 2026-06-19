@@ -1264,7 +1264,13 @@ export default function LevelEditorPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Top bar */}
-      <header className="border-b border-border/40 backdrop-blur-xl bg-background/60 px-4 py-2 flex items-center gap-3 z-10">
+      <header
+        className={`border-b border-border/40 backdrop-blur-xl bg-background/60 z-20 flex items-center gap-3 ${
+          isMobile
+            ? "px-2 py-1.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : "px-4 py-2"
+        }`}
+      >
         <Link to="/levels" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -1273,9 +1279,11 @@ export default function LevelEditorPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           disabled={!isOwner}
-          className="h-8 w-64 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold"
+          className={`h-8 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold ${
+            isMobile ? "w-28 shrink-0" : "w-64"
+          }`}
         />
-        <div className="ml-auto flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${isMobile ? "ml-2" : "ml-auto"}`}>
           <ActiveToolBadges
             tools={[
               {
