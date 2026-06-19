@@ -1134,11 +1134,11 @@ export default function RigControllerRoom({
   type CameraPresetId = "reset" | "front" | "side" | "back" | "top";
   interface CamPreset { id: CameraPresetId; label: string; position: [number, number, number]; target: [number, number, number]; }
   const CAMERA_PRESETS: CamPreset[] = useMemo(() => [
-    { id: "reset", label: "Reset",          position: [3.6, 2.2, 3.6],  target: [0, 1, 0] },
-    { id: "front", label: "Front close-up", position: [0, 1.6, 2.6],    target: [0, 1.5, 0] },
-    { id: "side",  label: "Profile",        position: [3.0, 1.4, 0],    target: [0, 1.2, 0] },
-    { id: "back",  label: "Hero back",      position: [0, 1.8, -3.2],   target: [0, 1.2, 0] },
-    { id: "top",   label: "Top down",       position: [0.01, 4.5, 0.01],target: [0, 0.9, 0] },
+    { id: "reset", label: "Reset",          position: [5, 3.5, 5],  target: [0, 0.9, 0] },
+    { id: "front", label: "Front close-up", position: [0, 1.6, 3.0],    target: [0, 1.5, 0] },
+    { id: "side",  label: "Profile",        position: [3.5, 1.4, 0],    target: [0, 1.2, 0] },
+    { id: "back",  label: "Hero back",      position: [0, 1.8, -3.8],   target: [0, 1.2, 0] },
+    { id: "top",   label: "Top down",       position: [0.01, 5.5, 0.01],target: [0, 0.9, 0] },
   ], []);
   const [activeCamera, setActiveCamera] = useState<CameraPresetId>("reset");
   const [cameraTick, setCameraTick] = useState(0);
@@ -1307,6 +1307,11 @@ export default function RigControllerRoom({
         `}
       >
         <div className={sidebarOpen ? "" : "hidden"}>
+          {sidebarExtras && (
+            <div className="mb-4 -mx-4 px-4 pb-3 border-b border-border/30">
+              {sidebarExtras}
+            </div>
+          )}
           <div>
             <h2 className="text-base font-semibold tracking-tight">Rig Controller Room</h2>
           <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
@@ -1595,18 +1600,13 @@ export default function RigControllerRoom({
           <p className="text-[10px] text-muted-foreground truncate">Source: {sourceLabel}</p>
         </div>
 
-        {sidebarExtras && (
-          <div className="pt-3 border-t border-border/30 -mx-4 px-4">
-            {sidebarExtras}
-          </div>
-        )}
         </div>
       </aside>
 
       {/* Viewport */}
       <main className="flex-1 relative">
         <Canvas
-          camera={{ position: [3.6, 2.2, 3.6], fov: 52, near: 0.05, far: 200 }}
+          camera={{ position: [5, 3.5, 5], fov: 52, near: 0.05, far: 200 }}
           shadows
           gl={{ preserveDrawingBuffer: true }}
         >
@@ -1655,7 +1655,7 @@ export default function RigControllerRoom({
               />
             )}
           </Suspense>
-          <OrbitControls makeDefault target={[0, 1, 0]} />
+          <OrbitControls makeDefault target={[0, 0.9, 0]} />
         </Canvas>
         <div className="absolute top-3 left-3 px-3 py-1.5 rounded-md bg-background/70 backdrop-blur border border-border/40 text-[11px] text-muted-foreground">
           {selectedBoneName ? <>Selected: <span className="text-foreground font-mono">{selectedBoneName}</span></> : "Click a controller marker or bone in the list"}
