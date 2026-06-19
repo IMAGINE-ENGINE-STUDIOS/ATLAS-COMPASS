@@ -1400,6 +1400,46 @@ export default function LevelEditorPage() {
             </Button>
           </div>
           {!isMobile && (
+            <div className="flex items-center gap-0.5 px-1 h-8 rounded-md border border-border/40 bg-card/40">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-1.5"
+                title="Directional light"
+                onClick={() => { const l = makeLight("directional"); addLight(l); selectLight(l.id); }}
+              >
+                <SunMedium className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-1.5"
+                title="Point light"
+                onClick={() => { const l = makeLight("point"); addLight(l); selectLight(l.id); }}
+              >
+                <Lightbulb className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-1.5"
+                title="Spot light"
+                onClick={() => { const l = makeLight("spot"); addLight(l); selectLight(l.id); }}
+              >
+                <Spotlight className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-1.5"
+                title="Ambient light"
+                onClick={() => { const l = makeLight("ambient"); addLight(l); selectLight(l.id); }}
+              >
+                <Sun className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+          {!isMobile && (
             <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
               <button
                 onClick={() => setSnapEnabled((v) => !v)}
