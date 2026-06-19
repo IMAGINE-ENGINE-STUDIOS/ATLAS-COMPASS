@@ -454,6 +454,15 @@ export default function LevelEditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [playing, setPlaying] = useState(false);
+  // Live rig state surfaced from <RigControllerRoom/> so the left Components
+  // panel can mirror the rig's character + bone hierarchy.
+  const [rigState, setRigState] = useState<{
+    name: string;
+    url: string;
+    bones: { name: string; parentName: string | null }[];
+    selectedBoneName: string | null;
+  } | null>(null);
+  const [rigBoneRequest, setRigBoneRequest] = useState<string | null>(null);
   // Local copy/paste buffer for scene objects (Ctrl/Cmd+C / V / D).
   const clipboardRef = useRef<SceneObject[]>([]);
   const [showGrid, setShowGrid] = useState(true);
