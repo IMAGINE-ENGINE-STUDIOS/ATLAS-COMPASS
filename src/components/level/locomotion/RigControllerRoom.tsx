@@ -1552,29 +1552,6 @@ export default function RigControllerRoom({
             <Switch checked={showSkeleton} onCheckedChange={setShowSkeleton} />
             Show skeleton overlay
           </label>
-          <div className="flex items-center gap-2 text-xs">
-            <Button
-              size="sm" variant={transformMode === "rotate" ? "default" : "outline"}
-              className="h-7 flex-1"
-              onClick={() => setTransformMode("rotate")}
-            >
-              <RotateCcw className="w-3 h-3 mr-1" /> Rotate
-            </Button>
-            <Button
-              size="sm" variant={transformMode === "translate" ? "default" : "outline"}
-              className="h-7 flex-1"
-              onClick={() => setTransformMode("translate")}
-            >
-              <Move className="w-3 h-3 mr-1" /> Move
-            </Button>
-            <Button
-              size="sm" variant={transformMode === "scale" ? "default" : "outline"}
-              className="h-7 flex-1"
-              onClick={() => setTransformMode("scale")}
-            >
-              <Scaling className="w-3 h-3 mr-1" /> Scale
-            </Button>
-          </div>
         </div>
 
         <XrayBodyMap
