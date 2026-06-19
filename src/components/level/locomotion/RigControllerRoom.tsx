@@ -1184,6 +1184,7 @@ export default function RigControllerRoom({
   const [activeClip, setActiveClip] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [animOpen, setAnimOpen] = useState(false);
+  const [deckOpen, setDeckOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
   // Bone authoring mode: when true, clicking on the rig in the main viewport
   // anchors a new bone (child of the currently selected bone) at the click
