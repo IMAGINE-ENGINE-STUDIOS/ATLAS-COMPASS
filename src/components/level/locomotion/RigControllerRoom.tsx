@@ -265,6 +265,7 @@ function Rig({
   speed: number;
   pendingPose: BonePose[] | null;
   onPoseApplied: () => void;
+  onBoneEdited?: () => void;
   bridgeRef: React.MutableRefObject<RigBridge>;
 }) {
   const gltf = useGLTF(url);
@@ -387,6 +388,7 @@ function Rig({
           mode={transformMode}
           space="local"
           size={0.6}
+          onMouseUp={() => onBoneEdited?.()}
         />
       )}
     </>
