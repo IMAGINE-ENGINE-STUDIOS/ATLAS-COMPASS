@@ -2192,13 +2192,17 @@ export default function RigControllerRoom({
           onSelect={setSelectedBoneName}
         />
 
-        {/* ---- Model URL / Upload (moved to the bottom of the sidebar) ---- */}
+        {/* ──────────────── SKELETON ──────────────── */}
         <div className="space-y-1.5 pt-2 border-t border-border/30">
-          <Label className="text-xs">Model URL (.glb / .gltf)</Label>
+          <div className="flex items-baseline justify-between">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Skeleton</Label>
+            <span className="text-[9px] text-muted-foreground/70">.glb · mesh + bones</span>
+          </div>
           <div className="flex gap-1.5">
             <Input
               value={pendingUrl}
               onChange={(e) => setPendingUrl(e.target.value)}
+              placeholder="Skeleton URL (.glb / .gltf)"
               className="h-8 text-xs"
             />
             <Button
@@ -2207,31 +2211,96 @@ export default function RigControllerRoom({
               className="h-8"
               onClick={() => { setUrl(pendingUrl); setSourceLabel(pendingUrl); }}
               disabled={!pendingUrl || pendingUrl === url}
+              title="Load skeleton from URL"
             >
               <RefreshCw className="w-3 h-3" />
             </Button>
           </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUploadFile(f);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-7 w-full"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-3 h-3 mr-1.5" /> Upload .glb / .gltf
-            </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleUploadFile(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 w-full"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-3 h-3 mr-1.5" /> Upload skeleton (.glb / .gltf)
+          </Button>
+        </div>
+
+        {/* ──────────────── SKINS ──────────────── */}
+        <div className="space-y-1.5 pt-2 border-t border-border/30">
+          <div className="flex items-baseline justify-between">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Skins · {skins.length}
+            </Label>
+            <span className="text-[9px] text-muted-foreground/70">mesh only · rebound by bone name</span>
           </div>
+          <input
+            ref={skinInputRef}
+            type="file"
+            accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleUploadSkin(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 w-full"
+            onClick={() => skinInputRef.current?.click()}
+            disabled={bones.length === 0}
+            title={bones.length === 0
+              ? "Load a skeleton first"
+              : "Upload a .glb whose mesh will be re-bound to the current skeleton"}
+          >
+            <Upload className="w-3 h-3 mr-1.5" /> Upload skin (.glb / .gltf)
+          </Button>
+          {skins.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground/70 italic">
+              No extra skins. Upload a mesh that shares this skeleton's bone names to layer it on top.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {skins.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-1.5 rounded border border-border/40 bg-muted/20 px-1.5 py-1"
+                >
+                  <button
+                    onClick={() => toggleSkin(s.id)}
+                    className="text-muted-foreground hover:text-foreground"
+                    title={s.visible ? "Hide skin" : "Show skin"}
+                  >
+                    {s.visible
+                      ? <Eye className="w-3 h-3" />
+                      : <EyeOff className="w-3 h-3" />}
+                  </button>
+                  <span className="flex-1 text-[11px] truncate" title={s.label}>{s.label}</span>
+                  <span className="text-[9px] text-muted-foreground">{s.meshCount}</span>
+                  <button
+                    onClick={() => removeSkin(s.id)}
+                    className="text-muted-foreground hover:text-destructive"
+                    title="Remove skin"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         </div>
