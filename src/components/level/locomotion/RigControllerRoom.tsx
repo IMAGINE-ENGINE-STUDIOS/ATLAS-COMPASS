@@ -1185,6 +1185,10 @@ export default function RigControllerRoom({
   const [playing, setPlaying] = useState(false);
   const [animOpen, setAnimOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
+  // Bone authoring mode: when true, clicking on the rig in the main viewport
+  // anchors a new bone (child of the currently selected bone) at the click
+  // position. Stays armed until the user toggles it off.
+  const [addBoneMode, setAddBoneMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
 
