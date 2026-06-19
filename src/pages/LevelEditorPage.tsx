@@ -288,6 +288,14 @@ function ComponentsPanel({
     ];
   }, [objects, q]);
 
+  // Pinned selection: every currently-selected object surfaces at the top of
+  // the list as a quick-reference row so the user never has to scroll the
+  // huge component list to find what they just clicked in the viewport.
+  const pinned = useMemo(
+    () => objects.filter((o) => selectedIds.has(o.id)),
+    [objects, selectedIds],
+  );
+
   // Bone hierarchy tree (parent/child) for the live rig, when present.
   const total = groups.reduce((n, g) => n + g.items.length, 0) + (rigState ? 1 : 0);
 
@@ -311,6 +319,36 @@ function ComponentsPanel({
         />
       </div>
       <div className="space-y-2">
+        {pinned.length > 0 && (
+          <div className="rounded-md border border-primary/40 bg-primary/5 p-1.5">
+            <div className="flex items-center justify-between px-1 mb-1">
+              <p className="text-[9px] uppercase tracking-wider text-primary/80">
+                Selected · {pinned.length}
+              </p>
+              <span className="text-[9px] text-muted-foreground/70">in scene</span>
+            </div>
+            {pinned.map((o) => (
+              <button
+                key={`pinned-${o.id}`}
+                onClick={(e) => onSelect(o.id, e.ctrlKey || e.metaKey)}
+                className="w-full text-left px-2 py-1 rounded text-[11px] flex items-center gap-1.5 bg-primary/15 text-primary hover:bg-primary/25"
+                title={`${o.name} (${o.kind}) — reference to scene object`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{
+                    background:
+                      o.kind === "character" ? "#22ff88" :
+                      o.kind === "trajectory" ? "#7be7ff" :
+                      "#fbbf24",
+                  }}
+                />
+                <span className="flex-1 truncate">{o.name}</span>
+                <span className="text-[9px] uppercase tracking-wider opacity-60">{o.kind}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {groups.map((g) => (
           <div key={g.key}>
             <p className="text-[9px] uppercase tracking-wider text-muted-foreground/70 px-1">
