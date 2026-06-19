@@ -1281,6 +1281,186 @@ export default function LevelEditorPage() {
     );
   }
 
+  const editorSidebarPanels = (
+          {!rigRoomMode && editorSidebarPanels}
+            </>
+          )}
+        </aside>
+
+        {/* Center: viewport */}
+        <main
+          className={
+            isMobile
+              ? "absolute inset-0 bottom-14 bg-slate-950"
+              : "relative bg-slate-950"
+          }
+        >
+          {rigRoomMode ? (
+            <RigControllerRoom
+              onRigStateChange={setRigState}
+              externalSelectedBoneName={rigBoneRequest}
+              sceneCharacters={(() => {
+                // Rig room has no scene of its own, so surface every
+                // character authored across the user's local levels. The id
+                // is namespaced "<levelId>:<charId>" so apply-back can find
+                // the right level + object later.
+                const seen = new Set<string>();
+                const out: { id: string; name: string; url: string; currentAnimation?: string }[] = [];
+                for (const lvl of listLocalLevels()) {
+                  const chars = (lvl.scene?.objects ?? []).filter(
+                    (o): o is CharacterObject => o.kind === "character",
+                  );
+                  for (const c of chars) {
+                    const key = `${lvl.id}:${c.id}`;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    out.push({
+                      id: key,
+                      name: `${c.name} · ${lvl.name}`,
+                      url: c.url,
+                      currentAnimation: c.currentAnimation,
+                    });
+                  }
+                }
+                return out;
+              })()}
+              onApplyToCharacter={(cid, patch) => {
+                // Rig-room ids are namespaced "<levelId>:<charId>"; write the
+                // patch back to that level on disk so it persists.
+                const [levelId, charId] = cid.split(":");
+                if (!levelId || !charId) {
+                  patchObject(cid, {
+                    url: patch.url,
+                    ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                  } as any);
+                  return;
+                }
+                const lvl = getLocalLevel(levelId);
+                if (!lvl) return;
+                const nextObjects = (lvl.scene.objects ?? []).map((o) =>
+                  o.id === charId
+                    ? ({
+                        ...o,
+                        url: patch.url,
+                        ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                      } as any)
+                    : o,
+                );
+                updateLocalLevel(levelId, {
+                  scene: { ...lvl.scene, objects: nextObjects },
+                });
+              }}
+            />
+          ) : (
+          <LevelScene3D
+            scene={renderedScene}
+            selectedId={selectedId}
+            facePaint={facePaintState}
+            onSelect={(oid) => {
+              if (editingPolygonId) {
+                // While spline editing is active, keep the editing polygon
+                // selected and ignore clicks on other objects / empty space.
+                if (oid === editingPolygonId) return;
+                return;
+              }
+              if (oid) selectObject(oid);
+              else {
+                setSelectedIds(new Set());
+                setSelectedId(null);
+                setSelectedLightIds(new Set());
+                setSelectedLightId(null);
+              }
+            }}
+            showGrid={showGrid}
+            playing={playing}
+            snap={snap}
+            selectedLightId={selectedLightId}
+            onSelectLight={(lid) => {
+              if (editingPolygonId) return;
+              selectLight(lid);
+            }}
+            editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
+            onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
+            onPolygonOffsetsChange={(oid, bottomOffsets) =>
+              patchObject(oid, { bottomOffsets } as any)
+            }
+            onPolygonHeightsChange={(oid, h) => {
+              const patch: any = {};
+              if (h.top) patch.pointHeights = h.top;
+              if (h.bottom) patch.bottomHeights = h.bottom;
+              patchObject(oid, patch);
+            }}
+            onPolygonPatch={(oid, p) => patchObject(oid, p as any)}
+            onTrajectoryPointsChange={(oid, points) =>
+              patchObject(oid, { points } as any)
+            }
+            addingPolygonPoint={addingPointMode && !!editingPolygonId}
+            onAddingPointHandled={() => setAddingPointMode(false)}
+            transformMode={selectedObjectLocked ? null : transformMode}
+            onObjectTransform={(oid, t) => {
+              const o = scene.objects.find((x) => x.id === oid);
+              if (isObjectLocked(o)) return;
+              patchObject(oid, t as any);
+            }}
+            sculpt={{
+              active: sculptActive && !!scene.terrain?.enabled &&
+                scene.terrain.source === "primitive" && scene.terrain.shape === "plane",
+              tool: sculptTool,
+              radius: sculptRadius,
+              strength: sculptStrength,
+              commit: (heights) =>
+                updateScene((s) => {
+                  const base = s.terrain ?? defaultTerrain();
+                  const N = base.heightmap?.resolution ?? 64;
+                  s.terrain = {
+                    ...base,
+                    heightmap: { resolution: N, data: heights },
+                  };
+                  return s;
+                }),
+            }}
+            className="w-full h-full"
+          />
+          )}
+        </main>
+
+        {/* Right: inspector */}
+        <aside
+          className={
+            isMobile
+              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
+                  mobilePanel === "right"
+                    ? "translate-y-0"
+                    : "translate-y-full pointer-events-none"
+                }`
+              : rightOpen
+              ? "border-l border-border/40 bg-card/40 overflow-y-auto"
+              : "hidden"
+          }
+        >
+          {isMobile && (
+            <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Inspector</span>
+              <button
+                onClick={() => setMobilePanel(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Close panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <Tabs defaultValue="object" className="w-full">
+            <TabsList className="w-full rounded-none grid grid-cols-4">
+              <TabsTrigger value="object" className="text-[11px]">Object</TabsTrigger>
+              <TabsTrigger value="terrain" className="text-[11px]">Terrain</TabsTrigger>
+              <TabsTrigger value="anim" className="text-[11px]">Animate</TabsTrigger>
+              <TabsTrigger value="level" className="text-[11px]">Level</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="object" className="p-3 space-y-3 m-0">
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Top bar */}
