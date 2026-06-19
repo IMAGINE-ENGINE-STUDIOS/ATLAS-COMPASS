@@ -1950,7 +1950,9 @@ export default function LevelEditorPage() {
                     ? "translate-y-0"
                     : "translate-y-full pointer-events-none"
                 }`
-              : "border-l border-border/40 bg-card/40 overflow-y-auto"
+              : rightOpen
+              ? "border-l border-border/40 bg-card/40 overflow-y-auto"
+              : "hidden"
           }
         >
           {isMobile && (
