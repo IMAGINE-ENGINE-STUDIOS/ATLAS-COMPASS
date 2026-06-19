@@ -1553,6 +1553,7 @@ function LevelScene3DInner(
     };
   }, []);
   return (
+    <>
     <Canvas
       key={canvasKey}
       className={className}
@@ -1636,6 +1637,7 @@ function LevelScene3DInner(
     {/* DOM-overlay performance HUD (toggle with `) — rendered as a sibling
         so it sits outside the WebGL canvas and never affects scene state. */}
     <PerfHUD />
+    </>
   );
 }
 
