@@ -31,6 +31,30 @@ const PRESET_TYPES: { value: PresetActionType; label: string }[] = [
   { value: "spawnGeometry", label: "Spawn geometry (CSV)" },
 ];
 
+function defaultPresetFor(type: PresetActionType): PresetAction {
+  switch (type) {
+    case "rotateContinuously": return { type, axis: [0, 1, 0], speed: 1 };
+    case "toggleVisibility":   return { type };
+    case "teleportPlayer":     return { type, target: [0, 0, 0] };
+    case "playSound":          return { type, url: "" };
+    case "openUrl":            return { type, url: "https://" };
+    case "spawnGeometry":      return { type, csv: "" };
+  }
+}
+
+function makePresetInteraction(
+  type: PresetActionType,
+  existing: ObjectInteraction[],
+): ObjectInteraction {
+  const label = PRESET_TYPES.find((p) => p.value === type)?.label ?? "Action";
+  return {
+    id: newId("act"),
+    name: `${label} ${existing.length + 1}`,
+    kind: "preset",
+    preset: defaultPresetFor(type),
+  };
+}
+
 export function InteractionsPanel({
   obj,
   paths,
@@ -188,10 +212,34 @@ function SplinesTab({
                 <Label className="text-[10px]">Trigger radius</Label>
                 <Input type="number" step={0.1} value={path?.triggerRadius ?? 1} onChange={(e) => path && patchPath(path.id, { triggerRadius: parseFloat(e.target.value) || 0 })} className="h-6 text-[10px]" disabled={disabled} />
                 <Label className="text-[10px]">Fires action</Label>
-                <Select value={b.actionId ?? ""} onValueChange={(v) => patchBinding(b.id, { actionId: v || undefined })} disabled={disabled}>
+                <Select
+                  value={b.actionId ?? ""}
+                  onValueChange={(v) => {
+                    if (v.startsWith("__new:")) {
+                      const type = v.slice("__new:".length) as PresetActionType;
+                      const act = makePresetInteraction(type, interactions);
+                      onPatch({
+                        interactions: [...interactions, act],
+                        splineBindings: bindings.map((x) => (x.id === b.id ? { ...x, actionId: act.id } : x)),
+                      });
+                      return;
+                    }
+                    patchBinding(b.id, { actionId: v || undefined });
+                  }}
+                  disabled={disabled}
+                >
                   <SelectTrigger className="h-6 text-[10px]"><SelectValue placeholder="Pick interaction…" /></SelectTrigger>
                   <SelectContent>
+                    {interactions.length > 0 && (
+                      <div className="px-2 py-1 text-[9px] uppercase text-muted-foreground">Existing</div>
+                    )}
                     {interactions.map((i) => <SelectItem key={i.id} value={i.id} className="text-xs">{i.name}</SelectItem>)}
+                    <div className="px-2 py-1 text-[9px] uppercase text-muted-foreground border-t border-border/40 mt-1">Create new</div>
+                    {PRESET_TYPES.map((p) => (
+                      <SelectItem key={`new-${p.value}`} value={`__new:${p.value}`} className="text-xs">
+                        + {p.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -613,10 +661,34 @@ function ButtonsTab({
               </>
             )}
             <Label className="text-[10px]">Action</Label>
-            <Select value={b.actionId} onValueChange={(v) => patch(b.id, { actionId: v })} disabled={disabled}>
+            <Select
+              value={b.actionId}
+              onValueChange={(v) => {
+                if (v.startsWith("__new:")) {
+                  const type = v.slice("__new:".length) as PresetActionType;
+                  const act = makePresetInteraction(type, interactions);
+                  onPatch({
+                    interactions: [...interactions, act],
+                    actionButtons: buttons.map((x) => (x.id === b.id ? { ...x, actionId: act.id } : x)),
+                  });
+                  return;
+                }
+                patch(b.id, { actionId: v });
+              }}
+              disabled={disabled}
+            >
               <SelectTrigger className="h-5 text-[10px]"><SelectValue placeholder="Pick interaction…" /></SelectTrigger>
               <SelectContent>
+                {interactions.length > 0 && (
+                  <div className="px-2 py-1 text-[9px] uppercase text-muted-foreground">Existing</div>
+                )}
                 {interactions.map((i) => <SelectItem key={i.id} value={i.id} className="text-xs">{i.name}</SelectItem>)}
+                <div className="px-2 py-1 text-[9px] uppercase text-muted-foreground border-t border-border/40 mt-1">Create new</div>
+                {PRESET_TYPES.map((p) => (
+                  <SelectItem key={`new-${p.value}`} value={`__new:${p.value}`} className="text-xs">
+                    + {p.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
