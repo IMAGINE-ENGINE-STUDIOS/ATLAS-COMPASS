@@ -25,7 +25,9 @@ export function isTeleportPickActive() {
 export function subscribeTeleportPick(fn: Listener) {
   listeners.add(fn);
   fn(active);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 function notify() {
