@@ -2057,6 +2057,7 @@ export default function RigControllerRoom({
               target={activePreset.target}
               tick={cameraTick}
             />
+            <SelectedBoneFocusDirector bridgeRef={bridgeRef} selectedBoneName={selectedBoneName} />
             {url && (
               <Rig
                 url={url}
