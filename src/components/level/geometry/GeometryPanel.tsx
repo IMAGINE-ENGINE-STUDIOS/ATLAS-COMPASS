@@ -10,6 +10,7 @@ import {
   type PrimitiveRow,
 } from "@/lib/geometryCsv";
 import type { SceneObject, Vec3 } from "@/lib/levelTypes";
+import { newId, type ScenePath } from "@/lib/levelTypes";
 import { GeometryGalleryDialog } from "./GeometryGalleryDialog";
 import { CsvGeneratorDialog } from "./CsvGeneratorDialog";
 import { toast } from "sonner";
@@ -18,11 +19,13 @@ export function GeometryPanel({
   anchor,
   selectedObject,
   onSpawn,
+  onAddPaths,
   disabled,
 }: {
   anchor: Vec3;
   selectedObject: SceneObject;
   onSpawn: (objs: SceneObject[]) => void;
+  onAddPaths?: (paths: ScenePath[]) => void;
   disabled?: boolean;
 }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -35,13 +38,26 @@ export function GeometryPanel({
       toast.warning(`${parsed.errors.length} CSV warning(s) — first: ${parsed.errors[0]}`);
     }
     const objs = csvToSceneObjects(parsed, anchor);
-    if (objs.length === 0) { toast.error("No shapes found in CSV."); return; }
+    if (objs.length === 0 && parsed.paths.length === 0) { toast.error("No shapes or paths found in CSV."); return; }
+    if (parsed.paths.length && onAddPaths) {
+      const offset = anchor;
+      const newPaths: ScenePath[] = parsed.paths.map((p) => ({
+        id: newId("path"),
+        name: p.name,
+        color: p.color,
+        closed: p.closed,
+        triggerRadius: p.triggerRadius,
+        waypoints: p.waypoints.map((w) => [w[0] + offset[0], w[1] + offset[1], w[2] + offset[2]] as Vec3),
+      }));
+      onAddPaths(newPaths);
+      toast.success(`Added ${newPaths.length} path${newPaths.length === 1 ? "" : "s"}`);
+    }
     onSpawn(objs);
-    toast.success(`Spawned ${objs.length} shape${objs.length === 1 ? "" : "s"}`);
+    if (objs.length) toast.success(`Spawned ${objs.length} shape${objs.length === 1 ? "" : "s"}`);
   };
 
   const spawnFromRows = (rows: PrimitiveRow[]) => {
-    const objs = csvToSceneObjects({ primitives: rows, triangles: [], errors: [] }, anchor);
+    const objs = csvToSceneObjects({ primitives: rows, triangles: [], paths: [], errors: [] }, anchor);
     onSpawn(objs);
     toast.success(`Spawned ${objs.length} shape${objs.length === 1 ? "" : "s"}`);
   };

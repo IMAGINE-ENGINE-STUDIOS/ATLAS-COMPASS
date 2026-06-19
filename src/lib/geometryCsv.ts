@@ -47,6 +47,15 @@ v,0,0,0
 v,1,0,0
 v,0,0,1
 f,1,2,3
+
+# PATHS (optional — named splines you can bind to objects)
+# p,pathName,color,closed,triggerRadius   ← declare a path
+# wp,pathName,x,y,z                       ← add a waypoint to that path
+p,patrol,#22ff88,0,
+wp,patrol,0,0.5,0
+wp,patrol,4,0.5,0
+wp,patrol,4,0.5,4
+wp,patrol,0,0.5,4
 `;
 
 const PRIMITIVE_SHAPES = ["box", "sphere", "plane", "cylinder", "cone", "torus"] as const;
@@ -67,9 +76,18 @@ export interface MeshTriangle {
   c: Vec3;
 }
 
+export interface ParsedPath {
+  name: string;
+  color: string;
+  closed: boolean;
+  triggerRadius?: number;
+  waypoints: Vec3[];
+}
+
 export interface ParsedGeometryCsv {
   primitives: PrimitiveRow[];
   triangles: MeshTriangle[];
+  paths: ParsedPath[];
   errors: string[];
 }
 
@@ -96,10 +114,11 @@ const num = (s: string | undefined, d = 0) => {
 };
 
 export function parseGeometryCsv(raw: string): ParsedGeometryCsv {
-  const out: ParsedGeometryCsv = { primitives: [], triangles: [], errors: [] };
+  const out: ParsedGeometryCsv = { primitives: [], triangles: [], paths: [], errors: [] };
   const verts: Vec3[] = [];
   // Track section: default to PRIMITIVES.
-  let section: "primitives" | "mesh" = "primitives";
+  let section: "primitives" | "mesh" | "paths" = "primitives";
+  const pathByName = new Map<string, ParsedPath>();
 
   const lines = raw.split(/\r?\n/);
   lines.forEach((rawLine, idx) => {
@@ -110,9 +129,42 @@ export function parseGeometryCsv(raw: string): ParsedGeometryCsv {
       const head = line.replace(/^#+\s*/, "").toLowerCase();
       if (head.startsWith("primitive")) section = "primitives";
       else if (head.startsWith("mesh")) section = "mesh";
+      else if (head.startsWith("path")) section = "paths";
       return; // comments / section headers are skipped
     }
     const cells = line.split(",").map((c) => c.trim());
+
+    if (section === "paths" || cells[0]?.toLowerCase() === "p" || cells[0]?.toLowerCase() === "wp") {
+      const kind = cells[0]?.toLowerCase();
+      if (kind === "p") {
+        const name = cells[1] || `path_${out.paths.length + 1}`;
+        const path: ParsedPath = {
+          name,
+          color: cells[2] || "#22ff88",
+          closed: cells[3] === "1" || cells[3]?.toLowerCase() === "true",
+          triggerRadius: cells[4] ? num(cells[4]) : undefined,
+          waypoints: [],
+        };
+        pathByName.set(name, path);
+        out.paths.push(path);
+        return;
+      }
+      if (kind === "wp") {
+        const name = cells[1] || "";
+        let p = pathByName.get(name);
+        if (!p) {
+          p = { name: name || `path_${out.paths.length + 1}`, color: "#22ff88", closed: false, waypoints: [] };
+          pathByName.set(p.name, p);
+          out.paths.push(p);
+        }
+        p.waypoints.push([num(cells[2]), num(cells[3]), num(cells[4])]);
+        return;
+      }
+      if (section === "paths") {
+        out.errors.push(`Line ${lineNo}: expected p,... or wp,...`);
+        return;
+      }
+    }
 
     if (section === "mesh") {
       const kind = cells[0]?.toLowerCase();

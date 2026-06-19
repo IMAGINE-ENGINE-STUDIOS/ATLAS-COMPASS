@@ -29,6 +29,28 @@ export interface BaseObject {
     gravity?: boolean;
   };
   /**
+   * Bindings to scene-level splines (see `LevelScene.scenePaths`). Each
+   * binding references a path by id and is either a movement binding
+   * (object travels along the path) or a trigger binding (the path acts
+   * as a volume; entering it fires `actionId`).
+   */
+  splineBindings?: SplineBinding[];
+  /**
+   * Programmed interactions attached to this object. Kinds:
+   *  - "preset"  — pick from a library (move, rotate, toggleVisibility, …)
+   *  - "script"  — small condition→action block list (when X then Y)
+   *  - "js"      — free-form sandboxed JS snippet (advanced)
+   * Each interaction has an `id` so action buttons / triggers can call it.
+   */
+  interactions?: ObjectInteraction[];
+  /**
+   * Floating action buttons / prompts. Rendered in-world during Play and
+   * previewable from the inspector. A button can be triggered by a click,
+   * by walking through the object's bounds, by approaching with a prompt,
+   * or by pressing a key combo. Each button invokes one interaction by id.
+   */
+  actionButtons?: ActionButton[];
+  /**
    * Per-face material overrides. Keys are stable face identifiers that
    * depend on the object's shape:
    *  - Polygon flat:      "cap"
@@ -41,6 +63,95 @@ export interface BaseObject {
    * Models use `materialOverrides` (per-mesh) instead.
    */
   faceOverrides?: Record<string, FaceOverride>;
+}
+
+export interface ScenePath {
+  id: string;
+  name: string;
+  /** Control points in world space. Linear-interpolated between waypoints. */
+  waypoints: Vec3[];
+  /** Hex color for the rendered overlay polyline. */
+  color: string;
+  /** When the path acts as a trigger volume, this is its capture radius (m). */
+  triggerRadius?: number;
+  /** True to close the loop (last waypoint connects to first). */
+  closed?: boolean;
+}
+
+export interface SplineBinding {
+  id: string;
+  pathId: string;
+  mode: "movement" | "trigger";
+  /** Movement: travel speed along the path (m/s). */
+  speed?: number;
+  /** Movement: loop when reaching the end. */
+  loop?: boolean;
+  /** Movement: align the object's yaw to the path tangent. */
+  orientToPath?: boolean;
+  /** Trigger: action id (matches `ObjectInteraction.id`) fired on enter. */
+  actionId?: string;
+}
+
+export type PresetActionType =
+  | "rotateContinuously"
+  | "toggleVisibility"
+  | "teleportPlayer"
+  | "playSound"
+  | "openUrl"
+  | "spawnGeometry";
+
+export interface PresetAction {
+  type: PresetActionType;
+  /** Rotation axis (rotateContinuously) — defaults to [0,1,0]. */
+  axis?: Vec3;
+  /** Rotation speed in rad/s (rotateContinuously). */
+  speed?: number;
+  /** Target world position (teleportPlayer). */
+  target?: Vec3;
+  /** URL (openUrl or playSound). */
+  url?: string;
+  /** Geometry CSV (spawnGeometry). */
+  csv?: string;
+}
+
+export interface ScriptBlock {
+  /** Condition: e.g. "onPlayerNear", "onClick", "onWalkThrough", "always". */
+  when: "onClick" | "onPlayerNear" | "onWalkThrough" | "always";
+  /** Distance for `onPlayerNear`. */
+  distance?: number;
+  /** Action to run. Reuses PresetAction shape for simplicity. */
+  then: PresetAction;
+}
+
+export interface ObjectInteraction {
+  id: string;
+  name: string;
+  kind: "preset" | "script" | "js";
+  /** When kind === "preset". */
+  preset?: PresetAction;
+  /** When kind === "script": list of when→then blocks. */
+  blocks?: ScriptBlock[];
+  /** When kind === "js": sandboxed snippet. Receives ({ obj, scene, ctx }). */
+  js?: string;
+}
+
+export interface ActionButton {
+  id: string;
+  label: string;
+  /** Human-readable hint shown on the floating pin, e.g. "Press E to open". */
+  pinText?: string;
+  /** When false, the pin is hidden and the action runs implicitly. */
+  pinVisible: boolean;
+  /** Vertical offset above the object for the pin (m). */
+  pinOffset?: number;
+  /** How the action is triggered. */
+  trigger:
+    | { kind: "click" }
+    | { kind: "key"; keys: string[] }
+    | { kind: "proximity"; distance: number }
+    | { kind: "walkThrough" };
+  /** Interaction id (matches `ObjectInteraction.id`) to invoke. */
+  actionId: string;
 }
 
 export interface FaceOverride {
@@ -374,6 +485,8 @@ export interface LevelScene {
   animations: AnimationTrack[];
   layers?: SceneLayer[];
   terrain?: SceneTerrain;
+  /** Scene-wide named splines reusable by object spline bindings. */
+  scenePaths?: ScenePath[];
   /**
    * Persisted character animation clips uploaded by the user for this level.
    * Each entry mirrors `CharacterClipEntry` from the library — kept here so

@@ -32,6 +32,7 @@ import { characterRegistry } from "./locomotion/locomotionState";
 import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
 import { TrajectoryRender, TrajectoryRunner } from "./trajectory/TrajectoryRuntime";
+import { ScenePathOverlay } from "./geometry/ScenePathOverlay";
 
 /* ---------- helpers ---------- */
 
@@ -1419,6 +1420,7 @@ export function LevelSceneContents({
       })()}
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
       <TrajectoryRunner objects={scene.objects} playing={!!playing} groupRef={groupRef} />
+      <ScenePathOverlay scene={scene} selectedId={selectedId} />
       <FocusController
         target={focusRequest}
         groupRef={groupRef}

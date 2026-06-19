@@ -62,6 +62,7 @@ import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
 import { GeometryPanel } from "@/components/level/geometry/GeometryPanel";
+import { InteractionsPanel } from "@/components/level/geometry/InteractionsPanel";
 import {
   listRigSaves,
   getCachedRigSaves,
@@ -2047,6 +2048,8 @@ export default function LevelEditorPage() {
                   userClips={userClipEntries}
                   onOpenCharacterGallery={() => setCharacterGalleryOpen(true)}
                   onSpawnObjects={(objs) => addObjects(objs)}
+                  scenePaths={scene.scenePaths ?? []}
+                  onPatchScenePaths={(next) => updateScene((s) => { s.scenePaths = next; return s; })}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
@@ -2449,6 +2452,7 @@ function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
   userClips, onOpenCharacterGallery, onSpawnObjects, allObjects = [],
+  scenePaths = [], onPatchScenePaths,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -2468,6 +2472,8 @@ function ObjectInspector({
   onOpenCharacterGallery: () => void;
   onSpawnObjects?: (objs: SceneObject[]) => void;
   allObjects?: SceneObject[];
+  scenePaths?: import("@/lib/levelTypes").ScenePath[];
+  onPatchScenePaths?: (next: import("@/lib/levelTypes").ScenePath[]) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -2642,6 +2648,16 @@ function ObjectInspector({
           anchor={obj.position}
           selectedObject={obj}
           onSpawn={onSpawnObjects}
+          onAddPaths={onPatchScenePaths ? (paths) => onPatchScenePaths([...(scenePaths ?? []), ...paths]) : undefined}
+          disabled={disabled}
+        />
+      )}
+      {onPatchScenePaths && obj.kind !== "trajectory" && (
+        <InteractionsPanel
+          obj={obj}
+          paths={scenePaths}
+          onPatch={onPatch}
+          onPatchPaths={onPatchScenePaths}
           disabled={disabled}
         />
       )}
