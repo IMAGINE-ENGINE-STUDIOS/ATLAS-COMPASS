@@ -1409,25 +1409,21 @@ export default function RigControllerRoom({
             </div>
           </div>
 
-          {/* Selected rig preview */}
+          {/* Selected rig — rendered identically to a row in the Level object bar */}
           {activeSaveId && (() => {
             const sel = saves.find((s) => s.id === activeSaveId);
             if (!sel) return null;
             return (
-              <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.04] border border-white/10 p-2">
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-slate-800 to-black flex-shrink-0 flex items-center justify-center ring-1 ring-white/10">
-                  {sel.thumbnail ? (
-                    <img src={sel.thumbnail} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <Save className="w-4 h-4 text-white/30" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] text-white font-medium truncate">{sel.name}</p>
-                  <p className="font-mono tabular-nums text-[9px] text-white/40">
-                    {new Date(sel.created_at).toLocaleDateString()}
-                  </p>
-                </div>
+              <div
+                className="w-full text-left px-2 py-1 rounded text-[11px] flex items-center gap-1.5 bg-primary/20 text-primary"
+                title={`${sel.name} (rig)`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: "#22ff88" }}
+                />
+                <span className="flex-1 truncate">{sel.name}</span>
+                <span className="text-[9px] uppercase tracking-wider opacity-50">rig</span>
               </div>
             );
           })()}
