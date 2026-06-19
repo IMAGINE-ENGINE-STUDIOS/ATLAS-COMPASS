@@ -1729,7 +1729,13 @@ export default function LevelEditorPage() {
         </aside>
 
         {/* Center: viewport */}
-        <main className="relative bg-slate-950">
+        <main
+          className={
+            isMobile
+              ? "absolute inset-0 bottom-14 bg-slate-950"
+              : "relative bg-slate-950"
+          }
+        >
           {rigRoomMode ? (
             <RigControllerRoom
               onRigStateChange={setRigState}
@@ -1860,7 +1866,29 @@ export default function LevelEditorPage() {
         </main>
 
         {/* Right: inspector */}
-        <aside className="border-l border-border/40 bg-card/40 overflow-y-auto">
+        <aside
+          className={
+            isMobile
+              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
+                  mobilePanel === "right"
+                    ? "translate-y-0"
+                    : "translate-y-full pointer-events-none"
+                }`
+              : "border-l border-border/40 bg-card/40 overflow-y-auto"
+          }
+        >
+          {isMobile && (
+            <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Inspector</span>
+              <button
+                onClick={() => setMobilePanel(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Close panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <Tabs defaultValue="object" className="w-full">
             <TabsList className="w-full rounded-none grid grid-cols-4">
               <TabsTrigger value="object" className="text-[11px]">Object</TabsTrigger>
