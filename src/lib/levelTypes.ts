@@ -3,6 +3,65 @@
 export type Vec3 = [number, number, number];
 export type RGBA = [number, number, number, number]; // 0..1
 
+/**
+ * A bound keyboard combo, e.g. "E", "7", "Shift+F". Captured via the
+ * `KeyCaptureInput` widget so the format stays consistent (no whitespace,
+ * canonical case for letters, "Shift|Ctrl|Alt|Meta+<KEY>").
+ */
+export type PlayKey = string;
+
+/**
+ * Per-object Play-mode behavior. Authored in the editor, consumed by the
+ * Play runtime (`PlayBehaviorRuntime` + `PlayInputManager`). All fields are
+ * optional except `collision`. When `playBehavior` is omitted the object
+ * defaults to walkable scenery with no interactions.
+ */
+export interface PlayBehavior {
+  /**
+   * Movement vs the object:
+   *  - "walkable": player can stand on / collide with it (default).
+   *  - "blocking": player collides but the surface is not pickable as ground
+   *                (use for invisible walls — currently aliased to walkable
+   *                in the raycast; semantics will be refined later).
+   *  - "none":     ghost — player passes straight through (`__nocast`).
+   */
+  collision: "walkable" | "blocking" | "none";
+  /** Hide the mesh while in Play mode (collision still applies unless `none`). */
+  invisibleInPlay?: boolean;
+  /** Picked up / dropped with `key`. Parents the object to the player root. */
+  grabbable?: { key: PlayKey; carryOffset?: Vec3 };
+  /** Player can push this object on contact. */
+  pushable?: { mass?: number; friction?: number };
+  /** Press `key` within `interactRadius` to emit `eventId` on the level bus. */
+  event?: { key: PlayKey; eventId: string; once?: boolean };
+  /** Sit on this object (`key`, default "E"). */
+  sittable?: { key: PlayKey };
+  /** Generic "use" hook (`key`, optional HUD label). */
+  usable?: { key: PlayKey; label?: string };
+  /** Proximity radius (m) for all key-triggered actions. Default 2.5m. */
+  interactRadius?: number;
+}
+
+/**
+ * Best-effort migration from the legacy `interaction` enum + `physics.gravity`
+ * to the structured `playBehavior` block. Callers pass the raw scene object
+ * and receive the behavior to use at runtime (without mutating the object).
+ */
+export function resolvePlayBehavior(obj: BaseObject): PlayBehavior {
+  if (obj.playBehavior) return obj.playBehavior;
+  const legacy = obj.interaction;
+  if (legacy === "pushable") {
+    return { collision: "walkable", pushable: { mass: 1, friction: 0.92 } };
+  }
+  if (legacy === "sit") {
+    return { collision: "walkable", sittable: { key: "E" }, interactRadius: 1.6 };
+  }
+  if (legacy === "use") {
+    return { collision: "walkable", usable: { key: "E" }, interactRadius: 1.6 };
+  }
+  return { collision: "walkable" };
+}
+
 export interface BaseObject {
   id: string;
   name: string;
