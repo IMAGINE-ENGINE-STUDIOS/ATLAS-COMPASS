@@ -452,32 +452,38 @@ function ControllerMarker({
 function ObjectControllerBar({
   bridgeRef,
   selectedBoneName,
+  hoveredBoneName,
   onClear,
 }: {
   bridgeRef: React.MutableRefObject<RigBridge>;
   selectedBoneName: string | null;
+  hoveredBoneName?: string | null;
   onClear: () => void;
 }) {
   const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0]);
   const initialRef = useRef<THREE.Euler | null>(null);
   const boneRef = useRef<THREE.Object3D | null>(null);
+  // Effective bone: selected (editable) wins, otherwise hovered (preview).
+  const effectiveName = selectedBoneName ?? hoveredBoneName ?? null;
+  const isPreview = !selectedBoneName && !!hoveredBoneName;
 
   // Resolve the currently-selected bone every time the selection changes.
   useEffect(() => {
     boneRef.current = null;
     initialRef.current = null;
-    if (!selectedBoneName) { setRotation([0, 0, 0]); return; }
+    if (!effectiveName) { setRotation([0, 0, 0]); return; }
     const root = bridgeRef.current.root;
     if (!root) return;
     let found: THREE.Object3D | null = null;
-    root.traverse((o) => { if (!found && o.name === selectedBoneName) found = o; });
+    root.traverse((o) => { if (!found && o.name === effectiveName) found = o; });
     if (!found) return;
     boneRef.current = found;
     initialRef.current = found.rotation.clone();
     setRotation([found.rotation.x, found.rotation.y, found.rotation.z]);
-  }, [selectedBoneName, bridgeRef]);
+  }, [effectiveName, bridgeRef]);
 
   const applyAxis = (axis: 0 | 1 | 2, value: number) => {
+    if (isPreview) return; // hovering = read-only preview
     const next: [number, number, number] = [...rotation] as any;
     next[axis] = value;
     setRotation(next);
@@ -486,6 +492,7 @@ function ObjectControllerBar({
   };
 
   const reset = () => {
+    if (isPreview) return;
     const b = boneRef.current;
     const init = initialRef.current;
     if (b && init) {
@@ -508,7 +515,7 @@ function ObjectControllerBar({
           className="text-[10px] uppercase tracking-[0.22em] font-semibold"
           style={{ color: "#22ff88", textShadow: "0 0 6px rgba(34,255,136,0.5)" }}
         >
-          Object · Bone
+          {isPreview ? "Object · Bone (preview)" : "Object · Bone"}
         </span>
         {selectedBoneName && (
           <button
@@ -520,17 +527,17 @@ function ObjectControllerBar({
         )}
       </div>
 
-      {!selectedBoneName ? (
+      {!effectiveName ? (
         <p className="text-[10px] text-muted-foreground italic">
           Hover then click a node on the X-ray to load it here.
         </p>
       ) : (
         <>
           <div className="text-[11px] font-mono truncate" style={{ color: "#bbffd5" }}>
-            {prettifyBoneName(selectedBoneName)}
+            {prettifyBoneName(effectiveName)}
           </div>
           <div className="text-[9px] text-muted-foreground font-mono truncate -mt-1">
-            {selectedBoneName}
+            {effectiveName}
           </div>
 
           {(["X", "Y", "Z"] as const).map((axis, i) => (
@@ -547,6 +554,7 @@ function ObjectControllerBar({
                 max={Math.PI}
                 step={0.01}
                 onValueChange={([v]) => applyAxis(i as 0 | 1 | 2, v)}
+                disabled={isPreview}
               />
             </div>
           ))}
@@ -556,6 +564,7 @@ function ObjectControllerBar({
             variant="outline"
             className="h-7 w-full"
             onClick={reset}
+            disabled={isPreview}
           >
             <RotateCcw className="w-3 h-3 mr-1.5" /> Reset rotation
           </Button>
