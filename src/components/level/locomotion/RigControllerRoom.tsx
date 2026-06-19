@@ -189,6 +189,180 @@ function findSkeleton(root: THREE.Object3D): THREE.Skeleton | null {
   return sk;
 }
 
+function findObjectByName(root: THREE.Object3D, name: string | null): THREE.Object3D | null {
+  if (!name) return null;
+  let found: THREE.Object3D | null = null;
+  root.traverse((o) => { if (!found && o.name === name) found = o; });
+  return found;
+}
+
+function getStableRigBox(root: THREE.Object3D): THREE.Box3 {
+  const box = new THREE.Box3();
+  const point = new THREE.Vector3();
+  let hasBones = false;
+  root.updateWorldMatrix(true, true);
+  collectBones(root).forEach((bone) => {
+    bone.updateWorldMatrix(true, false);
+    point.setFromMatrixPosition(bone.matrixWorld);
+    if (Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)) {
+      box.expandByPoint(point);
+      hasBones = true;
+    }
+  });
+  if (hasBones) return box;
+  box.setFromObject(root);
+  return box;
+}
+
+function collectBoneSplineEdges(
+  root: THREE.Object3D,
+  selectedBoneName: string | null,
+  includeSubtree: boolean,
+): [THREE.Object3D, THREE.Object3D][] {
+  const selected = findObjectByName(root, selectedBoneName) as THREE.Bone | null;
+  if (!selected || !(selected as any).isBone) return [];
+  const boneSet = new Set(collectBones(root));
+  const edges: [THREE.Object3D, THREE.Object3D][] = [];
+  let cursor: THREE.Object3D = selected;
+  while (cursor.parent && boneSet.has(cursor.parent as THREE.Bone)) {
+    edges.unshift([cursor.parent, cursor]);
+    cursor = cursor.parent;
+  }
+  const addChildren = (bone: THREE.Object3D) => {
+    bone.children.forEach((child) => {
+      if (!(child as any).isBone) return;
+      edges.push([bone, child]);
+      if (includeSubtree) addChildren(child);
+    });
+  };
+  addChildren(selected);
+  return edges;
+}
+
+function BoneSplineOverlay({
+  root,
+  selectedBoneName,
+  expanded,
+  xray = false,
+}: {
+  root: THREE.Object3D;
+  selectedBoneName: string | null;
+  expanded: boolean;
+  xray?: boolean;
+}) {
+  const edges = useMemo(
+    () => collectBoneSplineEdges(root, selectedBoneName, expanded),
+    [root, selectedBoneName, expanded],
+  );
+  const geometry = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(Math.max(edges.length, 1) * 6), 3));
+    return g;
+  }, [edges.length]);
+  const a = useMemo(() => new THREE.Vector3(), []);
+  const b = useMemo(() => new THREE.Vector3(), []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useFrame(() => {
+    if (!edges.length) return;
+    const attr = geometry.getAttribute("position") as THREE.BufferAttribute;
+    edges.forEach(([start, end], i) => {
+      start.updateWorldMatrix(true, false);
+      end.updateWorldMatrix(true, false);
+      a.setFromMatrixPosition(start.matrixWorld);
+      b.setFromMatrixPosition(end.matrixWorld);
+      attr.setXYZ(i * 2, a.x, a.y, a.z);
+      attr.setXYZ(i * 2 + 1, b.x, b.y, b.z);
+    });
+    attr.needsUpdate = true;
+    geometry.computeBoundingSphere();
+  });
+
+  if (!edges.length) return null;
+  return (
+    <lineSegments geometry={geometry} renderOrder={1200} frustumCulled={false}>
+      <lineBasicMaterial
+        color={expanded ? "#22ff88" : "#f8f871"}
+        transparent
+        opacity={xray ? 0.95 : 0.85}
+        depthTest={false}
+        toneMapped={false}
+      />
+    </lineSegments>
+  );
+}
+
+function BonePickHotspot({
+  bone,
+  selected,
+  hovered,
+  armed,
+  xray = false,
+  onHover,
+  onSelect,
+}: {
+  bone: THREE.Bone;
+  selected: boolean;
+  hovered: boolean;
+  armed?: boolean;
+  xray?: boolean;
+  onHover: (name: string | null) => void;
+  onSelect: (name: string) => void;
+}) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    bone.updateWorldMatrix(true, false);
+    ref.current.position.setFromMatrixPosition(bone.matrixWorld);
+  });
+  const active = selected || hovered || armed;
+  const color = armed ? "#22ff88" : selected ? "#f8f871" : hovered ? "#5cff9e" : xray ? "#5fd9ff" : "#7dd3fc";
+  const visR = xray
+    ? selected ? 0.038 : hovered ? 0.03 : 0.016
+    : selected ? 0.06 : hovered ? 0.045 : 0.022;
+  const hitR = xray ? 0.058 : 0.085;
+  return (
+    <mesh
+      ref={ref}
+      onPointerOver={(e) => { e.stopPropagation(); onHover(bone.name); }}
+      onPointerOut={(e) => { e.stopPropagation(); onHover(null); }}
+      onClick={(e) => { e.stopPropagation(); onSelect(bone.name); }}
+      renderOrder={1300}
+      frustumCulled={false}
+    >
+      <sphereGeometry args={[hitR, 12, 12]} />
+      <meshBasicMaterial transparent opacity={0} depthTest={false} depthWrite={false} />
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[visR, 16, 16]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={active ? 1 : xray ? 0.66 : 0.42}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </mesh>
+      {active && (
+        <Html center distanceFactor={xray ? 2 : 5} zIndexRange={[100, 0]} style={{ pointerEvents: "none" }}>
+          <div
+            className="px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap"
+            style={{
+              background: "rgba(4,16,26,0.9)",
+              color,
+              border: `1px solid ${color}`,
+              transform: "translateY(-15px)",
+              boxShadow: `0 0 10px ${color}88`,
+            }}
+          >
+            {prettifyBoneName(bone.name)}
+          </div>
+        </Html>
+      )}
+    </mesh>
+  );
+}
+
 /* --------------------------- Rig viewer --------------------------- */
 
 /**
