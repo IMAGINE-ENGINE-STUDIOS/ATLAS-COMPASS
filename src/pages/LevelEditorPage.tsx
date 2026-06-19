@@ -269,7 +269,6 @@ function ComponentsPanel({
   onSelectBone?: (name: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [collapsedBones, setCollapsedBones] = useState<Set<string>>(new Set());
   const q = query.trim().toLowerCase();
 
   type GroupKey = "characters" | "objects" | "trajectories";
