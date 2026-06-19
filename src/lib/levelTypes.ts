@@ -21,6 +21,13 @@ export interface BaseObject {
    */
   interaction?: "pushable" | "sit" | "use";
   /**
+   * Authored Play-mode behavior. When present, this fully describes how the
+   * object reacts at Play time (collision, visibility, key-triggered actions)
+   * and supersedes the legacy `interaction` enum. Legacy field is kept for
+   * back-compat and migrated on read by `migrateInteractionToPlayBehavior`.
+   */
+  playBehavior?: PlayBehavior;
+  /**
    * Lightweight physics toggles applied at Play time. All flags default to
    * OFF so authored placement is preserved unless the user opts in.
    */
