@@ -2452,6 +2452,7 @@ function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
   userClips, onOpenCharacterGallery, onSpawnObjects, allObjects = [],
+  scenePaths = [], onPatchScenePaths,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -2471,6 +2472,8 @@ function ObjectInspector({
   onOpenCharacterGallery: () => void;
   onSpawnObjects?: (objs: SceneObject[]) => void;
   allObjects?: SceneObject[];
+  scenePaths?: import("@/lib/levelTypes").ScenePath[];
+  onPatchScenePaths?: (next: import("@/lib/levelTypes").ScenePath[]) => void;
 }) {
   return (
     <div className="space-y-3">
