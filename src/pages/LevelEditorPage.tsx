@@ -2283,6 +2283,11 @@ export default function LevelEditorPage() {
         </nav>
       )}
 
+      {/* Play-mode runtime + HUD (mounted only while playing) */}
+      <PlayBehaviorRuntime objects={scene.objects} playing={playing} />
+      <PlayInputManager playing={playing} />
+      <PlayHUD visible={playing} onExit={() => setPlaying(false)} />
+
       {/* Place on atlas dialog */}
       <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>
         <DialogContent>
