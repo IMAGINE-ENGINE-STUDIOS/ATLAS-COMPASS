@@ -2103,6 +2103,8 @@ export default function RigControllerRoom({
                 targetHeight={lookupRealHeight(url)}
                 showSkeleton={showSkeleton}
                 selectedBoneName={selectedBoneName}
+                hoveredBoneName={hoveredBoneName}
+                onHoverBone={setHoveredBoneName}
                 transformMode={transformMode}
                 onLoaded={onLoaded}
                 onSelectBone={setSelectedBoneName}
