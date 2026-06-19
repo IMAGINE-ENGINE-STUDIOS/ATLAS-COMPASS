@@ -459,10 +459,10 @@ function Rig({
 }) {
   const gltf = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
-  const liveBones = useMemo(() => collectBones(cloned), [cloned, topologyVersion]);
   // Topology version bumps when bones are added/removed so we can re-emit
   // the bone list and rebuild the SkeletonHelper.
   const [topologyVersion, setTopologyVersion] = useState(0);
+  const liveBones = useMemo(() => collectBones(cloned), [cloned, topologyVersion]);
   // Render every rig at its native scale (scale = 1). Bounding-box based
   // normalization broke skinned meshes and pushed characters off-camera,
   // so the room now trusts each glTF's authored size.
