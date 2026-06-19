@@ -1645,7 +1645,7 @@ export default function LevelEditorPage() {
         className={
           isMobile
             ? "flex-1 relative min-h-0"
-            : "flex-1 grid grid-rows-[1fr] min-h-0 min-w-0"
+            : "flex-1 grid grid-rows-[minmax(0,1fr)] min-h-0 min-w-0"
         }
         style={
           isMobile
