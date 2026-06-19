@@ -1655,7 +1655,7 @@ export default function RigControllerRoom({
               />
             )}
           </Suspense>
-          <OrbitControls makeDefault target={[0, 1, 0]} />
+          <OrbitControls makeDefault target={[0, 0.9, 0]} />
         </Canvas>
         <div className="absolute top-3 left-3 px-3 py-1.5 rounded-md bg-background/70 backdrop-blur border border-border/40 text-[11px] text-muted-foreground">
           {selectedBoneName ? <>Selected: <span className="text-foreground font-mono">{selectedBoneName}</span></> : "Click a controller marker or bone in the list"}
