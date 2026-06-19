@@ -1128,88 +1128,12 @@ function XrayLiveMesh({
   );
 }
 
-function XrayBoneHotspot({
-  bone,
-  selected,
-  hovered,
-  onHover,
-  onSelect,
-}: {
-  bone: THREE.Bone;
-  selected: boolean;
-  hovered: boolean;
-  onHover: (name: string | null) => void;
-  onSelect: (name: string) => void;
-}) {
-  const ref = useRef<THREE.Mesh>(null);
-  // Track the bone's world position each frame and keep the hotspot in the
-  // root scene so its hit-area scale is unaffected by Mixamo bones (which
-  // are often scaled ~0.01 and make re-parented spheres unhittable).
-  useFrame(() => {
-    if (!ref.current) return;
-    bone.updateWorldMatrix(true, false);
-    ref.current.position.setFromMatrixPosition(bone.matrixWorld);
-  });
-  // Green highlight when hovered or actively selected (per design spec).
-  const color = selected ? "#22ff88" : hovered ? "#5cff9e" : "#5fd9ff";
-  const visR = selected ? 0.032 : hovered ? 0.026 : 0.014;
-  const hitR = 0.05; // larger invisible pick radius so bones are easy to click
-  return (
-    <mesh
-      ref={ref}
-      onPointerOver={(e) => { e.stopPropagation(); onHover(bone.name); }}
-      onPointerOut={(e) => { e.stopPropagation(); onHover(null); }}
-      onClick={(e) => { e.stopPropagation(); onSelect(bone.name); }}
-      renderOrder={1000}
-    >
-      <sphereGeometry args={[hitR, 12, 12]} />
-      <meshBasicMaterial
-        transparent
-        opacity={0}
-        depthTest={false}
-        depthWrite={false}
-      />
-      {/* Visible dot */}
-      <mesh raycast={() => null}>
-        <sphereGeometry args={[visR, 12, 12]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={selected ? 1 : hovered ? 0.95 : 0.7}
-          depthTest={false}
-          toneMapped={false}
-        />
-      </mesh>
-      {(hovered || selected) && (
-        <Html
-          center
-          distanceFactor={2}
-          zIndexRange={[100, 0]}
-          style={{ pointerEvents: "none" }}
-        >
-          <div
-            className="px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap"
-            style={{
-              background: "rgba(4,16,26,0.85)",
-              color: selected ? "#22ff88" : "#5cff9e",
-              border: `1px solid ${selected ? "#22ff88" : "#5cff9e"}`,
-              transform: "translateY(-14px)",
-              boxShadow: `0 0 8px ${selected ? "#22ff88aa" : "#5cff9e88"}`,
-            }}
-          >
-            {prettifyBoneName(bone.name)}
-          </div>
-        </Html>
-      )}
-    </mesh>
-  );
-}
-
 function XrayBodyMap({
   url,
   bones,
   controllerMap,
   selectedBoneName,
+  addBoneMode,
   onSelectBone,
   hoveredBone: hoveredBoneProp,
   onHoverBone,
@@ -1220,6 +1144,7 @@ function XrayBodyMap({
   bones: THREE.Bone[];
   controllerMap: Record<ControllerKey, string | null>;
   selectedBoneName: string | null;
+  addBoneMode?: boolean;
   onSelectBone: (boneName: string) => void;
   hoveredBone?: string | null;
   onHoverBone?: (name: string | null) => void;
