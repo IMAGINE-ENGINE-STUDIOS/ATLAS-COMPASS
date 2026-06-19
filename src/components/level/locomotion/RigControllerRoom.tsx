@@ -386,8 +386,10 @@ function Rig({
       ))}
       {selectedBone && (
         <TransformControls
+          key={transformMode}
           object={selectedBone as THREE.Object3D}
           mode={transformMode}
+          space="local"
           size={0.6}
         />
       )}
