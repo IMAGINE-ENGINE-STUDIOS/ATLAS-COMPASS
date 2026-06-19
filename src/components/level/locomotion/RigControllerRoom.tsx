@@ -1880,6 +1880,51 @@ export default function RigControllerRoom({
           {selectedBoneName ? <>Selected: <span className="text-foreground font-mono">{selectedBoneName}</span></> : "Click a controller marker or bone in the list"}
         </div>
 
+        {/* Bone topology editor — Add / Delete. Lives just under the selection
+            readout so the affordances are next to what they act on. */}
+        <div className="absolute top-14 left-3 flex items-center gap-1 px-1.5 py-1 rounded-md bg-background/70 backdrop-blur border border-border/40">
+          <Button
+            size="sm"
+            variant={addBoneMode ? "default" : "ghost"}
+            className="h-7 px-2 text-[11px] gap-1"
+            onClick={() => {
+              if (!selectedBoneName) {
+                toast.error("Select a parent bone first");
+                return;
+              }
+              setAddBoneMode((v) => !v);
+            }}
+            title={selectedBoneName
+              ? `Click on the rig to anchor a new bone as a child of "${selectedBoneName}"`
+              : "Select a bone first to anchor children to it"}
+          >
+            <BoneIcon className="w-3 h-3" />
+            {addBoneMode ? "Click to place…" : "Add bone"}
+          </Button>
+          <div className="w-px h-4 bg-border/40 mx-0.5" />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[11px] gap-1 text-red-300 hover:text-red-200 hover:bg-red-500/10"
+            disabled={!selectedBoneName}
+            onClick={() => {
+              if (!selectedBoneName) return;
+              const name = selectedBoneName;
+              if (!window.confirm(`Delete bone "${name}" and all its children?`)) return;
+              const ok = bridgeRef.current.deleteBone?.(name);
+              if (ok) {
+                setSelectedBoneName(null);
+                toast.success(`Removed ${prettifyBoneName(name)}`);
+              } else {
+                toast.error("Couldn't delete that bone");
+              }
+            }}
+            title="Delete the selected bone"
+          >
+            <Trash2 className="w-3 h-3" /> Delete
+          </Button>
+        </div>
+
         {/* Cinematic camera deck — Reset + 4 preset angles. */}
         <div className="absolute top-3 right-3 flex items-center gap-1 px-1.5 py-1 rounded-md bg-background/70 backdrop-blur border border-border/40">
           <Button
