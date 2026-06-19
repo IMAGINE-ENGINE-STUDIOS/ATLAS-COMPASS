@@ -430,7 +430,18 @@ function Rig({
 
   return (
     <>
-      <primitive object={cloned} scale={normalizedScale} />
+      <group
+        onClick={(e: any) => {
+          if (!addBoneMode) return;
+          if (!selectedBoneName) return;
+          e.stopPropagation();
+          const wp = e.point as THREE.Vector3;
+          const newName = bridgeRef.current.addBoneAt?.(selectedBoneName, wp);
+          if (newName) onSelectBone(newName);
+        }}
+      >
+        <primitive object={cloned} scale={normalizedScale} />
+      </group>
       {highlightedBones.map((h) => (
         <ControllerMarker
           key={h.name}
