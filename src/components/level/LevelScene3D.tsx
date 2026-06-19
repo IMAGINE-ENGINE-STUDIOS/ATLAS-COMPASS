@@ -1830,6 +1830,14 @@ function TransformGizmo({
     if (!ctl || !target) return;
     const raycaster = new THREE.Raycaster();
     const down = new THREE.Vector3(0, -1, 0);
+    const bbox = new THREE.Box3();
+    const computeBottomOffset = (obj: THREE.Object3D): number => {
+      // How far the object's origin sits above its lowest point in world space.
+      // Used so the bottom (not the center) lands on the terrain.
+      bbox.setFromObject(obj);
+      if (!isFinite(bbox.min.y) || !isFinite(bbox.max.y)) return 0;
+      return obj.position.y - bbox.min.y;
+    };
     const onChange = () => {
       if (!snapToTerrain || mode !== "translate") return;
       const terrainRoot = r3fScene.getObjectByName("__terrain_root");
@@ -1837,7 +1845,10 @@ function TransformGizmo({
       const origin = new THREE.Vector3(target.position.x, 1000, target.position.z);
       raycaster.set(origin, down);
       const hits = raycaster.intersectObject(terrainRoot, true);
-      if (hits.length) target.position.y = hits[0].point.y;
+      if (hits.length) {
+        const offset = computeBottomOffset(target);
+        target.position.y = hits[0].point.y + offset;
+      }
     };
     ctl.addEventListener("objectChange", onChange);
     return () => ctl.removeEventListener("objectChange", onChange);
@@ -1868,7 +1879,14 @@ function TransformGizmo({
               new THREE.Vector3(0, -1, 0),
             );
             const hits = raycaster.intersectObject(terrainRoot, true);
-            if (hits.length) target.position.y = hits[0].point.y;
+            if (hits.length) {
+              const box = new THREE.Box3().setFromObject(target);
+              const offset =
+                isFinite(box.min.y) && isFinite(box.max.y)
+                  ? target.position.y - box.min.y
+                  : 0;
+              target.position.y = hits[0].point.y + offset;
+            }
           }
         }
         onCommit({
