@@ -39,7 +39,19 @@ interface RigBridge {
    * skeleton lives) and called by the surrounding sidebar UI.
    */
   addBoneAt: ((parentName: string, worldPoint: THREE.Vector3) => string | null) | null;
+  /**
+   * One-shot bone insertion that snaps the new joint onto the spine spline
+   * (the line that connects the selected bone to its parent — or to its
+   * first child if the selection is the root). Returns the new bone name
+   * so the caller can select it immediately.
+   */
+  addBoneOnSpline: ((parentName: string) => string | null) | null;
   deleteBone: ((name: string) => boolean) | null;
+  /**
+   * Restore the rig to its authored bind pose AND strip every bone the
+   * user added at runtime (anything tagged with userData.__custom).
+   */
+  resetSkeleton: (() => void) | null;
 }
 
 /**
@@ -237,6 +249,13 @@ function collectBoneSplineEdges(
   };
   addChildren(selected);
   return edges;
+}
+
+function depthOf(o: THREE.Object3D): number {
+  let d = 0;
+  let cur: THREE.Object3D | null = o;
+  while (cur?.parent) { d++; cur = cur.parent; }
+  return d;
 }
 
 function BoneSplineOverlay({
@@ -539,6 +558,61 @@ function Rig({
       setTopologyVersion((v) => v + 1);
       return true;
     };
+    bridgeRef.current.addBoneOnSpline = (parentName) => {
+      let parent: THREE.Object3D | null = null;
+      cloned.traverse((o) => { if (!parent && o.name === parentName) parent = o; });
+      if (!parent) return null;
+      const p = parent as THREE.Object3D;
+      // Anchor point in WORLD space: midpoint between the selected bone and
+      // its parent along the spine. If the selection IS a root bone (its
+      // parent isn't a bone), fall back to the first child bone instead.
+      p.updateWorldMatrix(true, false);
+      const selfWorld = new THREE.Vector3().setFromMatrixPosition(p.matrixWorld);
+      const boneSet = new Set(collectBones(cloned));
+      let neighbor: THREE.Object3D | null = null;
+      if (p.parent && boneSet.has(p.parent as THREE.Bone)) neighbor = p.parent;
+      else neighbor = (p.children.find((c) => (c as any).isBone) as THREE.Object3D | undefined) ?? null;
+      const target = new THREE.Vector3();
+      if (neighbor) {
+        neighbor.updateWorldMatrix(true, false);
+        const nWorld = new THREE.Vector3().setFromMatrixPosition(neighbor.matrixWorld);
+        target.copy(selfWorld).lerp(nWorld, 0.5);
+      } else {
+        // No neighbor — offset 0.15m up the world Y so the new bone is visible.
+        target.copy(selfWorld).add(new THREE.Vector3(0, 0.15, 0));
+      }
+      const local = p.worldToLocal(target.clone());
+      const bone = new THREE.Bone();
+      bone.name = `custom_bone_${Math.random().toString(36).slice(2, 7)}`;
+      bone.position.copy(local);
+      (bone as any).userData.__custom = true;
+      p.add(bone);
+      setTopologyVersion((v) => v + 1);
+      return bone.name;
+    };
+    bridgeRef.current.resetSkeleton = () => {
+      // 1. Remove every runtime-added bone (deepest first so parents survive).
+      const customs: THREE.Object3D[] = [];
+      cloned.traverse((o) => { if ((o as any).userData?.__custom) customs.push(o); });
+      customs.sort((a, b) => depthOf(b) - depthOf(a));
+      customs.forEach((b) => b.parent?.remove(b));
+      // 2. Restore the bind pose on every SkinnedMesh's skeleton.
+      cloned.traverse((o: any) => {
+        if (o.isSkinnedMesh && o.skeleton) {
+          try { o.skeleton.pose(); } catch { /* ignore */ }
+        }
+      });
+      // 3. Reset transforms on any remaining bone whose bind matrix is known.
+      const bones = collectBones(cloned);
+      bones.forEach((b) => {
+        // SkeletonUtils.clone preserves the authored local transform on the
+        // bone object itself, but a previous pose() call already restored it
+        // via boneInverses, so we just need to flag matrices as dirty.
+        b.updateMatrix();
+        b.updateMatrixWorld(true);
+      });
+      setTopologyVersion((v) => v + 1);
+    };
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
@@ -558,7 +632,9 @@ function Rig({
       actionRef.current = null;
       if (bridgeRef.current.root === cloned) bridgeRef.current.root = null;
       bridgeRef.current.addBoneAt = null;
+      bridgeRef.current.addBoneOnSpline = null;
       bridgeRef.current.deleteBone = null;
+      bridgeRef.current.resetSkeleton = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
@@ -1472,7 +1548,9 @@ export default function RigControllerRoom({
     root: null,
     snapshot: null,
     addBoneAt: null,
+    addBoneOnSpline: null,
     deleteBone: null,
+    resetSkeleton: null,
   });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
   const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
@@ -2102,21 +2180,27 @@ export default function RigControllerRoom({
         <div className="absolute top-14 left-3 flex items-center gap-1 px-1.5 py-1 rounded-md bg-background/70 backdrop-blur border border-border/40">
           <Button
             size="sm"
-            variant={addBoneMode ? "default" : "ghost"}
+            variant="ghost"
             className="h-7 px-2 text-[11px] gap-1"
             onClick={() => {
               if (!selectedBoneName) {
                 toast.error("Select a parent bone first");
                 return;
               }
-              setAddBoneMode((v) => !v);
+              const newName = bridgeRef.current.addBoneOnSpline?.(selectedBoneName);
+              if (newName) {
+                setSelectedBoneName(newName);
+                toast.success(`Anchored new bone on spine of ${prettifyBoneName(selectedBoneName)}`);
+              } else {
+                toast.error("Couldn't anchor a new bone here");
+              }
             }}
             title={selectedBoneName
-              ? `Click on the rig to anchor a new bone as a child of "${selectedBoneName}"`
+              ? `Add a new bone on the spine, as a child of "${selectedBoneName}"`
               : "Select a bone first to anchor children to it"}
           >
             <BoneIcon className="w-3 h-3" />
-            {addBoneMode ? "Click to place…" : "Add bone"}
+            Add bone
           </Button>
           <div className="w-px h-4 bg-border/40 mx-0.5" />
           <Button
@@ -2139,6 +2223,21 @@ export default function RigControllerRoom({
             title="Delete the selected bone"
           >
             <Trash2 className="w-3 h-3" /> Delete
+          </Button>
+          <div className="w-px h-4 bg-border/40 mx-0.5" />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[11px] gap-1"
+            onClick={() => {
+              if (!window.confirm("Reset skeleton to its original bind pose and remove every custom bone you've added?")) return;
+              bridgeRef.current.resetSkeleton?.();
+              setSelectedBoneName(null);
+              toast.success("Skeleton reset to original");
+            }}
+            title="Restore the rig to its authored bind pose and strip every custom bone"
+          >
+            <RotateCcw className="w-3 h-3" /> Reset
           </Button>
         </div>
 
