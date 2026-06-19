@@ -1461,18 +1461,26 @@ export default function LevelEditorPage() {
                   (o) => (o.layerId ?? DEFAULT_LAYER_ID) === layer.id,
                 );
                 const isActive = currentLayerId === layer.id;
+                // Default to collapsed when `collapsed` hasn't been set yet so
+                // newly-loaded levels open clean. Users can click anywhere on
+                // the row to expand.
+                const collapsed = layer.collapsed ?? true;
                 return (
                   <div key={layer.id} className="mb-2">
                     <div
-                      className={`group flex items-center gap-1 px-1.5 py-1 rounded text-[11px] ${
+                      onClick={() => {
+                        setCurrentLayerId(layer.id);
+                        patchLayer(layer.id, { collapsed: !collapsed });
+                      }}
+                      className={`group flex items-center gap-1 px-1.5 py-1 rounded text-[11px] cursor-pointer select-none ${
                         isActive ? "bg-muted/60" : "hover:bg-muted/30"
                       }`}
                     >
                       <button
-                        onClick={() => patchLayer(layer.id, { collapsed: !layer.collapsed })}
+                        onClick={(e) => { e.stopPropagation(); patchLayer(layer.id, { collapsed: !collapsed }); }}
                         className="text-muted-foreground"
                       >
-                        {layer.collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </button>
                       <span
                         className="w-2 h-2 rounded-sm"
@@ -1481,19 +1489,19 @@ export default function LevelEditorPage() {
                       <input
                         value={layer.name}
                         onChange={(e) => patchLayer(layer.id, { name: e.target.value })}
-                        onClick={() => setCurrentLayerId(layer.id)}
+                        onClick={(e) => { e.stopPropagation(); setCurrentLayerId(layer.id); }}
                         className="flex-1 bg-transparent text-foreground outline-none border-0 px-1 py-0 h-5 text-[11px] focus:bg-background/60 rounded"
                       />
                       <span className="text-[10px] text-muted-foreground tabular-nums">{items.length}</span>
                       <button
-                        onClick={() => patchLayer(layer.id, { visible: !layer.visible })}
+                        onClick={(e) => { e.stopPropagation(); patchLayer(layer.id, { visible: !layer.visible }); }}
                         title={layer.visible ? "Hide layer" : "Show layer"}
                         className="text-muted-foreground hover:text-foreground"
                       >
                         {layer.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                       </button>
                       <button
-                        onClick={() => patchLayer(layer.id, { locked: !layer.locked })}
+                        onClick={(e) => { e.stopPropagation(); patchLayer(layer.id, { locked: !layer.locked }); }}
                         title={layer.locked ? "Unlock layer" : "Lock layer"}
                         className={layer.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground"}
                       >
@@ -1501,7 +1509,7 @@ export default function LevelEditorPage() {
                       </button>
                       {layer.id !== DEFAULT_LAYER_ID && (
                         <button
-                          onClick={() => removeLayer(layer.id)}
+                          onClick={(e) => { e.stopPropagation(); removeLayer(layer.id); }}
                           title="Delete layer (objects move to Default)"
                           className="text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:hover:text-muted-foreground"
                           disabled={!!layer.locked}
@@ -1510,7 +1518,7 @@ export default function LevelEditorPage() {
                         </button>
                       )}
                     </div>
-                    {!layer.collapsed && (
+                    {!collapsed && (
                       <div className="ml-3 mt-0.5 border-l border-border/30 pl-2">
                         {items.length === 0 && (
                           <p className="text-[10px] text-muted-foreground/70 italic py-1">empty</p>
