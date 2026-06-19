@@ -6,6 +6,7 @@ import {
   emitLevelEvent,
   setHudCandidate,
   carryState,
+  inputPulse,
   type HudCandidate,
 } from "@/components/level/locomotion/locomotionState";
 
@@ -130,7 +131,7 @@ export default function PlayInputManager({ playing }: { playing: boolean }) {
         case "usable":
           // Defer to existing PlayableCharacter handling via inputPulse.
           // (Authored sittable/usable also surface a HUD prompt here.)
-          (window as any).__levelInteractPulse?.();
+          inputPulse.interact = true;
           break;
       }
     };
