@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
 import { Sparkles, Library, ChevronLeft, Search } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import CharacterAnimationGallery from "@/components/level/animations/CharacterAnimationGallery";
 import ObjectAnimationGallery from "@/components/level/animations/ObjectAnimationGallery";
 import InlineAnimationPicker from "@/components/level/animations/InlineAnimationPicker";
@@ -1243,6 +1244,15 @@ export default function LevelEditorPage() {
   );
   const selectedObjectLocked = isObjectLocked(scene.objects.find((o) => o.id === selectedId));
 
+  // Mobile-only adaptations: compact top bar, full-bleed canvas, and the
+  // left/right inspector panels become slide-up bottom sheets triggered by a
+  // fixed tab bar. Desktop layout is untouched.
+  const isMobile = useIsMobile();
+  const [mobilePanel, setMobilePanel] = useState<"left" | "right" | null>(null);
+  useEffect(() => {
+    if (!isMobile) setMobilePanel(null);
+  }, [isMobile]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
@@ -1254,7 +1264,13 @@ export default function LevelEditorPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Top bar */}
-      <header className="border-b border-border/40 backdrop-blur-xl bg-background/60 px-4 py-2 flex items-center gap-3 z-10">
+      <header
+        className={`border-b border-border/40 backdrop-blur-xl bg-background/60 z-20 flex items-center gap-3 ${
+          isMobile
+            ? "px-2 py-1.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : "px-4 py-2"
+        }`}
+      >
         <Link to="/levels" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -1263,9 +1279,11 @@ export default function LevelEditorPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           disabled={!isOwner}
-          className="h-8 w-64 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold"
+          className={`h-8 bg-transparent border-transparent hover:border-border focus:border-border text-sm font-semibold ${
+            isMobile ? "w-28 shrink-0" : "w-64"
+          }`}
         />
-        <div className="ml-auto flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${isMobile ? "ml-2" : "ml-auto"}`}>
           <ActiveToolBadges
             tools={[
               {
@@ -1393,9 +1411,37 @@ export default function LevelEditorPage() {
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-[260px_1fr_320px] min-h-0">
+      <div
+        className={
+          isMobile
+            ? "flex-1 relative min-h-0"
+            : "flex-1 grid grid-cols-[260px_1fr_320px] min-h-0"
+        }
+      >
         {/* Left: outline — scene components, lights, layers (and rig components in rig-room mode). */}
-        <aside className="border-r border-border/40 bg-card/40 overflow-y-auto">
+        <aside
+          className={
+            isMobile
+              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
+                  mobilePanel === "left"
+                    ? "translate-y-0"
+                    : "translate-y-full pointer-events-none"
+                }`
+              : "border-r border-border/40 bg-card/40 overflow-y-auto"
+          }
+        >
+          {isMobile && (
+            <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Scene</span>
+              <button
+                onClick={() => setMobilePanel(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Close panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
             {!rigRoomMode && (
               <>
@@ -1683,7 +1729,13 @@ export default function LevelEditorPage() {
         </aside>
 
         {/* Center: viewport */}
-        <main className="relative bg-slate-950">
+        <main
+          className={
+            isMobile
+              ? "absolute inset-0 bottom-14 bg-slate-950"
+              : "relative bg-slate-950"
+          }
+        >
           {rigRoomMode ? (
             <RigControllerRoom
               onRigStateChange={setRigState}
@@ -1814,7 +1866,29 @@ export default function LevelEditorPage() {
         </main>
 
         {/* Right: inspector */}
-        <aside className="border-l border-border/40 bg-card/40 overflow-y-auto">
+        <aside
+          className={
+            isMobile
+              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
+                  mobilePanel === "right"
+                    ? "translate-y-0"
+                    : "translate-y-full pointer-events-none"
+                }`
+              : "border-l border-border/40 bg-card/40 overflow-y-auto"
+          }
+        >
+          {isMobile && (
+            <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Inspector</span>
+              <button
+                onClick={() => setMobilePanel(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Close panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <Tabs defaultValue="object" className="w-full">
             <TabsList className="w-full rounded-none grid grid-cols-4">
               <TabsTrigger value="object" className="text-[11px]">Object</TabsTrigger>
@@ -2044,6 +2118,50 @@ export default function LevelEditorPage() {
           </Tabs>
         </aside>
       </div>
+
+      {/* Mobile bottom tab bar — toggles slide-up panels and quick play/save */}
+      {isMobile && (
+        <nav className="fixed inset-x-0 bottom-0 h-14 z-50 border-t border-border/60 bg-background/95 backdrop-blur-xl grid grid-cols-4 [padding-bottom:env(safe-area-inset-bottom)]">
+          <button
+            onClick={() => setMobilePanel((p) => (p === "left" ? null : "left"))}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors ${
+              mobilePanel === "left" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <LayersIcon className="w-5 h-5" />
+            Scene
+          </button>
+          <button
+            onClick={() => setMobilePanel((p) => (p === "right" ? null : "right"))}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors ${
+              mobilePanel === "right" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <Sparkles className="w-5 h-5" />
+            Inspect
+          </button>
+          <button
+            onClick={() => {
+              setMobilePanel(null);
+              setPlaying((p) => !p);
+            }}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors ${
+              playing ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            {playing ? "Pause" : "Play"}
+          </button>
+          <button
+            onClick={() => save()}
+            disabled={!isOwner || saving}
+            className="flex flex-col items-center justify-center gap-0.5 text-[10px] uppercase tracking-wider text-muted-foreground disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            Save
+          </button>
+        </nav>
+      )}
 
       {/* Place on atlas dialog */}
       <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>
