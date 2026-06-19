@@ -1041,6 +1041,8 @@ export interface RigControllerRoomProps {
    * panels into this sidebar instead of the LevelEditorPage left aside.
    */
   sidebarExtras?: React.ReactNode;
+  /** Whether the rig-room sidebar is expanded (default true). */
+  sidebarOpen?: boolean;
 }
 
 export default function RigControllerRoom({
@@ -1049,6 +1051,7 @@ export default function RigControllerRoom({
   onRigStateChange,
   externalSelectedBoneName,
   sidebarExtras,
+  sidebarOpen = true,
 }: RigControllerRoomProps = {}) {
   const [url, setUrl] = useState<string>(DEFAULT_CHARACTER_URL);
   const [pendingUrl, setPendingUrl] = useState<string>(DEFAULT_CHARACTER_URL);
@@ -1269,9 +1272,18 @@ export default function RigControllerRoom({
   return (
     <div className="flex w-full h-full bg-slate-950 text-foreground">
       {/* Side panel */}
-      <aside className="w-80 shrink-0 border-r border-border/40 bg-background/80 backdrop-blur p-4 space-y-4 overflow-y-auto">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight">Rig Controller Room</h2>
+      <aside
+        className={`shrink-0 border-r border-border/40 bg-background/80 backdrop-blur overflow-y-auto transition-all duration-300
+          ${sidebarOpen ? "w-80 p-4 space-y-4" : "w-0 p-0 overflow-hidden border-r-0"}
+          [&::-webkit-scrollbar]:w-1.5
+          [&::-webkit-scrollbar-track]:bg-transparent
+          [&::-webkit-scrollbar-thumb]:bg-black
+          [&::-webkit-scrollbar-thumb]:rounded-full
+        `}
+      >
+        <div className={sidebarOpen ? "" : "hidden"}>
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">Rig Controller Room</h2>
           <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
             Explore any rigged character. Auto-detect controllers (hips, hands,
             feet, head…) then drag the colored markers to pose the rig.
@@ -1556,6 +1568,7 @@ export default function RigControllerRoom({
             {sidebarExtras}
           </div>
         )}
+        </div>
       </aside>
 
       {/* Viewport */}
