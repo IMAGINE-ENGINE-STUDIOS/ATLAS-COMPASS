@@ -28,6 +28,7 @@ import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 import LevelCharacter from "./LevelCharacter";
 import PlayableCharacter from "./locomotion/PlayableCharacter";
 import PushableRuntime from "./locomotion/PushableRuntime";
+import TeleportPickerOverlay from "./play/TeleportPickerOverlay";
 import { characterRegistry } from "./locomotion/locomotionState";
 import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
@@ -1468,6 +1469,7 @@ export function LevelSceneContents({
         scene.terrain.shape === "plane" && (
           <TerrainSculptOverlay sculpt={sculpt} controlsRef={controlsRef} />
         )}
+      <TeleportPickerOverlay groupRef={groupRef} />
     </FacePaintContext.Provider>
   );
 }

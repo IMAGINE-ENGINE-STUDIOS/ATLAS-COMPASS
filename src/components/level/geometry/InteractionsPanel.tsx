@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Play, Route, Zap, MousePointerClick } from "lucide-react";
+import { Plus, Trash2, Play, Route, Zap, MousePointerClick, Crosshair } from "lucide-react";
 import type {
   SceneObject,
   ScenePath,
@@ -20,6 +20,7 @@ import type {
 import { newId } from "@/lib/levelTypes";
 import { toast } from "sonner";
 import { runPresetAction } from "./runtime";
+import { requestTeleportPick } from "@/components/level/teleportPicker";
 
 const PRESET_TYPES: { value: PresetActionType; label: string }[] = [
   { value: "rotateContinuously", label: "Rotate continuously" },
@@ -408,22 +409,65 @@ function PresetEditor({
         </div>
       )}
       {preset.type === "teleportPlayer" && (
-        <div className="grid grid-cols-3 gap-1">
-          {(["x", "y", "z"] as const).map((k, i) => (
-            <Input
-              key={k}
-              type="number"
-              step={0.1}
-              value={(preset.target ?? [0, 0, 0])[i]}
-              onChange={(e) => {
-                const t: [number, number, number] = [...(preset.target ?? [0, 0, 0])] as any;
-                t[i] = parseFloat(e.target.value) || 0;
-                set({ target: t });
-              }}
-              className="h-5 text-[10px]"
-              disabled={disabled}
-            />
-          ))}
+        <div className="space-y-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            onClick={async () => {
+              toast.message("Click on the scene to set teleport destination", {
+                description: "Esc to cancel",
+              });
+              const r = await requestTeleportPick();
+              if (!r) return;
+              const t: [number, number, number] = [
+                +r.point[0].toFixed(2),
+                +r.point[1].toFixed(2),
+                +r.point[2].toFixed(2),
+              ];
+              set({ target: t, targetObjectId: r.objectId });
+              toast.success(
+                r.objectId
+                  ? `Teleport set to object @ ${t.join(", ")}`
+                  : `Teleport set to ${t.join(", ")}`,
+              );
+            }}
+            className="w-full h-6 text-[10px] border-amber-400/40 text-amber-200 hover:bg-amber-500/10"
+          >
+            <Crosshair className="w-3 h-3 mr-1" /> Pick destination in scene
+          </Button>
+          <div className="grid grid-cols-3 gap-1">
+            {(["x", "y", "z"] as const).map((k, i) => (
+              <div key={k} className="flex flex-col gap-0.5">
+                <Label className="text-[9px] uppercase text-muted-foreground text-center">{k}</Label>
+                <Input
+                  type="number"
+                  step={0.1}
+                  value={(preset.target ?? [0, 0, 0])[i]}
+                  onChange={(e) => {
+                    const t: [number, number, number] = [...(preset.target ?? [0, 0, 0])] as any;
+                    t[i] = parseFloat(e.target.value) || 0;
+                    set({ target: t, targetObjectId: undefined });
+                  }}
+                  className="h-5 text-[10px]"
+                  disabled={disabled}
+                />
+              </div>
+            ))}
+          </div>
+          {preset.targetObjectId && (
+            <div className="flex items-center justify-between text-[9px] text-amber-300/80 bg-amber-500/10 border border-amber-400/30 rounded px-1.5 py-0.5">
+              <span>📍 Snapped to object {preset.targetObjectId.slice(0, 8)}</span>
+              <button
+                type="button"
+                className="hover:text-amber-100"
+                onClick={() => set({ targetObjectId: undefined })}
+              >
+                clear
+              </button>
+            </div>
+          )}
         </div>
       )}
       {(preset.type === "openUrl" || preset.type === "playSound") && (

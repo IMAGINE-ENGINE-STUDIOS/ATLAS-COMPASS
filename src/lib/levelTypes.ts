@@ -174,6 +174,9 @@ export interface PresetAction {
   speed?: number;
   /** Target world position (teleportPlayer). */
   target?: Vec3;
+  /** Optional snap-to-object target id (teleportPlayer). When set, the player
+   *  teleports to this object's world position instead of `target`. */
+  targetObjectId?: string;
   /** URL (openUrl or playSound). */
   url?: string;
   /** Geometry CSV (spawnGeometry). */
