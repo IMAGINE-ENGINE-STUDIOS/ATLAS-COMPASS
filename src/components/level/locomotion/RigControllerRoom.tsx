@@ -39,7 +39,19 @@ interface RigBridge {
    * skeleton lives) and called by the surrounding sidebar UI.
    */
   addBoneAt: ((parentName: string, worldPoint: THREE.Vector3) => string | null) | null;
+  /**
+   * One-shot bone insertion that snaps the new joint onto the spine spline
+   * (the line that connects the selected bone to its parent — or to its
+   * first child if the selection is the root). Returns the new bone name
+   * so the caller can select it immediately.
+   */
+  addBoneOnSpline: ((parentName: string) => string | null) | null;
   deleteBone: ((name: string) => boolean) | null;
+  /**
+   * Restore the rig to its authored bind pose AND strip every bone the
+   * user added at runtime (anything tagged with userData.__custom).
+   */
+  resetSkeleton: (() => void) | null;
 }
 
 /**
