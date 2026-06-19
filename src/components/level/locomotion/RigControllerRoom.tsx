@@ -986,6 +986,7 @@ function XrayBodyMap({
           <OrbitControls
             makeDefault
             enablePan={false}
+            enableZoom={false}
             autoRotate
             autoRotateSpeed={0.8}
             minDistance={0.4}
