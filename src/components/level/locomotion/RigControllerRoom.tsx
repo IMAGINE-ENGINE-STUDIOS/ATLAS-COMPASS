@@ -1162,20 +1162,7 @@ export default function RigControllerRoom({
   const [savesLoading, setSavesLoading] = useState(false);
   const [activeSaveId, setActiveSaveId] = useState<string | null>(null);
 
-  const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
   const [saveSearch, setSaveSearch] = useState("");
-  const saveDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (saveDropdownRef.current && !saveDropdownRef.current.contains(e.target as Node)) {
-        setSaveDropdownOpen(false);
-      }
-    }
-    if (saveDropdownOpen) document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [saveDropdownOpen]);
   useEffect(() => {
     let cancelled = false;
     setSavesLoading(true);
