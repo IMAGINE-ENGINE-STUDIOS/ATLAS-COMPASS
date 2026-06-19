@@ -1155,6 +1155,15 @@ export default function RigControllerRoom({
     setCameraTick((t) => t + 1);
   };
 
+  // Expose reset to the global header button so the camera icon in the top
+  // toolbar also recenters the rig room scene.
+  useEffect(() => {
+    (window as any).__levelResetCamera = () => focusCamera("reset");
+    return () => {
+      if ((window as any).__levelResetCamera) delete (window as any).__levelResetCamera;
+    };
+  }, []);
+
   // ----- save system state -----
   const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
