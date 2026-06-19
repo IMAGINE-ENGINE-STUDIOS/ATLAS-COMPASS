@@ -1568,6 +1568,9 @@ export default function RigControllerRoom({
     addBoneOnSpline: null,
     deleteBone: null,
     resetSkeleton: null,
+    addSkin: null,
+    removeSkin: null,
+    setSkinVisible: null,
   });
   const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
   const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
