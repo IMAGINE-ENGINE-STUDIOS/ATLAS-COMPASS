@@ -34,6 +34,8 @@ import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
 import { TrajectoryRender, TrajectoryRunner } from "./trajectory/TrajectoryRuntime";
 import { ScenePathOverlay } from "./geometry/ScenePathOverlay";
+import PerfSampler from "./perf/PerfSampler";
+import PerfHUD from "./perf/PerfHUD";
 
 /* ---------- helpers ---------- */
 
