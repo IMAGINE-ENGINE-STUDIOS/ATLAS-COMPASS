@@ -306,6 +306,17 @@ function InteractionsTab({
           <div className="flex items-center gap-1">
             <Badge variant="outline" className="h-4 text-[9px] uppercase">{i.kind}</Badge>
             <Input value={i.name} onChange={(e) => patch(i.id, { name: e.target.value })} className="h-6 text-[10px] flex-1" disabled={disabled} />
+            {i.kind === "preset" && i.trigger && i.trigger !== "always" && (
+              <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                {i.trigger === "onClick" && "on click"}
+                {i.trigger === "onPlayerNear" && `near ${i.triggerDistance ?? 2}m`}
+                {i.trigger === "onWalkThrough" && "walk through"}
+                {i.trigger === "key" && (i.triggerKey ?? "key")}
+              </span>
+            )}
+            {i.kind === "preset" && (!i.trigger || i.trigger === "always") && (
+              <span className="text-[9px] text-muted-foreground whitespace-nowrap">auto</span>
+            )}
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" disabled={disabled} onClick={() => preview(i)} title="Test action">
               <Play className="w-3 h-3" />
             </Button>
