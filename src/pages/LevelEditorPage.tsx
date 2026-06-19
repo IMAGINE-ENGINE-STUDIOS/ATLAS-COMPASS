@@ -1862,6 +1862,9 @@ export default function LevelEditorPage() {
                   patchObject(cid, {
                     url: patch.url,
                     ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                    ...(patch.pose ? { pose: patch.pose } : {}),
+                    ...(patch.rigSaveId ? { rigSaveId: patch.rigSaveId } : {}),
+                    ...(patch.source ? { source: patch.source } : {}),
                   } as any);
                   return;
                 }
@@ -1873,6 +1876,9 @@ export default function LevelEditorPage() {
                         ...o,
                         url: patch.url,
                         ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
+                        ...(patch.pose ? { pose: patch.pose } : {}),
+                        ...(patch.rigSaveId ? { rigSaveId: patch.rigSaveId } : {}),
+                        ...(patch.source ? { source: patch.source } : {}),
                       } as any)
                     : o,
                 );
