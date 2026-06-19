@@ -1309,8 +1309,16 @@ export default function RigControllerRoom({
 
   const handleApplyToCharacter = () => {
     if (!targetCharId || !onApplyToCharacter) return;
-    onApplyToCharacter(targetCharId, { url, currentAnimation: activeClip ?? undefined });
-    toast.success("Applied to scene character");
+    const root = bridgeRef.current.root;
+    const livePose = root ? capturePose(root) : undefined;
+    onApplyToCharacter(targetCharId, {
+      url,
+      currentAnimation: activeClip ?? undefined,
+      pose: livePose,
+      rigSaveId: activeSaveId ?? undefined,
+      source: sourceLabel,
+    });
+    toast.success("Applied to scene character (pose + clip)");
   };
 
   const highlightedBones = useMemo(
