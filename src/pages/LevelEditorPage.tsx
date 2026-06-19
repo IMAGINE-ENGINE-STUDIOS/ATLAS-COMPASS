@@ -8,7 +8,7 @@ import {
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
-  X, ArrowUpRight, User,
+  X, ArrowUpRight, User, Camera,
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
 import { Sparkles, Library, ChevronLeft, Search, PanelLeft, PanelRight } from "lucide-react";
@@ -1451,6 +1451,15 @@ export default function LevelEditorPage() {
             className={isMobile ? "h-7 w-7 px-0" : ""}
           >
             <Undo2 className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => (window as any).__levelResetCamera?.()}
+            title="Reset camera to scene center"
+            className={isMobile ? "h-7 w-7 px-0" : "h-8 w-8 px-0"}
+          >
+            <Camera className="w-3.5 h-3.5" />
           </Button>
           {!isMobile && (
             <>
