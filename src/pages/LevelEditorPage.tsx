@@ -1645,13 +1645,15 @@ export default function LevelEditorPage() {
         className={
           isMobile
             ? "flex-1 relative min-h-0"
-            : "flex-1 grid min-h-0"
+            : "flex-1 grid grid-rows-[minmax(0,1fr)] min-h-0 min-w-0"
         }
         style={
           isMobile
             ? undefined
             : {
-                gridTemplateColumns: `${rigRoomMode ? "0px" : leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
+                gridTemplateColumns: rigRoomMode
+                  ? `1fr ${rightOpen ? "320px" : "0px"}`
+                  : `${leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
               }
         }
       >
