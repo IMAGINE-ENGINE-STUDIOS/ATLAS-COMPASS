@@ -253,6 +253,80 @@ function makeLight(kind: SceneLight["kind"]): SceneLight {
  * scene component (characters, objects, trajectories) and live-filters as the
  * user types. Sits above the Lights section.
  */
+function ComponentRow({
+  o,
+  selected,
+  pinned,
+  layers,
+  onSelect,
+  onToggleLock,
+  onDelete,
+  onAssignLayer,
+  isLocked,
+}: {
+  o: SceneObject;
+  selected: boolean;
+  pinned?: boolean;
+  layers: SceneLayer[];
+  onSelect: (id: string, multi: boolean) => void;
+  onToggleLock: (id: string, locked: boolean) => void;
+  onDelete: (id: string) => void;
+  onAssignLayer: (id: string, layerId: string) => void;
+  isLocked: (o: SceneObject) => boolean;
+}) {
+  const locked = isLocked(o);
+  const dot =
+    o.kind === "character" ? "#22ff88" :
+    o.kind === "trajectory" ? "#7be7ff" :
+    "#fbbf24";
+  const base = pinned
+    ? "bg-primary/15 text-primary hover:bg-primary/25"
+    : selected
+      ? "bg-primary/20 text-primary"
+      : "hover:bg-muted/30 text-muted-foreground";
+  return (
+    <div
+      className={`group w-full px-2 py-1 rounded text-[11px] flex items-center gap-1.5 ${base} ${locked ? "opacity-80" : ""}`}
+      title={`${o.name} (${o.kind})`}
+    >
+      <button
+        onClick={(e) => onSelect(o.id, e.ctrlKey || e.metaKey)}
+        className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
+      >
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: dot }} />
+        <span className="flex-1 truncate">{o.name}</span>
+        <span className="text-[9px] uppercase tracking-wider opacity-50">{o.kind}</span>
+      </button>
+      <select
+        value={o.layerId ?? DEFAULT_LAYER_ID}
+        onChange={(e) => onAssignLayer(o.id, e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        title="Move to layer"
+        className="opacity-0 group-hover:opacity-100 bg-background/60 border border-border/40 rounded text-[10px] px-1 py-0.5 max-w-[80px]"
+      >
+        {layers.map((l) => (
+          <option key={l.id} value={l.id}>{l.name}</option>
+        ))}
+      </select>
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleLock(o.id, !o.locked); }}
+        title={o.locked ? "Unlock object" : "Lock object"}
+        className={o.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"}
+      >
+        {o.locked ? <Unlock className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />}
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); if (!locked) onDelete(o.id); }}
+        disabled={locked}
+        title={locked ? "Object is locked" : "Delete"}
+        className="opacity-60 hover:opacity-100 hover:text-destructive disabled:opacity-20 disabled:hover:text-muted-foreground"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
 function ComponentsPanel({
   objects,
   selectedIds,
