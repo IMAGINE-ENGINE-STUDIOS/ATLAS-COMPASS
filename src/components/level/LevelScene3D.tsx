@@ -1535,14 +1535,17 @@ function LevelScene3DInner(
   const { className, ...rest } = props;
   const controlsRef = useRef<any>(null);
   const [focusReq, setFocusReq] = useState<{ id: string; nonce: number } | null>(null);
+  const [resetReq, setResetReq] = useState<number>(0);
   const [canvasKey, setCanvasKey] = useState(0);
   // Bridge so the inner <group onDoubleClick> can trigger a focus request
   // without threading a ref/callback through every render.
   useEffect(() => {
     (window as any).__levelFocusObject = (id: string) =>
       setFocusReq({ id, nonce: Date.now() });
+    (window as any).__levelResetCamera = () => setResetReq(Date.now());
     return () => {
       if ((window as any).__levelFocusObject) delete (window as any).__levelFocusObject;
+      if ((window as any).__levelResetCamera) delete (window as any).__levelResetCamera;
     };
   }, []);
   return (
@@ -1623,6 +1626,7 @@ function LevelScene3DInner(
         enabled={!hasActivePlayer(rest)}
       />
       <KeyboardCameraController controlsRef={controlsRef} enabled={!hasActivePlayer(rest)} />
+      <ResetCameraController nonce={resetReq} controlsRef={controlsRef} />
     </Canvas>
   );
 }
