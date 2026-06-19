@@ -68,3 +68,104 @@ export const splineDrivenIds = new Set<string>();
  * the player controller to push NPC characters out of the way on contact.
  */
 export const characterRegistry = new Map<string, THREE.Object3D>();
+
+/* ---------------------------------------------------------------- */
+/* Play-mode interactables                                          */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Kinds of key-triggered interactables registered by `PlayBehaviorRuntime`.
+ * `pushable` is excluded — pushables run their own physics loop.
+ */
+export type InteractableKind = "grabbable" | "event" | "sittable" | "usable";
+
+export interface InteractableEntry {
+  id: string;            // scene object id
+  kind: InteractableKind;
+  key: string;           // bound PlayKey, e.g. "E", "Shift+F", "7"
+  label: string;         // HUD prompt text — "Pick up Crate", "Open door"
+  eventId?: string;      // only when kind === "event"
+  radius: number;        // proximity radius (m)
+  once?: boolean;        // event: fire at most once per Play session
+  object: THREE.Object3D; // live world transform
+}
+
+/** Live registry. Keyed by `${id}::${kind}` so an object can have multiple. */
+export const interactableRegistry = new Map<string, InteractableEntry>();
+
+export function registerInteractable(entry: InteractableEntry) {
+  interactableRegistry.set(`${entry.id}::${entry.kind}`, entry);
+}
+export function unregisterInteractable(id: string, kind: InteractableKind) {
+  interactableRegistry.delete(`${id}::${kind}`);
+}
+
+/**
+ * Currently-carried object id (driven by `PlayInputManager` for grabbables).
+ * Exposed as a singleton so the carry follower can read it from anywhere.
+ */
+export const carryState: { id: string | null; carryOffset: [number, number, number] } = {
+  id: null,
+  carryOffset: [0, 1.1, 1.0],
+};
+
+/* ---------------------------------------------------------------- */
+/* Lightweight Play-mode event bus                                  */
+/* ---------------------------------------------------------------- */
+
+type EventCb = (payload?: unknown) => void;
+const eventListeners = new Map<string, Set<EventCb>>();
+const eventLog: Array<{ id: string; at: number; payload?: unknown }> = [];
+let eventLogListeners: Array<(log: typeof eventLog) => void> = [];
+
+export function emitLevelEvent(id: string, payload?: unknown) {
+  const subs = eventListeners.get(id);
+  if (subs) for (const cb of subs) cb(payload);
+  eventLog.unshift({ id, at: performance.now(), payload });
+  if (eventLog.length > 12) eventLog.length = 12;
+  for (const l of eventLogListeners) l(eventLog);
+}
+export function subscribeLevelEvent(id: string, cb: EventCb) {
+  let set = eventListeners.get(id);
+  if (!set) { set = new Set(); eventListeners.set(id, set); }
+  set.add(cb);
+  return () => { set!.delete(cb); };
+}
+export function subscribeEventLog(cb: (log: typeof eventLog) => void) {
+  eventLogListeners.push(cb);
+  cb(eventLog);
+  return () => { eventLogListeners = eventLogListeners.filter((l) => l !== cb); };
+}
+export function clearEventLog() {
+  eventLog.length = 0;
+  for (const l of eventLogListeners) l(eventLog);
+}
+
+/* ---------------------------------------------------------------- */
+/* Play-mode HUD candidate (nearest interactable)                   */
+/* ---------------------------------------------------------------- */
+
+export interface HudCandidate {
+  id: string;
+  kind: InteractableKind;
+  key: string;
+  label: string;
+  dist: number;
+}
+let currentCandidate: HudCandidate | null = null;
+let candidateListeners: Array<(c: HudCandidate | null) => void> = [];
+export function setHudCandidate(c: HudCandidate | null) {
+  const prev = currentCandidate;
+  if (prev && c && prev.id === c.id && prev.kind === c.kind && prev.key === c.key) {
+    currentCandidate = c; // update dist silently
+    return;
+  }
+  if (!prev && !c) return;
+  currentCandidate = c;
+  for (const l of candidateListeners) l(c);
+}
+export function subscribeHudCandidate(cb: (c: HudCandidate | null) => void) {
+  candidateListeners.push(cb);
+  cb(currentCandidate);
+  return () => { candidateListeners = candidateListeners.filter((l) => l !== cb); };
+}

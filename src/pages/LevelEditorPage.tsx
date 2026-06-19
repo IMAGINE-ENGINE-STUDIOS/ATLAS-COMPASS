@@ -37,6 +37,10 @@ import {
 } from "@/lib/levelTypes";
 import type { TrajectoryObject, TrajectorySection } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
+import KeyCaptureInput from "@/components/level/KeyCaptureInput";
+import PlayBehaviorRuntime from "@/components/level/play/PlayBehaviorRuntime";
+import PlayInputManager from "@/components/level/play/PlayInputManager";
+import PlayHUD from "@/components/level/play/PlayHUD";
 import RigControllerRoom from "@/components/level/locomotion/RigControllerRoom";
 import BoneHierarchyPanel from "@/components/level/BoneHierarchyPanel";
 import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
@@ -1679,14 +1683,16 @@ export default function LevelEditorPage() {
           isMobile
             ? undefined
             : {
-                gridTemplateColumns: rigRoomMode
+                gridTemplateColumns: playing
+                  ? `0px 1fr 0px`
+                  : rigRoomMode
                   ? `1fr ${rightOpen ? "320px" : "0px"}`
                   : `${leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
               }
         }
       >
         {/* Left: outline — scene components, lights, layers (hidden in rig-room mode). */}
-        {!rigRoomMode && (
+        {!rigRoomMode && !playing && (
         <aside
           className={
             isMobile
@@ -1966,7 +1972,9 @@ export default function LevelEditorPage() {
         {/* Right: inspector */}
         <aside
           className={
-            isMobile
+            playing
+              ? "hidden"
+              : isMobile
               ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto overflow-x-hidden bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out scrollbar-dark ${
                   mobilePanel === "right"
                     ? "translate-y-0"
@@ -2279,6 +2287,11 @@ export default function LevelEditorPage() {
         </nav>
       )}
 
+      {/* Play-mode runtime + HUD (mounted only while playing) */}
+      <PlayBehaviorRuntime objects={scene.objects} playing={playing} />
+      <PlayInputManager playing={playing} />
+      <PlayHUD visible={playing} onExit={() => setPlaying(false)} />
+
       {/* Place on atlas dialog */}
       <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>
         <DialogContent>
@@ -2456,6 +2469,250 @@ function Vec3Field({
   );
 }
 
+/* ---------- play behavior section (per-object) ---------- */
+
+function PlayBehaviorSection({
+  obj,
+  onPatch,
+  disabled,
+}: {
+  obj: SceneObject;
+  onPatch: (p: Partial<SceneObject>) => void;
+  disabled?: boolean;
+}) {
+  const beh = (obj as any).playBehavior as
+    | import("@/lib/levelTypes").PlayBehavior
+    | undefined;
+  const current: import("@/lib/levelTypes").PlayBehavior = beh ?? {
+    collision: "walkable",
+  };
+  const patchBeh = (p: Partial<import("@/lib/levelTypes").PlayBehavior>) =>
+    onPatch({ playBehavior: { ...current, ...p } } as any);
+  const toggleGroup = (
+    key: "grabbable" | "pushable" | "event" | "sittable" | "usable",
+    enabled: boolean,
+  ) => {
+    if (!enabled) {
+      const next = { ...current };
+      delete (next as any)[key];
+      onPatch({ playBehavior: next } as any);
+      return;
+    }
+    const defaults: Record<typeof key, any> = {
+      grabbable: { key: "E" },
+      pushable: { mass: 1, friction: 0.92 },
+      event: { key: "F", eventId: "event_1" },
+      sittable: { key: "E" },
+      usable: { key: "E" },
+    };
+    patchBeh({ [key]: defaults[key] } as any);
+  };
+
+  return (
+    <div className="rounded-md border border-border/40 bg-card/30 p-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Play behavior
+        </Label>
+        <span className="text-[9px] font-mono text-muted-foreground/60">
+          {[
+            current.grabbable && "GRAB",
+            current.pushable && "PUSH",
+            current.event && "EVT",
+            current.sittable && "SIT",
+            current.usable && "USE",
+            current.invisibleInPlay && "HIDDEN",
+            current.collision === "none" && "GHOST",
+            current.collision === "blocking" && "BLOCK",
+          ]
+            .filter(Boolean)
+            .join(" · ") || "static"}
+        </span>
+      </div>
+
+      {/* Collision */}
+      <div>
+        <Label className="text-[10px] text-muted-foreground">Collision</Label>
+        <Select
+          value={current.collision}
+          onValueChange={(v) => patchBeh({ collision: v as any })}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-7 text-[11px] mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="walkable" className="text-xs">
+              Walkable — player stands on / collides
+            </SelectItem>
+            <SelectItem value="blocking" className="text-xs">
+              Blocking volume — solid wall
+            </SelectItem>
+            <SelectItem value="none" className="text-xs">
+              None — player passes through
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Invisible in play */}
+      <div className="flex items-center justify-between rounded border border-border/30 px-2 py-1">
+        <Label className="text-[11px]">Invisible in play</Label>
+        <Switch
+          checked={!!current.invisibleInPlay}
+          disabled={disabled}
+          onCheckedChange={(v) => patchBeh({ invisibleInPlay: v })}
+        />
+      </div>
+
+      {/* Grabbable */}
+      <BehaviorRow
+        label="Grabbable"
+        on={!!current.grabbable}
+        onToggle={(v) => toggleGroup("grabbable", v)}
+        disabled={disabled}
+      >
+        {current.grabbable && (
+          <KeyCaptureInput
+            value={current.grabbable.key}
+            onChange={(k) => patchBeh({ grabbable: { ...current.grabbable!, key: k } })}
+            disabled={disabled}
+          />
+        )}
+      </BehaviorRow>
+
+      {/* Pushable */}
+      <BehaviorRow
+        label="Pushable"
+        on={!!current.pushable}
+        onToggle={(v) => toggleGroup("pushable", v)}
+        disabled={disabled}
+      >
+        {current.pushable && (
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground">m</span>
+            <Input
+              type="number"
+              value={current.pushable.mass ?? 1}
+              step={0.1}
+              disabled={disabled}
+              onChange={(e) =>
+                patchBeh({
+                  pushable: {
+                    ...current.pushable!,
+                    mass: parseFloat(e.target.value) || 1,
+                  },
+                })
+              }
+              className="h-6 w-14 text-[10px] px-1"
+            />
+          </div>
+        )}
+      </BehaviorRow>
+
+      {/* Event */}
+      <BehaviorRow
+        label="Trigger event"
+        on={!!current.event}
+        onToggle={(v) => toggleGroup("event", v)}
+        disabled={disabled}
+      >
+        {current.event && (
+          <div className="flex items-center gap-1.5">
+            <KeyCaptureInput
+              value={current.event.key}
+              onChange={(k) => patchBeh({ event: { ...current.event!, key: k } })}
+              disabled={disabled}
+            />
+            <Input
+              value={current.event.eventId}
+              placeholder="event_id"
+              disabled={disabled}
+              onChange={(e) =>
+                patchBeh({ event: { ...current.event!, eventId: e.target.value } })
+              }
+              className="h-6 w-24 text-[10px] px-1.5"
+            />
+          </div>
+        )}
+      </BehaviorRow>
+
+      {/* Sittable */}
+      <BehaviorRow
+        label="Sittable"
+        on={!!current.sittable}
+        onToggle={(v) => toggleGroup("sittable", v)}
+        disabled={disabled}
+      >
+        {current.sittable && (
+          <KeyCaptureInput
+            value={current.sittable.key}
+            onChange={(k) => patchBeh({ sittable: { ...current.sittable!, key: k } })}
+            disabled={disabled}
+          />
+        )}
+      </BehaviorRow>
+
+      {/* Usable */}
+      <BehaviorRow
+        label="Usable"
+        on={!!current.usable}
+        onToggle={(v) => toggleGroup("usable", v)}
+        disabled={disabled}
+      >
+        {current.usable && (
+          <KeyCaptureInput
+            value={current.usable.key}
+            onChange={(k) => patchBeh({ usable: { ...current.usable!, key: k } })}
+            disabled={disabled}
+          />
+        )}
+      </BehaviorRow>
+
+      {/* Interact radius (only meaningful when any action is bound) */}
+      {(current.grabbable || current.event || current.sittable || current.usable) && (
+        <div>
+          <Label className="text-[10px] text-muted-foreground">
+            Interact radius {(current.interactRadius ?? 2.5).toFixed(1)} m
+          </Label>
+          <Slider
+            value={[current.interactRadius ?? 2.5]}
+            min={0.5}
+            max={10}
+            step={0.1}
+            disabled={disabled}
+            onValueChange={([v]) => patchBeh({ interactRadius: v })}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BehaviorRow({
+  label,
+  on,
+  onToggle,
+  disabled,
+  children,
+}: {
+  label: string;
+  on: boolean;
+  onToggle: (v: boolean) => void;
+  disabled?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded border border-border/30 px-2 py-1 min-h-[2rem]">
+      <div className="flex items-center gap-2 min-w-0">
+        <Switch checked={on} onCheckedChange={onToggle} disabled={disabled} />
+        <Label className="text-[11px] truncate">{label}</Label>
+      </div>
+      <div className="flex items-center gap-1">{children}</div>
+    </div>
+  );
+}
+
 function ObjectInspector({
   obj, onPatch, disabled, snap = 0, editing, onToggleEdit, addingPoint, onToggleAddPoint, onDelete,
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
@@ -2496,41 +2753,7 @@ function ObjectInspector({
       </div>
 
       {obj.kind !== "character" && (
-        <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Play-mode role
-          </Label>
-          <Select
-            value={obj.interaction ?? "none"}
-            onValueChange={(v) =>
-              onPatch({ interaction: v === "none" ? undefined : (v as any) } as any)
-            }
-            disabled={disabled}
-          >
-            <SelectTrigger className="h-7 text-[11px] mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" className="text-xs">Static (walkable)</SelectItem>
-              <SelectItem value="pushable" className="text-xs">Pushable / kickable</SelectItem>
-              <SelectItem value="sit" className="text-xs">Sit marker — Press E</SelectItem>
-              <SelectItem value="use" className="text-xs">Use marker — Press E</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {obj.kind !== "character" && obj.interaction === "pushable" && (
-        <div className="flex items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2 py-1.5">
-          <Label className="text-[11px]">Gravity</Label>
-          <Switch
-            checked={!!obj.physics?.gravity}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              onPatch({
-                physics: { ...(obj.physics ?? {}), gravity: checked },
-              } as any)
-            }
-          />
-        </div>
+        <PlayBehaviorSection obj={obj} onPatch={onPatch} disabled={disabled} />
       )}
 
       {obj.kind === "primitive" && (

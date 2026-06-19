@@ -1,171 +1,108 @@
-## Animation library + galleries
+## Goal
 
-A unified clip library for characters (built-in clips + curated URL packs + user uploads) and a parametric/preset gallery for object animations, surfaced through both a full-screen modal and an inline inspector panel.
+In Play mode, the level becomes a playable scene: a restricted, friendly HUD replaces the editor sidebars, and every object behaves according to a per-object "play behavior" the user authored in Edit mode (grab, push, walk, block, invisible, event). Keys are user-chosen per object (`E`, `7`, etc.).
 
-### Note on "100 character animations"
+## What already exists (verified)
 
-True 100 free hosted humanoid clips are scarce — Mixamo requires auth, Sketchfab CC0 is per-file. The system is built to scale to any number, and seeded with **~100 named entries** drawn from:
+- `playing` toggle in `LevelEditorPage.tsx:397`, threaded into `LevelScene3D` (`:1914`).
+- `PlayableCharacter.tsx` provides WASD + mouse-look + gravity/collision + `E` interact pulse.
+- Per-object `interaction` enum (`"pushable"|"sit"|"use"`) and `actionButtons[]` scaffold already on `BaseObject` (`src/lib/levelTypes.ts:6-66`). No play-mode runtime reads `actionButtons` yet.
+- ObjectInspector lives inline at `LevelEditorPage.tsx:2459` and uses shadcn Switch / Select / Input.
 
-- ~14 built-in Xbot clips (already in the default rig).
-- ~25 curated three.js / Khronos sample rig clips (RobotExpressive, Soldier, CesiumMan, BrainStem, Fox).
-- ~60 catalogued "slots" (named + tagged + categorised: combat, dance, idle variants, locomotion, social, parkour, sit/sleep, gestures) that resolve to a user-uploaded `.glb` matching the tag. Until uploaded, those tiles show an "Upload to enable" CTA — no broken fetches.
+## Schema changes — `src/lib/levelTypes.ts`
 
-The user can drop a Mixamo zip / a single retargeted `.glb` and the library auto-fills matching slots by name. We can grow to literal 100 working clips by re-pointing the URL field to any hosted file the user provides.
-
-### 1. New files
-
-```text
-src/lib/
-├── characterAnimationLibrary.ts    # 100-entry catalog (name, tag, source, url, category)
-├── objectAnimationPresets.ts       # 30+ procedural + parametric track factories
-└── animationRetarget.ts            # Map clip bone names → active rig (Mixamo ↔ standard humanoid)
-
-src/components/level/
-├── animations/
-│   ├── CharacterAnimationGallery.tsx   # Modal grid + live preview
-│   ├── ObjectAnimationGallery.tsx      # Modal grid + parametric tab
-│   ├── AnimationGalleryButton.tsx      # Toolbar trigger (opens modal)
-│   ├── InlineAnimationPicker.tsx       # Inspector-embedded compact picker
-│   ├── ClipPreviewTile.tsx             # Mini WebGL preview canvas per tile
-│   └── PresetPreviewTile.tsx           # Wireframe cube playing a preset
-└── upload/CharacterClipUpload.tsx      # .glb drop zone, extracts + names clips
-```
-
-### 2. Library schema
+Replace the narrow `interaction` enum with a structured `playBehavior` block on `BaseObject`. Keep `interaction` as deprecated alias that migrates on read.
 
 ```ts
-// characterAnimationLibrary.ts
-export type ClipCategory =
-  | "idle" | "locomotion" | "jump" | "combat" | "dance"
-  | "social" | "gesture" | "sit" | "sleep" | "death" | "parkour" | "work";
+type PlayKey = string; // e.g. "E", "7", "Shift+F"
 
-export interface CharacterClipEntry {
-  id: string;
-  name: string;                 // "Sword Slash 02"
-  category: ClipCategory;
-  tags: string[];               // ["combat", "right-handed", "loop"]
-  source: "builtin" | "url" | "user" | "slot";
-  /** glb URL containing the clip. */
-  url?: string;
-  /** Exact clip name inside the glb. If omitted, takes the first clip. */
-  clipName?: string;
-  /** Tag used by the upload matcher to auto-fill the slot. */
-  slotTag?: string;
-  /** True if it should loop seamlessly. */
-  loop: boolean;
-  /** Suggested playback speed multiplier. */
-  defaultSpeed?: number;
-}
-
-export const CHARACTER_ANIMATION_LIBRARY: CharacterClipEntry[]; // ~100 entries
+type PlayBehavior = {
+  // collision
+  collision: "walkable" | "blocking" | "none"; // walkable=stand on it, blocking=invisible wall, none=ghost
+  invisibleInPlay?: boolean;                   // hidden mesh but collision still respected
+  // actions (any combination allowed)
+  grabbable?:  { key: PlayKey; carryOffset?: Vec3 };       // E to pick up / drop
+  pushable?:   { mass?: number; friction?: number };       // walk into it
+  event?:      { key: PlayKey; eventId: string; once?: boolean }; // press key while near → emit
+  sittable?:   { key: PlayKey };
+  usable?:     { key: PlayKey; label?: string };           // generic "use" hook
+  // ranges
+  interactRadius?: number; // default 2.5m for key-triggered actions
+};
 ```
 
-### 3. Object preset schema
+Add `BaseObject.playBehavior?: PlayBehavior`. Provide a `migrateInteraction(obj)` helper so old saved levels keep working.
 
+## Inspector UI — `LevelEditorPage.tsx` (ObjectInspector, ~line 2459)
+
+New "Play Behavior" collapsible section, shown for all non-character objects (characters keep their own controls):
+
+- **Collision** — Select: Walkable / Blocking / None.
+- **Invisible in Play** — Switch.
+- **Grabbable** — Switch + `KeyCaptureInput` (label "Press a key…", default `E`).
+- **Pushable** — Switch + 2 number inputs (mass, friction).
+- **Triggers Event** — Switch + KeyCaptureInput (default `F`) + text Input (event id, e.g. `door_open`).
+- **Sittable / Usable** — Switch + KeyCaptureInput each.
+- **Interact Radius** — Slider 0.5 – 10 m.
+
+`KeyCaptureInput` = small new component (`src/components/level/KeyCaptureInput.tsx`): focusable button that displays current key, on focus listens for one keydown and stores `"Shift+E"` style string. Avoids the current free-text `+`-split parser. Reused by `InteractionsPanel`.
+
+## Play-mode runtime — new `src/components/level/play/`
+
+1. **`PlayBehaviorRuntime.tsx`** — for each scene object with a `playBehavior`, mounts the needed sub-runtime:
+   - `blocking` / `walkable` → tag mesh `userData.__collision` so existing raycaster in `PlayableCharacter.tsx` already picks it up. Add a flag so blocking volumes are excluded from ground-hit but included in horizontal collision.
+   - `invisibleInPlay` → set `mesh.visible = false` while `playing`, restore on exit.
+   - `pushable` → reuse existing `PushableRuntime`.
+   - `grabbable` / `event` / `sittable` / `usable` → register into a new singleton in `locomotionState.ts` (`interactables: Map<id, {key, kind, position, radius, …}>`).
+
+2. **`PlayInputManager.tsx`** — single global keydown listener (mounted only while `playing`). On each press:
+   - Find nearest registered interactable whose `key` matches and whose distance ≤ `interactRadius` of the player.
+   - Dispatch: grab/drop toggle, push pulse, sit transition, "use" animation, or `emitLevelEvent(eventId)`.
+   - Publishes a small reactive event bus (`useLevelEvents()`) so animation tracks / future scripting can subscribe.
+
+3. **Grab carry** — when grabbed, parent the object's group to the player root (or update position each frame to `player + carryOffset`). Release on second key press or on `playing=false`.
+
+## Play HUD — new `src/components/level/play/PlayHUD.tsx`
+
+Rendered as a fixed overlay (outside the R3F canvas) only when `playing`. Replaces the editor's right inspector for the player:
+
+- Top-left: small character chip (name + HP/stamina placeholder, hidden if unused).
+- Bottom-center: contextual prompt — "Press **E** to pick up Crate", auto-shown when the nearest interactable's radius is entered. Pulled from the runtime's "current candidate" state.
+- Bottom-right: Exit Play button + minimal controls legend (WASD / Mouse / Space).
+- Mobile-responsive: on touch viewports, prompts collapse into a single floating action button that shows the bound key/icon and is tappable.
+- Editor sidebars (`leftCollapsed`/`rightOpen` panels) auto-hide while `playing` — toolbar shrinks to Play/Pause + Camera + Exit.
+
+## Event system
+
+Lightweight in-memory pub/sub in `locomotionState.ts`:
 ```ts
-// objectAnimationPresets.ts
-export interface ObjectPresetParam {
-  key: string; label: string;
-  type: "number" | "axis" | "easing";
-  min?: number; max?: number; step?: number; default: any;
-}
-
-export interface ObjectAnimationPreset {
-  id: string;
-  name: string;
-  category: "transform" | "scale" | "color" | "compound";
-  description: string;
-  params: ObjectPresetParam[];
-  /** Returns an AnimationTrack ready to push into scene.animations. */
-  build: (targetId: string, params: Record<string, any>) => AnimationTrack;
-  /** Cheap thumb spec for static tile (icon + axis arrows). */
-  thumb: { icon: string; arrows?: ("x"|"y"|"z")[] };
-}
+emitLevelEvent(id: string, payload?: any)
+subscribeLevelEvent(id, cb): unsubscribe
 ```
+Hook future animations/triggers in by listening; for this iteration just log + flash the HUD so authors can confirm wiring.
 
-Ships with ~30 presets across:
-- **Transform**: Spin (X/Y/Z), Orbit, Bob, Swing, Sway, Shake, Levitate.
-- **Scale**: Pulse, Pop-in, Breathe, Bounce-in, Squash & stretch.
-- **Color**: (Not yet — would require new color keyframe support; flagged as future.)
-- **Compound**: Hover-spin, Float-in (slide + fade-via-scale), Conveyor loop, Drift.
+## Migration & safety
 
-Each preset's `build()` produces real `AnimationTrack` keyframes that slot into the existing animation timeline — no new playback engine needed.
+- On `LevelScene3D` load, if `obj.playBehavior` missing but legacy `obj.interaction` set, synthesise a `playBehavior` (e.g. `interaction:"pushable"` → `{collision:"walkable", pushable:{}}`).
+- Default for objects with no behavior: `collision:"walkable"` (current implicit behavior). Nothing breaks.
+- All edits respect `disabled={!isOwner}` like other inspector fields.
 
-### 4. Retargeting (`animationRetarget.ts`)
+## Files touched
 
-The active rig may not have identical bone names to a clip's source rig. Strategy:
+- `src/lib/levelTypes.ts` — schema + migration helper.
+- `src/pages/LevelEditorPage.tsx` — new Play Behavior section in `ObjectInspector`; hide editor chrome while `playing`; mount `<PlayHUD/>` and `<PlayBehaviorRuntime/>`.
+- `src/components/level/LevelScene3D.tsx` — tag meshes with collision/invisible flags; mount `PlayInputManager` while playing.
+- `src/components/level/locomotion/PlayableCharacter.tsx` — small tweak so blocking-only volumes block horizontal but don't act as ground; consume `interactables` for "candidate" detection.
+- `src/components/level/locomotion/locomotionState.ts` — interactable registry + event bus.
+- New: `src/components/level/play/PlayHUD.tsx`, `PlayBehaviorRuntime.tsx`, `PlayInputManager.tsx`, `src/components/level/KeyCaptureInput.tsx`.
 
-1. Build a humanoid bone alias table (Mixamo `mixamorigHips` ↔ standard `Hips`, etc.).
-2. When applying a clip whose source rig differs, rewrite track names through the alias table before calling `mixer.clipAction(clip).play()`.
-3. Skip tracks that don't map and log once per clip (never throw).
+## Out of scope (call out for follow-ups)
 
-This means an Xbot-baked clip can play on any roughly-humanoid Mixamo-export rig the user uploads.
+- Full scripting language for events (only emit + log for now).
+- Inventory UI for multiple grabbed items.
+- Networked / multiplayer play.
+- Physics engine swap (still custom raycast).
 
-### 5. UI — both modal and inline
+## Verification
 
-`AnimationGalleryButton` lives:
-- In the **Character inspector** ("Browse 100 animations" → opens `CharacterAnimationGallery` modal).
-- In the **Object inspector** ("Browse presets" → opens `ObjectAnimationGallery` modal).
-
-`InlineAnimationPicker` is a compact searchable list, used inside the same inspectors above-the-fold for quick swaps without leaving the panel.
-
-Modal layout:
-```text
-┌───────────────────────────────────────────────────────────┐
-│  Search [_______________]   Categories  [Idle][Combat]... │
-├───────────────────────────────────────────────────────────┤
-│  ▢ ▢ ▢ ▢ ▢ ▢          (each tile auto-plays preview)     │
-│  ▢ ▢ ▢ ▢ ▢ ▢                                              │
-│  ▢ ▢ ▢ ▢ ▢ ▢                                              │
-└───────────────────────────────────────────────────────────┘
-   [Upload .glb]                       [Apply]   [Cancel]
-```
-
-`ClipPreviewTile` mounts a 96×96 R3F canvas with `frameloop="demand"`, loads the clip lazily on viewport intersection (`IntersectionObserver`), plays one loop of the clip on a tiny shared Xbot rig, then unmounts. Hard cap of 6 concurrent previews to keep GPU sane.
-
-`PresetPreviewTile` for object presets renders a single wireframe cube playing the preset's keyframes — pure transform, very cheap.
-
-### 6. Object gallery: presets + parametric tabs
-
-Two tabs inside the same modal:
-
-- **Quick presets**: click → applies with defaults, no further input.
-- **Parametric**: pick a preset → live preview updates as the user drags sliders (speed, amplitude, axis, easing, loop). "Apply" commits the generated `AnimationTrack` to `scene.animations` and starts playback.
-
-### 7. Uploads
-
-`CharacterClipUpload` accepts one or many `.glb` files:
-
-1. Parse with `GLTFLoader`, enumerate `gltf.animations`.
-2. For each clip name, find a matching `slotTag` entry in the library (case-insensitive substring match). If found, set the slot's `url` + `clipName` for this user session.
-3. Unmatched clips become new `source: "user"` entries under category `"work"` (catch-all).
-4. Persisted per-level inside `scene.userClipLibrary` (new optional field on `LevelScene`) so uploaded animations survive reloads.
-
-### 8. Wiring into existing systems
-
-- `LevelCharacter.tsx` already plays `obj.currentAnimation`. The gallery's "Apply" simply writes that field — zero playback rewiring.
-- Object gallery's "Apply" pushes a new `AnimationTrack` into `scene.animations` and selects it in the animation panel — uses the existing timeline.
-- Both galleries respect undo/redo via the normal `setScene` path.
-
-### 9. Performance
-
-- All catalog data is static + tree-shakeable.
-- Clip glbs are lazy `useGLTF`'d only when their tile enters the viewport.
-- A single shared preview rig is cloned per tile via `SkeletonUtils.clone` — no full re-decoding.
-- Modal grids are virtualised via `@tanstack/react-virtual` (already in tree).
-
-### 10. Implementation order
-
-1. Library + object preset module (data only). Verify types compile.
-2. `InlineAnimationPicker` swapped into existing inspectors. Ship.
-3. Modal `CharacterAnimationGallery` with static thumbs first (no live preview) — usable end-to-end.
-4. Object gallery: presets tab → parametric tab.
-5. Live preview tiles + intersection-observer gating.
-6. Upload + slot matching + per-level persistence.
-7. Retargeting pass; verify Xbot clip on a user-uploaded rig.
-
-### Out of scope (call out before building)
-
-- Authoring new clips in-app (keyframe a custom skeleton motion) — separate feature.
-- Mixamo OAuth import — requires their API key and ToS review.
-- Color/material keyframes for object presets — needs the timeline to support property tracks beyond TRS first.
+Playwright: enter play mode on a level with one object set to `Grabbable E`, one `Blocking`, one `Event key=7 id=test`. Screenshot HUD prompt at proximity, press `E`, screenshot carried object, press `7`, screenshot HUD toast for `test`. Confirm editor sidebars hidden during play and restored on exit.
