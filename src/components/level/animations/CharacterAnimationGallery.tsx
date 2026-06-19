@@ -2,8 +2,14 @@ import { useMemo, useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Upload, Check } from "lucide-react";
-import { GLTFLoader, FBXLoader } from "three-stdlib";
+import { Search, Upload, Check, Info } from "lucide-react";
+import { GLTFLoader, FBXLoader, ColladaLoader, BVHLoader } from "three-stdlib";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import type { AnimationClip } from "three";
 import { toast } from "sonner";
 import {
@@ -76,12 +82,24 @@ export default function CharacterAnimationGallery({
     const newEntries: CharacterClipEntry[] = [];
     const gltfLoader = new GLTFLoader();
     const fbxLoader = new FBXLoader();
+    const daeLoader = new ColladaLoader();
+    const bvhLoader = new BVHLoader();
     try {
       for (const file of Array.from(files)) {
         const isGltf = /\.(glb|gltf)$/i.test(file.name);
         const isFbx  = /\.fbx$/i.test(file.name);
-        if (!isGltf && !isFbx) {
-          toast.warning(`Skipped ${file.name} — unsupported format`);
+        const isDae  = /\.dae$/i.test(file.name);
+        const isBvh  = /\.bvh$/i.test(file.name);
+        const isProprietary = /\.(blend|max|ma|mb|c4d|hip|hipnc|iavatar|iclone|usd|usda|usdz|skp|3dm)$/i.test(file.name);
+        if (!isGltf && !isFbx && !isDae && !isBvh) {
+          if (isProprietary) {
+            toast.warning(
+              `${file.name} is a native DCC file — export it as .fbx, .glb, .dae or .bvh from your tool first.`,
+              { duration: 6000 },
+            );
+          } else {
+            toast.warning(`Skipped ${file.name} — unsupported format`);
+          }
           continue;
         }
         const url = URL.createObjectURL(file);
@@ -90,12 +108,22 @@ export default function CharacterAnimationGallery({
           if (isGltf) {
             const gltf = await gltfLoader.loadAsync(url);
             clips = gltf.animations ?? [];
-          } else {
+          } else if (isFbx) {
             // FBX loader returns a Group with `.animations` populated. We
             // keep the same blob URL so the runtime can re-parse the file
             // to pull the skinned mesh + clip together.
             const group = await fbxLoader.loadAsync(url);
             clips = (group as any).animations ?? [];
+          } else if (isDae) {
+            // Collada (Maya / 3ds Max / SketchUp export). Animations live on
+            // result.scene's children plus result.animations.
+            const result: any = await daeLoader.loadAsync(url);
+            clips = result.animations ?? result.scene?.animations ?? [];
+          } else if (isBvh) {
+            // BVH = pure motion capture (no mesh). MotionBuilder, iClone,
+            // CMU mocap, Rokoko, Xsens all export this.
+            const result: any = await bvhLoader.loadAsync(url);
+            clips = result?.clip ? [result.clip] : [];
           }
         } catch (e) {
           console.error("[clip-upload] parse failed for", file.name, e);
@@ -104,11 +132,12 @@ export default function CharacterAnimationGallery({
         }
         for (const clip of clips) {
           const category = inferUploadedCategory(clip.name);
+          const formatTag = isFbx ? "fbx" : isDae ? "dae" : isBvh ? "bvh" : "glb";
           newEntries.push({
             id: `user-${Math.random().toString(36).slice(2, 9)}`,
             name: clip.name || file.name,
             category,
-            tags: [category, "user", isFbx ? "fbx" : "glb"],
+            tags: [category, "user", formatTag],
             source: "user",
             url,
             clipName: clip.name,
@@ -153,11 +182,50 @@ export default function CharacterAnimationGallery({
           <input
             ref={fileRef}
             type="file"
-            accept=".glb,.gltf,.fbx"
+            accept=".glb,.gltf,.fbx,.dae,.bvh"
             multiple
             className="hidden"
             onChange={(e) => onUpload(e.target.files)}
           />
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Supported animation formats"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-[11px] leading-relaxed">
+                <p className="font-semibold mb-1">Supported animation formats</p>
+                <p>
+                  <span className="text-emerald-400">glTF / glB</span>, <span className="text-emerald-400">FBX</span>,{" "}
+                  <span className="text-emerald-400">Collada (.dae)</span>,{" "}
+                  <span className="text-emerald-400">BVH</span>.
+                </p>
+                <p className="mt-2 font-semibold">Export from:</p>
+                <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                  <li>Blender → .glb / .fbx</li>
+                  <li>Maya / 3ds Max → .fbx / .dae</li>
+                  <li>Cinema 4D → .fbx</li>
+                  <li>Houdini → .fbx / .glb</li>
+                  <li>MotionBuilder → .fbx / .bvh</li>
+                  <li>iClone / Character Creator → .fbx</li>
+                  <li>Unreal Engine → .fbx (Sequencer export)</li>
+                  <li>Unity → .fbx (Recorder)</li>
+                  <li>Mixamo / Adobe → .fbx / .glb</li>
+                  <li>Rokoko / Xsens / OptiTrack → .bvh / .fbx</li>
+                </ul>
+                <p className="mt-2 text-muted-foreground">
+                  Native .blend, .max, .ma/.mb, .c4d, .hip, .iclone, .usd, .skp
+                  files can&apos;t be read in the browser — export one of the four
+                  formats above first.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button
             size="sm"
             variant="outline"
@@ -166,7 +234,7 @@ export default function CharacterAnimationGallery({
             onClick={() => fileRef.current?.click()}
           >
             <Upload className="w-3.5 h-3.5 mr-1" />
-            {uploading ? "Reading…" : "Upload .glb / .fbx"}
+            {uploading ? "Reading…" : "Upload animation"}
           </Button>
         </div>
 
