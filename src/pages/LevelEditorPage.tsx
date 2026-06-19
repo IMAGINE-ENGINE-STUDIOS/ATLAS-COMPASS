@@ -1487,9 +1487,23 @@ export default function LevelEditorPage() {
                     ? "translate-y-0"
                     : "translate-y-full pointer-events-none"
                 }`
-              : "border-r border-border/40 bg-card/40 overflow-y-auto"
+              : `border-r border-border/40 bg-card/40 overflow-y-auto relative transition-all duration-300 ${
+                  leftCollapsed ? "overflow-hidden" : ""
+                }`
           }
         >
+          {!isMobile && (
+            <button
+              onClick={() => setLeftCollapsed((v) => !v)}
+              title={leftCollapsed ? "Expand panel" : "Collapse panel"}
+              aria-label={leftCollapsed ? "Expand left panel" : "Collapse left panel"}
+              className="absolute top-2 right-0 z-30 w-5 h-8 flex items-center justify-center rounded-l-md bg-background/80 border border-r-0 border-border/60 text-muted-foreground hover:text-foreground hover:bg-background"
+            >
+              {leftCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+            </button>
+          )}
+          {!isMobile && leftCollapsed ? null : (
+            <>
           {isMobile && (
             <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
               <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Scene</span>
