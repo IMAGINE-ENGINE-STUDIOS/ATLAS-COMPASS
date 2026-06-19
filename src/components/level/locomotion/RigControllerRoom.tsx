@@ -1085,7 +1085,7 @@ export default function RigControllerRoom({
   const [selectedBoneName, setSelectedBoneName] = useState<string | null>(null);
   const [hoveredBoneName, setHoveredBoneName] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(true);
-  const [transformMode, setTransformMode] = useState<"rotate" | "translate" | "scale">("rotate");
+  const [transformMode, setTransformMode] = useState<"rotate" | "translate" | "scale">("translate");
   const [controllerMap, setControllerMap] = useState<Record<ControllerKey, string | null>>(
     {} as Record<ControllerKey, string | null>,
   );
@@ -1126,6 +1126,17 @@ export default function RigControllerRoom({
     if (externalSelectedBoneName === undefined) return;
     setSelectedBoneName(externalSelectedBoneName);
   }, [externalSelectedBoneName]);
+
+  // When a new bone is picked, default the gizmo to translate (move) at the
+  // bone's location. The user can then switch to rotate/scale from the toolbar,
+  // which overrides this default for the current selection.
+  const lastSelectedBoneRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (selectedBoneName && selectedBoneName !== lastSelectedBoneRef.current) {
+      setTransformMode("translate");
+    }
+    lastSelectedBoneRef.current = selectedBoneName;
+  }, [selectedBoneName]);
 
   // ----- cinematic camera presets -----
   // The viewport offers a Reset View + four canned angles. Each click bumps
