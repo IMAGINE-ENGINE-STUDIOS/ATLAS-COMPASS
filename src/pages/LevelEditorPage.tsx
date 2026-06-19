@@ -1708,11 +1708,12 @@ export default function LevelEditorPage() {
           isMobile
             ? undefined
             : {
-                gridTemplateColumns: `${leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
+                gridTemplateColumns: `${rigRoomMode ? "0px" : leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
               }
         }
       >
-        {/* Left: outline — scene components, lights, layers (and rig components in rig-room mode). */}
+        {/* Left: outline — scene components, lights, layers (hidden in rig-room mode). */}
+        {!rigRoomMode && (
         <aside
           className={
             isMobile
@@ -1842,6 +1843,7 @@ export default function LevelEditorPage() {
             </>
           )}
         </aside>
+        )}
 
         {/* Center: viewport */}
         <main
