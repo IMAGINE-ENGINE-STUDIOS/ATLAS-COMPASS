@@ -53,6 +53,22 @@ interface RigBridge {
    * user added at runtime (anything tagged with userData.__custom).
    */
   resetSkeleton: (() => void) | null;
+  /**
+   * Skin (mesh) management. A "skin" is one or more SkinnedMeshes loaded
+   * from a .glb / .gltf file and re-bound to the CURRENT skeleton by
+   * matching bone names. The original skeleton inside the uploaded file
+   * is discarded — only its meshes are kept.
+   */
+  addSkin: ((data: ArrayBuffer, label: string) => Promise<SkinEntry | null>) | null;
+  removeSkin: ((id: string) => void) | null;
+  setSkinVisible: ((id: string, visible: boolean) => void) | null;
+}
+
+export interface SkinEntry {
+  id: string;
+  label: string;
+  meshCount: number;
+  visible: boolean;
 }
 
 /**
