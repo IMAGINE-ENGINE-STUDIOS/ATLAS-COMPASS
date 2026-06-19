@@ -950,7 +950,10 @@ function XrayBodyMap({
       </div>
 
       {/* Live x-ray viewport */}
-      <div className="relative h-[300px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]">
+      <div
+        className="relative h-[300px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]"
+        style={{ containerType: "inline-size" }}
+      >
         <Canvas
           camera={{ position: [0, 1.4, 2.6], fov: 35, near: 0.01, far: 200 }}
           gl={{ antialias: true, alpha: false }}
