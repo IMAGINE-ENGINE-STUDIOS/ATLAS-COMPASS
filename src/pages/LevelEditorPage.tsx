@@ -255,6 +255,7 @@ function ComponentsPanel({
   rigState,
   selectedBoneName,
   onSelectBone,
+  hideBoneHierarchy,
 }: {
   objects: SceneObject[];
   selectedIds: Set<string>;
@@ -267,6 +268,7 @@ function ComponentsPanel({
   } | null;
   selectedBoneName?: string | null;
   onSelectBone?: (name: string) => void;
+  hideBoneHierarchy?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
