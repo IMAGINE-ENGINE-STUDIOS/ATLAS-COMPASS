@@ -15,8 +15,9 @@ import { Sparkles, Library, ChevronLeft, Search, PanelLeft, PanelRight } from "l
 import { useIsMobile } from "@/hooks/use-mobile";
 import CharacterAnimationGallery from "@/components/level/animations/CharacterAnimationGallery";
 import ObjectAnimationGallery from "@/components/level/animations/ObjectAnimationGallery";
-import InlineAnimationPicker from "@/components/level/animations/InlineAnimationPicker";
 import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { stripHdriBlobs, rehydrateHdriBlobs } from "@/lib/hdriBlobStore";
