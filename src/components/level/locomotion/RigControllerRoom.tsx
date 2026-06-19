@@ -1041,8 +1041,17 @@ export interface SceneCharacterRef {
 export interface RigControllerRoomProps {
   /** Characters currently present in the linked scene (e.g. the Locomotion Walker). */
   sceneCharacters?: SceneCharacterRef[];
-  /** Push a rig change (URL swap + chosen clip) back to a scene character. */
-  onApplyToCharacter?: (characterId: string, patch: { url: string; currentAnimation?: string }) => void;
+  /** Push a rig change (URL swap + chosen clip + pose) back to a scene character. */
+  onApplyToCharacter?: (
+    characterId: string,
+    patch: {
+      url: string;
+      currentAnimation?: string;
+      pose?: BonePose[];
+      rigSaveId?: string;
+      source?: string;
+    },
+  ) => void;
   /**
    * Emits the currently-loaded rig (character name, model url, bone list,
    * and selected bone) whenever it changes. Lets the host (LevelEditorPage)
