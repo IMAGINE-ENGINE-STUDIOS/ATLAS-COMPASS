@@ -33,6 +33,7 @@ import { characterRegistry } from "./locomotion/locomotionState";
 import InteractionPromptUI from "./locomotion/InteractionPromptUI";
 import NavigationMap from "./locomotion/NavigationMap";
 import { TrajectoryRender, TrajectoryRunner } from "./trajectory/TrajectoryRuntime";
+import TrainRuntime from "./train/TrainRuntime";
 import { ScenePathOverlay } from "./geometry/ScenePathOverlay";
 import PerfSampler from "./perf/PerfSampler";
 import PerfHUD from "./perf/PerfHUD";
@@ -1423,6 +1424,9 @@ export function LevelSceneContents({
       })()}
       <AnimationRunner tracks={scene.animations} playing={!!playing} groupRef={groupRef} />
       <TrajectoryRunner objects={scene.objects} playing={!!playing} groupRef={groupRef} />
+      {scene.trainSystem && (
+        <TrainRuntime scene={scene} playing={!!playing} groupRef={groupRef} />
+      )}
       <ScenePathOverlay scene={scene} selectedId={selectedId} />
       <FocusController
         target={focusRequest}
