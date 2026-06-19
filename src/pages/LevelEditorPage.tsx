@@ -1683,7 +1683,9 @@ export default function LevelEditorPage() {
           isMobile
             ? undefined
             : {
-                gridTemplateColumns: rigRoomMode
+                gridTemplateColumns: playing
+                  ? `0px 1fr 0px`
+                  : rigRoomMode
                   ? `1fr ${rightOpen ? "320px" : "0px"}`
                   : `${leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
               }
