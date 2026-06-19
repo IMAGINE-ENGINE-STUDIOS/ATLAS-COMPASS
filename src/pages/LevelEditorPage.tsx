@@ -2496,41 +2496,7 @@ function ObjectInspector({
       </div>
 
       {obj.kind !== "character" && (
-        <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Play-mode role
-          </Label>
-          <Select
-            value={obj.interaction ?? "none"}
-            onValueChange={(v) =>
-              onPatch({ interaction: v === "none" ? undefined : (v as any) } as any)
-            }
-            disabled={disabled}
-          >
-            <SelectTrigger className="h-7 text-[11px] mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" className="text-xs">Static (walkable)</SelectItem>
-              <SelectItem value="pushable" className="text-xs">Pushable / kickable</SelectItem>
-              <SelectItem value="sit" className="text-xs">Sit marker — Press E</SelectItem>
-              <SelectItem value="use" className="text-xs">Use marker — Press E</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {obj.kind !== "character" && obj.interaction === "pushable" && (
-        <div className="flex items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2 py-1.5">
-          <Label className="text-[11px]">Gravity</Label>
-          <Switch
-            checked={!!obj.physics?.gravity}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              onPatch({
-                physics: { ...(obj.physics ?? {}), gravity: checked },
-              } as any)
-            }
-          />
-        </div>
+        <PlayBehaviorSection obj={obj} onPatch={onPatch} disabled={disabled} />
       )}
 
       {obj.kind === "primitive" && (
