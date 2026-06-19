@@ -1328,18 +1328,34 @@ export default function RigControllerRoom({
         `}
       >
         <div className={sidebarOpen ? "" : "hidden"}>
+          {/* ——— Header: Room identity ——— */}
+          <div className="relative -mx-4 -mt-4 mb-5 px-4 pt-5 pb-4 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.04] to-transparent">
+            <div className="flex items-start gap-3">
+              <div className="relative mt-0.5 shrink-0">
+                <div className="w-8 h-8 rounded-full border border-white/[0.12] bg-white/[0.03] backdrop-blur-md flex items-center justify-center">
+                  <BoneIcon className="w-3.5 h-3.5 text-white/70" />
+                </div>
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400/80 shadow-[0_0_6px_rgba(52,211,153,0.45)]" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/90 leading-none">
+                  Rig Controller Room
+                </h2>
+                <p className="text-[10px] text-white/40 mt-1.5 leading-relaxed">
+                  A command space for skeletal animation. The viewport renders your
+                  rigged character in real-time. The left bar hosts controller mapping,
+                  clip playback, pose saving and speed control — everything needed to
+                  compose, preview and export character motion.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {sidebarExtras && (
             <div className="mb-4 -mx-4 px-4 pb-3 border-b border-border/30">
               {sidebarExtras}
             </div>
           )}
-          <div>
-            <h2 className="text-base font-semibold tracking-tight">Rig Controller Room</h2>
-          <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-            Explore any rigged character. Auto-detect controllers (hips, hands,
-            feet, head…) then drag the colored markers to pose the rig.
-          </p>
-        </div>
 
         {sceneCharacters.length > 0 && (
           <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
