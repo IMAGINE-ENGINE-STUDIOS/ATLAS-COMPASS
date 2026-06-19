@@ -1462,10 +1462,10 @@ export default function LevelEditorPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background text-foreground">
       {/* Top bar */}
       <header
-        className={`border-b border-border/40 backdrop-blur-xl bg-background/60 z-20 flex items-center gap-3 ${
+        className={`shrink-0 border-b border-border/40 backdrop-blur-xl bg-background/60 z-20 flex items-center gap-3 ${
           isMobile
             ? "px-2 py-1.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             : "px-4 py-2"
