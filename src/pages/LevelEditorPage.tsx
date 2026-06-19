@@ -2045,6 +2045,7 @@ export default function LevelEditorPage() {
                   onClearFacePaint={() => setPaintedFaces(new Set())}
                   userClips={userClipEntries}
                   onOpenCharacterGallery={() => setCharacterGalleryOpen(true)}
+                  onSpawnObjects={(objs) => addObjects(objs)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
