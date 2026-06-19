@@ -62,7 +62,7 @@ export default function ClipPreviewTile({ entry }: { entry: CharacterClipEntry }
         >
           <ambientLight intensity={0.6} />
           <directionalLight position={[2, 4, 3]} intensity={0.7} />
-          <PreviewRig entry={entry} />
+          <PreviewRig entry={entry} onQuality={setQuality} />
         </Canvas>
       )}
       {quality && quality.grade !== "good" && (
