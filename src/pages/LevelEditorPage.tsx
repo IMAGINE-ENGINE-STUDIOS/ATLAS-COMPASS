@@ -1696,7 +1696,7 @@ export default function LevelEditorPage() {
               </button>
             </div>
           )}
-          <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
+          <div className="p-3 border-b border-border/40 sticky top-0 z-10 shrink-0 bg-card/80 backdrop-blur-xl">
             {!rigRoomMode && (
               <>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Add</p>
