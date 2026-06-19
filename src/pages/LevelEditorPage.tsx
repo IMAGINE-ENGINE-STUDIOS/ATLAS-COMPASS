@@ -1452,6 +1452,15 @@ export default function LevelEditorPage() {
           >
             <Undo2 className="w-3.5 h-3.5" />
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => (window as any).__levelResetCamera?.()}
+            title="Reset camera to scene center"
+            className={isMobile ? "h-7 w-7 px-0" : "h-8 w-8 px-0"}
+          >
+            <Camera className="w-3.5 h-3.5" />
+          </Button>
           {!isMobile && (
             <>
               <Button
