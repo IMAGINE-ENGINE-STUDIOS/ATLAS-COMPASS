@@ -62,6 +62,7 @@ import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
 import { GeometryPanel } from "@/components/level/geometry/GeometryPanel";
+import { InteractionsPanel } from "@/components/level/geometry/InteractionsPanel";
 import {
   listRigSaves,
   getCachedRigSaves,
