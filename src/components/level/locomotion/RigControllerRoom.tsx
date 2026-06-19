@@ -2180,21 +2180,27 @@ export default function RigControllerRoom({
         <div className="absolute top-14 left-3 flex items-center gap-1 px-1.5 py-1 rounded-md bg-background/70 backdrop-blur border border-border/40">
           <Button
             size="sm"
-            variant={addBoneMode ? "default" : "ghost"}
+            variant="ghost"
             className="h-7 px-2 text-[11px] gap-1"
             onClick={() => {
               if (!selectedBoneName) {
                 toast.error("Select a parent bone first");
                 return;
               }
-              setAddBoneMode((v) => !v);
+              const newName = bridgeRef.current.addBoneOnSpline?.(selectedBoneName);
+              if (newName) {
+                setSelectedBoneName(newName);
+                toast.success(`Anchored new bone on spine of ${prettifyBoneName(selectedBoneName)}`);
+              } else {
+                toast.error("Couldn't anchor a new bone here");
+              }
             }}
             title={selectedBoneName
-              ? `Click on the rig to anchor a new bone as a child of "${selectedBoneName}"`
+              ? `Add a new bone on the spine, as a child of "${selectedBoneName}"`
               : "Select a bone first to anchor children to it"}
           >
             <BoneIcon className="w-3 h-3" />
-            {addBoneMode ? "Click to place…" : "Add bone"}
+            Add bone
           </Button>
           <div className="w-px h-4 bg-border/40 mx-0.5" />
           <Button
@@ -2217,6 +2223,21 @@ export default function RigControllerRoom({
             title="Delete the selected bone"
           >
             <Trash2 className="w-3 h-3" /> Delete
+          </Button>
+          <div className="w-px h-4 bg-border/40 mx-0.5" />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[11px] gap-1"
+            onClick={() => {
+              if (!window.confirm("Reset skeleton to its original bind pose and remove every custom bone you've added?")) return;
+              bridgeRef.current.resetSkeleton?.();
+              setSelectedBoneName(null);
+              toast.success("Skeleton reset to original");
+            }}
+            title="Restore the rig to its authored bind pose and strip every custom bone"
+          >
+            <RotateCcw className="w-3 h-3" /> Reset
           </Button>
         </div>
 
