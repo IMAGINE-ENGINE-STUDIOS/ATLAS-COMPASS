@@ -379,12 +379,6 @@ function ComponentsPanel({
                   }`}
                   title={`Live rig — ${rigState.bones.length} bones`}
                 >
-                  <button
-                    onClick={() => setRigOpen((v) => !v)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    {rigOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                  </button>
                   <span
                     className="w-1.5 h-1.5 rounded-full shrink-0"
                     style={{ background: "#22ff88" }}
@@ -394,11 +388,13 @@ function ComponentsPanel({
                     {rigState.bones.length} bones
                   </span>
                 </div>
-                {rigOpen && boneTree.length > 0 && (
-                  <div className="mt-0.5 border-l border-[rgba(34,255,136,0.25)] ml-2">
-                    {boneTree.map(renderBone)}
-                  </div>
-                )}
+                <div className="mt-1">
+                  <BoneHierarchyPanel
+                    bones={rigState.bones}
+                    selectedBoneName={selectedBoneName ?? null}
+                    onSelect={(name) => onSelectBone?.(name)}
+                  />
+                </div>
               </div>
             )}
             {g.items.length === 0 && !(g.key === "characters" && rigState) ? (
