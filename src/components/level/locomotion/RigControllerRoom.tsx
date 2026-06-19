@@ -1134,6 +1134,10 @@ export default function RigControllerRoom({
   useEffect(() => {
     if (selectedBoneName && selectedBoneName !== lastSelectedBoneRef.current) {
       setTransformMode("translate");
+      // Pause the animation mixer while posing — otherwise the active clip
+      // would overwrite every slider tweak and gizmo drag on the next frame,
+      // making manual edits look broken.
+      setPlaying(false);
     }
     lastSelectedBoneRef.current = selectedBoneName;
   }, [selectedBoneName]);
