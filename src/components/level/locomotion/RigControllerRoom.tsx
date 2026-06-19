@@ -189,6 +189,180 @@ function findSkeleton(root: THREE.Object3D): THREE.Skeleton | null {
   return sk;
 }
 
+function findObjectByName(root: THREE.Object3D, name: string | null): THREE.Object3D | null {
+  if (!name) return null;
+  let found: THREE.Object3D | null = null;
+  root.traverse((o) => { if (!found && o.name === name) found = o; });
+  return found;
+}
+
+function getStableRigBox(root: THREE.Object3D): THREE.Box3 {
+  const box = new THREE.Box3();
+  const point = new THREE.Vector3();
+  let hasBones = false;
+  root.updateWorldMatrix(true, true);
+  collectBones(root).forEach((bone) => {
+    bone.updateWorldMatrix(true, false);
+    point.setFromMatrixPosition(bone.matrixWorld);
+    if (Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)) {
+      box.expandByPoint(point);
+      hasBones = true;
+    }
+  });
+  if (hasBones) return box;
+  box.setFromObject(root);
+  return box;
+}
+
+function collectBoneSplineEdges(
+  root: THREE.Object3D,
+  selectedBoneName: string | null,
+  includeSubtree: boolean,
+): [THREE.Object3D, THREE.Object3D][] {
+  const selected = findObjectByName(root, selectedBoneName) as THREE.Bone | null;
+  if (!selected || !(selected as any).isBone) return [];
+  const boneSet = new Set(collectBones(root));
+  const edges: [THREE.Object3D, THREE.Object3D][] = [];
+  let cursor: THREE.Object3D = selected;
+  while (cursor.parent && boneSet.has(cursor.parent as THREE.Bone)) {
+    edges.unshift([cursor.parent, cursor]);
+    cursor = cursor.parent;
+  }
+  const addChildren = (bone: THREE.Object3D) => {
+    bone.children.forEach((child) => {
+      if (!(child as any).isBone) return;
+      edges.push([bone, child]);
+      if (includeSubtree) addChildren(child);
+    });
+  };
+  addChildren(selected);
+  return edges;
+}
+
+function BoneSplineOverlay({
+  root,
+  selectedBoneName,
+  expanded,
+  xray = false,
+}: {
+  root: THREE.Object3D;
+  selectedBoneName: string | null;
+  expanded: boolean;
+  xray?: boolean;
+}) {
+  const edges = useMemo(
+    () => collectBoneSplineEdges(root, selectedBoneName, expanded),
+    [root, selectedBoneName, expanded],
+  );
+  const geometry = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(Math.max(edges.length, 1) * 6), 3));
+    return g;
+  }, [edges.length]);
+  const a = useMemo(() => new THREE.Vector3(), []);
+  const b = useMemo(() => new THREE.Vector3(), []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useFrame(() => {
+    if (!edges.length) return;
+    const attr = geometry.getAttribute("position") as THREE.BufferAttribute;
+    edges.forEach(([start, end], i) => {
+      start.updateWorldMatrix(true, false);
+      end.updateWorldMatrix(true, false);
+      a.setFromMatrixPosition(start.matrixWorld);
+      b.setFromMatrixPosition(end.matrixWorld);
+      attr.setXYZ(i * 2, a.x, a.y, a.z);
+      attr.setXYZ(i * 2 + 1, b.x, b.y, b.z);
+    });
+    attr.needsUpdate = true;
+    geometry.computeBoundingSphere();
+  });
+
+  if (!edges.length) return null;
+  return (
+    <lineSegments geometry={geometry} renderOrder={1200} frustumCulled={false}>
+      <lineBasicMaterial
+        color={expanded ? "#22ff88" : "#f8f871"}
+        transparent
+        opacity={xray ? 0.95 : 0.85}
+        depthTest={false}
+        toneMapped={false}
+      />
+    </lineSegments>
+  );
+}
+
+function BonePickHotspot({
+  bone,
+  selected,
+  hovered,
+  armed,
+  xray = false,
+  onHover,
+  onSelect,
+}: {
+  bone: THREE.Bone;
+  selected: boolean;
+  hovered: boolean;
+  armed?: boolean;
+  xray?: boolean;
+  onHover: (name: string | null) => void;
+  onSelect: (name: string) => void;
+}) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    bone.updateWorldMatrix(true, false);
+    ref.current.position.setFromMatrixPosition(bone.matrixWorld);
+  });
+  const active = selected || hovered || armed;
+  const color = armed ? "#22ff88" : selected ? "#f8f871" : hovered ? "#5cff9e" : xray ? "#5fd9ff" : "#7dd3fc";
+  const visR = xray
+    ? selected ? 0.038 : hovered ? 0.03 : 0.016
+    : selected ? 0.06 : hovered ? 0.045 : 0.022;
+  const hitR = xray ? 0.058 : 0.085;
+  return (
+    <mesh
+      ref={ref}
+      onPointerOver={(e) => { e.stopPropagation(); onHover(bone.name); }}
+      onPointerOut={(e) => { e.stopPropagation(); onHover(null); }}
+      onClick={(e) => { e.stopPropagation(); onSelect(bone.name); }}
+      renderOrder={1300}
+      frustumCulled={false}
+    >
+      <sphereGeometry args={[hitR, 12, 12]} />
+      <meshBasicMaterial transparent opacity={0} depthTest={false} depthWrite={false} />
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[visR, 16, 16]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={active ? 1 : xray ? 0.66 : 0.42}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </mesh>
+      {active && (
+        <Html center distanceFactor={xray ? 2 : 5} zIndexRange={[100, 0]} style={{ pointerEvents: "none" }}>
+          <div
+            className="px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap"
+            style={{
+              background: "rgba(4,16,26,0.9)",
+              color,
+              border: `1px solid ${color}`,
+              transform: "translateY(-15px)",
+              boxShadow: `0 0 10px ${color}88`,
+            }}
+          >
+            {prettifyBoneName(bone.name)}
+          </div>
+        </Html>
+      )}
+    </mesh>
+  );
+}
+
 /* --------------------------- Rig viewer --------------------------- */
 
 /**
@@ -242,6 +416,28 @@ function CameraDirector({
   return null;
 }
 
+function SelectedBoneFocusDirector({
+  bridgeRef,
+  selectedBoneName,
+}: {
+  bridgeRef: React.MutableRefObject<RigBridge>;
+  selectedBoneName: string | null;
+}) {
+  const { controls } = useThree() as any;
+  useEffect(() => {
+    if (!selectedBoneName || !controls?.target) return;
+    const root = bridgeRef.current.root;
+    const bone = root ? findObjectByName(root, selectedBoneName) : null;
+    if (!bone) return;
+    const p = new THREE.Vector3();
+    bone.updateWorldMatrix(true, false);
+    p.setFromMatrixPosition(bone.matrixWorld);
+    controls.target.copy(p);
+    controls.update?.();
+  }, [bridgeRef, controls, selectedBoneName]);
+  return null;
+}
+
 function Rig({
   url,
   targetHeight,
@@ -250,6 +446,8 @@ function Rig({
   transformMode,
   onLoaded,
   onSelectBone,
+  hoveredBoneName,
+  onHoverBone,
   highlightedBones,
   activeClip,
   playing,
@@ -268,6 +466,8 @@ function Rig({
   transformMode: "rotate" | "translate" | "scale";
   onLoaded: (info: { bones: THREE.Bone[]; skeleton: THREE.Skeleton | null; clips: string[] }) => void;
   onSelectBone: (name: string) => void;
+  hoveredBoneName: string | null;
+  onHoverBone: (name: string | null) => void;
   highlightedBones: { name: string; color: string }[];
   activeClip: string | null;
   playing: boolean;
@@ -284,6 +484,7 @@ function Rig({
   // Topology version bumps when bones are added/removed so we can re-emit
   // the bone list and rebuild the SkeletonHelper.
   const [topologyVersion, setTopologyVersion] = useState(0);
+  const liveBones = useMemo(() => collectBones(cloned), [cloned, topologyVersion]);
   // Render every rig at its native scale (scale = 1). Bounding-box based
   // normalization broke skinned meshes and pushed characters off-camera,
   // so the room now trusts each glTF's authored size.
@@ -449,6 +650,18 @@ function Rig({
           boneName={h.name}
           color={h.color}
           selected={selectedBoneName === h.name}
+          onSelect={onSelectBone}
+        />
+      ))}
+      <BoneSplineOverlay root={cloned} selectedBoneName={selectedBoneName} expanded={!!addBoneMode} />
+      {liveBones.map((b) => (
+        <BonePickHotspot
+          key={b.uuid}
+          bone={b}
+          selected={selectedBoneName === b.name}
+          hovered={hoveredBoneName === b.name}
+          armed={addBoneMode && selectedBoneName === b.name}
+          onHover={onHoverBone}
           onSelect={onSelectBone}
         />
       ))}
@@ -691,7 +904,12 @@ function BoneHierarchyPanel({
 }) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const selectedRowRef = useRef<HTMLButtonElement | null>(null);
   const tree = useMemo(() => buildBoneTree(bones), [bones]);
+
+  useEffect(() => {
+    selectedRowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [selectedBoneName]);
 
   const q = query.trim().toLowerCase();
   const matches = (b: THREE.Bone) =>
@@ -719,8 +937,8 @@ function BoneHierarchyPanel({
     return (
       <div key={node.bone.uuid} style={{ paddingLeft: node.depth * 10 }}>
         <div
-          className={`group flex items-center gap-1 pl-1 pr-2 py-0.5 rounded text-[11px] font-mono ${
-            isSel ? "bg-[rgba(34,255,136,0.18)] text-[#bbffd5]" : "hover:bg-muted/30 text-muted-foreground"
+          className={`group flex items-center gap-1 pl-1 pr-2 py-1 rounded-md text-[11px] font-mono transition-colors ${
+            isSel ? "bg-[rgba(34,255,136,0.24)] text-[#d8ffe7] ring-1 ring-[rgba(34,255,136,0.55)] shadow-[0_0_14px_rgba(34,255,136,0.16)]" : "hover:bg-muted/30 text-muted-foreground"
           }`}
         >
           {node.children.length > 0 ? (
@@ -735,13 +953,14 @@ function BoneHierarchyPanel({
             <span className="w-3 h-3 shrink-0" />
           )}
           <button
+            ref={isSel ? selectedRowRef : undefined}
             onClick={() => onSelect(node.bone.name)}
-            className={`flex-1 min-w-0 text-left truncate ${
+            className={`flex-1 min-w-0 text-left truncate leading-tight ${
               hit ? "text-[#22ff88]" : ""
             }`}
             title={node.bone.name}
           >
-            {node.bone.name}
+            {prettifyBoneName(node.bone.name) || node.bone.name}
           </button>
         </div>
         {!isCollapsed && node.children.length > 0 && (
@@ -784,6 +1003,16 @@ function BoneHierarchyPanel({
           className="h-7 pl-7 text-[11px]"
         />
       </div>
+      {selectedBoneName && (
+        <button
+          onClick={() => onSelect(selectedBoneName)}
+          className="w-full min-w-0 rounded-md px-2 py-1 text-left font-mono text-[10px] leading-tight bg-[rgba(34,255,136,0.12)] text-[#bbffd5] border border-[rgba(34,255,136,0.28)]"
+          title={selectedBoneName}
+        >
+          <span className="block uppercase tracking-[0.16em] text-[8px] text-[#22ff88]">Selected bone</span>
+          <span className="block truncate">{prettifyBoneName(selectedBoneName)}</span>
+        </button>
+      )}
       <ScrollArea className="h-56 -mx-0.5">
         <div className="pr-1">
           {tree.length === 0 ? (
@@ -810,12 +1039,14 @@ function XrayLiveMesh({
   url,
   selectedBoneName,
   hoveredBoneName,
+  addBoneMode,
   onHoverBone,
   onSelectBone,
 }: {
   url: string;
   selectedBoneName: string | null;
   hoveredBoneName: string | null;
+  addBoneMode?: boolean;
   onHoverBone: (name: string | null) => void;
   onSelectBone: (name: string) => void;
 }) {
@@ -860,35 +1091,25 @@ function XrayLiveMesh({
 
     // Frame the model exactly once per cloned rig.
     if (framedRef.current !== cloned) {
-      // SkinnedMesh bounding boxes often dip far below the floor (bind-pose
-      // artifacts), which dragged the computed center down to the feet and
-      // made the camera frame the soles. Compute the box from non-skinned
-      // geometry when possible, and bias the look-at target toward the
-      // upper torso so the character is always centered on screen.
-      const box = new THREE.Box3();
-      let hasMesh = false;
-      cloned.updateWorldMatrix(true, true);
-      cloned.traverse((o: any) => {
-        if (o.isMesh && !o.isSkinnedMesh && o.geometry) {
-          const b = new THREE.Box3().setFromObject(o);
-          if (isFinite(b.min.x) && isFinite(b.max.x)) {
-            box.union(b);
-            hasMesh = true;
-          }
-        }
-      });
-      if (!hasMesh) box.setFromObject(cloned);
+      // Use the skeleton itself for framing. Skinned mesh bounds can include
+      // bad bind-pose geometry below the feet, which is what made this camera
+      // stare at the soles or jump out of focus.
+      const box = getStableRigBox(cloned);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
-      // Aim ~65% up the body (chest/face) instead of the geometric center.
+      if (size.lengthSq() === 0 || !Number.isFinite(size.y)) return;
+      // Aim at the upper torso, not the feet.
       const target = new THREE.Vector3(
         center.x,
-        box.min.y + size.y * 0.65,
+        box.min.y + size.y * 0.58,
         center.z,
       );
       const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      const dist = maxDim * 2.1;
+      const dist = maxDim * 2.35;
       camera.position.set(target.x, target.y, target.z + dist);
+      camera.near = Math.max(0.001, dist / 100);
+      camera.far = Math.max(200, dist * 10);
+      camera.updateProjectionMatrix?.();
       if (controls && controls.target) {
         controls.target.copy(target);
         controls.update?.();
@@ -912,12 +1133,15 @@ function XrayLiveMesh({
   return (
     <>
       <primitive object={cloned} />
+      <BoneSplineOverlay root={cloned} selectedBoneName={selectedBoneName} expanded={!!addBoneMode} xray />
       {bones.map((b) => (
-        <XrayBoneHotspot
+        <BonePickHotspot
           key={b.uuid}
           bone={b}
           selected={selectedBoneName === b.name}
           hovered={hoveredBoneName === b.name}
+          armed={addBoneMode && selectedBoneName === b.name}
+          xray
           onHover={onHoverBone}
           onSelect={onSelectBone}
         />
@@ -926,88 +1150,12 @@ function XrayLiveMesh({
   );
 }
 
-function XrayBoneHotspot({
-  bone,
-  selected,
-  hovered,
-  onHover,
-  onSelect,
-}: {
-  bone: THREE.Bone;
-  selected: boolean;
-  hovered: boolean;
-  onHover: (name: string | null) => void;
-  onSelect: (name: string) => void;
-}) {
-  const ref = useRef<THREE.Mesh>(null);
-  // Track the bone's world position each frame and keep the hotspot in the
-  // root scene so its hit-area scale is unaffected by Mixamo bones (which
-  // are often scaled ~0.01 and make re-parented spheres unhittable).
-  useFrame(() => {
-    if (!ref.current) return;
-    bone.updateWorldMatrix(true, false);
-    ref.current.position.setFromMatrixPosition(bone.matrixWorld);
-  });
-  // Green highlight when hovered or actively selected (per design spec).
-  const color = selected ? "#22ff88" : hovered ? "#5cff9e" : "#5fd9ff";
-  const visR = selected ? 0.032 : hovered ? 0.026 : 0.014;
-  const hitR = 0.05; // larger invisible pick radius so bones are easy to click
-  return (
-    <mesh
-      ref={ref}
-      onPointerOver={(e) => { e.stopPropagation(); onHover(bone.name); }}
-      onPointerOut={(e) => { e.stopPropagation(); onHover(null); }}
-      onClick={(e) => { e.stopPropagation(); onSelect(bone.name); }}
-      renderOrder={1000}
-    >
-      <sphereGeometry args={[hitR, 12, 12]} />
-      <meshBasicMaterial
-        transparent
-        opacity={0}
-        depthTest={false}
-        depthWrite={false}
-      />
-      {/* Visible dot */}
-      <mesh raycast={() => null}>
-        <sphereGeometry args={[visR, 12, 12]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={selected ? 1 : hovered ? 0.95 : 0.7}
-          depthTest={false}
-          toneMapped={false}
-        />
-      </mesh>
-      {(hovered || selected) && (
-        <Html
-          center
-          distanceFactor={2}
-          zIndexRange={[100, 0]}
-          style={{ pointerEvents: "none" }}
-        >
-          <div
-            className="px-1.5 py-0.5 rounded text-[10px] font-mono whitespace-nowrap"
-            style={{
-              background: "rgba(4,16,26,0.85)",
-              color: selected ? "#22ff88" : "#5cff9e",
-              border: `1px solid ${selected ? "#22ff88" : "#5cff9e"}`,
-              transform: "translateY(-14px)",
-              boxShadow: `0 0 8px ${selected ? "#22ff88aa" : "#5cff9e88"}`,
-            }}
-          >
-            {prettifyBoneName(bone.name)}
-          </div>
-        </Html>
-      )}
-    </mesh>
-  );
-}
-
 function XrayBodyMap({
   url,
   bones,
   controllerMap,
   selectedBoneName,
+  addBoneMode,
   onSelectBone,
   hoveredBone: hoveredBoneProp,
   onHoverBone,
@@ -1018,6 +1166,7 @@ function XrayBodyMap({
   bones: THREE.Bone[];
   controllerMap: Record<ControllerKey, string | null>;
   selectedBoneName: string | null;
+  addBoneMode?: boolean;
   onSelectBone: (boneName: string) => void;
   hoveredBone?: string | null;
   onHoverBone?: (name: string | null) => void;
@@ -1055,11 +1204,11 @@ function XrayBodyMap({
 
       {/* Live x-ray viewport */}
       <div
-        className="relative h-[300px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]"
+        className="relative h-[340px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]"
         style={{ containerType: "inline-size" }}
       >
         <Canvas
-          camera={{ position: [0, 1.4, 2.6], fov: 35, near: 0.01, far: 200 }}
+          camera={{ position: [0, 1.35, 3.2], fov: 30, near: 0.01, far: 200 }}
           gl={{ antialias: true, alpha: false }}
           dpr={[1, 1.5]}
         >
@@ -1071,6 +1220,7 @@ function XrayBodyMap({
                 url={url}
                 selectedBoneName={selectedBoneName}
                 hoveredBoneName={hoveredBone}
+                addBoneMode={addBoneMode}
                 onHoverBone={setHoveredBone}
                 onSelectBone={onSelectBone}
               />
@@ -1080,8 +1230,8 @@ function XrayBodyMap({
             makeDefault
             enablePan={false}
             enableZoom={false}
-            autoRotate
-            autoRotateSpeed={0.8}
+            enableRotate={false}
+            autoRotate={false}
             minDistance={0.4}
             maxDistance={8}
           />
@@ -1134,7 +1284,7 @@ function XrayBodyMap({
       </div>
 
       <p className="mt-1.5 text-[10px] text-cyan-200/50 leading-snug">
-        Real-time x-ray of the selected character. Hover a node to read the bone, click to grab it in the viewport.
+        Fixed 100% X-ray frame. Click any highlighted joint here or in the main character to select it.
       </p>
     </div>
   );
@@ -1808,6 +1958,7 @@ export default function RigControllerRoom({
           bones={bones}
           controllerMap={controllerMap}
           selectedBoneName={selectedBoneName}
+          addBoneMode={addBoneMode}
           onSelectBone={(boneName) => setSelectedBoneName(boneName)}
           hoveredBone={hoveredBoneName}
           onHoverBone={setHoveredBoneName}
@@ -1906,12 +2057,15 @@ export default function RigControllerRoom({
               target={activePreset.target}
               tick={cameraTick}
             />
+            <SelectedBoneFocusDirector bridgeRef={bridgeRef} selectedBoneName={selectedBoneName} />
             {url && (
               <Rig
                 url={url}
                 targetHeight={lookupRealHeight(url)}
                 showSkeleton={showSkeleton}
                 selectedBoneName={selectedBoneName}
+                hoveredBoneName={hoveredBoneName}
+                onHoverBone={setHoveredBoneName}
                 transformMode={transformMode}
                 onLoaded={onLoaded}
                 onSelectBone={setSelectedBoneName}
