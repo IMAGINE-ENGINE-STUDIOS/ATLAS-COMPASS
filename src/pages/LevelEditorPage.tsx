@@ -390,26 +390,17 @@ function ComponentsPanel({
               <p className="text-[10px] text-muted-foreground/50 italic px-2 py-0.5">—</p>
             ) : (
               g.items.map((o) => (
-                <button
+                <ComponentRow
                   key={o.id}
-                  onClick={(e) => onSelect(o.id, e.ctrlKey || e.metaKey)}
-                  className={`w-full text-left px-2 py-1 rounded text-[11px] flex items-center gap-1.5 ${
-                    selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/30 text-muted-foreground"
-                  }`}
-                  title={`${o.name} (${o.kind})`}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{
-                      background:
-                        o.kind === "character" ? "#22ff88" :
-                        o.kind === "trajectory" ? "#7be7ff" :
-                        "#fbbf24",
-                    }}
-                  />
-                  <span className="flex-1 truncate">{o.name}</span>
-                  <span className="text-[9px] uppercase tracking-wider opacity-50">{o.kind}</span>
-                </button>
+                  o={o}
+                  selected={selectedIds.has(o.id)}
+                  layers={layers}
+                  onSelect={onSelect}
+                  onToggleLock={onToggleLock}
+                  onDelete={onDelete}
+                  onAssignLayer={onAssignLayer}
+                  isLocked={isLocked}
+                />
               ))
             )}
           </div>
