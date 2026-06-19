@@ -21,7 +21,6 @@ import { newId } from "@/lib/levelTypes";
 import { toast } from "sonner";
 import { runPresetAction } from "./runtime";
 import { requestTeleportPick } from "@/components/level/teleportPicker";
-import { useLevelStore } from "@/lib/levelStore";
 
 const PRESET_TYPES: { value: PresetActionType; label: string }[] = [
   { value: "rotateContinuously", label: "Rotate continuously" },
