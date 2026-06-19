@@ -1616,25 +1616,6 @@ export default function LevelEditorPage() {
             </div>
               </>
             )}
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-3 mb-1">Lights</p>
-            <div className="grid grid-cols-4 gap-1">
-              <Button size="sm" variant="ghost" className="h-8 px-1" title="Directional"
-                onClick={() => { const l = makeLight("directional"); addLight(l); selectLight(l.id); }}>
-                <SunMedium className="w-3.5 h-3.5" />
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 px-1" title="Point"
-                onClick={() => { const l = makeLight("point"); addLight(l); selectLight(l.id); }}>
-                <Lightbulb className="w-3.5 h-3.5" />
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 px-1" title="Spot"
-                onClick={() => { const l = makeLight("spot"); addLight(l); selectLight(l.id); }}>
-                <Spotlight className="w-3.5 h-3.5" />
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 px-1" title="Ambient"
-                onClick={() => { const l = makeLight("ambient"); addLight(l); selectLight(l.id); }}>
-                <Sun className="w-3.5 h-3.5" />
-              </Button>
-            </div>
           </div>
 
           <div className="p-3">
