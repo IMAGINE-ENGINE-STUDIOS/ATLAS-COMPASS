@@ -255,6 +255,7 @@ function ComponentsPanel({
   rigState,
   selectedBoneName,
   onSelectBone,
+  hideBoneHierarchy,
 }: {
   objects: SceneObject[];
   selectedIds: Set<string>;
@@ -267,6 +268,7 @@ function ComponentsPanel({
   } | null;
   selectedBoneName?: string | null;
   onSelectBone?: (name: string) => void;
+  hideBoneHierarchy?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
@@ -326,13 +328,15 @@ function ComponentsPanel({
                     {rigState.bones.length} bones
                   </span>
                 </div>
-                <div className="mt-1">
-                  <BoneHierarchyPanel
-                    bones={rigState.bones}
-                    selectedBoneName={selectedBoneName ?? null}
-                    onSelect={(name) => onSelectBone?.(name)}
-                  />
-                </div>
+                {!hideBoneHierarchy && (
+                  <div className="mt-1">
+                    <BoneHierarchyPanel
+                      bones={rigState.bones}
+                      selectedBoneName={selectedBoneName ?? null}
+                      onSelect={(name) => onSelectBone?.(name)}
+                    />
+                  </div>
+                )}
               </div>
             )}
             {g.items.length === 0 && !(g.key === "characters" && rigState) ? (
@@ -1237,6 +1241,7 @@ export default function LevelEditorPage() {
               rigState={rigRoomMode ? rigState : null}
               selectedBoneName={rigState?.selectedBoneName ?? null}
               onSelectBone={(name) => setRigBoneRequest(name)}
+              hideBoneHierarchy={rigRoomMode}
             />
 
             <div className="flex items-center justify-between mb-2">
