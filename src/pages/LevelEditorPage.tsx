@@ -8,7 +8,7 @@ import {
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
-  X, ArrowUpRight, User,
+  X, ArrowUpRight, User, Camera,
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
 import { Sparkles, Library, ChevronLeft, Search, PanelLeft, PanelRight } from "lucide-react";
