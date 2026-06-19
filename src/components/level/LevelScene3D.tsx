@@ -1732,6 +1732,57 @@ class SceneErrorBoundary extends Component<
 
 /* ---------- focus / smooth camera move ---------- */
 
+function ResetCameraController({
+  nonce,
+  controlsRef,
+}: {
+  nonce: number;
+  controlsRef?: React.MutableRefObject<any>;
+}) {
+  const { camera } = useThree();
+  const animRef = useRef<{
+    fromPos: THREE.Vector3;
+    toPos: THREE.Vector3;
+    fromTarget: THREE.Vector3;
+    toTarget: THREE.Vector3;
+    t: number;
+    duration: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!nonce) return;
+    const ctrls = controlsRef?.current;
+    const currentTarget = ctrls?.target
+      ? ctrls.target.clone()
+      : new THREE.Vector3(0, 0, 0);
+    animRef.current = {
+      fromPos: camera.position.clone(),
+      toPos: new THREE.Vector3(6, 6, 8),
+      fromTarget: currentTarget,
+      toTarget: new THREE.Vector3(0, 0, 0),
+      t: 0,
+      duration: 0.6,
+    };
+  }, [nonce, camera, controlsRef]);
+
+  useFrame((_, dt) => {
+    const a = animRef.current;
+    if (!a) return;
+    a.t = Math.min(1, a.t + dt / a.duration);
+    const k = a.t < 0.5 ? 4 * a.t * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 3) / 2;
+    camera.position.lerpVectors(a.fromPos, a.toPos, k);
+    const ctrls = controlsRef?.current;
+    if (ctrls?.target) {
+      ctrls.target.lerpVectors(a.fromTarget, a.toTarget, k);
+      ctrls.update?.();
+    }
+    camera.lookAt(ctrls?.target ?? a.toTarget);
+    if (a.t >= 1) animRef.current = null;
+  });
+
+  return null;
+}
+
 function TransformGizmo({
   targetId,
   mode,
