@@ -1692,7 +1692,7 @@ export default function LevelEditorPage() {
         }
       >
         {/* Left: outline — scene components, lights, layers (hidden in rig-room mode). */}
-        {!rigRoomMode && (
+        {!rigRoomMode && !playing && (
         <aside
           className={
             isMobile
