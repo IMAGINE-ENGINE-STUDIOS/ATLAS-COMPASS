@@ -834,29 +834,44 @@ function XrayBoneHotspot({
   onSelect: (name: string) => void;
 }) {
   const ref = useRef<THREE.Mesh>(null);
-  useEffect(() => {
+  // Track the bone's world position each frame and keep the hotspot in the
+  // root scene so its hit-area scale is unaffected by Mixamo bones (which
+  // are often scaled ~0.01 and make re-parented spheres unhittable).
+  useFrame(() => {
     if (!ref.current) return;
-    bone.add(ref.current);
-    return () => { bone.remove(ref.current!); };
-  }, [bone]);
+    bone.updateWorldMatrix(true, false);
+    ref.current.position.setFromMatrixPosition(bone.matrixWorld);
+  });
   // Green highlight when hovered or actively selected (per design spec).
   const color = selected ? "#22ff88" : hovered ? "#5cff9e" : "#5fd9ff";
-  const r = selected ? 0.032 : hovered ? 0.026 : 0.014;
+  const visR = selected ? 0.032 : hovered ? 0.026 : 0.014;
+  const hitR = 0.05; // larger invisible pick radius so bones are easy to click
   return (
     <mesh
       ref={ref}
       onPointerOver={(e) => { e.stopPropagation(); onHover(bone.name); }}
       onPointerOut={(e) => { e.stopPropagation(); onHover(null); }}
       onClick={(e) => { e.stopPropagation(); onSelect(bone.name); }}
+      renderOrder={1000}
     >
-      <sphereGeometry args={[r, 12, 12]} />
+      <sphereGeometry args={[hitR, 12, 12]} />
       <meshBasicMaterial
-        color={color}
         transparent
-        opacity={selected ? 1 : hovered ? 0.95 : 0.7}
+        opacity={0}
         depthTest={false}
-        toneMapped={false}
+        depthWrite={false}
       />
+      {/* Visible dot */}
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[visR, 12, 12]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={selected ? 1 : hovered ? 0.95 : 0.7}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </mesh>
       {(hovered || selected) && (
         <Html
           center
