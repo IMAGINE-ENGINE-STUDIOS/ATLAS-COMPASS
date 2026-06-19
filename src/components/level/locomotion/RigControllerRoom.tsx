@@ -1082,7 +1082,8 @@ export default function RigControllerRoom({
   );
   const [clips, setClips] = useState<string[]>([]);
   const [activeClip, setActiveClip] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [animOpen, setAnimOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [targetCharId, setTargetCharId] = useState<string | null>(sceneCharacters[0]?.id ?? null);
