@@ -1365,9 +1365,14 @@ export default function RigControllerRoom({
           </div>
         )}
 
-        {/* Character library as a single compact dropdown. */}
-        <div className="space-y-1.5">
-          <Label className="text-[11px]">Character library</Label>
+        {/* ---- Character library : glass pill picker ---- */}
+        <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Character</span>
+            <span className="font-mono tabular-nums text-[10px] text-white/40">
+              {String(CHARACTER_LIBRARY.length).padStart(3, "0")}
+            </span>
+          </div>
           <Select
             value={CHARACTER_LIBRARY.find((c) => c.url === url)?.id ?? ""}
             onValueChange={(id) => {
@@ -1375,7 +1380,7 @@ export default function RigControllerRoom({
               if (c) handleLoadLibrary(c);
             }}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-9 text-xs rounded-full bg-white/[0.04] border-white/10 hover:bg-white/[0.07] transition">
               <SelectValue placeholder="Pick a rigged character…" />
             </SelectTrigger>
             <SelectContent>
@@ -1397,50 +1402,59 @@ export default function RigControllerRoom({
               })}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex gap-2">
-          <Button size="sm" className="flex-1" onClick={handleAutoSet} disabled={bones.length === 0}>
-            <Wand2 className="w-3 h-3 mr-1.5" /> Auto-set
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleResetPose}>
-            <RotateCcw className="w-3 h-3 mr-1.5" /> Reset pose
-          </Button>
-        </div>
-
-        {/* ---- Save + Saved gallery ---- */}
-        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
-          <div className="flex items-center justify-between">
-            <Label className="text-[11px] flex items-center gap-1.5">
-              <Save className="w-3 h-3" /> Saved rigs ({saves.length})
-            </Label>
+          <div className="flex gap-1.5 pt-0.5">
             <Button
               size="sm"
-              className="h-7"
-              onClick={handleSave}
+              className="flex-1 h-8 rounded-full text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/10 backdrop-blur-xl"
+              onClick={handleAutoSet}
               disabled={bones.length === 0}
             >
-              <Save className="w-3 h-3 mr-1.5" /> Save
+              <Wand2 className="w-3 h-3 mr-1.5" /> Auto-set
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 rounded-full px-3 text-[11px] text-white/70 hover:text-white hover:bg-white/[0.06] border border-white/10"
+              onClick={handleResetPose}
+            >
+              <RotateCcw className="w-3 h-3 mr-1.5" /> Reset
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground leading-snug">
-            Stores model, pose, controllers, and clip — synced to your account
-            with a local cache fallback.
-          </p>
+        </div>
+
+        {/* ---- Saved rigs : glass gallery ---- */}
+        <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Saved rigs</span>
+              <span className="font-mono tabular-nums text-[10px] text-white/40">
+                {String(saves.length).padStart(3, "0")}
+              </span>
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={bones.length === 0}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-full bg-white text-black text-[11px] font-medium hover:bg-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Save className="w-3 h-3" /> Save
+            </button>
+          </div>
           {saves.length === 0 ? (
-            <p className="text-[10px] text-muted-foreground/70 italic">
+            <p className="text-[10px] text-white/40 italic">
               {savesLoading ? "Loading…" : "No saves yet — pose the rig then hit Save."}
             </p>
           ) : (
-            <ScrollArea className="h-44">
-              <div className="grid grid-cols-2 gap-1.5 pr-1.5">
+            <ScrollArea className="h-48">
+              <div className="grid grid-cols-2 gap-2 pr-1.5">
                 {saves.map((s) => {
                   const active = activeSaveId === s.id;
                   return (
                     <div
                       key={s.id}
-                      className={`group relative rounded border overflow-hidden transition ${
-                        active ? "border-foreground/40 ring-1 ring-foreground/30" : "border-border/40 hover:border-border"
+                      className={`group relative rounded-xl overflow-hidden transition border ${
+                        active
+                          ? "border-white/40 ring-1 ring-white/30 shadow-[0_4px_20px_rgba(255,255,255,0.08)]"
+                          : "border-white/[0.08] hover:border-white/20"
                       }`}
                     >
                       <button
@@ -1448,19 +1462,23 @@ export default function RigControllerRoom({
                         className="block w-full text-left"
                         title={`${s.name}\n${new Date(s.created_at).toLocaleString()}`}
                       >
-                        <div className="aspect-square bg-slate-900 flex items-center justify-center">
+                        <div className="aspect-square bg-gradient-to-br from-slate-900 to-black flex items-center justify-center">
                           {s.thumbnail ? (
-                            // eslint-disable-next-line @next/next/no-img-element
                             <img src={s.thumbnail} alt={s.name} className="w-full h-full object-cover" />
                           ) : (
-                            <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+                            <ImageIcon className="w-4 h-4 text-white/20" />
                           )}
                         </div>
-                        <div className="px-1.5 py-1 text-[10px] truncate">{s.name}</div>
+                        <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/90 to-transparent">
+                          <div className="text-[10px] font-medium text-white truncate leading-tight">{s.name}</div>
+                          <div className="text-[8px] font-mono tabular-nums text-white/50 truncate">
+                            {new Date(s.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </div>
+                        </div>
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteSave(s); }}
-                        className="absolute top-1 right-1 p-1 rounded bg-background/80 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground transition"
+                        className="absolute top-1 right-1 p-1 rounded-full bg-black/70 backdrop-blur-xl border border-white/10 opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:border-red-500 hover:text-white transition"
                         title="Delete"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -1473,42 +1491,54 @@ export default function RigControllerRoom({
           )}
         </div>
 
-        <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
+        {/* ---- Animations : glass pill list ---- */}
+        <div className="rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)] p-3 space-y-2.5">
           <div className="flex items-center justify-between">
-            <Label className="text-[11px]">Animations ({clips.length})</Label>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2"
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Animations</span>
+              <span className="font-mono tabular-nums text-[10px] text-white/40">
+                {String(clips.length).padStart(3, "0")}
+              </span>
+            </div>
+            <button
               onClick={() => setPlaying((p) => !p)}
               disabled={!activeClip}
+              className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 flex items-center justify-center text-white disabled:opacity-40 transition"
             >
-              {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-            </Button>
+              {playing ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ml-[1px]" />}
+            </button>
           </div>
           {clips.length === 0 ? (
-            <p className="text-[10px] text-muted-foreground">No clips found in this glTF.</p>
+            <p className="text-[10px] text-white/40">No clips found in this glTF.</p>
           ) : (
-            <ScrollArea className="h-28">
-              <div className="grid gap-0.5">
-                {clips.map((name) => (
-                  <button
-                    key={name}
-                    onClick={() => setActiveClip(name)}
-                    className={`text-left text-[11px] px-2 py-0.5 rounded transition ${
-                      activeClip === name
-                        ? "bg-foreground/15 text-foreground"
-                        : "text-muted-foreground hover:bg-muted/30"
-                    }`}
-                  >
-                    {name}
-                  </button>
-                ))}
+            <ScrollArea className="h-32">
+              <div className="flex flex-wrap gap-1.5 pr-1.5">
+                {clips.map((name) => {
+                  const isActive = activeClip === name;
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => setActiveClip(name)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition backdrop-blur-xl ${
+                        isActive
+                          ? "bg-white text-black border-white shadow-[0_2px_10px_rgba(255,255,255,0.25)]"
+                          : "bg-white/[0.04] text-white/75 border-white/10 hover:bg-white/[0.1] hover:text-white"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
               </div>
             </ScrollArea>
           )}
-          <div>
-            <Label className="text-[10px]">Speed ×{speed.toFixed(2)}</Label>
+          <div className="pt-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-medium">Speed</span>
+              <span className="font-mono tabular-nums text-[10px] text-white/70">
+                ×{speed.toFixed(2)}
+              </span>
+            </div>
             <Slider value={[speed]} min={0} max={3} step={0.05} onValueChange={([v]) => setSpeed(v)} />
           </div>
         </div>
