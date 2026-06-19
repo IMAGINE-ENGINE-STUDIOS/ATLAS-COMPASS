@@ -1209,7 +1209,10 @@ export default function LevelEditorPage() {
   // revealed by the toolbar toggle next to Undo; left outline can be collapsed
   // by the chevron arrow on its inner edge.
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightOpen, setRightOpen] = useState(false);
+  // Right inspector hosts Object / Terrain / Animate / Level tabs. Default to
+  // open on desktop so users always see the controllers (they can still hide
+  // via the toolbar toggle). Mobile uses the slide-up sheet instead.
+  const [rightOpen, setRightOpen] = useState(true);
 
   // Auto-open the right inspector when any object, character, or light gets
   // selected so the contextual bar (Object/Terrain/Animate/Level) pops into
