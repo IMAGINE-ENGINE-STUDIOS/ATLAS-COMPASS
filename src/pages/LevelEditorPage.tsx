@@ -1678,7 +1678,7 @@ export default function LevelEditorPage() {
         className={
           isMobile
             ? "flex-1 relative min-h-0"
-            : "flex-1 grid grid-rows-[minmax(0,1fr)] min-h-0 min-w-0"
+            : "flex-1 grid grid-rows-[minmax(0,1fr)] min-h-0 min-w-0 overflow-hidden"
         }
         style={
           isMobile
@@ -1687,8 +1687,8 @@ export default function LevelEditorPage() {
                 gridTemplateColumns: playing
                   ? `1fr`
                   : rigRoomMode
-                  ? `1fr ${rightOpen ? "320px" : "0px"}`
-                  : `${leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
+                  ? `minmax(0,1fr) ${rightOpen ? "320px" : "0px"}`
+                  : `${leftCollapsed ? "28px" : "260px"} minmax(0,1fr) ${rightOpen ? "320px" : "0px"}`,
               }
         }
       >
@@ -1982,8 +1982,8 @@ export default function LevelEditorPage() {
                     : "translate-y-full pointer-events-none"
                 }`
               : rightOpen
-              ? "border-l border-border/40 bg-card/40 overflow-y-auto overflow-x-hidden scrollbar-dark"
-              : "hidden"
+              ? "border-l border-border/40 bg-card/40 overflow-y-auto overflow-x-hidden scrollbar-dark w-[320px] min-w-0"
+              : "w-0 overflow-hidden pointer-events-none"
           }
         >
           {isMobile && (
