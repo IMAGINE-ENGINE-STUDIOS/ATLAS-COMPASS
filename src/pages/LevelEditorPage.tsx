@@ -1686,6 +1686,8 @@ export default function LevelEditorPage() {
         <main className="relative bg-slate-950">
           {rigRoomMode ? (
             <RigControllerRoom
+              onRigStateChange={setRigState}
+              externalSelectedBoneName={rigBoneRequest}
               sceneCharacters={(() => {
                 // Rig room has no scene of its own, so surface every
                 // character authored across the user's local levels. The id
