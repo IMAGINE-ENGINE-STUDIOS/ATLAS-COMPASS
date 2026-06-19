@@ -1184,6 +1184,7 @@ export default function RigControllerRoom({
   const [activeClip, setActiveClip] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [animOpen, setAnimOpen] = useState(false);
+  const [deckOpen, setDeckOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
   // Bone authoring mode: when true, clicking on the rig in the main viewport
   // anchors a new bone (child of the currently selected bone) at the click
@@ -1526,6 +1527,149 @@ export default function RigControllerRoom({
           </div>
         )}
 
+        {/* ═══════════ ASSET DECK — clips + library dropdown ═══════════ */}
+        <div className="space-y-2">
+          {/* Header row + toggle */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[9px] text-primary/60 tracking-[0.18em]">{`>`}</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/70 font-semibold">ASSET DECK</span>
+              <span className="font-mono text-[9px] tabular-nums text-white/30">
+                {String(clips.length + saves.length).padStart(3, "0")}
+              </span>
+            </div>
+            <button
+              onClick={() => setDeckOpen((o) => !o)}
+              className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/40 hover:text-white transition flex items-center gap-1"
+            >
+              {deckOpen ? "HIDE" : "SHOW"}
+              <ChevronDown className={`w-3 h-3 transition-transform ${deckOpen ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+
+          {/* Search engine — always visible */}
+          <div className="relative flex items-center border border-white/10 bg-black/40 focus-within:border-primary/50 transition">
+            <span className="pl-2.5 font-mono text-[10px] text-primary/70 select-none">{`>`}</span>
+            <input
+              value={saveSearch}
+              onChange={(e) => setSaveSearch(e.target.value)}
+              placeholder="search rigs…"
+              className="flex-1 bg-transparent h-8 px-2 font-mono text-[11px] text-white placeholder:text-white/25 focus:outline-none"
+            />
+            <Search className="w-3 h-3 text-white/30 mr-2.5" />
+          </div>
+
+          {/* Expanded content: clips + library */}
+          {deckOpen && (
+            <>
+              {/* Clips */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="font-mono text-[9px] text-primary/60 tracking-[0.18em]">{`>`}</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-white/50 font-semibold">CLIPS</span>
+                  <span className="font-mono text-[9px] tabular-nums text-white/30">{String(clips.length).padStart(3, "0")}</span>
+                </div>
+                {clips.length === 0 ? (
+                  <p className="font-mono text-[10px] text-white/30 px-1 py-1">// no clips loaded</p>
+                ) : (
+                  <ScrollArea className="max-h-32">
+                    <div className="grid grid-cols-1 gap-1 pr-1.5">
+                      {clips.map((name) => {
+                        const isActive = activeClip === name;
+                        return (
+                          <button
+                            key={name}
+                            onClick={() => setActiveClip(name)}
+                            className={`group flex items-center gap-2 px-2.5 py-1.5 border text-left transition-all ${
+                              isActive
+                                ? "bg-primary/10 border-primary/60 text-white shadow-[inset_2px_0_0_hsl(var(--primary))]"
+                                : "bg-white/[0.02] border-white/10 text-white/70 hover:border-white/30 hover:bg-white/[0.05]"
+                            }`}
+                          >
+                            <span className={`font-mono text-[9px] tabular-nums ${isActive ? "text-primary" : "text-white/30"}`}>
+                              {isActive ? "●" : "○"}
+                            </span>
+                            <span className="flex-1 truncate text-[11px] font-medium">{name}</span>
+                            {isActive && playing && (
+                              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-primary animate-pulse">LIVE</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+
+              {/* Library */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="font-mono text-[9px] text-primary/60 tracking-[0.18em]">{`>`}</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-white/50 font-semibold">LIBRARY</span>
+                  <span className="font-mono text-[9px] tabular-nums text-white/30">{String(saves.length).padStart(3, "0")}</span>
+                </div>
+                <div className="max-h-40 overflow-y-auto -mx-1 px-1 space-y-1">
+                  {saves.length === 0 ? (
+                    <p className="font-mono text-[10px] text-white/30 text-center py-2">
+                      {savesLoading ? "// loading…" : "// empty — press SAVE to record"}
+                    </p>
+                  ) : (
+                    saves
+                      .filter((s) => s.name.toLowerCase().includes(saveSearch.toLowerCase()))
+                      .map((s, i) => {
+                        const active = activeSaveId === s.id;
+                        return (
+                          <div
+                            key={s.id}
+                            className={`group flex items-center gap-2 pl-2 pr-1 py-1.5 border transition cursor-pointer ${
+                              active
+                                ? "border-primary/50 bg-primary/[0.08] shadow-[inset_2px_0_0_hsl(var(--primary))]"
+                                : "border-white/[0.06] bg-white/[0.015] hover:border-white/20 hover:bg-white/[0.04]"
+                            }`}
+                          >
+                            <span className={`font-mono text-[9px] tabular-nums w-5 shrink-0 ${active ? "text-primary" : "text-white/25"}`}>
+                              {String(i + 1).padStart(2, "0")}
+                            </span>
+                            <button
+                              onClick={() => handleLoadSave(s)}
+                              className="flex-1 flex items-center gap-2 text-left min-w-0"
+                            >
+                              <div className="w-7 h-7 overflow-hidden bg-black border border-white/10 flex-shrink-0 grid place-items-center">
+                                {s.thumbnail ? (
+                                  <img src={s.thumbnail} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <BoneIcon className="w-3 h-3 text-white/30" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-[11px] truncate leading-tight ${active ? "text-white font-semibold" : "text-white/80"}`}>
+                                  {s.name}
+                                </p>
+                                <p className="font-mono tabular-nums text-[9px] text-white/30 leading-tight">
+                                  {new Date(s.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSave(s);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 grid place-items-center w-7 h-7 text-white/40 hover:text-destructive hover:bg-destructive/10 transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* ═══════════ HERO RIG DECK ═══════════ */}
         {(() => {
           const sel = activeSaveId ? saves.find((s) => s.id === activeSaveId) : null;
@@ -1628,135 +1772,6 @@ export default function RigControllerRoom({
           );
         })()}
 
-        {/* ═══════════ CLIPS RAIL ═══════════ */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[9px] text-primary/60 tracking-[0.18em]">{`>`}</span>
-              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/70 font-semibold">CLIPS</span>
-              <span className="font-mono text-[9px] tabular-nums text-white/30">{String(clips.length).padStart(3,"0")}</span>
-            </div>
-            <button
-              onClick={() => setAnimOpen((o) => !o)}
-              className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/40 hover:text-white transition flex items-center gap-1"
-            >
-              {animOpen ? "HIDE" : "SHOW"}
-              <ChevronDown className={`w-3 h-3 transition-transform ${animOpen ? "rotate-180" : ""}`} />
-            </button>
-          </div>
-          {animOpen && (
-            clips.length === 0 ? (
-              <p className="font-mono text-[10px] text-white/30 px-1 py-2">// no clips loaded</p>
-            ) : (
-              <ScrollArea className="max-h-40">
-                <div className="grid grid-cols-1 gap-1 pr-1.5">
-                  {clips.map((name) => {
-                    const isActive = activeClip === name;
-                    return (
-                      <button
-                        key={name}
-                        onClick={() => setActiveClip(name)}
-                        className={`group flex items-center gap-2 px-2.5 py-2 border text-left transition-all ${
-                          isActive
-                            ? "bg-primary/10 border-primary/60 text-white shadow-[inset_2px_0_0_hsl(var(--primary))]"
-                            : "bg-white/[0.02] border-white/10 text-white/70 hover:border-white/30 hover:bg-white/[0.05]"
-                        }`}
-                      >
-                        <span className={`font-mono text-[9px] tabular-nums ${isActive ? "text-primary" : "text-white/30"}`}>
-                          {isActive ? "●" : "○"}
-                        </span>
-                        <span className="flex-1 truncate text-[11px] font-medium">{name}</span>
-                        {isActive && playing && (
-                          <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-primary animate-pulse">LIVE</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            )
-          )}
-        </div>
-
-        {/* ═══════════ LIBRARY — saved rigs ═══════════ */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[9px] text-primary/60 tracking-[0.18em]">{`>`}</span>
-              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/70 font-semibold">LIBRARY</span>
-              <span className="font-mono text-[9px] tabular-nums text-white/30">{String(saves.length).padStart(3,"0")}</span>
-            </div>
-          </div>
-          {/* Console-style search */}
-          <div className="relative flex items-center border border-white/10 bg-black/40 focus-within:border-primary/50 transition">
-            <span className="pl-2.5 font-mono text-[10px] text-primary/70 select-none">{`>`}</span>
-            <input
-              value={saveSearch}
-              onChange={(e) => setSaveSearch(e.target.value)}
-              placeholder="search rigs…"
-              className="flex-1 bg-transparent h-8 px-2 font-mono text-[11px] text-white placeholder:text-white/25 focus:outline-none"
-            />
-            <Search className="w-3 h-3 text-white/30 mr-2.5" />
-          </div>
-          {/* List */}
-          <div className="max-h-56 overflow-y-auto -mx-1 px-1 space-y-1">
-            {saves.length === 0 ? (
-              <p className="font-mono text-[10px] text-white/30 text-center py-3">
-                {savesLoading ? "// loading…" : "// empty — press SAVE to record"}
-              </p>
-            ) : (
-              saves
-                .filter((s) => s.name.toLowerCase().includes(saveSearch.toLowerCase()))
-                .map((s, i) => {
-                  const active = activeSaveId === s.id;
-                  return (
-                    <div
-                      key={s.id}
-                      className={`group flex items-center gap-2 pl-2 pr-1 py-1.5 border transition cursor-pointer ${
-                        active
-                          ? "border-primary/50 bg-primary/[0.08] shadow-[inset_2px_0_0_hsl(var(--primary))]"
-                          : "border-white/[0.06] bg-white/[0.015] hover:border-white/20 hover:bg-white/[0.04]"
-                      }`}
-                    >
-                      <span className={`font-mono text-[9px] tabular-nums w-5 shrink-0 ${active ? "text-primary" : "text-white/25"}`}>
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <button
-                        onClick={() => handleLoadSave(s)}
-                        className="flex-1 flex items-center gap-2 text-left min-w-0"
-                      >
-                        <div className="w-7 h-7 overflow-hidden bg-black border border-white/10 flex-shrink-0 grid place-items-center">
-                          {s.thumbnail ? (
-                            <img src={s.thumbnail} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <BoneIcon className="w-3 h-3 text-white/30" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-[11px] truncate leading-tight ${active ? "text-white font-semibold" : "text-white/80"}`}>
-                            {s.name}
-                          </p>
-                          <p className="font-mono tabular-nums text-[9px] text-white/30 leading-tight">
-                            {new Date(s.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSave(s);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 grid place-items-center w-7 h-7 text-white/40 hover:text-destructive hover:bg-destructive/10 transition"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  );
-                })
-            )}
-          </div>
-        </div>
 
         <div className="rounded border border-border/40 p-3 space-y-2 bg-muted/10">
           <label className="flex items-center gap-2 text-xs">
