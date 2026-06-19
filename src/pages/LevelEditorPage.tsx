@@ -11,7 +11,7 @@ import {
   X, ArrowUpRight, User,
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
-import { Sparkles, Library, ChevronLeft, Search } from "lucide-react";
+import { Sparkles, Library, ChevronLeft, Search, PanelLeft, PanelRight } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CharacterAnimationGallery from "@/components/level/animations/CharacterAnimationGallery";
 import ObjectAnimationGallery from "@/components/level/animations/ObjectAnimationGallery";
@@ -1253,6 +1253,12 @@ export default function LevelEditorPage() {
     if (!isMobile) setMobilePanel(null);
   }, [isMobile]);
 
+  // Desktop-only sidebar visibility. Right inspector is hidden by default and
+  // revealed by the toolbar toggle next to Undo; left outline can be collapsed
+  // by the chevron arrow on its inner edge.
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
@@ -1318,6 +1324,28 @@ export default function LevelEditorPage() {
           >
             <Undo2 className="w-3.5 h-3.5" />
           </Button>
+          {!isMobile && (
+            <>
+              <Button
+                size="sm"
+                variant={leftCollapsed ? "ghost" : "secondary"}
+                onClick={() => setLeftCollapsed((v) => !v)}
+                title={leftCollapsed ? "Show left panel" : "Hide left panel"}
+                className="h-8 w-8 px-0"
+              >
+                <PanelLeft className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant={rightOpen ? "secondary" : "ghost"}
+                onClick={() => setRightOpen((v) => !v)}
+                title={rightOpen ? "Hide inspector" : "Show inspector"}
+                className="h-8 w-8 px-0"
+              >
+                <PanelRight className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -1440,7 +1468,14 @@ export default function LevelEditorPage() {
         className={
           isMobile
             ? "flex-1 relative min-h-0"
-            : "flex-1 grid grid-cols-[260px_1fr_320px] min-h-0"
+            : "flex-1 grid min-h-0"
+        }
+        style={
+          isMobile
+            ? undefined
+            : {
+                gridTemplateColumns: `${leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
+              }
         }
       >
         {/* Left: outline — scene components, lights, layers (and rig components in rig-room mode). */}
@@ -1452,9 +1487,23 @@ export default function LevelEditorPage() {
                     ? "translate-y-0"
                     : "translate-y-full pointer-events-none"
                 }`
-              : "border-r border-border/40 bg-card/40 overflow-y-auto"
+              : `border-r border-border/40 bg-card/40 overflow-y-auto relative transition-all duration-300 ${
+                  leftCollapsed ? "overflow-hidden" : ""
+                }`
           }
         >
+          {!isMobile && (
+            <button
+              onClick={() => setLeftCollapsed((v) => !v)}
+              title={leftCollapsed ? "Expand panel" : "Collapse panel"}
+              aria-label={leftCollapsed ? "Expand left panel" : "Collapse left panel"}
+              className="absolute top-2 right-0 z-30 w-5 h-8 flex items-center justify-center rounded-l-md bg-background/80 border border-r-0 border-border/60 text-muted-foreground hover:text-foreground hover:bg-background"
+            >
+              {leftCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+            </button>
+          )}
+          {!isMobile && leftCollapsed ? null : (
+            <>
           {isMobile && (
             <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
               <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Scene</span>
@@ -1751,6 +1800,8 @@ export default function LevelEditorPage() {
               </button>
             ))}
           </div>
+            </>
+          )}
         </aside>
 
         {/* Center: viewport */}
@@ -1899,7 +1950,9 @@ export default function LevelEditorPage() {
                     ? "translate-y-0"
                     : "translate-y-full pointer-events-none"
                 }`
-              : "border-l border-border/40 bg-card/40 overflow-y-auto"
+              : rightOpen
+              ? "border-l border-border/40 bg-card/40 overflow-y-auto"
+              : "hidden"
           }
         >
           {isMobile && (

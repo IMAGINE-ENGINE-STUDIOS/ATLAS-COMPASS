@@ -1080,7 +1080,7 @@ export default function RigControllerRoom({
   type CameraPresetId = "reset" | "front" | "side" | "back" | "top";
   interface CamPreset { id: CameraPresetId; label: string; position: [number, number, number]; target: [number, number, number]; }
   const CAMERA_PRESETS: CamPreset[] = useMemo(() => [
-    { id: "reset", label: "Reset",          position: [2.2, 1.6, 2.2],  target: [0, 1, 0] },
+    { id: "reset", label: "Reset",          position: [3.6, 2.2, 3.6],  target: [0, 1, 0] },
     { id: "front", label: "Front close-up", position: [0, 1.6, 2.6],    target: [0, 1.5, 0] },
     { id: "side",  label: "Profile",        position: [3.0, 1.4, 0],    target: [0, 1.2, 0] },
     { id: "back",  label: "Hero back",      position: [0, 1.8, -3.2],   target: [0, 1.2, 0] },
@@ -1526,7 +1526,7 @@ export default function RigControllerRoom({
       {/* Viewport */}
       <main className="flex-1 relative">
         <Canvas
-          camera={{ position: [2.2, 1.6, 2.2], fov: 45, near: 0.05, far: 200 }}
+          camera={{ position: [3.6, 2.2, 3.6], fov: 52, near: 0.05, far: 200 }}
           shadows
           gl={{ preserveDrawingBuffer: true }}
         >
