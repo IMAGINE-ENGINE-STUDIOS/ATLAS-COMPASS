@@ -1182,11 +1182,11 @@ function XrayBodyMap({
 
       {/* Live x-ray viewport */}
       <div
-        className="relative h-[300px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]"
+        className="relative h-[340px] rounded-md overflow-hidden border border-cyan-400/10 bg-[#04101a]"
         style={{ containerType: "inline-size" }}
       >
         <Canvas
-          camera={{ position: [0, 1.4, 2.6], fov: 35, near: 0.01, far: 200 }}
+          camera={{ position: [0, 1.35, 3.2], fov: 30, near: 0.01, far: 200 }}
           gl={{ antialias: true, alpha: false }}
           dpr={[1, 1.5]}
         >
@@ -1198,6 +1198,7 @@ function XrayBodyMap({
                 url={url}
                 selectedBoneName={selectedBoneName}
                 hoveredBoneName={hoveredBone}
+                addBoneMode={addBoneMode}
                 onHoverBone={setHoveredBone}
                 onSelectBone={onSelectBone}
               />
@@ -1207,8 +1208,8 @@ function XrayBodyMap({
             makeDefault
             enablePan={false}
             enableZoom={false}
-            autoRotate
-            autoRotateSpeed={0.8}
+            enableRotate={false}
+            autoRotate={false}
             minDistance={0.4}
             maxDistance={8}
           />
@@ -1261,7 +1262,7 @@ function XrayBodyMap({
       </div>
 
       <p className="mt-1.5 text-[10px] text-cyan-200/50 leading-snug">
-        Real-time x-ray of the selected character. Hover a node to read the bone, click to grab it in the viewport.
+        Fixed 100% X-ray frame. Click any highlighted joint here or in the main character to select it.
       </p>
     </div>
   );
