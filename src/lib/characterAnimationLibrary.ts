@@ -71,7 +71,6 @@ export const CHARACTER_ANIMATION_LIBRARY: CharacterClipEntry[] = [
   builtin("xbot-idle", "Idle",    "idle",       "idle", ["calm", "loop"]),
   builtin("xbot-walk", "Walking", "locomotion", "walk", ["loop", "forward"]),
   builtin("xbot-run",  "Running", "locomotion", "run",  ["loop", "forward", "fast"]),
-];
 
   // ===== Ready Player Me — Mixamo-rigged animation library =====
   // Source: github.com/readyplayerme/animation-library (CC-BY 4.0).
@@ -177,6 +176,7 @@ export const CHARACTER_ANIMATION_LIBRARY: CharacterClipEntry[] = [
   { id: "rpm-m-falling-idle-002", name: "Falling Idle 002", category: "jump", tags: ["jump", "mixamo", "rpm", "male"], source: "url", url: "https://raw.githubusercontent.com/readyplayerme/animation-library/master/masculine/glb/locomotion/M_Falling_Idle_002.glb", loop: true },
   { id: "rpm-m-jog-001", name: "Jog 001*", category: "locomotion", tags: ["locomotion", "mixamo", "rpm", "male"], source: "url", url: "https://raw.githubusercontent.com/readyplayerme/animation-library/master/masculine/glb/locomotion/M_Jog_001.glb", loop: true },
   { id: "rpm-m-jog-003", name: "Jog 003", category: "locomotion", tags: ["locomotion", "mixamo", "rpm", "male"], source: "url", url: "https://raw.githubusercontent.com/readyplayerme/animation-library/master/masculine/glb/locomotion/M_Jog_003.glb", loop: true },
+];
 
 export const CLIP_CATEGORIES: { id: ClipCategory; label: string }[] = [
   { id: "idle",       label: "Idle" },
