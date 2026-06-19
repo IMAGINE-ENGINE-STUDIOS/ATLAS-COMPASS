@@ -1411,9 +1411,37 @@ export default function LevelEditorPage() {
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-[260px_1fr_320px] min-h-0">
+      <div
+        className={
+          isMobile
+            ? "flex-1 relative min-h-0"
+            : "flex-1 grid grid-cols-[260px_1fr_320px] min-h-0"
+        }
+      >
         {/* Left: outline — scene components, lights, layers (and rig components in rig-room mode). */}
-        <aside className="border-r border-border/40 bg-card/40 overflow-y-auto">
+        <aside
+          className={
+            isMobile
+              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
+                  mobilePanel === "left"
+                    ? "translate-y-0"
+                    : "translate-y-full pointer-events-none"
+                }`
+              : "border-r border-border/40 bg-card/40 overflow-y-auto"
+          }
+        >
+          {isMobile && (
+            <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Scene</span>
+              <button
+                onClick={() => setMobilePanel(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Close panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <div className="p-3 border-b border-border/40 sticky top-0 bg-card/80 backdrop-blur-xl">
             {!rigRoomMode && (
               <>
