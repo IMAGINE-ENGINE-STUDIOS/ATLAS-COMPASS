@@ -1631,7 +1631,11 @@ function LevelScene3DInner(
       />
       <KeyboardCameraController controlsRef={controlsRef} enabled={!hasActivePlayer(rest)} />
       <ResetCameraController nonce={resetReq} controlsRef={controlsRef} />
+      <PerfSampler />
     </Canvas>
+    {/* DOM-overlay performance HUD (toggle with `) — rendered as a sibling
+        so it sits outside the WebGL canvas and never affects scene state. */}
+    <PerfHUD />
   );
 }
 
