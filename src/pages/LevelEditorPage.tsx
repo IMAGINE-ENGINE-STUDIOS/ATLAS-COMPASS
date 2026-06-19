@@ -2636,6 +2636,14 @@ function ObjectInspector({
           disabled={disabled}
         />
       )}
+      {onSpawnObjects && obj.kind !== "character" && obj.kind !== "trajectory" && (
+        <GeometryPanel
+          anchor={obj.position}
+          selectedObject={obj}
+          onSpawn={onSpawnObjects}
+          disabled={disabled}
+        />
+      )}
       {onDelete && (
         <Button
           size="sm"
