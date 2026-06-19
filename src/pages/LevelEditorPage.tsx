@@ -1014,6 +1014,18 @@ export default function LevelEditorPage() {
       return s;
     });
 
+  const addObjects = (objs: SceneObject[]) =>
+    updateScene((s) => {
+      if (!s.layers || s.layers.length === 0) s.layers = defaultLayers();
+      const targetLayer = s.layers.find((l) => l.id === currentLayerId)
+        ? currentLayerId
+        : s.layers[0].id;
+      for (const o of objs) {
+        s.objects.push({ ...o, layerId: o.layerId ?? targetLayer } as SceneObject);
+      }
+      return s;
+    });
+
   const removeObject = (oid: string) =>
     updateScene((s) => {
       s.objects = s.objects.filter((o) => o.id !== oid);
