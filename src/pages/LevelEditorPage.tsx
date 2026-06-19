@@ -328,13 +328,15 @@ function ComponentsPanel({
                     {rigState.bones.length} bones
                   </span>
                 </div>
-                <div className="mt-1">
-                  <BoneHierarchyPanel
-                    bones={rigState.bones}
-                    selectedBoneName={selectedBoneName ?? null}
-                    onSelect={(name) => onSelectBone?.(name)}
-                  />
-                </div>
+                {!hideBoneHierarchy && (
+                  <div className="mt-1">
+                    <BoneHierarchyPanel
+                      bones={rigState.bones}
+                      selectedBoneName={selectedBoneName ?? null}
+                      onSelect={(name) => onSelectBone?.(name)}
+                    />
+                  </div>
+                )}
               </div>
             )}
             {g.items.length === 0 && !(g.key === "characters" && rigState) ? (
