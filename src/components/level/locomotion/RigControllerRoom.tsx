@@ -1017,12 +1017,14 @@ function XrayLiveMesh({
   url,
   selectedBoneName,
   hoveredBoneName,
+  addBoneMode,
   onHoverBone,
   onSelectBone,
 }: {
   url: string;
   selectedBoneName: string | null;
   hoveredBoneName: string | null;
+  addBoneMode?: boolean;
   onHoverBone: (name: string | null) => void;
   onSelectBone: (name: string) => void;
 }) {
@@ -1067,35 +1069,25 @@ function XrayLiveMesh({
 
     // Frame the model exactly once per cloned rig.
     if (framedRef.current !== cloned) {
-      // SkinnedMesh bounding boxes often dip far below the floor (bind-pose
-      // artifacts), which dragged the computed center down to the feet and
-      // made the camera frame the soles. Compute the box from non-skinned
-      // geometry when possible, and bias the look-at target toward the
-      // upper torso so the character is always centered on screen.
-      const box = new THREE.Box3();
-      let hasMesh = false;
-      cloned.updateWorldMatrix(true, true);
-      cloned.traverse((o: any) => {
-        if (o.isMesh && !o.isSkinnedMesh && o.geometry) {
-          const b = new THREE.Box3().setFromObject(o);
-          if (isFinite(b.min.x) && isFinite(b.max.x)) {
-            box.union(b);
-            hasMesh = true;
-          }
-        }
-      });
-      if (!hasMesh) box.setFromObject(cloned);
+      // Use the skeleton itself for framing. Skinned mesh bounds can include
+      // bad bind-pose geometry below the feet, which is what made this camera
+      // stare at the soles or jump out of focus.
+      const box = getStableRigBox(cloned);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
-      // Aim ~65% up the body (chest/face) instead of the geometric center.
+      if (size.lengthSq() === 0 || !Number.isFinite(size.y)) return;
+      // Aim at the upper torso, not the feet.
       const target = new THREE.Vector3(
         center.x,
-        box.min.y + size.y * 0.65,
+        box.min.y + size.y * 0.58,
         center.z,
       );
       const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      const dist = maxDim * 2.1;
+      const dist = maxDim * 2.35;
       camera.position.set(target.x, target.y, target.z + dist);
+      camera.near = Math.max(0.001, dist / 100);
+      camera.far = Math.max(200, dist * 10);
+      camera.updateProjectionMatrix?.();
       if (controls && controls.target) {
         controls.target.copy(target);
         controls.update?.();
@@ -1119,12 +1111,15 @@ function XrayLiveMesh({
   return (
     <>
       <primitive object={cloned} />
+      <BoneSplineOverlay root={cloned} selectedBoneName={selectedBoneName} expanded={!!addBoneMode} xray />
       {bones.map((b) => (
-        <XrayBoneHotspot
+        <BonePickHotspot
           key={b.uuid}
           bone={b}
           selected={selectedBoneName === b.name}
           hovered={hoveredBoneName === b.name}
+          armed={addBoneMode && selectedBoneName === b.name}
+          xray
           onHover={onHoverBone}
           onSelect={onSelectBone}
         />
