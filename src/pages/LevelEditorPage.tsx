@@ -1234,6 +1234,77 @@ export default function LevelEditorPage() {
 
   const editorSidebarPanels = (
           <div className="p-3">
+            {rigRoomMode && (
+              <div className="mb-3 pb-3 border-b border-border/40">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Tools</p>
+                <div className="flex flex-wrap items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Directional light"
+                    onClick={() => { const l = makeLight("directional"); addLight(l); selectLight(l.id); }}
+                  >
+                    <SunMedium className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Point light"
+                    onClick={() => { const l = makeLight("point"); addLight(l); selectLight(l.id); }}
+                  >
+                    <Lightbulb className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Spot light"
+                    onClick={() => { const l = makeLight("spot"); addLight(l); selectLight(l.id); }}
+                  >
+                    <Spotlight className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Ambient light"
+                    onClick={() => { const l = makeLight("ambient"); addLight(l); selectLight(l.id); }}
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                  </Button>
+                  <div className="w-px h-5 bg-border/50 mx-1" />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Geometry primitive (box)"
+                    onClick={() => addObject(makePrimitive("box"))}
+                  >
+                    <Box className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Load 3D file (.glb, .gltf, .fbx, .obj…)"
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Polygon (spline)"
+                    onClick={() => addObject(makePolygon())}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
             <ComponentsPanel
               objects={scene.objects}
               selectedIds={selectedIds}
@@ -1540,46 +1611,6 @@ export default function LevelEditorPage() {
               <Scaling className="w-3.5 h-3.5" />
             </Button>
           </div>
-          {!isMobile && (
-            <div className="flex items-center gap-0.5 px-1 h-8 rounded-md border border-border/40 bg-card/40">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-1.5"
-                title="Directional light"
-                onClick={() => { const l = makeLight("directional"); addLight(l); selectLight(l.id); }}
-              >
-                <SunMedium className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-1.5"
-                title="Point light"
-                onClick={() => { const l = makeLight("point"); addLight(l); selectLight(l.id); }}
-              >
-                <Lightbulb className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-1.5"
-                title="Spot light"
-                onClick={() => { const l = makeLight("spot"); addLight(l); selectLight(l.id); }}
-              >
-                <Spotlight className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-1.5"
-                title="Ambient light"
-                onClick={() => { const l = makeLight("ambient"); addLight(l); selectLight(l.id); }}
-              >
-                <Sun className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          )}
           {!isMobile && (
             <div className="flex items-center gap-1 px-2 h-8 rounded-md border border-border/40 bg-card/40">
               <button
