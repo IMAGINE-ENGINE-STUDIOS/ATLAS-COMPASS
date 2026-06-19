@@ -306,6 +306,17 @@ function InteractionsTab({
           <div className="flex items-center gap-1">
             <Badge variant="outline" className="h-4 text-[9px] uppercase">{i.kind}</Badge>
             <Input value={i.name} onChange={(e) => patch(i.id, { name: e.target.value })} className="h-6 text-[10px] flex-1" disabled={disabled} />
+            {i.kind === "preset" && i.trigger && i.trigger !== "always" && (
+              <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                {i.trigger === "onClick" && "on click"}
+                {i.trigger === "onPlayerNear" && `near ${i.triggerDistance ?? 2}m`}
+                {i.trigger === "onWalkThrough" && "walk through"}
+                {i.trigger === "key" && (i.triggerKey ?? "key")}
+              </span>
+            )}
+            {i.kind === "preset" && (!i.trigger || i.trigger === "always") && (
+              <span className="text-[9px] text-muted-foreground whitespace-nowrap">auto</span>
+            )}
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" disabled={disabled} onClick={() => preview(i)} title="Test action">
               <Play className="w-3 h-3" />
             </Button>
@@ -315,7 +326,51 @@ function InteractionsTab({
           </div>
 
           {i.kind === "preset" && (
-            <PresetEditor preset={i.preset!} onChange={(p) => patch(i.id, { preset: p })} disabled={disabled} />
+            <div className="space-y-1">
+              <div className="grid grid-cols-[auto_1fr] gap-1 items-center">
+                <Label className="text-[9px] uppercase">Trigger</Label>
+                <Select
+                  value={i.trigger ?? "always"}
+                  onValueChange={(v) => patch(i.id, { trigger: v as ObjectInteraction["trigger"] })}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className="h-5 text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="always" className="text-xs">auto-run (always)</SelectItem>
+                    <SelectItem value="onClick" className="text-xs">on click</SelectItem>
+                    <SelectItem value="onPlayerNear" className="text-xs">player nearby</SelectItem>
+                    <SelectItem value="onWalkThrough" className="text-xs">walked through</SelectItem>
+                    <SelectItem value="key" className="text-xs">key press</SelectItem>
+                  </SelectContent>
+                </Select>
+                {i.trigger === "onPlayerNear" && (
+                  <>
+                    <Label className="text-[9px]">Distance</Label>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      value={i.triggerDistance ?? 2}
+                      onChange={(e) => patch(i.id, { triggerDistance: parseFloat(e.target.value) || 0 })}
+                      className="h-5 text-[10px]"
+                      disabled={disabled}
+                    />
+                  </>
+                )}
+                {i.trigger === "key" && (
+                  <>
+                    <Label className="text-[9px]">Key</Label>
+                    <Input
+                      value={i.triggerKey ?? "E"}
+                      onChange={(e) => patch(i.id, { triggerKey: e.target.value })}
+                      placeholder="E or Shift+E"
+                      className="h-5 text-[10px]"
+                      disabled={disabled}
+                    />
+                  </>
+                )}
+              </div>
+              <PresetEditor preset={i.preset!} onChange={(p) => patch(i.id, { preset: p })} disabled={disabled} />
+            </div>
           )}
 
           {i.kind === "script" && (
