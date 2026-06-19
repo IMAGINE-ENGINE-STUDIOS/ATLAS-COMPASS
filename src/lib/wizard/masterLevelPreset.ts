@@ -515,13 +515,15 @@ export function buildMasterLevelScene(): LevelScene {
   const door2L = newId("train_door");
   const door2R = newId("train_door");
 
-  // Locomotive body — placed at the stop pose: rails at x=-22, train sits
-  // on x=-22 with body length oriented along Z.
+  // Locomotive body — placed at the stop pose. Rails are at x=-22 (along Z).
+  // The locomotive sits at the FRONT of the train; cars trail to -Z.
+  // (At Play time the TrainRuntime overwrites positions anyway, but a
+  // visually-correct edit pose helps when scrubbing in the editor.)
   const TRAIN_Y = 1.4;
   objects.push(prim({
     id: locoId,
     name: "Locomotive",
-    pos: [-22, TRAIN_Y, -20],
+    pos: [-22, TRAIN_Y, 0],
     size: [2.4, 2.2, 7],
     color: C.trainRed,
     textureUrl: TEX_METAL,
@@ -535,7 +537,7 @@ export function buildMasterLevelScene(): LevelScene {
   objects.push(prim({
     id: cabinId,
     name: "Locomotive cabin",
-    pos: [-22, TRAIN_Y + 1.6, -22.5],
+    pos: [-22, TRAIN_Y + 1.6, 2.5],
     size: [2.6, 1.4, 2.2],
     color: C.trainRed,
     textureUrl: TEX_GLASS_FACADE,
@@ -545,10 +547,10 @@ export function buildMasterLevelScene(): LevelScene {
     layer: LAYERS.train,
     trainRole: "cabin",
   }));
-  // Chimney
+  // Chimney (front of loco, ahead in +Z)
   objects.push(prim({
     name: "Locomotive chimney",
-    pos: [-22, TRAIN_Y + 1.8, -17.5],
+    pos: [-22, TRAIN_Y + 1.8, -2.5],
     size: [0.7, 1.4, 0.7],
     shape: "cylinder",
     color: C.black,
@@ -614,7 +616,7 @@ export function buildMasterLevelScene(): LevelScene {
     }));
   }
   buildCar(car1Id, -10, "Car A", door1L, door1R);
-  buildCar(car2Id, 0, "Car B", door2L, door2R);
+  buildCar(car2Id, -19, "Car B", door2L, door2R);
 
   /* ---- animated decorations (rotating station sign) ---- */
   const spinId = newId("obj_spin");
