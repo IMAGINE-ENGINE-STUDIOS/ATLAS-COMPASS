@@ -250,6 +250,7 @@ function Rig({
   speed,
   pendingPose,
   onPoseApplied,
+  onBoneEdited,
   bridgeRef,
 }: {
   url: string;
