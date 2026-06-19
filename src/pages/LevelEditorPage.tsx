@@ -1800,6 +1800,7 @@ export default function LevelEditorPage() {
         >
           {rigRoomMode ? (
             <RigControllerRoom
+              sidebarOpen={!leftCollapsed}
               onRigStateChange={setRigState}
               externalSelectedBoneName={rigBoneRequest}
               sidebarExtras={editorSidebarPanels}
