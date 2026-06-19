@@ -338,24 +338,18 @@ function ComponentsPanel({
               <span className="text-[9px] text-muted-foreground/70">in scene</span>
             </div>
             {pinned.map((o) => (
-              <button
+              <ComponentRow
                 key={`pinned-${o.id}`}
-                onClick={(e) => onSelect(o.id, e.ctrlKey || e.metaKey)}
-                className="w-full text-left px-2 py-1 rounded text-[11px] flex items-center gap-1.5 bg-primary/15 text-primary hover:bg-primary/25"
-                title={`${o.name} (${o.kind}) — reference to scene object`}
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{
-                    background:
-                      o.kind === "character" ? "#22ff88" :
-                      o.kind === "trajectory" ? "#7be7ff" :
-                      "#fbbf24",
-                  }}
-                />
-                <span className="flex-1 truncate">{o.name}</span>
-                <span className="text-[9px] uppercase tracking-wider opacity-60">{o.kind}</span>
-              </button>
+                o={o}
+                selected
+                pinned
+                layers={layers}
+                onSelect={onSelect}
+                onToggleLock={onToggleLock}
+                onDelete={onDelete}
+                onAssignLayer={onAssignLayer}
+                isLocked={isLocked}
+              />
             ))}
           </div>
         )}
