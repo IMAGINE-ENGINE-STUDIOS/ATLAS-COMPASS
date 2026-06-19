@@ -1164,6 +1164,12 @@ export default function RigControllerRoom({
   };
 
   // ----- save system state -----
+  const bridgeRef = useRef<RigBridge>({ root: null, snapshot: null });
+  const [pendingPose, setPendingPose] = useState<BonePose[] | null>(null);
+  const [saves, setSaves] = useState<RigSave[]>(() => getCachedRigSaves());
+  const [savesLoading, setSavesLoading] = useState(false);
+  const [activeSaveId, setActiveSaveId] = useState<string | null>(null);
+
   const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
   const [saveSearch, setSaveSearch] = useState("");
   const saveDropdownRef = useRef<HTMLDivElement>(null);
@@ -1178,8 +1184,6 @@ export default function RigControllerRoom({
     if (saveDropdownOpen) document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [saveDropdownOpen]);
-
-  // Hydrate saves from the server (cache rendered immediately above).
   useEffect(() => {
     let cancelled = false;
     setSavesLoading(true);
