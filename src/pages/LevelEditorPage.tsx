@@ -2048,6 +2048,8 @@ export default function LevelEditorPage() {
                   userClips={userClipEntries}
                   onOpenCharacterGallery={() => setCharacterGalleryOpen(true)}
                   onSpawnObjects={(objs) => addObjects(objs)}
+                  scenePaths={scene.scenePaths ?? []}
+                  onPatchScenePaths={(next) => updateScene((s) => { s.scenePaths = next; return s; })}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
