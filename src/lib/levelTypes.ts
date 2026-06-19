@@ -634,6 +634,46 @@ export interface LevelScene {
       contactBlur: number;
     };
   };
+  /**
+   * Optional Train System configuration. When present, the TrainRuntime
+   * mounts during Play mode and drives a locomotive + its cars along the
+   * referenced scene path, holding at stop markers, opening doors for
+   * `stopDurationSeconds`, and parenting any character that walks through
+   * an open door so they ride along.
+   */
+  trainSystem?: TrainSystemConfig;
+}
+
+/**
+ * Train System config. IDs reference `scene.objects[].id`; `trackPathId`
+ * references `scene.scenePaths[].id`. Speeds are in metres/second. Stops
+ * are scheduled by their curve parameter `t` (0..1 along the closed path).
+ */
+export interface TrainSystemConfig {
+  /** Scene path id whose waypoints form the rail centreline. */
+  trackPathId: string;
+  /** Object id of the locomotive (drives the train). */
+  locomotiveId: string;
+  /** Object ids of attached cars, ordered head→tail. */
+  carIds: string[];
+  /** Object ids of door panels (move on open). */
+  doorIds: string[];
+  /** Object id of the driver's cabin trigger (used for possession). */
+  cabinId?: string;
+  /** Stop markers along the loop (each at curve parameter t∈[0,1]). */
+  stops: Array<{ t: number; name?: string }>;
+  /** Cruising speed (m/s). */
+  baseSpeed: number;
+  /** Distance before each stop where the train starts braking (m). */
+  brakeDistance: number;
+  /** How long the train sits with doors open at each stop (s). */
+  stopDurationSeconds: number;
+  /** Door open animation duration (s). */
+  doorAnimSeconds: number;
+  /** Spacing between attached cars (m, including locomotive). */
+  carSpacing: number;
+  /** Key used to toggle cabin possession (default "P"). */
+  possessKey?: string;
 }
 
 /** A single HDRI map (high-dynamic-range equirectangular image). */
