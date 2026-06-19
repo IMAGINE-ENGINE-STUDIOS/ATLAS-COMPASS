@@ -17,6 +17,7 @@
  */
 
 import * as THREE from "three";
+import { SkeletonUtils } from "three-stdlib";
 
 /** Canonical humanoid bone keys we care about. */
 type HumanoidBone =
@@ -271,4 +272,114 @@ export function retargetClipWithBind(
   }
 
   return new THREE.AnimationClip(clip.name, clip.duration, newTracks, clip.blendMode);
+}
+
+// ---------- proper SkeletonUtils-based retargeting --------------------------
+
+function findSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
+  let found: THREE.SkinnedMesh | null = null;
+  root.traverse((n: any) => {
+    if (!found && n.isSkinnedMesh) found = n as THREE.SkinnedMesh;
+  });
+  return found;
+}
+
+/**
+ * Build `{ targetBoneName: sourceBoneName }` using the humanoid alias table.
+ * Only includes target bones we could resolve to an existing source bone.
+ */
+function buildBoneNameMap(
+  targetSkel: THREE.Skeleton,
+  sourceSkel: THREE.Skeleton,
+): { names: Record<string, string>; hipTargetName: string | null } {
+  const sourceIndex = new Map<string, string>();
+  for (const b of sourceSkel.bones) sourceIndex.set(normalise(b.name), b.name);
+
+  const names: Record<string, string> = {};
+  let hipTargetName: string | null = null;
+
+  for (const tBone of targetSkel.bones) {
+    const tNorm = normalise(tBone.name);
+    // Direct hit on normalised name.
+    let srcName = sourceIndex.get(tNorm);
+    if (!srcName) {
+      // Walk alias table.
+      for (const aliases of Object.values(ALIASES)) {
+        if (aliases.some((a) => normalise(a) === tNorm)) {
+          for (const alias of aliases) {
+            const hit = sourceIndex.get(normalise(alias));
+            if (hit) { srcName = hit; break; }
+          }
+        }
+        if (srcName) break;
+      }
+    }
+    if (srcName) {
+      names[tBone.name] = srcName;
+      if (!hipTargetName && ALIASES.Hips.some((a) => normalise(a) === tNorm)) {
+        hipTargetName = tBone.name;
+      }
+    }
+  }
+  return { names, hipTargetName };
+}
+
+/**
+ * Properly retarget a clip from `sourceRoot` (the rig the clip was authored on)
+ * onto `targetRoot` (the rig you want to play it on).
+ *
+ * Internally uses three-stdlib's `SkeletonUtils.retargetClip`, which samples
+ * the source mixer frame-by-frame and writes correct LOCAL rotations on the
+ * target skeleton via world-space delta math. This handles different bind
+ * poses, different bone scales, and different unit systems (Mixamo cm vs
+ * RPM m), which is what naive track-renaming cannot fix.
+ *
+ * Output track names are rewritten to plain "<boneName>.property" so a
+ * standard `new AnimationMixer(targetRoot)` resolves them by node name —
+ * no `.bones[...]` selector required.
+ */
+export function retargetClipProper(
+  clip: THREE.AnimationClip,
+  sourceRoot: THREE.Object3D,
+  targetRoot: THREE.Object3D,
+): THREE.AnimationClip | null {
+  const tMesh = findSkinnedMesh(targetRoot);
+  const sMesh = findSkinnedMesh(sourceRoot);
+  if (!tMesh || !sMesh || !tMesh.skeleton || !sMesh.skeleton) return null;
+
+  const { names, hipTargetName } = buildBoneNameMap(tMesh.skeleton, sMesh.skeleton);
+  if (Object.keys(names).length === 0) return null;
+
+  let baked: THREE.AnimationClip;
+  try {
+    // SkeletonUtils expects: retargetClip(target, source, clip, options).
+    // `target` and `source` may each be a SkinnedMesh (has .skeleton) or a
+    // helper Object3D — SkinnedMesh is the simpler/faster path.
+    baked = (SkeletonUtils as any).retargetClip(tMesh, sMesh, clip, {
+      fps: 30,
+      names,
+      hip: hipTargetName ?? "Hips",
+      useFirstFramePosition: true,
+      preserveHipPosition: false,
+    });
+  } catch (err) {
+    console.warn("[retarget] SkeletonUtils.retargetClip failed", err);
+    return null;
+  }
+
+  // Strip the ".bones[name].property" prefix so this clip plays through a
+  // standard AnimationMixer rooted at `targetRoot` (which is a Group, not
+  // the SkinnedMesh that owns .skeleton).
+  const tracks: THREE.KeyframeTrack[] = [];
+  for (const t of baked.tracks) {
+    const m = /^\.bones\[(.+?)\]\.(.+)$/.exec(t.name);
+    if (m) {
+      const cloned = t.clone();
+      cloned.name = `${m[1]}.${m[2]}`;
+      tracks.push(cloned);
+    } else {
+      tracks.push(t);
+    }
+  }
+  return new THREE.AnimationClip(clip.name, baked.duration, tracks, baked.blendMode);
 }
