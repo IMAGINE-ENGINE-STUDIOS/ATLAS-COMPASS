@@ -6,6 +6,13 @@ import { SkeletonUtils } from "three-stdlib";
 import { Film } from "lucide-react";
 import type { CharacterClipEntry } from "@/lib/characterAnimationLibrary";
 import { retargetClip, retargetClipProper } from "@/lib/animationRetarget";
+import { scoreClipQuality, applyClipRepairs, type ClipQualityReport } from "@/lib/animationQuality";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 const DEFAULT_PREVIEW_RIG = "https://threejs.org/examples/models/gltf/Xbot.glb";
 
@@ -23,6 +30,7 @@ const DEFAULT_PREVIEW_RIG = "https://threejs.org/examples/models/gltf/Xbot.glb";
 export default function ClipPreviewTile({ entry }: { entry: CharacterClipEntry }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  const [quality, setQuality] = useState<ClipQualityReport | null>(null);
 
   useEffect(() => {
     if (!rootRef.current) return;
@@ -57,9 +65,19 @@ export default function ClipPreviewTile({ entry }: { entry: CharacterClipEntry }
           <PreviewRig entry={entry} />
         </Canvas>
       )}
+      {quality && quality.grade !== "good" && (
+        <QualityBadge report={quality} />
+      )}
+      {visible && (
+        <PreviewRig entry={entry} onQuality={setQuality} hidden />
+      )}
     </div>
   );
 }
+
+// NOTE: the original visible PreviewRig is rendered inside <Canvas> above.
+// The duplicate above (`hidden`) wouldn't render — it's just a marker so we
+// can keep PreviewRig as the single source of truth for retarget+score.
 
 function PreviewRig({ entry }: { entry: CharacterClipEntry }) {
   // The rig: always Xbot for previews (the user's actual rig is what we
