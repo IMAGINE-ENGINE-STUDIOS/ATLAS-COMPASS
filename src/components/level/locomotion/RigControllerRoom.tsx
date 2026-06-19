@@ -1134,11 +1134,11 @@ export default function RigControllerRoom({
   type CameraPresetId = "reset" | "front" | "side" | "back" | "top";
   interface CamPreset { id: CameraPresetId; label: string; position: [number, number, number]; target: [number, number, number]; }
   const CAMERA_PRESETS: CamPreset[] = useMemo(() => [
-    { id: "reset", label: "Reset",          position: [3.6, 2.2, 3.6],  target: [0, 1, 0] },
-    { id: "front", label: "Front close-up", position: [0, 1.6, 2.6],    target: [0, 1.5, 0] },
-    { id: "side",  label: "Profile",        position: [3.0, 1.4, 0],    target: [0, 1.2, 0] },
-    { id: "back",  label: "Hero back",      position: [0, 1.8, -3.2],   target: [0, 1.2, 0] },
-    { id: "top",   label: "Top down",       position: [0.01, 4.5, 0.01],target: [0, 0.9, 0] },
+    { id: "reset", label: "Reset",          position: [5, 3.5, 5],  target: [0, 0.9, 0] },
+    { id: "front", label: "Front close-up", position: [0, 1.6, 3.0],    target: [0, 1.5, 0] },
+    { id: "side",  label: "Profile",        position: [3.5, 1.4, 0],    target: [0, 1.2, 0] },
+    { id: "back",  label: "Hero back",      position: [0, 1.8, -3.8],   target: [0, 1.2, 0] },
+    { id: "top",   label: "Top down",       position: [0.01, 5.5, 0.01],target: [0, 0.9, 0] },
   ], []);
   const [activeCamera, setActiveCamera] = useState<CameraPresetId>("reset");
   const [cameraTick, setCameraTick] = useState(0);
