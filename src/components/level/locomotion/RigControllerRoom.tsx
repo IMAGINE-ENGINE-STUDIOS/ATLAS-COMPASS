@@ -1282,7 +1282,8 @@ export default function RigControllerRoom({
         `}
       >
         <div className={sidebarOpen ? "" : "hidden"}>
-          <h2 className="text-base font-semibold tracking-tight">Rig Controller Room</h2>
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">Rig Controller Room</h2>
           <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
             Explore any rigged character. Auto-detect controllers (hips, hands,
             feet, head…) then drag the colored markers to pose the rig.
@@ -1567,6 +1568,7 @@ export default function RigControllerRoom({
             {sidebarExtras}
           </div>
         )}
+        </div>
       </aside>
 
       {/* Viewport */}
