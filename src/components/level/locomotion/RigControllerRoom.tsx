@@ -888,6 +888,8 @@ function XrayBodyMap({
   controllerMap,
   selectedBoneName,
   onSelectBone,
+  hoveredBone: hoveredBoneProp,
+  onHoverBone,
   onClearControllers,
   mappedCount,
 }: {
@@ -896,10 +898,17 @@ function XrayBodyMap({
   controllerMap: Record<ControllerKey, string | null>;
   selectedBoneName: string | null;
   onSelectBone: (boneName: string) => void;
+  hoveredBone?: string | null;
+  onHoverBone?: (name: string | null) => void;
   onClearControllers?: () => void;
   mappedCount: number;
 }) {
-  const [hoveredBone, setHoveredBone] = useState<string | null>(null);
+  const [hoveredBoneLocal, setHoveredBoneLocal] = useState<string | null>(null);
+  const hoveredBone = hoveredBoneProp !== undefined ? hoveredBoneProp : hoveredBoneLocal;
+  const setHoveredBone = (n: string | null) => {
+    if (onHoverBone) onHoverBone(n);
+    else setHoveredBoneLocal(n);
+  };
   const display = hoveredBone ?? selectedBoneName;
   return (
     <div className="relative rounded-lg border border-cyan-400/20 bg-[radial-gradient(ellipse_at_center,hsl(190_90%_45%/0.10),transparent_70%),linear-gradient(180deg,hsl(220_50%_6%),hsl(220_45%_3%))] p-3 overflow-hidden">
