@@ -1282,183 +1282,183 @@ export default function LevelEditorPage() {
   }
 
   const editorSidebarPanels = (
-          {!rigRoomMode && editorSidebarPanels}
-            </>
-          )}
-        </aside>
-
-        {/* Center: viewport */}
-        <main
-          className={
-            isMobile
-              ? "absolute inset-0 bottom-14 bg-slate-950"
-              : "relative bg-slate-950"
-          }
-        >
-          {rigRoomMode ? (
-            <RigControllerRoom
-              onRigStateChange={setRigState}
-              externalSelectedBoneName={rigBoneRequest}
-              sceneCharacters={(() => {
-                // Rig room has no scene of its own, so surface every
-                // character authored across the user's local levels. The id
-                // is namespaced "<levelId>:<charId>" so apply-back can find
-                // the right level + object later.
-                const seen = new Set<string>();
-                const out: { id: string; name: string; url: string; currentAnimation?: string }[] = [];
-                for (const lvl of listLocalLevels()) {
-                  const chars = (lvl.scene?.objects ?? []).filter(
-                    (o): o is CharacterObject => o.kind === "character",
-                  );
-                  for (const c of chars) {
-                    const key = `${lvl.id}:${c.id}`;
-                    if (seen.has(key)) continue;
-                    seen.add(key);
-                    out.push({
-                      id: key,
-                      name: `${c.name} · ${lvl.name}`,
-                      url: c.url,
-                      currentAnimation: c.currentAnimation,
-                    });
-                  }
-                }
-                return out;
-              })()}
-              onApplyToCharacter={(cid, patch) => {
-                // Rig-room ids are namespaced "<levelId>:<charId>"; write the
-                // patch back to that level on disk so it persists.
-                const [levelId, charId] = cid.split(":");
-                if (!levelId || !charId) {
-                  patchObject(cid, {
-                    url: patch.url,
-                    ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
-                  } as any);
-                  return;
-                }
-                const lvl = getLocalLevel(levelId);
-                if (!lvl) return;
-                const nextObjects = (lvl.scene.objects ?? []).map((o) =>
-                  o.id === charId
-                    ? ({
-                        ...o,
-                        url: patch.url,
-                        ...(patch.currentAnimation ? { currentAnimation: patch.currentAnimation } : {}),
-                      } as any)
-                    : o,
-                );
-                updateLocalLevel(levelId, {
-                  scene: { ...lvl.scene, objects: nextObjects },
-                });
-              }}
-            />
-          ) : (
-          <LevelScene3D
-            scene={renderedScene}
-            selectedId={selectedId}
-            facePaint={facePaintState}
-            onSelect={(oid) => {
-              if (editingPolygonId) {
-                // While spline editing is active, keep the editing polygon
-                // selected and ignore clicks on other objects / empty space.
-                if (oid === editingPolygonId) return;
-                return;
-              }
-              if (oid) selectObject(oid);
-              else {
-                setSelectedIds(new Set());
-                setSelectedId(null);
-                setSelectedLightIds(new Set());
-                setSelectedLightId(null);
-              }
-            }}
-            showGrid={showGrid}
-            playing={playing}
-            snap={snap}
-            selectedLightId={selectedLightId}
-            onSelectLight={(lid) => {
-              if (editingPolygonId) return;
-              selectLight(lid);
-            }}
-            editingPolygonId={selectedObjectLocked ? null : editingPolygonId}
-            onPolygonPointsChange={(oid, points) => patchObject(oid, { points } as any)}
-            onPolygonOffsetsChange={(oid, bottomOffsets) =>
-              patchObject(oid, { bottomOffsets } as any)
-            }
-            onPolygonHeightsChange={(oid, h) => {
-              const patch: any = {};
-              if (h.top) patch.pointHeights = h.top;
-              if (h.bottom) patch.bottomHeights = h.bottom;
-              patchObject(oid, patch);
-            }}
-            onPolygonPatch={(oid, p) => patchObject(oid, p as any)}
-            onTrajectoryPointsChange={(oid, points) =>
-              patchObject(oid, { points } as any)
-            }
-            addingPolygonPoint={addingPointMode && !!editingPolygonId}
-            onAddingPointHandled={() => setAddingPointMode(false)}
-            transformMode={selectedObjectLocked ? null : transformMode}
-            onObjectTransform={(oid, t) => {
-              const o = scene.objects.find((x) => x.id === oid);
-              if (isObjectLocked(o)) return;
-              patchObject(oid, t as any);
-            }}
-            sculpt={{
-              active: sculptActive && !!scene.terrain?.enabled &&
-                scene.terrain.source === "primitive" && scene.terrain.shape === "plane",
-              tool: sculptTool,
-              radius: sculptRadius,
-              strength: sculptStrength,
-              commit: (heights) =>
-                updateScene((s) => {
-                  const base = s.terrain ?? defaultTerrain();
-                  const N = base.heightmap?.resolution ?? 64;
-                  s.terrain = {
-                    ...base,
-                    heightmap: { resolution: N, data: heights },
-                  };
-                  return s;
-                }),
-            }}
-            className="w-full h-full"
-          />
-          )}
-        </main>
-
-        {/* Right: inspector */}
-        <aside
-          className={
-            isMobile
-              ? `fixed inset-x-0 bottom-14 top-12 z-40 overflow-y-auto bg-background/95 backdrop-blur-xl border-t border-border/60 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-out ${
-                  mobilePanel === "right"
-                    ? "translate-y-0"
-                    : "translate-y-full pointer-events-none"
-                }`
-              : rightOpen
-              ? "border-l border-border/40 bg-card/40 overflow-y-auto"
-              : "hidden"
-          }
-        >
-          {isMobile && (
-            <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-background/95 backdrop-blur-xl">
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Inspector</span>
+          <div className="p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Layers</p>
               <button
-                onClick={() => setMobilePanel(null)}
+                onClick={addLayer}
+                title="Add layer"
                 className="text-muted-foreground hover:text-foreground"
-                aria-label="Close panel"
               >
-                <X className="w-4 h-4" />
+                <FolderPlus className="w-3.5 h-3.5" />
               </button>
             </div>
-          )}
-          <Tabs defaultValue="object" className="w-full">
-            <TabsList className="w-full rounded-none grid grid-cols-4">
-              <TabsTrigger value="object" className="text-[11px]">Object</TabsTrigger>
-              <TabsTrigger value="terrain" className="text-[11px]">Terrain</TabsTrigger>
-              <TabsTrigger value="anim" className="text-[11px]">Animate</TabsTrigger>
-              <TabsTrigger value="level" className="text-[11px]">Level</TabsTrigger>
-            </TabsList>
+            {(() => {
+              const layers = scene.layers && scene.layers.length ? scene.layers : defaultLayers();
+              return layers.map((layer) => {
+                const items = scene.objects.filter(
+                  (o) => (o.layerId ?? DEFAULT_LAYER_ID) === layer.id,
+                );
+                const isActive = currentLayerId === layer.id;
+                return (
+                  <div key={layer.id} className="mb-2">
+                    <div
+                      className={`group flex items-center gap-1 px-1.5 py-1 rounded text-[11px] ${
+                        isActive ? "bg-muted/60" : "hover:bg-muted/30"
+                      }`}
+                    >
+                      <button
+                        onClick={() => patchLayer(layer.id, { collapsed: !layer.collapsed })}
+                        className="text-muted-foreground"
+                      >
+                        {layer.collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                      <span
+                        className="w-2 h-2 rounded-sm"
+                        style={{ background: layer.color ?? "#64748b" }}
+                      />
+                      <input
+                        value={layer.name}
+                        onChange={(e) => patchLayer(layer.id, { name: e.target.value })}
+                        onClick={() => setCurrentLayerId(layer.id)}
+                        className="flex-1 bg-transparent text-foreground outline-none border-0 px-1 py-0 h-5 text-[11px] focus:bg-background/60 rounded"
+                      />
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{items.length}</span>
+                      <button
+                        onClick={() => patchLayer(layer.id, { visible: !layer.visible })}
+                        title={layer.visible ? "Hide layer" : "Show layer"}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {layer.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => patchLayer(layer.id, { locked: !layer.locked })}
+                        title={layer.locked ? "Unlock layer" : "Lock layer"}
+                        className={layer.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground"}
+                      >
+                        {layer.locked ? <Unlock className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />}
+                      </button>
+                      {layer.id !== DEFAULT_LAYER_ID && (
+                        <button
+                          onClick={() => removeLayer(layer.id)}
+                          title="Delete layer (objects move to Default)"
+                          className="text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:hover:text-muted-foreground"
+                          disabled={!!layer.locked}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    {!layer.collapsed && (
+                      <div className="ml-3 mt-0.5 border-l border-border/30 pl-2">
+                        {items.length === 0 && (
+                          <p className="text-[10px] text-muted-foreground/70 italic py-1">empty</p>
+                        )}
+                        {items.map((o) => {
+                          const objLocked = isObjectLocked(o);
+                          return (
+                          <div
+                            key={o.id}
+                            className={`group w-full px-1.5 py-1 rounded text-xs flex items-center gap-1.5 ${
+                              selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
+                            } ${objLocked ? "opacity-80" : ""}`}
+                          >
+                            <button
+                              onClick={(e) => selectObject(o.id, e.ctrlKey || e.metaKey)}
+                              className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
+                            >
+                              {o.kind === "primitive" ? <Box className="w-3 h-3" /> :
+                               o.kind === "polygon" ? <Pencil className="w-3 h-3" /> :
+                               o.kind === "character" ? <User className="w-3 h-3" /> :
+                               o.kind === "trajectory" ? <SplineIcon className="w-3 h-3" /> :
+                               <LayersIcon className="w-3 h-3" />}
+                              <span className="flex-1 truncate">{o.name}</span>
+                            </button>
+                            <select
+                              value={o.layerId ?? DEFAULT_LAYER_ID}
+                              onChange={(e) => assignObjectsToLayer([o.id], e.target.value)}
+                              title="Move to layer"
+                              className="opacity-0 group-hover:opacity-100 bg-background/60 border border-border/40 rounded text-[10px] px-1 py-0.5"
+                            >
+                              {layers.map((l) => (
+                                <option key={l.id} value={l.id}>{l.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); patchObject(o.id, { locked: !o.locked } as any); }}
+                              title={o.locked ? "Unlock object" : "Lock object"}
+                              className={o.locked ? "text-amber-400" : "text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"}
+                            >
+                              {o.locked ? <Unlock className="w-3 h-3" /> : <LockIcon className="w-3 h-3" />}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (objLocked) return;
+                                removeObject(o.id);
+                                setSelectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(o.id);
+                                  return next;
+                                });
+                                if (selectedId === o.id) setSelectedId(null);
+                                if (editingPolygonId === o.id) setEditingPolygonId(null);
+                              }}
+                              disabled={objLocked}
+                              title={objLocked ? "Object is locked" : "Delete"}
+                              className="opacity-60 hover:opacity-100 hover:text-destructive disabled:opacity-20 disabled:hover:text-muted-foreground"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
 
-            <TabsContent value="object" className="p-3 space-y-3 m-0">
+            <ComponentsPanel
+              objects={scene.objects}
+              selectedIds={selectedIds}
+              onSelect={(id, multi) => selectObject(id, multi)}
+              rigState={rigRoomMode ? rigState : null}
+              selectedBoneName={rigState?.selectedBoneName ?? null}
+              onSelectBone={(name) => setRigBoneRequest(name)}
+            />
+
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-2">Lights</p>
+            {scene.lights.map((l) => (
+              <button
+                key={l.id}
+                onClick={(e) => { selectLight(l.id, e.ctrlKey || e.metaKey); }}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
+                  selectedLightIds.has(l.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
+                }`}
+              >
+                {l.kind === "directional" ? <SunMedium className="w-3 h-3" /> :
+                 l.kind === "spot" ? <Spotlight className="w-3 h-3" /> :
+                 l.kind === "ambient" ? <Sun className="w-3 h-3" /> :
+                 <Lightbulb className="w-3 h-3" />}
+                <span className="flex-1 truncate">{l.name}</span>
+                <Trash2
+                  className="w-3 h-3 opacity-60 hover:opacity-100 hover:text-destructive cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeLight(l.id);
+                    setSelectedLightIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(l.id);
+                      return next;
+                    });
+                    if (selectedLightId === l.id) setSelectedLightId(null);
+                  }}
+                />
+              </button>
+            ))}
+          </div>
   );
 
   return (
