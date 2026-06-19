@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil, Footprints } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil, Footprints, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { EMPTY_SCENE } from "@/lib/levelTypes";
@@ -9,6 +9,7 @@ import { createLocalLevel, deleteLocalLevel, getLocalLevelOwnerId, isLocalLevelI
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import LevelWizardModal from "@/components/level/wizard/LevelWizardModal";
 
 interface LevelRow {
   id: string;
@@ -24,6 +25,7 @@ export default function LevelsListPage() {
   const [levels, setLevels] = useState<LevelRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -127,6 +129,9 @@ export default function LevelsListPage() {
           <h1 className="text-lg font-semibold">Levels</h1>
           <div className="ml-auto">
             <div className="flex items-center gap-2">
+              <Button onClick={() => setWizardOpen(true)} size="sm" variant="outline" className="border-primary/40">
+                <Sparkles className="w-4 h-4 mr-1 text-primary" /> Level Wizard
+              </Button>
               <Button onClick={createObstacleCourse} size="sm" variant="outline">
                 <Footprints className="w-4 h-4 mr-1" /> Obstacle Course
               </Button>
@@ -208,6 +213,7 @@ export default function LevelsListPage() {
           </div>
         )}
       </main>
+      <LevelWizardModal open={wizardOpen} onOpenChange={setWizardOpen} />
     </div>
   );
 }
