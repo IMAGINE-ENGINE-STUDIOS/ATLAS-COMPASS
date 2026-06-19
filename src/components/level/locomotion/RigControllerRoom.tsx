@@ -860,17 +860,40 @@ function XrayLiveMesh({
 
     // Frame the model exactly once per cloned rig.
     if (framedRef.current !== cloned) {
-      const box = new THREE.Box3().setFromObject(cloned);
+      // SkinnedMesh bounding boxes often dip far below the floor (bind-pose
+      // artifacts), which dragged the computed center down to the feet and
+      // made the camera frame the soles. Compute the box from non-skinned
+      // geometry when possible, and bias the look-at target toward the
+      // upper torso so the character is always centered on screen.
+      const box = new THREE.Box3();
+      let hasMesh = false;
+      cloned.updateWorldMatrix(true, true);
+      cloned.traverse((o: any) => {
+        if (o.isMesh && !o.isSkinnedMesh && o.geometry) {
+          const b = new THREE.Box3().setFromObject(o);
+          if (isFinite(b.min.x) && isFinite(b.max.x)) {
+            box.union(b);
+            hasMesh = true;
+          }
+        }
+      });
+      if (!hasMesh) box.setFromObject(cloned);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
+      // Aim ~65% up the body (chest/face) instead of the geometric center.
+      const target = new THREE.Vector3(
+        center.x,
+        box.min.y + size.y * 0.65,
+        center.z,
+      );
       const maxDim = Math.max(size.x, size.y, size.z) || 1;
       const dist = maxDim * 2.1;
-      camera.position.set(center.x, center.y + maxDim * 0.05, center.z + dist);
+      camera.position.set(target.x, target.y, target.z + dist);
       if (controls && controls.target) {
-        controls.target.copy(center);
+        controls.target.copy(target);
         controls.update?.();
       } else {
-        camera.lookAt(center);
+        camera.lookAt(target);
       }
       framedRef.current = cloned;
     }
