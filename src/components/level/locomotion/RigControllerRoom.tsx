@@ -630,6 +630,86 @@ function Rig({
       });
       setTopologyVersion((v) => v + 1);
     };
+    // ---- Skin management ----------------------------------------------------
+    const skinGroups = new Map<string, THREE.Group>();
+    const gltfLoader = new GLTFLoader();
+    bridgeRef.current.addSkin = (data, label) => new Promise((resolve) => {
+      gltfLoader.parse(data, "", (gltf) => {
+        // Collect SkinnedMeshes from the uploaded scene.
+        const incoming: THREE.SkinnedMesh[] = [];
+        gltf.scene.traverse((o: any) => { if (o.isSkinnedMesh) incoming.push(o); });
+        if (incoming.length === 0) {
+          toast.error(`"${label}" has no skinned mesh — nothing to attach`);
+          resolve(null);
+          return;
+        }
+        // Build a lookup of current rig bones by name (case-insensitive).
+        const currentBones = collectBones(cloned);
+        const byName = new Map<string, THREE.Bone>();
+        currentBones.forEach((b) => byName.set(b.name.toLowerCase(), b));
+        let missing = 0;
+        let matched = 0;
+        // Container group that holds the new meshes and lives under the rig
+        // root, so the SkeletonHelper / transforms travel with the character.
+        const group = new THREE.Group();
+        group.name = `skin_${label}`;
+        cloned.add(group);
+        incoming.forEach((sm) => {
+          // Re-map each bone of the original skeleton to a bone in the live
+          // rig by matching names. Missing matches fall back to the Hips /
+          // root bone so the mesh still binds (it just won't deform that
+          // limb correctly until the user renames).
+          const fallback = byName.get("hips") ?? currentBones[0];
+          const remapped: THREE.Bone[] = sm.skeleton.bones.map((orig) => {
+            const hit = byName.get(orig.name.toLowerCase());
+            if (hit) { matched++; return hit; }
+            missing++;
+            return fallback;
+          });
+          const newSkel = new THREE.Skeleton(remapped, sm.skeleton.boneInverses);
+          const mesh = sm.clone() as THREE.SkinnedMesh;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.frustumCulled = false;
+          mesh.bind(newSkel, sm.bindMatrix);
+          group.add(mesh);
+        });
+        const id = `skin_${Math.random().toString(36).slice(2, 9)}`;
+        skinGroups.set(id, group);
+        const entry: SkinEntry = {
+          id,
+          label,
+          meshCount: incoming.length,
+          visible: true,
+        };
+        const msg = missing > 0
+          ? `Bound ${incoming.length} mesh${incoming.length === 1 ? "" : "es"} — ${matched} bones matched, ${missing} fell back`
+          : `Bound ${incoming.length} mesh${incoming.length === 1 ? "" : "es"} — all ${matched} bones matched`;
+        toast.success(msg);
+        resolve(entry);
+      }, (err) => {
+        toast.error(`Couldn't parse skin: ${(err as any)?.message ?? "unknown error"}`);
+        resolve(null);
+      });
+    });
+    bridgeRef.current.removeSkin = (id) => {
+      const g = skinGroups.get(id);
+      if (!g) return;
+      g.parent?.remove(g);
+      g.traverse((o: any) => {
+        if (o.isSkinnedMesh) {
+          o.geometry?.dispose?.();
+          const mat = o.material;
+          if (Array.isArray(mat)) mat.forEach((m) => m?.dispose?.());
+          else mat?.dispose?.();
+        }
+      });
+      skinGroups.delete(id);
+    };
+    bridgeRef.current.setSkinVisible = (id, visible) => {
+      const g = skinGroups.get(id);
+      if (g) g.visible = visible;
+    };
     onLoaded({
       bones: collectBones(cloned),
       skeleton: findSkeleton(cloned),
@@ -652,6 +732,11 @@ function Rig({
       bridgeRef.current.addBoneOnSpline = null;
       bridgeRef.current.deleteBone = null;
       bridgeRef.current.resetSkeleton = null;
+      bridgeRef.current.addSkin = null;
+      bridgeRef.current.removeSkin = null;
+      bridgeRef.current.setSkinVisible = null;
+      skinGroups.forEach((g) => g.parent?.remove(g));
+      skinGroups.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned]);
