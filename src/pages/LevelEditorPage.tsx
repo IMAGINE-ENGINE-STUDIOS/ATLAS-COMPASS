@@ -1468,7 +1468,14 @@ export default function LevelEditorPage() {
         className={
           isMobile
             ? "flex-1 relative min-h-0"
-            : "flex-1 grid grid-cols-[260px_1fr_320px] min-h-0"
+            : "flex-1 grid min-h-0"
+        }
+        style={
+          isMobile
+            ? undefined
+            : {
+                gridTemplateColumns: `${leftCollapsed ? "28px" : "260px"} 1fr ${rightOpen ? "320px" : "0px"}`,
+              }
         }
       >
         {/* Left: outline — scene components, lights, layers (and rig components in rig-room mode). */}
