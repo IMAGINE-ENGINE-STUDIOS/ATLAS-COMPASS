@@ -251,6 +251,13 @@ function collectBoneSplineEdges(
   return edges;
 }
 
+function depthOf(o: THREE.Object3D): number {
+  let d = 0;
+  let cur: THREE.Object3D | null = o;
+  while (cur?.parent) { d++; cur = cur.parent; }
+  return d;
+}
+
 function BoneSplineOverlay({
   root,
   selectedBoneName,
