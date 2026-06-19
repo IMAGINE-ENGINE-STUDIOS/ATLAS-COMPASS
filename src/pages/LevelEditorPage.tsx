@@ -38,6 +38,7 @@ import {
 import type { TrajectoryObject, TrajectorySection } from "@/lib/levelTypes";
 import LevelScene3D from "@/components/level/LevelScene3D";
 import RigControllerRoom from "@/components/level/locomotion/RigControllerRoom";
+import BoneHierarchyPanel from "@/components/level/BoneHierarchyPanel";
 import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
 import AtlasMiniMap from "@/components/level/AtlasMiniMap";
 import { Button } from "@/components/ui/button";
@@ -268,8 +269,6 @@ function ComponentsPanel({
   onSelectBone?: (name: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [rigOpen, setRigOpen] = useState(true);
-  const [collapsedBones, setCollapsedBones] = useState<Set<string>>(new Set());
   const q = query.trim().toLowerCase();
 
   type GroupKey = "characters" | "objects" | "trajectories";
@@ -283,67 +282,6 @@ function ComponentsPanel({
   }, [objects, q]);
 
   // Bone hierarchy tree (parent/child) for the live rig, when present.
-  type BoneTreeNode = { name: string; children: BoneTreeNode[]; depth: number };
-  const boneTree = useMemo<BoneTreeNode[]>(() => {
-    if (!rigState) return [];
-    const map = new Map<string, BoneTreeNode>();
-    rigState.bones.forEach((b) => map.set(b.name, { name: b.name, children: [], depth: 0 }));
-    const roots: BoneTreeNode[] = [];
-    rigState.bones.forEach((b) => {
-      const node = map.get(b.name)!;
-      const parent = b.parentName ? map.get(b.parentName) : null;
-      if (parent) parent.children.push(node);
-      else roots.push(node);
-    });
-    const fix = (n: BoneTreeNode, d: number) => { n.depth = d; n.children.forEach((c) => fix(c, d + 1)); };
-    roots.forEach((r) => fix(r, 0));
-    return roots;
-  }, [rigState]);
-
-  const boneMatches = (name: string) =>
-    !q || name.toLowerCase().includes(q);
-  const subtreeMatches = (n: BoneTreeNode): boolean =>
-    boneMatches(n.name) || n.children.some(subtreeMatches);
-
-  const toggleBone = (name: string) =>
-    setCollapsedBones((prev) => {
-      const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
-      return next;
-    });
-
-  const renderBone = (node: BoneTreeNode): JSX.Element | null => {
-    if (q && !subtreeMatches(node)) return null;
-    const isCollapsed = q ? false : collapsedBones.has(node.name);
-    const isSel = selectedBoneName === node.name;
-    const hit = q && boneMatches(node.name);
-    return (
-      <div key={node.name} style={{ paddingLeft: 8 + node.depth * 9 }}>
-        <div
-          className={`flex items-center gap-1 pr-1 py-0.5 rounded text-[10px] font-mono ${
-            isSel ? "bg-[rgba(34,255,136,0.18)] text-[#bbffd5]" : "hover:bg-muted/30 text-muted-foreground/80"
-          }`}
-        >
-          {node.children.length > 0 ? (
-            <button onClick={() => toggleBone(node.name)} className="text-muted-foreground hover:text-foreground shrink-0">
-              {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
-          ) : (
-            <span className="w-3 h-3 shrink-0" />
-          )}
-          <button
-            onClick={() => onSelectBone?.(node.name)}
-            className={`flex-1 min-w-0 text-left truncate ${hit ? "text-[#22ff88]" : ""}`}
-            title={node.name}
-          >
-            {node.name}
-          </button>
-        </div>
-        {!isCollapsed && node.children.length > 0 && node.children.map(renderBone)}
-      </div>
-    );
-  };
-
   const total = groups.reduce((n, g) => n + g.items.length, 0) + (rigState ? 1 : 0);
 
   return (
@@ -379,12 +317,6 @@ function ComponentsPanel({
                   }`}
                   title={`Live rig — ${rigState.bones.length} bones`}
                 >
-                  <button
-                    onClick={() => setRigOpen((v) => !v)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    {rigOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                  </button>
                   <span
                     className="w-1.5 h-1.5 rounded-full shrink-0"
                     style={{ background: "#22ff88" }}
@@ -394,11 +326,13 @@ function ComponentsPanel({
                     {rigState.bones.length} bones
                   </span>
                 </div>
-                {rigOpen && boneTree.length > 0 && (
-                  <div className="mt-0.5 border-l border-[rgba(34,255,136,0.25)] ml-2">
-                    {boneTree.map(renderBone)}
-                  </div>
-                )}
+                <div className="mt-1">
+                  <BoneHierarchyPanel
+                    bones={rigState.bones}
+                    selectedBoneName={selectedBoneName ?? null}
+                    onSelect={(name) => onSelectBone?.(name)}
+                  />
+                </div>
               </div>
             )}
             {g.items.length === 0 && !(g.key === "characters" && rigState) ? (
