@@ -1324,6 +1324,28 @@ export default function LevelEditorPage() {
           >
             <Undo2 className="w-3.5 h-3.5" />
           </Button>
+          {!isMobile && (
+            <>
+              <Button
+                size="sm"
+                variant={leftCollapsed ? "ghost" : "secondary"}
+                onClick={() => setLeftCollapsed((v) => !v)}
+                title={leftCollapsed ? "Show left panel" : "Hide left panel"}
+                className="h-8 w-8 px-0"
+              >
+                <PanelLeft className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant={rightOpen ? "secondary" : "ghost"}
+                onClick={() => setRightOpen((v) => !v)}
+                title={rightOpen ? "Hide inspector" : "Show inspector"}
+                className="h-8 w-8 px-0"
+              >
+                <PanelRight className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
           <Button
             size="sm"
             variant="ghost"
