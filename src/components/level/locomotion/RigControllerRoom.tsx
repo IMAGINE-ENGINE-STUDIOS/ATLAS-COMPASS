@@ -1552,29 +1552,6 @@ export default function RigControllerRoom({
             <Switch checked={showSkeleton} onCheckedChange={setShowSkeleton} />
             Show skeleton overlay
           </label>
-          <div className="flex items-center gap-2 text-xs">
-            <Button
-              size="sm" variant={transformMode === "rotate" ? "default" : "outline"}
-              className="h-7 flex-1"
-              onClick={() => setTransformMode("rotate")}
-            >
-              <RotateCcw className="w-3 h-3 mr-1" /> Rotate
-            </Button>
-            <Button
-              size="sm" variant={transformMode === "translate" ? "default" : "outline"}
-              className="h-7 flex-1"
-              onClick={() => setTransformMode("translate")}
-            >
-              <Move className="w-3 h-3 mr-1" /> Move
-            </Button>
-            <Button
-              size="sm" variant={transformMode === "scale" ? "default" : "outline"}
-              className="h-7 flex-1"
-              onClick={() => setTransformMode("scale")}
-            >
-              <Scaling className="w-3 h-3 mr-1" /> Scale
-            </Button>
-          </div>
         </div>
 
         <XrayBodyMap
@@ -1730,6 +1707,43 @@ export default function RigControllerRoom({
               <Camera className="w-3 h-3" /> {i + 1}
             </Button>
           ))}
+        </div>
+
+        {/* Gizmo mode controls — bottom-left of viewport */}
+        <div className="absolute bottom-4 left-4 flex items-center gap-1.5 px-1.5 py-1.5 rounded-2xl bg-black/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.45)]">
+          <button
+            onClick={() => setTransformMode("translate")}
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 ${
+              transformMode === "translate"
+                ? "bg-white text-black shadow-[0_0_12px_rgba(255,255,255,0.25)]"
+                : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/[0.08]"
+            }`}
+            title="Move"
+          >
+            <Move className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setTransformMode("rotate")}
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 ${
+              transformMode === "rotate"
+                ? "bg-white text-black shadow-[0_0_12px_rgba(255,255,255,0.25)]"
+                : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/[0.08]"
+            }`}
+            title="Rotate"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setTransformMode("scale")}
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-150 ${
+              transformMode === "scale"
+                ? "bg-white text-black shadow-[0_0_12px_rgba(255,255,255,0.25)]"
+                : "bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/[0.08]"
+            }`}
+            title="Scale"
+          >
+            <Scaling className="w-4 h-4" />
+          </button>
         </div>
       </main>
     </div>
