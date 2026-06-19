@@ -1722,6 +1722,30 @@ export default function RigControllerRoom({
     reader.readAsDataURL(file);
   };
 
+  const handleUploadSkin = async (file: File) => {
+    if (!bridgeRef.current.addSkin) {
+      toast.error("Skeleton not ready yet — load a character first");
+      return;
+    }
+    const buf = await file.arrayBuffer();
+    const entry = await bridgeRef.current.addSkin(buf, file.name);
+    if (entry) setSkins((prev) => [...prev, entry]);
+  };
+
+  const toggleSkin = (id: string) => {
+    setSkins((prev) => prev.map((s) => {
+      if (s.id !== id) return s;
+      const next = !s.visible;
+      bridgeRef.current.setSkinVisible?.(s.id, next);
+      return { ...s, visible: next };
+    }));
+  };
+
+  const removeSkin = (id: string) => {
+    bridgeRef.current.removeSkin?.(id);
+    setSkins((prev) => prev.filter((s) => s.id !== id));
+  };
+
   const handleLoadSceneCharacter = (c: SceneCharacterRef) => {
     setUrl(c.url);
     setPendingUrl(c.url);
