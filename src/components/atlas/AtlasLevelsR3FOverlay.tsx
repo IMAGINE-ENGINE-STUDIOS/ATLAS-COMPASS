@@ -169,8 +169,50 @@ export default function AtlasLevelsR3FOverlay({
   isLoaded: boolean;
   placements: LevelPlacement[];
 }) {
-  if (!isLoaded || !viewerRef.current || placements.length === 0) return null;
+  // Defer mounting the heavy R3F overlay so the globe + green placeholder
+  // boxes paint first. Keeps initial Atlas load snappy.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!isLoaded) return;
+    const t = setTimeout(() => setReady(true), 1500);
+    return () => clearTimeout(t);
+  }, [isLoaded]);
+
+  // Proximity-based LOD: only mount the real R3F scene for placements
+  // the camera is actually near. Far away, the cheap green Cesium box
+  // from useAtlasLevelLayer is enough. Recomputed at ~4Hz.
+  const [nearIds, setNearIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!ready || !viewerRef.current) return;
+    const viewer = viewerRef.current;
+    const PROX_M = 3000; // within 3km → load real level
+    let raf = 0;
+    let last = 0;
+    const tick = (t: number) => {
+      raf = requestAnimationFrame(tick);
+      if (t - last < 250) return;
+      last = t;
+      if (viewer.isDestroyed()) return;
+      const cam = viewer.camera.positionWC;
+      const next = new Set<string>();
+      for (const p of placements) {
+        const o = Cartesian3.fromDegrees(p.lng, p.lat, p.altitude ?? 0);
+        const dx = o.x - cam.x, dy = o.y - cam.y, dz = o.z - cam.z;
+        if (dx * dx + dy * dy + dz * dz < PROX_M * PROX_M) next.add(p.id);
+      }
+      setNearIds((prev) => {
+        if (prev.size === next.size && [...prev].every((id) => next.has(id))) return prev;
+        return next;
+      });
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [ready, placements, viewerRef]);
+
+  if (!isLoaded || !viewerRef.current || placements.length === 0 || !ready) return null;
   const viewer = viewerRef.current;
+  const visible = placements.filter((p) => nearIds.has(p.id));
+  if (visible.length === 0) return null;
   return (
     <div className="fixed inset-0 z-[40] pointer-events-none" style={{ pointerEvents: "none" }}>
       <Canvas
@@ -183,7 +225,7 @@ export default function AtlasLevelsR3FOverlay({
         {/* Atlas-style key + fill lighting (level lights are stripped) */}
         <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
         <directionalLight position={[100, 200, 100]} intensity={1.2} />
-        {placements.map((p) => (
+        {visible.map((p) => (
           <PlacedLevel key={p.id} viewer={viewer} placement={p} />
         ))}
       </Canvas>
