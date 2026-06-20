@@ -64,6 +64,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
@@ -704,8 +705,23 @@ function SpaceshipPage() {
   const { placements: levelPlacements } = useAtlasLevelLayer(
     viewerRef,
     isLoaded,
-    useCallback((_p: LevelPlacement) => { /* no-op: in-world play */ }, []),
+    useCallback((p: LevelPlacement) => {
+      setSelectedLevelPlacement(p);
+    }, []),
   );
+  // Inspector panel: clicking a placed Level opens this floating panel
+  // with info, control bars (heading/scale/altitude), Main Character
+  // read-out, and ▶ Play / Edit / Delete actions.
+  const [selectedLevelPlacement, setSelectedLevelPlacement] =
+    useState<LevelPlacement | null>(null);
+  // Keep the inspector's placement in sync with the latest list (after
+  // slider edits / refreshes).
+  useEffect(() => {
+    if (!selectedLevelPlacement) return;
+    const fresh = levelPlacements.find((p) => p.id === selectedLevelPlacement.id);
+    if (fresh && fresh !== selectedLevelPlacement) setSelectedLevelPlacement(fresh);
+    if (!fresh) setSelectedLevelPlacement(null);
+  }, [levelPlacements, selectedLevelPlacement]);
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
@@ -723,6 +739,7 @@ function SpaceshipPage() {
     levelName: string;
     sizeM: number;
     loc: EarthLoc | null;
+    heading: number;
   } | null>(null);
   const pendingLevelPlacementRef = useRef<typeof pendingLevelPlacement>(null);
   useEffect(() => { pendingLevelPlacementRef.current = pendingLevelPlacement; }, [pendingLevelPlacement]);
@@ -731,12 +748,16 @@ function SpaceshipPage() {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !pendingLevelPlacement?.loc) return;
-    const { loc, sizeM } = pendingLevelPlacement;
+    const { loc, sizeM, heading } = pendingLevelPlacement;
     const snap = snapToLevelTile(loc.lat, loc.lng, sizeM);
     const size = snap.tileSizeM;
+    const center = Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2);
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading ?? 0), 0, 0);
+    const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr);
     const ent = viewer.entities.add({
       id: "pending-level-ghost",
-      position: Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2) as any,
+      position: center as any,
+      orientation: orientation as any,
       box: {
         dimensions: new Cartesian3(size, size, LEVEL_HEIGHT_M) as any,
         material: Color.fromCssColorString("#22c55e").withAlpha(0.35) as any,
@@ -745,7 +766,7 @@ function SpaceshipPage() {
         outlineWidth: 3,
       } as any,
       label: {
-        text: `Preview — ${pendingLevelPlacement.levelName}`,
+        text: `Preview — ${pendingLevelPlacement.levelName} · ${Math.round(heading ?? 0)}°`,
         font: "12px Inter, sans-serif",
         pixelOffset: new Cartesian2(0, -8),
         fillColor: Color.WHITE,
@@ -771,7 +792,7 @@ function SpaceshipPage() {
       lat: p.loc.lat,
       lng: p.loc.lng,
       altitude: Math.max(0, p.loc.alt),
-      heading: 0,
+      heading: p.heading ?? 0,
       scale: 1,
     });
     if (error) { toast.error(`Failed: ${error.message}`); return; }
@@ -4305,6 +4326,17 @@ function SpaceshipPage() {
         placements={levelPlacements}
       />
 
+      {/* Level Inspector — opens when the user clicks a placed Level on
+          the globe. Provides info, control bars, Main Character readout
+          and the ▶ Play here action. */}
+      {selectedLevelPlacement && (
+        <LevelInspectorPanel
+          placement={selectedLevelPlacement}
+          onClose={() => setSelectedLevelPlacement(null)}
+          onChanged={() => { /* placements stream refresh via realtime + custom event */ }}
+        />
+      )}
+
       {/* Unified Atlas tag clustering overlay */}
       {isLoaded && (() => {
         const allTags: AtlasTag[] = [];
@@ -6119,6 +6151,7 @@ function SpaceshipPage() {
               levelName: lvl.name,
               sizeM: DEFAULT_LEVEL_SIZE_M,
               loc: { lat: l.lat, lng: l.lng, alt: Math.max(0, l.alt) },
+              heading: 0,
             });
           }}
           onPasteEntry={(entry: FileClipboardEntry, l) => {
@@ -6147,34 +6180,79 @@ function SpaceshipPage() {
         />
       )}
       {pendingLevelPlacement && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] rounded-xl border border-emerald-500/30 bg-slate-900/95 backdrop-blur-xl shadow-2xl text-white px-3 py-2 flex items-center gap-3">
-          <div className="text-xs">
-            <div className="font-semibold text-emerald-300">{pendingLevelPlacement.levelName}</div>
-            <div className="text-[10px] text-white/60 font-mono">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] rounded-xl border border-emerald-500/30 bg-slate-900/95 backdrop-blur-xl shadow-2xl text-white p-3 w-[360px] space-y-3">
+          <div>
+            <div className="font-semibold text-sm text-emerald-300">{pendingLevelPlacement.levelName}</div>
+            <div className="text-[10px] text-white/60 font-mono mt-0.5">
               {pendingLevelPlacement.loc
                 ? `${pendingLevelPlacement.loc.lat.toFixed(5)}, ${pendingLevelPlacement.loc.lng.toFixed(5)} · ~${pendingLevelPlacement.sizeM}m tile`
                 : "Double-click the globe to choose a tile"}
             </div>
           </div>
-          <button
-            onClick={confirmLevelPlacement}
-            disabled={!pendingLevelPlacement.loc}
-            className="px-3 py-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 text-[11px] font-semibold disabled:opacity-40"
-          >
-            Drop here
-          </button>
-          <button
-            onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, loc: null })}
-            className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-[11px]"
-          >
-            Choose another location
-          </button>
-          <button
-            onClick={() => setPendingLevelPlacement(null)}
-            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-[11px] text-white/70"
-          >
-            Cancel
-          </button>
+          {/* Rotation widget — drag to rotate the preview cube before
+              confirming. Saved to atlas_level_placements.heading on
+              "Drop here". */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-white/70">Rotation</span>
+              <span className="text-[11px] font-mono text-emerald-300">{Math.round(pendingLevelPlacement.heading)}°</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={1}
+              value={pendingLevelPlacement.heading}
+              onChange={(e) =>
+                setPendingLevelPlacement({ ...pendingLevelPlacement, heading: Number(e.target.value) })
+              }
+              className="w-full accent-emerald-400"
+            />
+            <div className="flex gap-1">
+              {[0, 90, 180, 270].map((deg) => (
+                <button
+                  key={deg}
+                  onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, heading: deg })}
+                  className={`flex-1 text-[10px] px-1 py-1 rounded border ${
+                    Math.round(pendingLevelPlacement.heading) === deg
+                      ? "bg-emerald-500/30 border-emerald-400/60"
+                      : "bg-white/5 hover:bg-white/15 border-white/10"
+                  }`}
+                >{deg}°</button>
+              ))}
+              <button
+                onClick={() =>
+                  setPendingLevelPlacement({
+                    ...pendingLevelPlacement,
+                    heading: (pendingLevelPlacement.heading + 15) % 360,
+                  })
+                }
+                className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/15 border border-white/10"
+                title="Nudge +15°"
+              >+15°</button>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={confirmLevelPlacement}
+              disabled={!pendingLevelPlacement.loc}
+              className="flex-1 px-3 py-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 text-[11px] font-semibold disabled:opacity-40"
+            >
+              Drop here
+            </button>
+            <button
+              onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, loc: null })}
+              className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-[11px]"
+            >
+              Re-pick
+            </button>
+            <button
+              onClick={() => setPendingLevelPlacement(null)}
+              className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-[11px] text-white/70"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

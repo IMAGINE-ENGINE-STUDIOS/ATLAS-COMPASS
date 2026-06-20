@@ -615,6 +615,14 @@ export interface LevelScene {
   lights: SceneLight[];
   animations: AnimationTrack[];
   layers?: SceneLayer[];
+  /**
+   * Optional id of the character (`CharacterObject.id`) that should act as
+   * the playable avatar at Play time. When set, the Play runtime drives
+   * THIS character with input/camera regardless of per-character `playable`
+   * flags. When unset, the first character flagged `playable` wins (legacy).
+   * Used by the Atlas to "pose" a player inside the level on entry.
+   */
+  mainCharacterId?: string;
   /** Reusable rigid-group bindings between scene objects. */
   groups?: SceneGroup[];
   terrain?: SceneTerrain;

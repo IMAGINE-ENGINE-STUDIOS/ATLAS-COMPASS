@@ -1316,7 +1316,7 @@ export interface LevelSceneProps {
  * inside another Canvas (e.g. on the Atlas) as an actor.
  */
 export function LevelSceneContents({
-  scene,
+  scene: rawScene,
   selectedId,
   onSelect,
   showGrid,
@@ -1346,6 +1346,22 @@ export function LevelSceneContents({
   onFocusHandled?: () => void;
   controlsRef?: React.MutableRefObject<any>;
 }) {
+  // Honor LevelScene.mainCharacterId — when set, force the named character
+  // to be THE playable one and demote all other characters. Lets the Atlas
+  // "pose" the user's chosen avatar inside any level on Play, without
+  // mutating the persisted scene.
+  const scene = useMemo(() => {
+    const mainId = rawScene.mainCharacterId;
+    if (!mainId) return rawScene;
+    return {
+      ...rawScene,
+      objects: rawScene.objects.map((o) =>
+        o.kind === "character"
+          ? ({ ...(o as CharacterObject), playable: o.id === mainId } as SceneObject)
+          : o,
+      ),
+    };
+  }, [rawScene]);
   const groupRef = useRef<THREE.Group>(null);
   // Pick a sensible focus action for double-click — set focus request from parent
   const handleFocus = (id: string) => onSelect?.(id);

@@ -169,11 +169,10 @@ export function useAtlasLevelLayer(
           );
         } catch {}
         onOpenLevel(p);
-        // Ask the in-world overlay to start play as soon as the camera
-        // arrives near the placement.
-        try {
-          window.dispatchEvent(new CustomEvent(LEVEL_PLAY_EVENT, { detail: { id: p.id } }));
-        } catch {}
+        // The inspector panel (opened via onOpenLevel) is now responsible
+        // for triggering play — clicking a pin only flies in and opens
+        // the panel so the user can configure heading/scale/altitude
+        // first.
       }
     };
     handler.setInputAction(onPick, ScreenSpaceEventType.LEFT_CLICK);
