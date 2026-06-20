@@ -61,6 +61,7 @@ import AtlasLevelPlayer from "@/components/atlas/AtlasLevelPlayer";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
+import { toast } from "sonner";
 import filterAllPng     from "@/assets/icons/filter-all.png";
 import filterFoodPng    from "@/assets/icons/filter-food.png";
 import filterCafePng    from "@/assets/icons/filter-cafe.png";
