@@ -2174,6 +2174,7 @@ function SpaceshipPage() {
         setDraggingModelId(modelId);
         viewer.scene.screenSpaceCameraController.enableRotate = false;
         viewer.scene.screenSpaceCameraController.enableTranslate = false;
+        viewer.scene.screenSpaceCameraController.enableLook = false;
       }
     }, ScreenSpaceEventType.LEFT_DOWN);
 
@@ -2198,6 +2199,7 @@ function SpaceshipPage() {
         setDraggingModelId(null);
         viewer.scene.screenSpaceCameraController.enableRotate = true;
         viewer.scene.screenSpaceCameraController.enableTranslate = true;
+        viewer.scene.screenSpaceCameraController.enableLook = true;
       }
     }, ScreenSpaceEventType.LEFT_UP);
 
