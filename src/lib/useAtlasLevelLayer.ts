@@ -60,8 +60,9 @@ export function useAtlasLevelLayer(
 
     const added: any[] = [];
     for (const p of placements) {
-      const snap = snapToLevelTile(p.lat, p.lng, DEFAULT_LEVEL_SIZE_M);
-      const size = snap.tileSizeM;
+      // Render the cube at the EXACT stored coordinates (no slippy-tile snap)
+      // so it appears precisely where the user clicked on the globe.
+      const size = DEFAULT_LEVEL_SIZE_M;
       const baseAlt = p.altitude ?? 0;
       const boxHeight = LEVEL_HEIGHT_M;
       const beaconTop = baseAlt + 600;
@@ -69,7 +70,7 @@ export function useAtlasLevelLayer(
       // Green translucent volume sized to the tile.
       const boxEnt = viewer.entities.add({
         id: `level-placement-${p.id}`,
-        position: Cartesian3.fromDegrees(snap.lng, snap.lat, baseAlt + boxHeight / 2) as any,
+        position: Cartesian3.fromDegrees(p.lng, p.lat, baseAlt + boxHeight / 2) as any,
         box: {
           dimensions: new Cartesian3(size, size, boxHeight) as any,
           material: Color.fromCssColorString("#10b981").withAlpha(0.45) as any,
@@ -86,8 +87,8 @@ export function useAtlasLevelLayer(
         id: `level-placement-${p.id}-beacon`,
         polyline: {
           positions: [
-            Cartesian3.fromDegrees(snap.lng, snap.lat, baseAlt),
-            Cartesian3.fromDegrees(snap.lng, snap.lat, beaconTop),
+            Cartesian3.fromDegrees(p.lng, p.lat, baseAlt),
+            Cartesian3.fromDegrees(p.lng, p.lat, beaconTop),
           ] as any,
           width: 4,
           material: Color.fromCssColorString("#34d399").withAlpha(0.9) as any,
@@ -100,7 +101,7 @@ export function useAtlasLevelLayer(
       // Floating label always on top.
       const label = viewer.entities.add({
         id: `level-placement-${p.id}-label`,
-        position: Cartesian3.fromDegrees(snap.lng, snap.lat, beaconTop) as any,
+        position: Cartesian3.fromDegrees(p.lng, p.lat, beaconTop) as any,
         label: {
           text: `▣ ${p.levels?.name ?? "Level"}`,
           font: "bold 13px Inter, sans-serif",
@@ -137,16 +138,15 @@ export function useAtlasLevelLayer(
         // Frame the cube from ground level so the Level scene overlay sits on
         // the tile floor instead of appearing to float in the sky.
         try {
-          const snap = snapToLevelTile(p.lat, p.lng, DEFAULT_LEVEL_SIZE_M);
-          const center = Cartesian3.fromDegrees(snap.lng, snap.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2);
+          const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2);
           viewer.camera.flyToBoundingSphere(
-            { center, radius: snap.tileSizeM * 0.9 } as any,
+            { center, radius: DEFAULT_LEVEL_SIZE_M * 0.9 } as any,
             {
               duration: 1.0,
               offset: new HeadingPitchRange(
                 CesiumMath.toRadians(p.heading ?? 0),
                 CesiumMath.toRadians(-12),
-                snap.tileSizeM * 1.8,
+                DEFAULT_LEVEL_SIZE_M * 1.8,
               ),
             } as any,
           );
