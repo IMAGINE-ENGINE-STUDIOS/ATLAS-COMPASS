@@ -2731,8 +2731,8 @@ function SpaceshipPage() {
       // Intercept while previewing a level placement — just move the ghost.
       const pending = pendingLevelPlacementRef.current;
       if (pending) {
-        const snap = snapToLevelTile(loc.lat, loc.lng, pending.sizeM);
-        setPendingLevelPlacement({ ...pending, loc: { lat: snap.lat, lng: snap.lng, alt: Math.max(0, loc.alt) } });
+        // Use the EXACT clicked coordinates (matches the HUD readout) — no tile snap.
+        setPendingLevelPlacement({ ...pending, loc: { lat: loc.lat, lng: loc.lng, alt: Math.max(0, loc.alt) } });
         return;
       }
       if (brushMode) {
