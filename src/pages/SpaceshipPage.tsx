@@ -2718,6 +2718,8 @@ function SpaceshipPage() {
             }
           } else if (tool === "lasso") {
             setLassoPoints(prev => [...prev, { lat: snappedLoc.lat, lng: snappedLoc.lng }]);
+          } else if (tool === "terrain") {
+            stampTerrainAt(snappedLoc);
           }
           return;
         }
