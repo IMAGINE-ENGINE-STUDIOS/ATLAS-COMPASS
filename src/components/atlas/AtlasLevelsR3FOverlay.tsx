@@ -407,7 +407,9 @@ export default function AtlasLevelsR3FOverlay({
 
   if (!isLoaded || !viewerRef.current || placements.length === 0 || !ready) return null;
   const viewer = viewerRef.current;
-  const visible = placements.filter((p) => nearIds.has(p.id) || p.id === playingId || p.id === pendingPlayId);
+  const visible = playingId
+    ? placements.filter((p) => p.id === playingId)
+    : placements.filter((p) => nearIds.has(p.id) || p.id === pendingPlayId);
   if (visible.length === 0) return null;
   const playablePlacement = visible[0]; // nearest = first added; good enough
   return (
