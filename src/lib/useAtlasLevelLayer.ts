@@ -82,34 +82,6 @@ export function useAtlasLevelLayer(
       (boxEnt as any)._levelPlacement = p;
       added.push(boxEnt);
 
-      // Cesium box entities don't support HeightReference, so manually sample
-      // the most-detailed surface height (3D Tiles or terrain) at the cube
-      // center and re-anchor the box + beacon + label so the level "cuts
-      // into" the tile floor rather than floating in mid-air.
-      const anchorToSurface = (h: number) => {
-        if (!viewer || viewer.isDestroyed()) return;
-        boxEnt.position = Cartesian3.fromDegrees(p.lng, p.lat, h + boxHeight / 2) as any;
-        beacon.polyline!.positions = [
-          Cartesian3.fromDegrees(p.lng, p.lat, h),
-          Cartesian3.fromDegrees(p.lng, p.lat, h + 600),
-        ] as any;
-        label.position = Cartesian3.fromDegrees(p.lng, p.lat, h + 600) as any;
-        viewer.scene.requestRender?.();
-      };
-      try {
-        const carto = Cartographic.fromDegrees(p.lng, p.lat);
-        const pr = (viewer.scene as any).sampleHeightMostDetailed?.([carto]);
-        if (pr && typeof pr.then === "function") {
-          pr.then((arr: Cartographic[]) => {
-            const h = arr?.[0]?.height;
-            if (typeof h === "number" && isFinite(h)) anchorToSurface(h);
-          }).catch(() => {});
-        } else {
-          const h = (viewer.scene as any).sampleHeight?.(carto);
-          if (typeof h === "number" && isFinite(h)) anchorToSurface(h);
-        }
-      } catch {}
-
       // Tall beacon polyline so the cube is spotted from far away.
       const beacon = viewer.entities.add({
         id: `level-placement-${p.id}-beacon`,
@@ -154,6 +126,34 @@ export function useAtlasLevelLayer(
       });
       (label as any)._levelPlacement = p;
       added.push(label);
+
+      // Cesium box entities don't support HeightReference, so manually sample
+      // the most-detailed surface height (3D Tiles or terrain) at the cube
+      // center and re-anchor the box + beacon + label so the level "cuts
+      // into" the tile floor rather than floating in mid-air.
+      const anchorToSurface = (h: number) => {
+        if (!viewer || viewer.isDestroyed()) return;
+        boxEnt.position = Cartesian3.fromDegrees(p.lng, p.lat, h + boxHeight / 2) as any;
+        (beacon as any).polyline.positions = [
+          Cartesian3.fromDegrees(p.lng, p.lat, h),
+          Cartesian3.fromDegrees(p.lng, p.lat, h + 600),
+        ];
+        label.position = Cartesian3.fromDegrees(p.lng, p.lat, h + 600) as any;
+        viewer.scene.requestRender?.();
+      };
+      try {
+        const carto = Cartographic.fromDegrees(p.lng, p.lat);
+        const pr = (viewer.scene as any).sampleHeightMostDetailed?.([carto]);
+        if (pr && typeof pr.then === "function") {
+          pr.then((arr: Cartographic[]) => {
+            const h = arr?.[0]?.height;
+            if (typeof h === "number" && isFinite(h)) anchorToSurface(h);
+          }).catch(() => {});
+        } else {
+          const h = (viewer.scene as any).sampleHeight?.(carto);
+          if (typeof h === "number" && isFinite(h)) anchorToSurface(h);
+        }
+      } catch {}
     }
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
