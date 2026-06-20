@@ -692,6 +692,8 @@ function SpaceshipPage() {
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  // WASD/Arrows/Q/E keyboard flight over the Atlas globe.
+  useAtlasKeyboardNav(viewerRef, { enabled: true });
   // Restore previously persisted UI state (if any)
   const savedUI = (() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}"); } catch { return {}; }
