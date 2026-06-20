@@ -172,11 +172,12 @@ export default function AtlasLevelsR3FOverlay({
   if (!isLoaded || !viewerRef.current || placements.length === 0) return null;
   const viewer = viewerRef.current;
   return (
-    <div className="fixed inset-0 z-[40] pointer-events-none">
+    <div className="fixed inset-0 z-[40] pointer-events-none" style={{ pointerEvents: "none" }}>
       <Canvas
         gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
         camera={{ position: [0, 0, 0], fov: 60, near: 1, far: 1e10 }}
-        style={{ background: "transparent" }}
+        style={{ background: "transparent", pointerEvents: "none" }}
+        eventSource={undefined}
       >
         <CameraSync viewer={viewer} />
         {/* Atlas-style key + fill lighting (level lights are stripped) */}
