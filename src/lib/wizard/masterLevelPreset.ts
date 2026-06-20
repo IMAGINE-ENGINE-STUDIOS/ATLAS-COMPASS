@@ -287,23 +287,20 @@ function building(opts: {
 /* ---------- terrain heightmap ---------- */
 
 /** Build a (res+1)×(res+1) heightmap of rolling hills, in metres. */
-function buildHeightmap(res: number, sizeXZ: number): number[] {
+function buildHeightmap(res: number, sizeXZ: number, hillAmp = 1, ridgeAmp = 1): number[] {
   const data: number[] = [];
   const k = sizeXZ / res;
   for (let j = 0; j <= res; j++) {
     for (let i = 0; i <= res; i++) {
       const x = (i - res / 2) * k;
       const z = (j - res / 2) * k;
-      // Composite of 3 sinusoidal hills + a flat plateau around the centre
-      // (where the town + station live).
       const distToCentre = Math.hypot(x, z);
-      const plateau = Math.max(0, 1 - distToCentre / 90); // 0..1 weight near centre
+      const plateau = Math.max(0, 1 - distToCentre / 90);
       const hill =
-        2.5 * Math.sin(x * 0.013) * Math.cos(z * 0.011) +
-        1.4 * Math.sin(x * 0.027 + 1.3) * Math.cos(z * 0.019 + 0.4) +
-        0.6 * Math.sin(x * 0.05 + 2.1) * Math.cos(z * 0.043 + 1.7);
-      // Ridge far from centre (rim of hills)
-      const ridge = Math.max(0, (distToCentre - 140) / 60) * 4.0;
+        (2.5 * Math.sin(x * 0.013) * Math.cos(z * 0.011) +
+          1.4 * Math.sin(x * 0.027 + 1.3) * Math.cos(z * 0.019 + 0.4) +
+          0.6 * Math.sin(x * 0.05 + 2.1) * Math.cos(z * 0.043 + 1.7)) * hillAmp;
+      const ridge = Math.max(0, (distToCentre - 140) / 60) * 4.0 * ridgeAmp;
       const h = hill * (1 - plateau) + ridge;
       data.push(h);
     }
