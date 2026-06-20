@@ -6230,11 +6230,26 @@ function SpaceshipPage() {
             setPoiDescription("");
           }}
           onPickLevel={(lvl, l) => {
+            // Snap initial drop altitude to the real tile surface so the
+            // level isn't floating above (or buried below) the buildings.
+            let groundAlt = l.alt;
+            const v = viewerRef.current;
+            if (v) {
+              try {
+                const carto = Cartographic.fromDegrees(l.lng, l.lat);
+                const sampled = v.scene.sampleHeight(carto);
+                if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
+                else {
+                  const terrainH = v.scene.globe.getHeight(carto);
+                  if (typeof terrainH === "number" && !isNaN(terrainH)) groundAlt = terrainH;
+                }
+              } catch {}
+            }
             setPendingLevelPlacement({
               levelId: lvl.id,
               levelName: lvl.name,
               sizeM: DEFAULT_LEVEL_SIZE_M,
-              loc: { lat: l.lat, lng: l.lng, alt: Math.max(0, l.alt) },
+              loc: { lat: l.lat, lng: l.lng, alt: groundAlt },
               heading: 0,
             });
           }}
