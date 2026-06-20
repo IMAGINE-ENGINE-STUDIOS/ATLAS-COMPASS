@@ -171,10 +171,12 @@ export default function PlayableCharacter({
   obj,
   enabled,
   onCameraPose,
+  immediateCamera = false,
 }: {
   obj: CharacterObject;
   enabled: boolean;
   onCameraPose?: (pose: PlayCameraPose) => void;
+  immediateCamera?: boolean;
 }) {
   const gltf = useGLTF(obj.url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
@@ -814,7 +816,7 @@ export default function PlayableCharacter({
       finalEye.copy(fpEye);
       finalTarget.copy(fpTarget);
     } else {
-      finalEye.copy(camera.position.clone().lerp(tpEye, Math.min(1, dt * 10)));
+      finalEye.copy(immediateCamera ? tpEye : camera.position.clone().lerp(tpEye, Math.min(1, dt * 10)));
       finalTarget.copy(tpTarget);
     }
 
