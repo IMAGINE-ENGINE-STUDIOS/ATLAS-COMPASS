@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   X, Play, Edit3, Trash2, MapPin, Compass, Ruler, ArrowUpDown,
-  Loader2, User, RefreshCw,
+  Loader2, User, RefreshCw, Layers, Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -33,6 +33,10 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
   const [heading, setHeading] = useState(placement.heading ?? 0);
   const [scale, setScale] = useState(placement.scale > 0 ? placement.scale : 1);
   const [altitude, setAltitude] = useState(placement.altitude ?? 0);
+  const [expandFeet, setExpandFeet] = useState(placement.terrain_expand_feet ?? 0);
+  const [terrainColor, setTerrainColor] = useState<string>(
+    (placement.surrounding_terrain as any)?.color ?? "#2f5d3a",
+  );
   const [scene, setScene] = useState<LevelScene | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -41,6 +45,8 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
     setHeading(placement.heading ?? 0);
     setScale(placement.scale > 0 ? placement.scale : 1);
     setAltitude(placement.altitude ?? 0);
+    setExpandFeet(placement.terrain_expand_feet ?? 0);
+    setTerrainColor((placement.surrounding_terrain as any)?.color ?? "#2f5d3a");
   }, [placement.id]);
 
   // Load the scene so we can surface the Main Character
@@ -70,7 +76,15 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
   }, [scene, characters]);
 
   // Debounced save on slider release
-  const saveTransform = async (patch: Partial<{ heading: number; scale: number; altitude: number }>) => {
+  const saveTransform = async (
+    patch: Partial<{
+      heading: number;
+      scale: number;
+      altitude: number;
+      terrain_expand_feet: number;
+      surrounding_terrain: any;
+    }>,
+  ) => {
     setSaving(true);
     const { error } = await supabase
       .from("atlas_level_placements")
@@ -189,6 +203,69 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
           <div className="flex items-center gap-2 text-[10px] text-emerald-300">
             <Loader2 className="w-3 h-3 animate-spin" /> Saving…
           </div>
+        )}
+      </div>
+
+      {/* Terrain Frame — controls the cut + the editable surrounding terrain
+          plane around the level. At 0 ft the cut hugs the level's exact
+          perimeter so no hole ever appears in the city tiles. */}
+      <div className="p-3 border-b border-white/10 space-y-2">
+        <div className="flex items-center gap-2">
+          <Scissors className="w-3.5 h-3.5 text-emerald-300" />
+          <div className="text-[11px] uppercase tracking-wider text-white/70">
+            Terrain Frame
+          </div>
+        </div>
+        <div className="text-[10px] text-white/55 leading-snug">
+          At <span className="font-mono">0 ft</span> the cut stops exactly
+          at the level's edge — no hole in the world. Add feet to grow an
+          editable terrain plane outward; the cut grows with it.
+        </div>
+        <SliderRow
+          label={`Surrounding terrain · ${expandFeet.toFixed(0)} ft`}
+          value={expandFeet}
+          min={0} max={500} step={5}
+          onChange={setExpandFeet}
+          onCommit={(v) => saveTransform({ terrain_expand_feet: v })}
+        />
+        <div className="flex gap-1">
+          {[0, 25, 100, 250, 500].map((ft) => (
+            <button
+              key={ft}
+              onClick={() => { setExpandFeet(ft); saveTransform({ terrain_expand_feet: ft }); }}
+              className="flex-1 text-[10px] px-1 py-1 rounded bg-white/5 hover:bg-white/15 border border-white/10"
+            >{ft}</button>
+          ))}
+        </div>
+        {expandFeet > 0 && (
+          <div className="flex items-center gap-2 pt-1">
+            <Layers className="w-3.5 h-3.5 text-emerald-300/80" />
+            <label className="text-[11px] text-white/70 flex-1">Plane color</label>
+            <input
+              type="color"
+              value={terrainColor}
+              onChange={(e) => setTerrainColor(e.target.value)}
+              onBlur={() =>
+                saveTransform({
+                  surrounding_terrain: {
+                    ...(placement.surrounding_terrain ?? {}),
+                    color: terrainColor,
+                    shape: "plane",
+                  },
+                })
+              }
+              className="w-7 h-7 rounded border border-white/15 bg-transparent"
+              title="Surrounding terrain color (full editor lives in the Level page)"
+            />
+          </div>
+        )}
+        {expandFeet > 0 && (
+          <Link
+            to={`/level/${placement.level_id}?tab=terrain`}
+            className="block text-[11px] text-emerald-300 hover:text-emerald-200 underline underline-offset-2"
+          >
+            Edit with full terrain tools →
+          </Link>
         )}
       </div>
 

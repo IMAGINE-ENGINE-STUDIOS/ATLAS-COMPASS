@@ -15,6 +15,12 @@ export interface LevelPlacement {
   altitude: number;
   heading: number;
   scale: number;
+  /** Feet of editable terrain extending outward from the level's edge.
+   *  0 = cut only at the level's own perimeter (no hole beyond it). */
+  terrain_expand_feet?: number;
+  /** Optional configuration for the surrounding terrain plane
+   *  (color / texture / etc.) — mirrors the level editor's SceneTerrain. */
+  surrounding_terrain?: any | null;
   levels?: { id: string; name: string; description: string | null } | null;
 }
 
@@ -47,7 +53,7 @@ export function useAtlasLevelLayer(
     const load = async () => {
       const { data } = await supabase
         .from("atlas_level_placements")
-        .select("id,level_id,lat,lng,altitude,heading,scale,levels(id,name,description)");
+        .select("id,level_id,lat,lng,altitude,heading,scale,terrain_expand_feet,surrounding_terrain,levels(id,name,description)");
       if (!cancelled) setPlacements((data ?? []) as any);
     };
     load();
