@@ -355,22 +355,24 @@ function buildTrack(): ScenePath {
 
 /* ---------- main builder ---------- */
 
-export function buildMasterLevelScene(): LevelScene {
+export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelScene {
+  const cfg = mergeConfig(partial);
   const objects: SceneObject[] = [];
   const animations: AnimationTrack[] = [];
 
   /* ---- pavers central plaza ---- */
-  objects.push(prim({
+  if (cfg.plaza.enabled) objects.push(prim({
     name: "Plaza pavers",
     pos: [0, 0.02, 0],
-    size: [40, 0.05, 30],
+    size: [cfg.plaza.width, 0.05, cfg.plaza.depth],
     color: C.paver,
     textureUrl: TEX_PAVERS,
-    textureRepeat: [10, 8],
+    textureRepeat: [Math.max(1, Math.round(cfg.plaza.width / 4)), Math.max(1, Math.round(cfg.plaza.depth / 4))],
     layer: LAYERS.roads,
   }));
 
   /* ---- asphalt main road (N–S) ---- */
+  if (cfg.roads.enabled) {
   objects.push(prim({
     name: "Main road",
     pos: [25, 0.025, 0],
@@ -381,7 +383,7 @@ export function buildMasterLevelScene(): LevelScene {
     layer: LAYERS.roads,
   }));
   // dashed white centre-line (a few short bars)
-  for (let z = -90; z <= 90; z += 6) {
+  if (cfg.roads.laneMarks) for (let z = -90; z <= 90; z += 6) {
     objects.push(prim({
       name: `Lane mark ${z}`,
       pos: [25, 0.055, z],
@@ -403,9 +405,10 @@ export function buildMasterLevelScene(): LevelScene {
     textureRepeat: [60, 4],
     layer: LAYERS.roads,
   }));
+  }
 
   /* ---- buildings ---- */
-  const buildingSpecs: Array<{ x: number; z: number; w: number; d: number; h: number; facade: any; name: string }> = [
+  const allBuildingSpecs: Array<{ x: number; z: number; w: number; d: number; h: number; facade: WizardFacade; name: string; tag?: "industrial" | "spire" | "plaza" }> = [
     // East commercial strip
     { x: 45, z: 60, w: 14, d: 14, h: 24, facade: "glass", name: "Aurora Tower" },
     { x: 65, z: 55, w: 16, d: 14, h: 18, facade: "concrete", name: "Lumen Office" },
