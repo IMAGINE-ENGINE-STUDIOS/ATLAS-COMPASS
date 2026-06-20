@@ -357,12 +357,20 @@ export default function AtlasLevelsR3FOverlay({
       c.enableTilt = false;
       c.enableLook = false;
     }
+    // Tell the Atlas keyboard-nav hook to stand down while the character
+    // owns WASD/Arrows. Restored on cleanup below.
+    if (typeof window !== "undefined") {
+      window.__atlasLevelPlaying = !!playingId;
+    }
     return () => {
       c.enableRotate = prev.rotate;
       c.enableTranslate = prev.translate;
       c.enableZoom = prev.zoom;
       c.enableTilt = prev.tilt;
       c.enableLook = prev.look;
+      if (typeof window !== "undefined") {
+        window.__atlasLevelPlaying = false;
+      }
     };
   }, [playingId, viewerRef]);
 
