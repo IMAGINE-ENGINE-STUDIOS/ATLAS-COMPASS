@@ -1267,6 +1267,7 @@ export interface LevelSceneProps {
   onSelect?: (id: string | null) => void;
   showGrid?: boolean;
   playing?: boolean;
+  skipBackground?: boolean; // keep host canvas/world visible when embedded in Atlas
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
   skipDirectional?: boolean; // suppress directional + spot key lights (Atlas sun lights the scene)
   editingPolygonId?: string | null;
@@ -1329,6 +1330,7 @@ export function LevelSceneContents({
   onSelect,
   showGrid,
   playing,
+  skipBackground,
   skipAmbient,
   skipDirectional,
   focusRequest,
@@ -1388,14 +1390,17 @@ export function LevelSceneContents({
     toggle: () => {},
     clear: () => {},
   };
+  const hdriCfg = scene.environment.hdri && skipBackground
+    ? { ...scene.environment.hdri, asBackground: false }
+    : scene.environment.hdri;
   return (
     <FacePaintContext.Provider value={facePaintValue}>
       {/* HDRI takes over the background when asBackground is on; otherwise solid color. */}
-      {!(scene.environment.hdri && scene.environment.hdri.asBackground && scene.environment.hdri.activeId) && (
+      {!skipBackground && !(hdriCfg && hdriCfg.asBackground && hdriCfg.activeId) && (
         <color attach="background" args={[scene.environment.background]} />
       )}
-      {scene.environment.hdri && scene.environment.hdri.activeId && (
-        <HDRIEnvironmentRuntime cfg={scene.environment.hdri} />
+      {hdriCfg && hdriCfg.activeId && (
+        <HDRIEnvironmentRuntime cfg={hdriCfg} />
       )}
       {scene.environment.gi?.enabled ? (
         <GlobalIllumination gi={scene.environment.gi} />
