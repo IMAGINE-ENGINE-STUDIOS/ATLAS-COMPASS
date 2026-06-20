@@ -796,7 +796,7 @@ function SpaceshipPage() {
       level_id: p.levelId,
       lat: p.loc.lat,
       lng: p.loc.lng,
-      altitude: Math.max(0, p.loc.alt),
+      altitude: p.loc.alt,
       heading: p.heading ?? 0,
       scale: 1,
     });
