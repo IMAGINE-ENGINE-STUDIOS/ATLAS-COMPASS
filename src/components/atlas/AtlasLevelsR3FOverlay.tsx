@@ -413,6 +413,7 @@ export default function AtlasLevelsR3FOverlay({
               viewer={viewer}
               placement={p}
               playing={playingId === p.id}
+              onPlayCameraPose={applyPlayCameraPose}
             />
           ))}
         </Canvas>
