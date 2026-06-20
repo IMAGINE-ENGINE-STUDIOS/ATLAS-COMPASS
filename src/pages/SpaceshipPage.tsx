@@ -66,6 +66,8 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import CameraHistoryTimeline from "@/components/atlas/CameraHistoryTimeline";
+import AtlasSettingsDropdown from "@/components/atlas/AtlasSettingsDropdown";
+import { useAtlasKeyboardNav } from "@/components/atlas/useAtlasKeyboardNav";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
