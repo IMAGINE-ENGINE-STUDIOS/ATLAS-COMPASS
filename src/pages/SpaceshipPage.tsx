@@ -692,7 +692,7 @@ function SpaceshipPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   const [activeLevelPlacement, setActiveLevelPlacement] = useState<LevelPlacement | null>(null);
-  useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
+  const { placements: levelPlacements } = useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
     setActiveLevelPlacement(p);
   }, []));
   const [searchQuery, setSearchQuery] = useState("");
@@ -5719,14 +5719,14 @@ function SpaceshipPage() {
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-yellow-400" />
                       <span className="text-sm font-bold text-white">Interest Points</span>
-                      <span className="text-[10px] text-white/70 font-mono">({pois.length})</span>
+                      <span className="text-[10px] text-white/70 font-mono">({pois.length + levelPlacements.length})</span>
                     </div>
                     <button onClick={() => setPoisPanelOpen(false)}>
                       <X className="w-3.5 h-3.5 text-white/75 hover:text-white" />
                     </button>
                   </div>
                   <p className="text-[10px] text-white/70 mb-2.5">Double-click anywhere to add a point.</p>
-                  {pois.length === 0 ? (
+                  {pois.length === 0 && levelPlacements.length === 0 ? (
                     <div className="text-center py-7">
                       <Plus className="w-7 h-7 text-white/10 mx-auto mb-1.5" />
                       <p className="text-xs text-white/70">No points yet</p>
@@ -5756,6 +5756,44 @@ function SpaceshipPage() {
                           </div>
                         </div>
                       ))}
+                      {levelPlacements.length > 0 && (
+                        <div className="pt-2 mt-1 border-t border-white/10">
+                          <div className="flex items-center gap-1.5 px-1 pb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Levels</span>
+                            <span className="text-[10px] text-white/60 font-mono">({levelPlacements.length})</span>
+                          </div>
+                          {levelPlacements.map((lp) => (
+                            <div key={lp.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-black/70 group transition-colors">
+                              <button
+                                onClick={() => setActiveLevelPlacement(lp)}
+                                className="flex-1 flex items-center gap-2.5 text-left min-w-0"
+                              >
+                                <span className="w-3.5 h-3.5 shrink-0 rounded-sm bg-emerald-500/70 border border-emerald-300" />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-white truncate">{lp.levels?.name ?? "Level"}</p>
+                                  <p className="text-[10px] text-white/70 font-mono">{lp.lat.toFixed(4)}, {lp.lng.toFixed(4)}</p>
+                                </div>
+                              </button>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <button
+                                  onClick={() => {
+                                    const viewer = viewerRef.current;
+                                    if (!viewer || viewer.isDestroyed()) return;
+                                    viewer.camera.flyTo({
+                                      destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 1500),
+                                      duration: 1.2,
+                                    });
+                                  }}
+                                  className="p-1 rounded-md text-white/85 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all"
+                                  title="Fly to"
+                                >
+                                  <Navigation className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </GlassPanel>
