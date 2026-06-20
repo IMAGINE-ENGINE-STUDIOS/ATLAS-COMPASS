@@ -744,6 +744,10 @@ function SpaceshipPage() {
   });
   useEffect(() => { try { localStorage.setItem("atlas.kbNav.v1", JSON.stringify(kbNavEnabled)); } catch {} }, [kbNavEnabled]);
   useEffect(() => { try { localStorage.setItem("atlas.kbSensitivity.v1", String(kbSensitivity)); } catch {} }, [kbSensitivity]);
+
+  // Wire WASD/arrow keys to the Cesium camera. Disabled while terrain
+  // brush is active so its Shift modifier doesn't fight our boost key.
+  useAtlasKeyboardNav(viewerRef, { enabled: kbNavEnabled, sensitivity: kbSensitivity });
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
