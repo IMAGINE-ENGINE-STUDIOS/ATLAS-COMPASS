@@ -143,6 +143,8 @@ function collectStaticTargets(root: THREE.Object3D, exclude: THREE.Object3D): TH
       // skip helpers/gizmos
       const ud = (o as any).userData ?? {};
       if (ud.__gizmo || ud.__nocast) return;
+      const material = (o as THREE.Mesh).material;
+      if (!material || (Array.isArray(material) && material.some((m) => !m))) return;
       // Skinned meshes (characters) are very expensive to raycast and we
       // handle character-vs-character separately with a cheap cylinder test.
       if ((o as any).isSkinnedMesh) return;
@@ -376,6 +378,10 @@ export default function PlayableCharacter({
     camTarget: new THREE.Vector3(),
     camPos: new THREE.Vector3(),
     sphere: new THREE.Vector3(),
+    worldOrigin: new THREE.Vector3(),
+    worldDir: new THREE.Vector3(),
+    worldEnd: new THREE.Vector3(),
+    localHit: new THREE.Vector3(),
   }), []);
 
   // Cache the static target list — rebuilding every frame walks the entire
@@ -391,6 +397,18 @@ export default function PlayableCharacter({
     if (!enabled || !rootRef.current) return;
     const dt = Math.min(0.05, rawDt); // clamp to keep physics stable
     const root = rootRef.current;
+    const toWorldPoint = (local: THREE.Vector3) => root.parent ? root.parent.localToWorld(local.clone()) : local.clone();
+    const toLocalPoint = (world: THREE.Vector3) => root.parent ? root.parent.worldToLocal(world.clone()) : world.clone();
+    const toWorldDir = (localDir: THREE.Vector3) => {
+      tmp.worldOrigin.set(0, 0, 0);
+      tmp.worldEnd.copy(localDir);
+      if (root.parent) {
+        root.parent.localToWorld(tmp.worldOrigin);
+        root.parent.localToWorld(tmp.worldEnd);
+        return tmp.worldEnd.sub(tmp.worldOrigin).normalize();
+      }
+      return tmp.worldEnd.normalize();
+    };
     const inp = sample();
 
     // ---- climb tween: hijacks movement + gravity ----
