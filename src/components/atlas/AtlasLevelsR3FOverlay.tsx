@@ -18,7 +18,7 @@
  * Cesium pin/beacon in useAtlasLevelLayer.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -31,6 +31,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, type LevelScene } from "@/lib/levelTypes";
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
+import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
 import { DEFAULT_LEVEL_SIZE_M } from "@/lib/atlasLevelGeo";
 import {
   hiddenLevelIds,
@@ -86,26 +87,17 @@ const THREE_TO_ENU = (() => {
   return m;
 })();
 
-interface AtlasWorldPlayPose {
-  eye: THREE.Vector3;
-  target: THREE.Vector3;
-  player: THREE.Vector3;
-}
-
 function PlacedLevel({
   viewer,
   placement,
   playing,
-  onPlayCameraPose,
 }: {
   viewer: Viewer;
   placement: LevelPlacement;
   playing: boolean;
-  onPlayCameraPose?: (placement: LevelPlacement, pose: AtlasWorldPlayPose) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
-  const { camera: r3fCamera } = useThree();
 
   useEffect(() => {
     let canceled = false;
@@ -159,54 +151,40 @@ function PlacedLevel({
     scaleM: new THREE.Matrix4(),
     out: new THREE.Matrix4(),
     eye: new THREE.Vector3(),
-    fwd: new THREE.Vector3(),
+    target: new THREE.Vector3(),
+    player: new THREE.Vector3(),
+    dir: new THREE.Vector3(),
     up: new THREE.Vector3(),
-    rotOnly: new THREE.Matrix4(),
+    right: new THREE.Vector3(),
+    correctedUp: new THREE.Vector3(),
   }).current;
+
+  const handlePlayCameraPose = (pose: PlayCameraPose) => {
+    if (!playing || !viewer || viewer.isDestroyed()) return;
+    const eyeEcef = scratch.eye.fromArray(pose.eye).applyMatrix4(worldMatrix);
+    const targetEcef = scratch.target.fromArray(pose.target).applyMatrix4(worldMatrix);
+    const playerEcef = scratch.player.fromArray(pose.player).applyMatrix4(worldMatrix);
+    scratch.dir.subVectors(targetEcef, eyeEcef).normalize();
+    scratch.up.set(0, 1, 0).transformDirection(worldMatrix).normalize();
+    scratch.right.crossVectors(scratch.dir, scratch.up);
+    if (scratch.right.lengthSq() < 1e-8) return;
+    scratch.right.normalize();
+    scratch.correctedUp.crossVectors(scratch.right, scratch.dir).normalize();
+    try {
+      viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
+      viewer.camera.setView({
+        destination: new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z),
+        orientation: {
+          direction: new Cartesian3(scratch.dir.x, scratch.dir.y, scratch.dir.z),
+          up: new Cartesian3(scratch.correctedUp.x, scratch.correctedUp.y, scratch.correctedUp.z),
+        },
+      });
+      void playerEcef;
+    } catch {}
+  };
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
-    // While THIS placement is being played, drop the ECEF transform: the
-    // level sits at world origin with identity rotation so PlayableCharacter
-    // (which uses world-space raycasts with world +Y as "up") works exactly
-    // like the standalone Level editor's play mode — terrain hits, gravity
-    // lands on the floor, no falling-into-infinity. The Cesium camera is
-    // anchored at the level's lat/lng. To keep the surrounding city LOCKED
-    // to the level's real-world coordinates while the character walks, we
-    // mirror the R3F camera (driven by PlayableCharacter) into Cesium each
-    // frame by transforming the local eye/look from level-local THREE space
-    // into ECEF using the same worldMatrix the level group would have used.
-    if (playing) {
-      groupRef.current.matrixAutoUpdate = true;
-      groupRef.current.position.set(0, 0, 0);
-      groupRef.current.rotation.set(0, headingRad, 0);
-      groupRef.current.scale.setScalar(placementScale);
-
-      // Local THREE camera state -> ECEF via worldMatrix.
-      scratch.eye.copy(r3fCamera.position);
-      // forward in world space
-      r3fCamera.getWorldDirection(scratch.fwd);
-      scratch.up.copy(r3fCamera.up);
-
-      const eyeEcef = scratch.eye.clone().applyMatrix4(worldMatrix);
-      // rotation-only matrix (worldMatrix without translation)
-      scratch.rotOnly.copy(worldMatrix);
-      scratch.rotOnly.setPosition(0, 0, 0);
-      const dirEcef = scratch.fwd.clone().applyMatrix4(scratch.rotOnly).normalize();
-      const upEcef = scratch.up.clone().applyMatrix4(scratch.rotOnly).normalize();
-
-      try {
-        viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-        viewer.camera.setView({
-          destination: new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z),
-          orientation: {
-            direction: new Cartesian3(dirEcef.x, dirEcef.y, dirEcef.z),
-            up: new Cartesian3(upEcef.x, upEcef.y, upEcef.z),
-          },
-        });
-      } catch {}
-      return;
-    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
