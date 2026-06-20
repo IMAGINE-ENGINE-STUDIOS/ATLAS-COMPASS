@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ArcType, Cartesian2, Cartesian3, Color, HeadingPitchRange, HeightReference,
+  ArcType, Cartesian2, Cartesian3, Color, CallbackProperty, HeadingPitchRange, HeightReference,
   LabelStyle, Math as CesiumMath, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined, VerticalOrigin, type Viewer,
 } from "cesium";
@@ -67,10 +67,23 @@ export function useAtlasLevelLayer(
       const boxHeight = LEVEL_HEIGHT_M;
       const beaconTop = baseAlt + 600;
 
-      // The level's REAL R3F scene now renders directly on the globe via
-      // AtlasLevelsR3FOverlay, so the placeholder green cube is no longer
-      // drawn here. We keep the tall beacon polyline + label below as the
-      // discoverable marker / click target.
+      // Ultra-low LOD placeholder: a green box drawn directly by Cesium so
+      // it shows up the moment the globe loads (before the heavier R3F
+      // overlay mounts), and remains as a cheap stand-in when the camera
+      // is far away. The full R3F level scene fades in on top once the
+      // user gets close (see AtlasLevelsR3FOverlay).
+      const boxEnt = viewer.entities.add({
+        id: `level-placement-${p.id}-box`,
+        position: Cartesian3.fromDegrees(p.lng, p.lat, baseAlt + boxHeight / 2) as any,
+        box: {
+          dimensions: new Cartesian3(size, size, boxHeight) as any,
+          material: Color.fromCssColorString("#34d399").withAlpha(0.55) as any,
+          outline: true,
+          outlineColor: Color.fromCssColorString("#10b981") as any,
+        } as any,
+      });
+      (boxEnt as any)._levelPlacement = p;
+      added.push(boxEnt);
 
       // Tall beacon polyline so the cube is spotted from far away.
       const beacon = viewer.entities.add({
