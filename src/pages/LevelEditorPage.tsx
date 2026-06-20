@@ -1525,6 +1525,20 @@ export default function LevelEditorPage() {
               }}
             />
 
+            <div className="mt-3 pt-3 border-t border-border/40">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-8 text-[11px] justify-start"
+                onClick={() => setDynamicGalleryOpen(true)}
+                title="Browse, add, and manage Dynamic Objects"
+              >
+                <Boxes className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                Dynamic Objects
+                <span className="ml-auto text-[9px] uppercase tracking-wider text-muted-foreground">Gallery</span>
+              </Button>
+            </div>
+
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4">Layers</p>
               <button
