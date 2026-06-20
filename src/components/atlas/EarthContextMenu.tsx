@@ -13,16 +13,16 @@ interface Props {
   onClose: () => void;
   onCreatePOI: (loc: EarthLoc) => void;
   onPasteEntry: (entry: FileClipboardEntry, loc: EarthLoc) => void;
+  onPickLevel?: (level: { id: string; name: string }, loc: EarthLoc) => void;
 }
 
 type LevelRow = { id: string; name: string; description: string | null };
 
-export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPasteEntry }: Props) {
+export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPasteEntry, onPickLevel }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"root" | "levels">("root");
   const [levels, setLevels] = useState<LevelRow[] | null>(null);
   const [filter, setFilter] = useState("");
-  const [placing, setPlacing] = useState<string | null>(null);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -90,24 +90,12 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
     onClose();
   };
 
-  const placeLevel = async (lvl: LevelRow) => {
-    setPlacing(lvl.id);
-    const { data: userRes } = await supabase.auth.getUser();
-    const uid = userRes.user?.id;
-    if (!uid) { toast.error("Sign in to place a level"); setPlacing(null); return; }
-    const { error } = await supabase.from("atlas_level_placements").insert({
-      owner_id: uid,
-      level_id: lvl.id,
-      lat: loc.lat,
-      lng: loc.lng,
-      altitude: Math.max(0, loc.alt),
-      heading: 0,
-      scale: 1,
-    });
-    setPlacing(null);
-    if (error) { toast.error(`Failed: ${error.message}`); return; }
-    window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
-    toast.success(`Loaded "${lvl.name}" here`);
+  const placeLevel = (lvl: LevelRow) => {
+    if (!onPickLevel) {
+      toast.error("Level placement unavailable");
+      return;
+    }
+    onPickLevel({ id: lvl.id, name: lvl.name }, loc);
     onClose();
   };
 
@@ -168,11 +156,10 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
             {filtered.map((lvl) => (
               <button
                 key={lvl.id}
-                disabled={placing !== null}
                 onClick={() => placeLevel(lvl)}
                 className="w-full text-left px-3 py-2 text-xs hover:bg-white/10 flex items-center gap-2 disabled:opacity-50"
               >
-                {placing === lvl.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Layers className="w-3 h-3 text-white/60" />}
+                <Layers className="w-3 h-3 text-white/60" />
                 <span className="truncate">{lvl.name}</span>
               </button>
             ))}
