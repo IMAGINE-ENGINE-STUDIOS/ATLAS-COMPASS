@@ -181,6 +181,84 @@ export type Database = {
         }
         Relationships: []
       }
+      file_shares: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          note: string | null
+          payload: Json
+          read_at: string | null
+          recipient_id: string
+          sender_id: string
+          source_id: string | null
+          source_table: string | null
+          status: Database["public"]["Enums"]["share_status"]
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          name: string
+          note?: string | null
+          payload?: Json
+          read_at?: string | null
+          recipient_id: string
+          sender_id: string
+          source_id?: string | null
+          source_table?: string | null
+          status?: Database["public"]["Enums"]["share_status"]
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          note?: string | null
+          payload?: Json
+          read_at?: string | null
+          recipient_id?: string
+          sender_id?: string
+          source_id?: string | null
+          source_table?: string | null
+          status?: Database["public"]["Enums"]["share_status"]
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      friendships: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          status: Database["public"]["Enums"]["friendship_status"]
+          updated_at: string
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          id?: string
+          requester_id: string
+          status?: Database["public"]["Enums"]["friendship_status"]
+          updated_at?: string
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          id?: string
+          requester_id?: string
+          status?: Database["public"]["Enums"]["friendship_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       geometries: {
         Row: {
           created_at: string
@@ -303,6 +381,93 @@ export type Database = {
         }
         Relationships: []
       }
+      match_queue: {
+        Row: {
+          joined_at: string
+          mode: string
+          party_size: number
+          region: string
+          skill: number
+          user_id: string
+        }
+        Insert: {
+          joined_at?: string
+          mode: string
+          party_size?: number
+          region?: string
+          skill?: number
+          user_id: string
+        }
+        Update: {
+          joined_at?: string
+          mode?: string
+          party_size?: number
+          region?: string
+          skill?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      matches: {
+        Row: {
+          created_at: string
+          id: string
+          mode: string
+          player_ids: string[]
+          region: string
+          room_channel: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mode: string
+          player_ids: string[]
+          region?: string
+          room_channel: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mode?: string
+          player_ids?: string[]
+          region?: string
+          room_channel?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       rig_saves: {
         Row: {
           active_clip: string | null
@@ -348,15 +513,58 @@ export type Database = {
         }
         Relationships: []
       }
+      share_recipients_stats: {
+        Row: {
+          last_shared_at: string
+          owner_id: string
+          recipient_id: string
+          share_count: number
+        }
+        Insert: {
+          last_shared_at?: string
+          owner_id: string
+          recipient_id: string
+          share_count?: number
+        }
+        Update: {
+          last_shared_at?: string
+          owner_id?: string
+          recipient_id?: string
+          share_count?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      lookup_user_by_username: {
+        Args: { _q: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          username: string
+        }[]
+      }
+      record_share: {
+        Args: {
+          _kind: string
+          _name: string
+          _note?: string
+          _payload: Json
+          _recipient: string
+          _source_id?: string
+          _source_table?: string
+          _thumbnail_url?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      friendship_status: "pending" | "accepted" | "blocked"
+      share_status: "pending" | "accepted" | "declined"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -483,6 +691,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      friendship_status: ["pending", "accepted", "blocked"],
+      share_status: ["pending", "accepted", "declined"],
+    },
   },
 } as const
