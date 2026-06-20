@@ -93,6 +93,110 @@ const C = {
   trainGold: [0.88, 0.7, 0.2, 1] as RGBA,
 };
 
+/* ---------- configuration ---------- */
+
+export type WizardFacade = "brick" | "glass" | "stone" | "concrete" | "wood";
+
+export interface WizardConfig {
+  name: string;
+  worldSize: number;
+  terrain: {
+    enabled: boolean;
+    resolution: number;
+    hillAmplitude: number;
+    ridgeIntensity: number;
+  };
+  plaza: { enabled: boolean; width: number; depth: number };
+  roads: { enabled: boolean; laneMarks: boolean };
+  buildings: {
+    densityScale: number;
+    heightScale: number;
+    facades: Record<WizardFacade, boolean>;
+    includeIndustrial: boolean;
+    includeTallSpire: boolean;
+    includePlazaShops: boolean;
+  };
+  park: { enabled: boolean; treeCount: number };
+  station: { enabled: boolean };
+  train: {
+    enabled: boolean;
+    carCount: number;
+    baseSpeed: number;
+    stopDurationSeconds: number;
+    doorAnimSeconds: number;
+    carSpacing: number;
+  };
+  characters: {
+    includePlayable: boolean;
+    npcCount: number;
+  };
+  environment: {
+    background: string;
+    fogEnabled: boolean;
+    fogNear: number;
+    fogFar: number;
+    sunIntensity: number;
+    ambientIntensity: number;
+  };
+}
+
+export const DEFAULT_WIZARD_CONFIG: WizardConfig = {
+  name: "Eastlight Town",
+  worldSize: 400,
+  terrain: { enabled: true, resolution: 96, hillAmplitude: 1, ridgeIntensity: 1 },
+  plaza: { enabled: true, width: 40, depth: 30 },
+  roads: { enabled: true, laneMarks: true },
+  buildings: {
+    densityScale: 1,
+    heightScale: 1,
+    facades: { brick: true, glass: true, stone: true, concrete: true, wood: true },
+    includeIndustrial: true,
+    includeTallSpire: true,
+    includePlazaShops: true,
+  },
+  park: { enabled: true, treeCount: 14 },
+  station: { enabled: true },
+  train: {
+    enabled: true,
+    carCount: 2,
+    baseSpeed: 9,
+    stopDurationSeconds: 10,
+    doorAnimSeconds: 1.4,
+    carSpacing: 9,
+  },
+  characters: { includePlayable: true, npcCount: 4 },
+  environment: {
+    background: "#86a8c6",
+    fogEnabled: true,
+    fogNear: 120,
+    fogFar: 380,
+    sunIntensity: 1.5,
+    ambientIntensity: 0.35,
+  },
+};
+
+function mergeConfig(partial?: Partial<WizardConfig>): WizardConfig {
+  const d = DEFAULT_WIZARD_CONFIG;
+  if (!partial) return JSON.parse(JSON.stringify(d));
+  return {
+    name: partial.name ?? d.name,
+    worldSize: partial.worldSize ?? d.worldSize,
+    terrain: { ...d.terrain, ...(partial.terrain ?? {}) },
+    plaza: { ...d.plaza, ...(partial.plaza ?? {}) },
+    roads: { ...d.roads, ...(partial.roads ?? {}) },
+    buildings: {
+      ...d.buildings,
+      ...(partial.buildings ?? {}),
+      facades: { ...d.buildings.facades, ...(partial.buildings?.facades ?? {}) },
+    },
+    park: { ...d.park, ...(partial.park ?? {}) },
+    station: { ...d.station, ...(partial.station ?? {}) },
+    train: { ...d.train, ...(partial.train ?? {}) },
+    characters: { ...d.characters, ...(partial.characters ?? {}) },
+    environment: { ...d.environment, ...(partial.environment ?? {}) },
+  };
+}
+
 function prim(opts: {
   name: string;
   pos: Vec3;
