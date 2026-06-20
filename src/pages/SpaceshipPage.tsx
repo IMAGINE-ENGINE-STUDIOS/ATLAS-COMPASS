@@ -5180,8 +5180,8 @@ function SpaceshipPage() {
                       </div>
 
                       {/* Tool picker */}
-                      <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg">
-                        {(["grid", "rectangle", "lasso"] as const).map(t => (
+                      <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg">
+                        {(["grid", "rectangle", "lasso", "terrain"] as const).map(t => (
                           <button
                             key={t}
                             onClick={() => { setTilesTool(t); setRectStart(null); setLassoPoints([]); }}
