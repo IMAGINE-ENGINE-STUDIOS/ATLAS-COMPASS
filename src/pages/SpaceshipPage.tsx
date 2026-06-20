@@ -3397,6 +3397,23 @@ function SpaceshipPage() {
     if (!viewer) return;
     const cropped = placedModels.filter(m => m.cropRadius && m.cropRadius > 0);
     const polygons = cropped.map(m => buildCircleClippingPolygon(m.lat, m.lng, m.cropRadius!));
+    // Cut a square hole in the 3D tilesets for every placed Level, so the
+    // level scene sits flush on the planet's tile floor (same mechanism as
+    // placed 3D models). The square is sized to DEFAULT_LEVEL_SIZE_M.
+    const half = DEFAULT_LEVEL_SIZE_M / 2;
+    for (const lp of levelPlacements) {
+      const metersPerDegLat = 111320;
+      const metersPerDegLng = 111320 * Math.cos(CesiumMath.toRadians(lp.lat));
+      const dLat = half / metersPerDegLat;
+      const dLng = half / Math.max(1, metersPerDegLng);
+      const corners = [
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat - dLat),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat - dLat),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat + dLat),
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat + dLat),
+      ];
+      polygons.push(new ClippingPolygon({ positions: corners }));
+    }
     const tilesets = [
       (viewer as any)._realisticTileset as Cesium3DTileset | undefined,
       (viewer as any)._osmTileset as Cesium3DTileset | undefined,
@@ -3411,7 +3428,7 @@ function SpaceshipPage() {
       }
     });
     viewer.scene.requestRender();
-  }, [placedModels, buildCircleClippingPolygon]);
+  }, [placedModels, levelPlacements, buildCircleClippingPolygon]);
   useEffect(() => { applyAllCropsRef.current = applyAllCrops; }, [applyAllCrops]);
 
   // Re-apply crops whenever models change or a tileset becomes ready.

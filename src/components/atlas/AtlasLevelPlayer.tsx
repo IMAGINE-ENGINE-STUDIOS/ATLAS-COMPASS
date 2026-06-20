@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { X, Loader2, Edit3, Maximize2, Minimize2 } from "lucide-react";
+import { X, Loader2, Edit3, Maximize2, Minimize2, Lock, Unlock, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, LevelScene } from "@/lib/levelTypes";
@@ -34,6 +34,11 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
   const [playing, setPlaying] = useState(true);
   const [maximized, setMaximized] = useState(true);
   const [loading, setLoading] = useState(true);
+  // Levels in the Atlas are LOCKED to their tile by default — the camera
+  // cannot orbit/pan/zoom so the placement stays glued in place while
+  // playing. The user can override via the Level configuration button
+  // (the unlock toggle below).
+  const [unlocked, setUnlocked] = useState(false);
   const navigate = useNavigate();
   const controlsRef = useRef<any>(null);
 
@@ -103,6 +108,19 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
           </Button>
           <Button
             size="icon"
+            variant={unlocked ? "default" : "secondary"}
+            className="h-7 w-7"
+            title={
+              unlocked
+                ? "Level unlocked — camera can move (click to re-lock to tile)"
+                : "Level locked to tile — click to override from level configuration"
+            }
+            onClick={() => setUnlocked((u) => !u)}
+          >
+            {unlocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+          </Button>
+          <Button
+            size="icon"
             variant="secondary"
             className="h-7 w-7"
             title="Open editor"
@@ -158,7 +176,15 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
             />
           </group>
 
-          <OrbitControls ref={controlsRef} makeDefault enableDamping />
+          <OrbitControls
+            ref={controlsRef}
+            makeDefault
+            enableDamping
+            enabled={unlocked}
+            enablePan={unlocked}
+            enableZoom={unlocked}
+            enableRotate={unlocked}
+          />
         </Canvas>
       )}
 
