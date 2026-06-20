@@ -86,6 +86,12 @@ const THREE_TO_ENU = (() => {
   return m;
 })();
 
+interface AtlasWorldPlayPose {
+  eye: THREE.Vector3;
+  target: THREE.Vector3;
+  player: THREE.Vector3;
+}
+
 function PlacedLevel({
   viewer,
   placement,
@@ -136,6 +142,15 @@ function PlacedLevel({
 
   const headingRad = -((placement.heading ?? 0) * Math.PI) / 180;
   const placementScale = placement.scale > 0 ? placement.scale : 1;
+
+  const worldMatrix = useMemo(() => {
+    return new THREE.Matrix4()
+      .makeTranslation(ecef.x, ecef.y, ecef.z)
+      .multiply(enuRot)
+      .multiply(THREE_TO_ENU)
+      .multiply(new THREE.Matrix4().makeRotationY(headingRad))
+      .multiply(new THREE.Matrix4().makeScale(placementScale, placementScale, placementScale));
+  }, [ecef, enuRot, headingRad, placementScale]);
 
   // Reusable scratch matrices
   const scratch = useRef({
@@ -193,7 +208,13 @@ function PlacedLevel({
         skipBackground
         skipAmbient
         skipDirectional
-        onPlayCameraPose={playing ? (pose) => onPlayCameraPose?.(placement, pose) : undefined}
+        onPlayCameraPose={playing ? (pose) => {
+          onPlayCameraPose?.(placement, {
+            eye: new THREE.Vector3(...pose.eye).applyMatrix4(worldMatrix),
+            target: new THREE.Vector3(...pose.target).applyMatrix4(worldMatrix),
+            player: new THREE.Vector3(...pose.player).applyMatrix4(worldMatrix),
+          });
+        } : undefined}
       />
     </group>
   );
