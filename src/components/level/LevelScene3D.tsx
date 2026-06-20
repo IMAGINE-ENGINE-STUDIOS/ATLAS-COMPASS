@@ -884,6 +884,7 @@ function RenderObject({
   controlsRef,
   onTrajectoryPointsChange,
   onPlayCameraPose,
+  immediatePlayCamera,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -893,6 +894,7 @@ function RenderObject({
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
   onPlayCameraPose?: (pose: PlayCameraPose) => void;
+  immediatePlayCamera?: boolean;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
@@ -903,7 +905,7 @@ function RenderObject({
     if (isPlayer) {
       return (
         <Suspense fallback={null}>
-          <PlayableCharacter obj={obj as CharacterObject} enabled={true} onCameraPose={onPlayCameraPose} />
+          <PlayableCharacter obj={obj as CharacterObject} enabled={true} onCameraPose={onPlayCameraPose} immediateCamera={immediatePlayCamera} />
         </Suspense>
       );
     }
