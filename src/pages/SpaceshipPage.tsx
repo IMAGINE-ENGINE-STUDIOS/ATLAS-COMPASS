@@ -754,12 +754,11 @@ function SpaceshipPage() {
     const { data: userRes } = await supabase.auth.getUser();
     const uid = userRes.user?.id;
     if (!uid) { toast.error("Sign in to place a level"); return; }
-    const snap = snapToLevelTile(p.loc.lat, p.loc.lng, p.sizeM);
     const { error } = await supabase.from("atlas_level_placements").insert({
       owner_id: uid,
       level_id: p.levelId,
-      lat: snap.lat,
-      lng: snap.lng,
+      lat: p.loc.lat,
+      lng: p.loc.lng,
       altitude: Math.max(0, p.loc.alt),
       heading: 0,
       scale: 1,
@@ -771,7 +770,7 @@ function SpaceshipPage() {
     // Fly the camera to the new placement so the user sees the cube immediately.
     try {
       viewerRef.current?.camera.flyTo({
-        destination: Cartesian3.fromDegrees(snap.lng, snap.lat, Math.max(snap.tileSizeM * 2.5, 1500)),
+        destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500),
         duration: 1.2,
       });
     } catch {}
