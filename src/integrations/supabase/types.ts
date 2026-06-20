@@ -142,6 +142,45 @@ export type Database = {
         }
         Relationships: []
       }
+      dynamic_objects: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          name: string
+          owner_id: string | null
+          payload: Json
+          tags: string[]
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name: string
+          owner_id?: string | null
+          payload: Json
+          tags?: string[]
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name?: string
+          owner_id?: string | null
+          payload?: Json
+          tags?: string[]
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       geometries: {
         Row: {
           created_at: string
