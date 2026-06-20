@@ -5789,6 +5789,26 @@ function SpaceshipPage() {
                                 >
                                   <Navigation className="w-3 h-3" />
                                 </button>
+                                <button
+                                  onClick={async () => {
+                                    const name = lp.levels?.name ?? "this level";
+                                    if (!window.confirm(`Remove "${name}" from the Atlas?\n\nThis only deletes the placement, not the level itself.`)) return;
+                                    const { error } = await supabase
+                                      .from("atlas_level_placements")
+                                      .delete()
+                                      .eq("id", lp.id);
+                                    if (error) {
+                                      toast.error(error.message);
+                                    } else {
+                                      toast.success("Level placement removed");
+                                      window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
+                                    }
+                                  }}
+                                  className="p-1 rounded-md text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                  title="Delete placement"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               </div>
                             </div>
                           ))}

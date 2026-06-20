@@ -138,7 +138,9 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
       ) : (
         <Canvas
           shadows
-          camera={{ position: [40, 25, 40], fov: 50, near: 0.1, far: 5000 }}
+          // Eye-level camera so the scene appears anchored to the tile floor
+          // (the Cesium camera was flown to a ground-level view of the cube).
+          camera={{ position: [0, 6, 28], fov: 55, near: 0.1, far: 5000 }}
           gl={{ alpha: true, antialias: true }}
           style={{ background: "transparent" }}
         >

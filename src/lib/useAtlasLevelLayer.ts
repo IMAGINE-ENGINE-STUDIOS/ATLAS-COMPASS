@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import {
-  ArcType, Cartesian2, Cartesian3, Color, HeightReference, LabelStyle,
-  ScreenSpaceEventHandler, ScreenSpaceEventType, defined, VerticalOrigin,
-  type Viewer,
+  ArcType, Cartesian2, Cartesian3, Color, HeadingPitchRange, HeightReference,
+  LabelStyle, Math as CesiumMath, ScreenSpaceEventHandler, ScreenSpaceEventType,
+  defined, VerticalOrigin, type Viewer,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "./atlasLevelGeo";
@@ -134,11 +134,22 @@ export function useAtlasLevelLayer(
         const p = (picked.id as any)._levelPlacement as LevelPlacement;
         // Fly the camera to the placement so the user sees it framed,
         // then hand control back to the host page (which will navigate).
+        // Frame the cube from ground level so the Level scene overlay sits on
+        // the tile floor instead of appearing to float in the sky.
         try {
-          viewer.camera.flyTo({
-            destination: Cartesian3.fromDegrees(p.lng, p.lat, 800),
-            duration: 1.0,
-          });
+          const snap = snapToLevelTile(p.lat, p.lng, DEFAULT_LEVEL_SIZE_M);
+          const center = Cartesian3.fromDegrees(snap.lng, snap.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2);
+          viewer.camera.flyToBoundingSphere(
+            { center, radius: snap.tileSizeM * 0.9 } as any,
+            {
+              duration: 1.0,
+              offset: new HeadingPitchRange(
+                CesiumMath.toRadians(p.heading ?? 0),
+                CesiumMath.toRadians(-12),
+                snap.tileSizeM * 1.8,
+              ),
+            } as any,
+          );
         } catch {}
         onOpenLevel(p);
       }
