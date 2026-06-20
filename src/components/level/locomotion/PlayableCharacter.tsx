@@ -410,6 +410,49 @@ export default function PlayableCharacter({
     nextAt: 0,
   });
 
+  // Earth-tile "nav-mesh" cache. Cesium scene = nav surface. Sampled
+  // heights are reused across small spatial cells so we never sample
+  // more than ~once per frame at speed.
+  const navCache = useRef<{
+    map: Map<string, { h: number; t: number }>;
+    lastSampleAt: number;
+    lastH: number | null;
+  }>({ map: new Map(), lastSampleAt: 0, lastH: null });
+
+  const sampleEarthHeight = (lngDeg: number, latDeg: number): number | null => {
+    const viewer = (window as any).__cesiumViewer;
+    if (!viewer || viewer.isDestroyed?.()) return null;
+    const cache = navCache.current;
+    const now = performance.now();
+    const key = `${Math.round(lngDeg * 200000)}|${Math.round(latDeg * 200000)}`;
+    const hit = cache.map.get(key);
+    if (hit && now - hit.t < 1500) return hit.h;
+    if (now - cache.lastSampleAt < 33 && cache.lastH !== null) return cache.lastH;
+    cache.lastSampleAt = now;
+    try {
+      const carto = CesiumCartographic.fromDegrees(lngDeg, latDeg);
+      let h: number | null = null;
+      const sampled = viewer.scene.sampleHeight?.(carto, [], 0.05);
+      if (typeof sampled === "number" && Number.isFinite(sampled)) h = sampled;
+      else {
+        const terrainH = viewer.scene.globe?.getHeight?.(carto);
+        if (typeof terrainH === "number" && Number.isFinite(terrainH)) h = terrainH;
+      }
+      if (h !== null) {
+        cache.map.set(key, { h, t: now });
+        cache.lastH = h;
+        if (cache.map.size > 2048) {
+          let i = 0;
+          for (const k of cache.map.keys()) {
+            cache.map.delete(k);
+            if (++i > 1024) break;
+          }
+        }
+      }
+      return h;
+    } catch { return null; }
+  };
+
   useFrame((_, rawDt) => {
     if (!enabled || !rootRef.current) return;
     const dt = Math.min(0.05, rawDt); // clamp to keep physics stable
@@ -502,27 +545,21 @@ export default function PlayableCharacter({
     // 3D tilesets so the character lands on the real terrain instead of
     // falling into the void.
     if (!groundPoint) {
-      const viewer = (window as any).__cesiumViewer;
-      if (viewer && !viewer.isDestroyed?.()) {
-        try {
-          const worldFeet = toWorldPoint(new THREE.Vector3(root.position.x, root.position.y, root.position.z));
-          const carto = CesiumCartographic.fromCartesian(
-            new CesiumCartesian3(worldFeet.x, worldFeet.y, worldFeet.z),
-          );
-          if (carto) {
-            const sampled = viewer.scene.sampleHeight?.(carto, [], 0.05);
-            const h = (typeof sampled === "number" && Number.isFinite(sampled))
-              ? sampled
-              : (viewer.scene.globe?.getHeight?.(carto) ?? null);
-            if (h !== null && Number.isFinite(h)) {
-              carto.height = h;
-              const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, carto.height);
-              const localSurf = toLocalPoint(new THREE.Vector3(surfECEF.x, surfECEF.y, surfECEF.z));
-              groundPoint = localSurf;
-            }
+      try {
+        const worldFeet = toWorldPoint(new THREE.Vector3(root.position.x, root.position.y, root.position.z));
+        const carto = CesiumCartographic.fromCartesian(
+          new CesiumCartesian3(worldFeet.x, worldFeet.y, worldFeet.z),
+        );
+        if (carto) {
+          const lngDeg = CesiumMath.toDegrees(carto.longitude);
+          const latDeg = CesiumMath.toDegrees(carto.latitude);
+          const h = sampleEarthHeight(lngDeg, latDeg);
+          if (h !== null) {
+            const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, h);
+            groundPoint = toLocalPoint(new THREE.Vector3(surfECEF.x, surfECEF.y, surfECEF.z));
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
 
     // ---- forward ledge probe (for climb + jump-down) ----
