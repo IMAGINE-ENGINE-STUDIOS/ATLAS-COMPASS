@@ -265,8 +265,10 @@ export default function AtlasLevelsR3FOverlay({
   useEffect(() => {
     hiddenLevelIds.clear();
     nearIds.forEach((id) => hiddenLevelIds.add(id));
+    if (playingId) hiddenLevelIds.add(playingId);
+    if (pendingPlayId) hiddenLevelIds.add(pendingPlayId);
     viewerRef.current?.scene.requestRender?.();
-  }, [nearIds, viewerRef]);
+  }, [nearIds, playingId, pendingPlayId, viewerRef]);
 
   // Click a Cesium pin → request play. Auto-starts once camera arrives.
   useEffect(() => {
