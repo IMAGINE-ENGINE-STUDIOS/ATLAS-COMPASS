@@ -4276,7 +4276,8 @@ function SpaceshipPage() {
                 {brushSubMode === "tiles" && (
                   tilesTool === "grid" ? "— Double-click to toggle tile"
                   : tilesTool === "rectangle" ? (rectStart ? "— Double-click second corner" : "— Double-click first corner")
-                  : "— Double-click to add lasso vertex"
+                  : tilesTool === "lasso" ? "— Double-click to add lasso vertex"
+                  : "— Double-click to drop a terrain pad"
                 )}
               </span>
             </div>
