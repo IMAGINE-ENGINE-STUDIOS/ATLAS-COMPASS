@@ -1931,22 +1931,35 @@ function SpaceshipPage() {
     ssec0.zoomEventTypes = [
       CameraEventType.WHEEL,
       CameraEventType.PINCH,
-      CameraEventType.RIGHT_DRAG,
     ] as any;
     ssec0.inertiaSpin = 0.6;
     // Keep the camera free of any tracked transform so look is true first-person.
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
-    // Lock camera ROLL — yaw + pitch only. Cesium's constrainedAxis pins the
-    // local "up" so left-drag look never tilts the horizon. Re-apply each
-    // frame because flyTo / lookAtTransform can clear it.
-    const Z_UP = new Cartesian3(0, 0, 1);
-    viewer.camera.constrainedAxis = Z_UP;
+    // Horizon-lock: zero out camera ROLL every frame so the camera behaves
+    // like a compass — heading and pitch are free, but the horizon never
+    // tilts. We rebuild camera.up / camera.right from the local geodetic
+    // up at the camera's current position, which is the true "no roll"
+    // basis on a curved planet (constrainedAxis alone is unreliable after
+    // flyTo / lookAtTransform).
+    const _scratchUp = new Cartesian3();
+    const _scratchRight = new Cartesian3();
+    const _scratchNewUp = new Cartesian3();
     const lockRoll = () => {
       if (viewer.isDestroyed()) return;
-      viewer.camera.constrainedAxis = Z_UP;
+      const cam = viewer.camera;
+      const ellipsoid = viewer.scene.globe.ellipsoid;
+      ellipsoid.geodeticSurfaceNormal(cam.positionWC, _scratchUp);
+      Cartesian3.cross(cam.direction, _scratchUp, _scratchRight);
+      if (Cartesian3.magnitudeSquared(_scratchRight) < 1e-10) return; // looking straight up/down
+      Cartesian3.normalize(_scratchRight, _scratchRight);
+      Cartesian3.cross(_scratchRight, cam.direction, _scratchNewUp);
+      Cartesian3.normalize(_scratchNewUp, _scratchNewUp);
+      Cartesian3.clone(_scratchRight, cam.right);
+      Cartesian3.clone(_scratchNewUp, cam.up);
     };
     viewer.scene.preRender.addEventListener(lockRoll);
+    viewer.scene.postRender.addEventListener(lockRoll);
 
     // Global ESC + click-on-empty-globe → restore first-person (clear any
     // sticky reference frame after fly-to / tracked entity).
@@ -1955,6 +1968,7 @@ function SpaceshipPage() {
       viewer.trackedEntity = undefined;
       viewer.selectedEntity = undefined;
       try { viewer.camera.lookAtTransform(Matrix4.IDENTITY); } catch {}
+      window.dispatchEvent(new CustomEvent("cesium-target-dropped"));
     };
     const onEscFps = (e: KeyboardEvent) => {
       if (e.key === "Escape") restoreFirstPerson();
