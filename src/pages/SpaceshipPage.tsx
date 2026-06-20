@@ -753,9 +753,10 @@ function SpaceshipPage() {
     const viewer = viewerRef.current;
     if (!viewer || !pendingLevelPlacement?.loc) return;
     const { loc, sizeM, heading } = pendingLevelPlacement;
-    const snap = snapToLevelTile(loc.lat, loc.lng, sizeM);
-    const size = snap.tileSizeM;
-    const center = Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2);
+    // No tile snap — drop the ghost at the EXACT clicked lng/lat so the
+    // user gets pixel-accurate placement.
+    const size = sizeM;
+    const center = Cartesian3.fromDegrees(loc.lng, loc.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2);
     const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading ?? 0), 0, 0);
     const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr);
     const ent = viewer.entities.add({
