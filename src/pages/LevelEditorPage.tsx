@@ -2944,6 +2944,8 @@ function ObjectInspector({
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
   userClips, onOpenCharacterGallery, onSpawnObjects, allObjects = [],
   scenePaths = [], onPatchScenePaths,
+  currentGroup, currentGroupSize = 0, selectionSize = 1,
+  onGroup, onUngroup, onSaveAsDynamic,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -2965,6 +2967,12 @@ function ObjectInspector({
   allObjects?: SceneObject[];
   scenePaths?: import("@/lib/levelTypes").ScenePath[];
   onPatchScenePaths?: (next: import("@/lib/levelTypes").ScenePath[]) => void;
+  currentGroup?: SceneGroup | null;
+  currentGroupSize?: number;
+  selectionSize?: number;
+  onGroup?: () => void;
+  onUngroup?: () => void;
+  onSaveAsDynamic?: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -2972,6 +2980,49 @@ function ObjectInspector({
         <Label className="text-xs">Name</Label>
         <Input value={obj.name} disabled={disabled} onChange={(e) => onPatch({ name: e.target.value } as any)} className="h-7 text-xs" />
       </div>
+
+      {(onGroup || onUngroup || onSaveAsDynamic) && (
+        <div className="flex flex-wrap items-center gap-1 rounded-md border border-border/40 bg-card/40 px-1.5 py-1">
+          {currentGroup ? (
+            <span
+              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded"
+              style={{ background: `${currentGroup.color ?? "#3b82f6"}22`, color: currentGroup.color ?? "#3b82f6" }}
+              title={`Member of "${currentGroup.name}"`}
+            >
+              ⛓ {currentGroup.name} · {currentGroupSize}
+            </span>
+          ) : (
+            <span className="text-[10px] text-muted-foreground px-1">No group</span>
+          )}
+          <div className="flex-1" />
+          {currentGroup ? (
+            <Button
+              size="sm" variant="ghost" className="h-6 px-2 text-[10px]"
+              disabled={disabled} onClick={onUngroup}
+              title="Remove from group (Ctrl+Shift+G)"
+            >
+              <Unlink className="w-3 h-3 mr-1" /> Ungroup
+            </Button>
+          ) : (
+            <Button
+              size="sm" variant="ghost" className="h-6 px-2 text-[10px]"
+              disabled={disabled || selectionSize < 2} onClick={onGroup}
+              title={selectionSize < 2 ? "Select 2+ objects to group" : "Group selection (Ctrl+G)"}
+            >
+              <Link2 className="w-3 h-3 mr-1" /> Group
+            </Button>
+          )}
+          {onSaveAsDynamic && (
+            <Button
+              size="sm" variant="outline" className="h-6 px-2 text-[10px]"
+              disabled={disabled} onClick={onSaveAsDynamic}
+              title="Package this object (or its group) as a reusable Dynamic Object"
+            >
+              <Save className="w-3 h-3 mr-1" /> Save as Dynamic
+            </Button>
+          )}
+        </div>
+      )}
 
       {onPatchScenePaths && obj.kind !== "trajectory" && (
         <InteractionsPanel
