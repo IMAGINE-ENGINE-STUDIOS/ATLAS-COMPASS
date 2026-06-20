@@ -4396,10 +4396,9 @@ function SpaceshipPage() {
         placements={levelPlacements}
       />
 
-      {/* Camera history scrubber + user-saved view bookmarks. Bottom-left
-          HUD; doesn't intercept globe input unless the panel is open. */}
-      <CameraHistoryTimeline viewerRef={viewerRef} isLoaded={isLoaded} />
-
+      {/* Camera history is now embedded inside the ATLAS dropdown
+          (top-left). The floating bottom-left pill was removed to clean
+          up the HUD. */}
       {/* Level Inspector — opens when the user clicks a placed Level on
           the globe. Provides info, control bars, Main Character readout
           and the ▶ Play here action. */}
