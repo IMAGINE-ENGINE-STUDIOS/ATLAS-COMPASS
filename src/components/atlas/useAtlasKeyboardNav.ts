@@ -35,6 +35,14 @@ function isTypingTarget(t: EventTarget | null): boolean {
   return false;
 }
 
+// Set by AtlasLevelsR3FOverlay while a level is being played so WASD
+// is owned by the in-level character (not the Atlas globe camera).
+declare global {
+  interface Window {
+    __atlasLevelPlaying?: boolean;
+  }
+}
+
 export function useAtlasKeyboardNav(
   viewerRef: React.MutableRefObject<Viewer | null>,
   options: { enabled: boolean; sensitivity?: number },
@@ -50,6 +58,7 @@ export function useAtlasKeyboardNav(
     const onDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (isTypingTarget(e.target)) return;
+      if (typeof window !== "undefined" && window.__atlasLevelPlaying) return;
       if (e.shiftKey) boostRef.current = true;
       const action = KEY_MAP[e.code];
       if (!action) return;

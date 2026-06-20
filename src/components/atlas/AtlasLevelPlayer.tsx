@@ -176,15 +176,23 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
             />
           </group>
 
-          <OrbitControls
-            ref={controlsRef}
-            makeDefault
-            enableDamping
-            enabled={unlocked}
-            enablePan={unlocked}
-            enableZoom={unlocked}
-            enableRotate={unlocked}
-          />
+          {/*
+            Mount OrbitControls ONLY when the player has paused & explicitly
+            unlocked the camera. While playing, the PlayableCharacter drives
+            the R3F camera directly (third/first person), exactly like the
+            standalone Level editor's play mode. makeDefault + an enabled
+            OrbitControls would otherwise fight the character every frame.
+           */}
+          {!playing && unlocked && (
+            <OrbitControls
+              ref={controlsRef}
+              makeDefault
+              enableDamping
+              enablePan
+              enableZoom
+              enableRotate
+            />
+          )}
         </Canvas>
       )}
 

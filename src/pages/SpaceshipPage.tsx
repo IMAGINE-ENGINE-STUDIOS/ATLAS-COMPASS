@@ -55,6 +55,7 @@ import {
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAtlasKeyboardNav } from "@/components/atlas/useAtlasKeyboardNav";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
@@ -692,6 +693,8 @@ function SpaceshipPage() {
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  // WASD/Arrows/Q/E keyboard flight over the Atlas globe.
+  useAtlasKeyboardNav(viewerRef, { enabled: true });
   // Restore previously persisted UI state (if any)
   const savedUI = (() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}"); } catch { return {}; }
@@ -1909,21 +1912,21 @@ function SpaceshipPage() {
     // Dark space background
     viewer.scene.backgroundColor = Color.fromCssColorString("#0a0a1a");
 
-    // ── First-person camera controls ──
-    // Rebind LEFT_DRAG from "orbit globe center" to "look around" (FPS feel).
-    // Wheel still zooms, RIGHT_DRAG zooms (dolly), MIDDLE_DRAG tilts.
-    // SHIFT+LEFT_DRAG temporarily orbits the picked point (cinematic centering).
+    // ── Google-Earth-style camera controls (Cesium defaults) ──
+    // LEFT_DRAG  = pan the globe
+    // RIGHT_DRAG = rotate / tilt
+    // WHEEL      = zoom
+    // MIDDLE_DRAG / CTRL+LEFT_DRAG = tilt
+    // WASD / Arrows / Q / E (see useAtlasKeyboardNav) for keyboard flight.
     const ssec0 = viewer.scene.screenSpaceCameraController;
     ssec0.enableLook = true;
     ssec0.enableRotate = true;
     ssec0.enableTilt = true;
     ssec0.enableZoom = true;
     ssec0.enableTranslate = true;
-    ssec0.lookEventTypes = [CameraEventType.LEFT_DRAG] as any;
-    ssec0.rotateEventTypes = [
-      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.SHIFT },
-    ] as any;
+    ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
     ssec0.tiltEventTypes = [
+      CameraEventType.RIGHT_DRAG,
       CameraEventType.MIDDLE_DRAG,
       { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
       CameraEventType.PINCH,
@@ -1931,10 +1934,11 @@ function SpaceshipPage() {
     ssec0.zoomEventTypes = [
       CameraEventType.WHEEL,
       CameraEventType.PINCH,
-      CameraEventType.RIGHT_DRAG,
+    ] as any;
+    ssec0.lookEventTypes = [
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.SHIFT },
     ] as any;
     ssec0.inertiaSpin = 0.6;
-    // Keep the camera free of any tracked transform so look is true first-person.
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
     // Global ESC + click-on-empty-globe → restore first-person (clear any
