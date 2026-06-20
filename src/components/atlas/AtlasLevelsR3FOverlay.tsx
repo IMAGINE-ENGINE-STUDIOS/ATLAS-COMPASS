@@ -105,6 +105,7 @@ function PlacedLevel({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
+  const { camera: r3fCamera } = useThree();
 
   useEffect(() => {
     let canceled = false;
@@ -157,6 +158,10 @@ function PlacedLevel({
     headingM: new THREE.Matrix4(),
     scaleM: new THREE.Matrix4(),
     out: new THREE.Matrix4(),
+    eye: new THREE.Vector3(),
+    fwd: new THREE.Vector3(),
+    up: new THREE.Vector3(),
+    rotOnly: new THREE.Matrix4(),
   }).current;
 
   useFrame(() => {
@@ -166,12 +171,40 @@ function PlacedLevel({
     // (which uses world-space raycasts with world +Y as "up") works exactly
     // like the standalone Level editor's play mode — terrain hits, gravity
     // lands on the floor, no falling-into-infinity. The Cesium camera is
-    // frozen at the level's lat/lng so the city stays visible as a backdrop.
+    // anchored at the level's lat/lng. To keep the surrounding city LOCKED
+    // to the level's real-world coordinates while the character walks, we
+    // mirror the R3F camera (driven by PlayableCharacter) into Cesium each
+    // frame by transforming the local eye/look from level-local THREE space
+    // into ECEF using the same worldMatrix the level group would have used.
     if (playing) {
       groupRef.current.matrixAutoUpdate = true;
       groupRef.current.position.set(0, 0, 0);
       groupRef.current.rotation.set(0, headingRad, 0);
       groupRef.current.scale.setScalar(placementScale);
+
+      // Local THREE camera state -> ECEF via worldMatrix.
+      scratch.eye.copy(r3fCamera.position);
+      // forward in world space
+      r3fCamera.getWorldDirection(scratch.fwd);
+      scratch.up.copy(r3fCamera.up);
+
+      const eyeEcef = scratch.eye.clone().applyMatrix4(worldMatrix);
+      // rotation-only matrix (worldMatrix without translation)
+      scratch.rotOnly.copy(worldMatrix);
+      scratch.rotOnly.setPosition(0, 0, 0);
+      const dirEcef = scratch.fwd.clone().applyMatrix4(scratch.rotOnly).normalize();
+      const upEcef = scratch.up.clone().applyMatrix4(scratch.rotOnly).normalize();
+
+      try {
+        viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
+        viewer.camera.setView({
+          destination: new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z),
+          orientation: {
+            direction: new Cartesian3(dirEcef.x, dirEcef.y, dirEcef.z),
+            up: new Cartesian3(upEcef.x, upEcef.y, upEcef.z),
+          },
+        });
+      } catch {}
       return;
     }
     const camPos = viewer.camera.positionWC;
