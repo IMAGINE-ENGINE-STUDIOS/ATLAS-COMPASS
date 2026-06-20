@@ -57,11 +57,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
-// Levels in Atlas are rendered exactly like 3D model placements — as
-// Cesium entities (green box + beacon + label from useAtlasLevelLayer).
-// No separate R3F overlay, no in-Atlas Play mode (would hijack the
-// camera and make the city fly around). To actually play a level the
-// user navigates to /levels.
+// Levels live INSIDE the Atlas world. Cesium entities (green box +
+// beacon + label from useAtlasLevelLayer) act as the cheap far-LOD
+// marker, and AtlasLevelsR3FOverlay fades in the real R3F scene
+// (geometry, models, characters, terrain) when the camera is close.
+// One open world: the user can fly/drive/walk/train between placements
+// without leaving Atlas.
+import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
@@ -4292,6 +4294,16 @@ function SpaceshipPage() {
           onSelect={(m) => flyToModel(m as PlacedModel)}
         />
       )}
+
+      {/* In-world Levels — full R3F scenes geo-anchored to the globe.
+          Far away the cheap green Cesium box stands in; up close the
+          real level fades in and the user can Play it without leaving
+          the Atlas (Esc to exit). */}
+      <AtlasLevelsR3FOverlay
+        viewerRef={viewerRef}
+        isLoaded={isLoaded}
+        placements={levelPlacements}
+      />
 
       {/* Unified Atlas tag clustering overlay */}
       {isLoaded && (() => {
