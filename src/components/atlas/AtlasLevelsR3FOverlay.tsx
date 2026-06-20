@@ -32,7 +32,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, type LevelScene } from "@/lib/levelTypes";
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
 import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
-import { DEFAULT_LEVEL_SIZE_M } from "@/lib/atlasLevelGeo";
 import {
   hiddenLevelIds,
   LEVEL_PLAY_EVENT,
