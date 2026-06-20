@@ -1,134 +1,134 @@
-# Performance & Rendering Modernization Plan
+## Goal
 
-Goal: keep the current "very high level" experience and FPS while letting scenes scale up 10–100×, then unlock a paid **Hardcore Simulation** cloud tier on top. We adapt proven Unreal Engine 5 ideas to what is actually possible in WebGL2 / WebGPU + React Three Fiber, with **no fake claims** (no real "Nanite" or real "Lumen" in the browser — we ship the spirit, not the brand).
+Two related additions to the Level Editor:
+
+1. **Groups** — a way to bind several scene objects together so the editor treats them as one selection unit, and so the Play runtime parents them as a rigid group.
+2. **Dynamic Objects** — a new category and gallery (Local + Cloud) for reusable "object presets". A Dynamic Object packages a single object **or** a whole group together with its interactions, scripts, splines, materials, animations, etc., so it can be dropped into any level later.
+
+The save/load controls live inside the existing **Object Control Bar** (the contextual top bar that already appears when something is selected).
 
 ---
 
-## 1. What we have today (baseline)
+## 1 · Groups
 
-- Renderer: single R3F `<Canvas>` (`LevelScene3D.tsx`), `antialias: true`, `high-performance`, `preserveDrawingBuffer: true`.
-- No instancing anywhere (`InstancedMesh` is not used).
-- No LOD, no frustum culling beyond three.js default, no occlusion culling, no BVH.
-- Every geometry primitive, polygon extrusion, character, trajectory follower is a **separate mesh = separate draw call**.
-- `preserveDrawingBuffer: true` forces a CPU readback every frame — measurable FPS cost.
-- No FPS budget, no adaptive quality, no telemetry.
+Schema (`src/lib/levelTypes.ts`)
+- New `SceneGroup { id, name, color?, memberIds: string[], locked?, collapsed? }`.
+- `LevelScene.groups?: SceneGroup[]`.
+- `BaseObject.groupId?: string` — convenience back-pointer, kept in sync.
 
-This is the honest starting point. Everything below is incremental and measurable.
+Editor behaviour (`src/pages/LevelEditorPage.tsx`)
+- Selecting any group member auto-extends the selection to **all** members (Alt-click to override and pick the lone object).
+- Move / rotate / scale / duplicate / delete / lock / hide operations applied to a group member fan out to every member.
+- New "Groups" section in the left Layers / outline panel — collapsible, rename, ungroup, change color chip.
+- New `Ctrl+G` shortcut: group current selection. `Ctrl+Shift+G` ungroup.
 
-## 2. Pillars (Unreal-inspired, web-honest)
+Runtime parenting (`src/components/level/LevelScene3D.tsx` + new `GroupRuntime.tsx`)
+- During Play, for each group with ≥2 members we mount an invisible `THREE.Group` anchored at the centroid and parent the live `objectWorldRefs` of every member into it on play-start. On stop we restore originals. While parented, child splines/physics still drive the parent, so kicking one member moves the whole group.
 
-| UE5 concept | What we actually ship in-browser | Why it works |
-|---|---|---|
-| Nanite (virtualized geometry) | **Geometry instancing + screen-space LOD + meshopt simplification** | Real wins, zero magic. Nanite proper needs mesh shaders + compute we don't have in WebGL2. |
-| Lumen (dynamic GI) | **Baked irradiance probes + SSAO + contact shadows + optional SSR** | Looks "Lumen-ish" at 60fps; no GI lies. |
-| Virtual Shadow Maps | **Cascaded shadow maps (CSM) + per-light shadow budget** | Standard, ships today. |
-| Mesh shaders / cluster culling | **BVH frustum + occlusion culling (three-mesh-bvh)** | Cuts draw calls before they hit the GPU. |
-| Temporal Super Resolution (TSR) | **Render-scale + FXAA/TAA + DPR clamp** | Honest upscaling. |
-| World Partition / HLOD | **Tile streaming + proxy meshes for far tiles** | Fits our level system. |
-| PSO precaching | **Material/shader warmup pass on level load** | Removes first-frame hitches. |
+---
 
-## 3. Workstreams
+## 2 · Dynamic Object category & gallery
 
-### A. Instancing & draw-call reduction (biggest win, ship first)
+Data model (`src/lib/dynamicObjects.ts` — new)
 
-1. **Auto-instance identical primitives** — group `PrimitiveObject`s by `(shape, material hash)` and render as a single `<instancedMesh>`. Per-instance matrix + per-instance color via `InstancedBufferAttribute`.
-2. **Auto-instance identical `ModelObject` URLs** — one GLTF load → `InstancedMesh` per mesh in the asset.
-3. **Merge static scenery** — opt-in "static" flag on polygons; on level load, merge them into a single `BufferGeometry` using `BufferGeometryUtils.mergeGeometries`. They become uneditable until "unmerged" in the editor.
-4. **Followers on trajectories** become per-instance offsets, not per-object meshes.
-
-Target: **typical city tile from ~2,000 draw calls → < 150**.
-
-### B. Geometry pipeline (Nanite-spirit)
-
-1. Integrate **meshoptimizer** (`meshopt_simplifier`) to auto-generate 3 LODs (100% / 40% / 12% triangles) at import time for `ModelObject` and on extrude for `PolygonObject`.
-2. Add a `<LOD>` wrapper that picks LOD by screen-space size, not raw distance — matches Nanite's "1 tri per pixel" intuition.
-3. **three-mesh-bvh** on heavy meshes for: raycasts (teleport pick, paint), frustum culling, and future occlusion queries.
-4. Per-object **polygon budget** stored in scene metadata so the editor can warn before saving over budget.
-
-### C. Shading & lighting (Lumen-spirit, honest)
-
-1. Standardize on `MeshPhysicalMaterial` with shared `EnvironmentMap` (one PMREM per scene) — already half-there.
-2. Add **SSAO** + **contact shadows** post pass (postprocessing lib, conditional on quality tier).
-3. **CSM** for the sun (3 cascades, 2k each on High, 1k on Medium, off on Low).
-4. **Baked irradiance probes**: author-time bake to spherical harmonics (9 floats per probe), runtime sampled in fragment shader → fake-GI at near-zero cost.
-5. Optional **SSR** for water/glass only, hidden behind quality tier.
-6. **Material atlas**: deduplicate textures by hash; share `Texture` instances across materials.
-
-### D. Frame-rate governor & adaptive quality
-
-1. Rolling FPS sampler (EWMA over 60 frames) in `LevelScene3D`.
-2. Quality tiers: **Low / Medium / High / Ultra**, user-selectable + auto.
-3. Auto-tier rules (only when "Auto" is on):
-   - FPS < target − 10 for 2 s → step down (drop render-scale → drop shadows → drop SSAO → drop AA).
-   - FPS > target + 5 for 10 s and no recent step-down → step up.
-4. **Render-scale slider** (0.5×–1.0×) — Vite + three support this trivially via `gl.setPixelRatio` + `setSize`.
-5. Drop `preserveDrawingBuffer: true` to false by default; only enable when a screenshot is actively requested.
-6. Hard cap DPR at 2 (current devices go to 3+ and silently tank FPS).
-
-### E. Streaming, culling & memory
-
-1. **Tile-based scene streaming**: split levels into spatial tiles; load on demand around the camera; unload far tiles. Reuses existing level persistence.
-2. **HLOD proxies**: far tiles render as a single low-poly proxy mesh baked from the tile.
-3. **Occlusion culling**: hierarchical Z buffer is not viable on WebGL2; instead use BVH + simple portal/AABB occluders authored in editor.
-4. **Texture budget**: KTX2 + Basis transcoder for compressed GPU textures; cap total texture VRAM per quality tier.
-
-### F. Telemetry & developer HUD
-
-1. Built-in overlay (toggle with backtick) showing: FPS, frame ms, draw calls, triangles, programs, textures (MB), JS heap.
-2. Per-frame markers via `performance.measure` so we can profile in Chrome.
-3. Opt-in anonymous perf telemetry → backend table `perf_samples` (device, gpu, tier, avg fps, p1 fps, scene id). Drives auto-tier defaults.
-
-### G. WebGPU path (future, behind a flag)
-
-1. Add WebGPURenderer detection; when available + flag on, use it for: compute-skinning, larger instance counts, MRT post.
-2. Keep WebGL2 path as the supported default for at least 6 months.
-3. Honest messaging in UI: "Experimental — your browser may not support it."
-
-### H. Cloud "Hardcore Simulation" tier (monetization)
-
-Real, deliverable services — nothing fake:
-
-1. **Pixel-streamed sessions**: headless three.js / WebGPU running on a GPU VM, streamed to the browser via WebRTC. Unlocks: 10× polygon budget, real path-traced bakes, large crowds, heavy physics.
-2. **Offline bakes**:
-   - Lightmap / irradiance probe baking (worker queue, returns KTX2 atlas).
-   - Mesh simplification & LOD generation at scale.
-   - Navmesh + collision cooking.
-3. **Crowd / physics simulation server**: Rapier or PhysX-on-server, deterministic, results streamed back.
-4. **Asset CDN with transcoding**: upload FBX/OBJ/USD → server returns optimized GLB + KTX2 + LODs.
-
-Pricing surface plugged into existing Stripe/Paddle layer; per-minute for streamed sessions, per-job for bakes.
-
-## 4. Rollout phases
-
-```text
-Phase 1 (1–2 wks)  Instancing + merged static + DPR cap + drop preserveDrawingBuffer + HUD
-Phase 2 (2 wks)    LOD + meshopt + three-mesh-bvh + render-scale + quality tiers + auto-tier
-Phase 3 (2 wks)    CSM + SSAO + contact shadows + PMREM cleanup + KTX2 pipeline
-Phase 4 (2 wks)    Tile streaming + HLOD proxies + occluders + texture budget
-Phase 5 (2 wks)    Baked irradiance probes + optional SSR + PSO warmup
-Phase 6 (ongoing)  WebGPU flag, telemetry-driven tuning
-Phase 7            Cloud Hardcore tier: bake service first, then pixel streaming
+```
+DynamicObjectEntry {
+  id, name, description?, tags[], createdAt,
+  source: "local" | "cloud" | "builtin",
+  ownerId?: string,         // cloud only
+  isPublic?: boolean,       // cloud only
+  thumbnailUrl?: string,
+  payload: {
+    kind: "single" | "group",
+    objects: SceneObject[],     // relative to payload origin (0,0,0)
+    scenePaths?: ScenePath[],   // any spline referenced by splineBindings
+    groupName?: string,
+  }
+}
 ```
 
-Each phase ships independently and is gated by **measured before/after numbers** on a reference scene. No phase merges if it regresses FPS on the baseline.
+- Local store: `localStorage` key `lovable.dynamicObjects.v1` (mirrors the terrain library API: `loadSavedDynamics`, `saveDynamic`, `deleteDynamic`, `renameDynamic`).
+- Cloud store: new table `public.dynamic_objects` on Lovable Cloud with RLS + GRANTs, plus a `dynamic-thumbnails` storage bucket (public). Service uses the existing supabase client.
 
-## 5. Acceptance criteria (per phase, non-negotiable)
+Cloud schema (migration)
+```
+create table public.dynamic_objects (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid references auth.users(id) on delete set null,
+  name text not null,
+  description text,
+  tags text[] not null default '{}',
+  is_public boolean not null default false,
+  thumbnail_url text,
+  payload jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- GRANTs (authenticated + service_role; anon SELECT only for public rows policy)
+-- RLS: SELECT (is_public OR owner_id = auth.uid()), INSERT/UPDATE/DELETE owner_id = auth.uid()
+```
 
-- Reference scene FPS (mid-tier laptop, integrated GPU): **must stay ≥ 60** at default quality.
-- p1 frame time must not increase.
-- Draw-call count after Phase 1 must drop ≥ 70% on the reference scene.
-- No visible regression on existing levels (visual diff via Playwright screenshots at fixed camera).
+UI surfaces
+- **Object Control Bar** — add a "Save as Dynamic" split-button. Click opens a small dialog asking:
+  - Scope: *Single object* / *Whole group* (auto-defaults based on current selection; disabled when not applicable).
+  - Name, description, tags.
+  - Destination: *Local only* · *Local + my cloud library* · *Local + cloud + share publicly*.
+- **Sidebar Components panel** — new "Dynamic Objects" group alongside the existing categories (Primitives, Polygons, Models, Characters …). Clicking opens the gallery.
+- **DynamicObjectGallery** (`src/components/level/dynamics/DynamicObjectGallery.tsx`) — modal modeled on `TerrainGallery` + `CharacterAnimationGallery`, with three tabs:
+  - **Local** (browser saves)
+  - **My Cloud** (`owner_id = auth.uid()`)
+  - **Public** (`is_public = true`, sorted recent)
+  Each card has thumbnail, name, tags, "Add to scene", rename (own only), delete (own only), "Publish/Unpublish" toggle for cloud rows you own.
+- **Adding to scene**: clone payload objects with fresh ids, offset to current cursor / camera-target, register any referenced `ScenePath`s (rewrite ids), set `groupId` if it was a group.
 
-## 6. Technical details (for engineering)
+Thumbnail capture
+- When saving, snapshot the selection by drawing an off-screen render of the scene's bounding-box framing using the existing R3F renderer (`gl.toDataURL`). Cloud uploads send the PNG to the `dynamic-thumbnails` bucket; local saves stash the data URL inline.
 
-- Libraries to add: `meshoptimizer`, `three-mesh-bvh`, `postprocessing` (pmndrs), `three-stdlib` (already transitive), `ktx2-loader` setup, optional `@react-three/rapier` later.
-- No new heavy runtime deps in the browser bundle beyond the above (~150 KB gz total).
-- All new systems live under `src/components/level/perf/` so they are easy to audit and toggle.
-- Each system has a kill-switch in `localStorage` for support debugging.
-- Cloud services are separate repos / edge functions; the client only talks to them via signed URLs.
+---
 
-## 7. What we explicitly will NOT claim
+## Technical details
 
-- Not "Nanite". Not "Lumen". Not "real-time path tracing in the browser".
-- No simulated FPS numbers in marketing — only measured.
-- No mock GPU features; if WebGPU is off we say so.
+Files added
+- `src/lib/dynamicObjects.ts` — types + local store + cloud service
+- `src/components/level/dynamics/DynamicObjectGallery.tsx`
+- `src/components/level/dynamics/SaveAsDynamicDialog.tsx`
+- `src/components/level/GroupRuntime.tsx`
+
+Files edited
+- `src/lib/levelTypes.ts` — `SceneGroup`, `LevelScene.groups`, `BaseObject.groupId`
+- `src/pages/LevelEditorPage.tsx` — group selection fan-out, Ctrl+G shortcut, Object Control Bar buttons, Components-panel "Dynamic Objects" entry, gallery wiring
+- `src/components/level/LevelScene3D.tsx` — mount `GroupRuntime`
+- Supabase migration — `dynamic_objects` table, RLS, GRANTs, storage bucket
+
+ASCII overview:
+
+```text
+            ┌──────────── Object Control Bar ────────────┐
+selection → │ [Move][Rot][Scale]  …  [Group▾] [Save as▾] │
+            └────┬──────────────────────────────┬────────┘
+                 │                              │
+                 ▼                              ▼
+           SceneGroup added          SaveAsDynamicDialog
+           (members → groupId)       (scope, name, dest)
+                                          │
+                                          ▼
+                              ┌── local store ──┐ ┌── cloud table ──┐
+                              │  localStorage   │ │ dynamic_objects │
+                              └────────┬────────┘ └────────┬────────┘
+                                       └────────┬──────────┘
+                                                ▼
+                                  DynamicObjectGallery
+                                  (Local / Mine / Public)
+                                                │
+                                                ▼
+                                    addObjects(payload→fresh ids)
+```
+
+---
+
+## Out of scope (follow-ups)
+
+- Nested groups (groups of groups).
+- Versioning / forking of cloud dynamic objects.
+- In-gallery search by tag (basic name filter only in v1).
+- Animation tracks bundled inside a dynamic object payload (v1 keeps tracks scene-level).
