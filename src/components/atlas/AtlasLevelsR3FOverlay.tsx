@@ -305,15 +305,8 @@ export default function AtlasLevelsR3FOverlay({
     viewer.selectedEntity = undefined;
     try {
       const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.7);
-      const target = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.7 + 1);
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-      viewer.camera.setView({
-        destination: eye,
-        orientation: {
-          direction: Cartesian3.normalize(Cartesian3.subtract(target, eye, new Cartesian3()), new Cartesian3()),
-          up: Cartesian3.normalize(eye, new Cartesian3()),
-        },
-      });
+      viewer.camera.setView({ destination: eye });
     } catch {}
     setNearIds((prev) => new Set(prev).add(p.id));
     setPlayingId(p.id);
