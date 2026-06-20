@@ -526,8 +526,24 @@ export default function LevelEditorPage() {
   const clipboardRef = useRef<SceneObject[]>([]);
   const [showGrid, setShowGrid] = useState(true);
   const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
-  const [placeLat, setPlaceLat] = useState("40.7580");
-  const [placeLng, setPlaceLng] = useState("-73.9855");
+  // Default the placement coordinates to the user's last Atlas camera
+  // position so the cube drops where they were just looking — not at a
+  // hardcoded NYC fallback that feels random. If the user has never
+  // opened Atlas, leave the inputs blank and force them to click the
+  // mini-map (or paste coords) before placing.
+  const initialPlaceCoords = (() => {
+    try {
+      const raw = localStorage.getItem("atlas_camera");
+      if (!raw) return { lat: "", lng: "" };
+      const c = JSON.parse(raw);
+      if (typeof c?.lat === "number" && typeof c?.lng === "number") {
+        return { lat: c.lat.toFixed(6), lng: c.lng.toFixed(6) };
+      }
+    } catch {}
+    return { lat: "", lng: "" };
+  })();
+  const [placeLat, setPlaceLat] = useState(initialPlaceCoords.lat);
+  const [placeLng, setPlaceLng] = useState(initialPlaceCoords.lng);
   const [placeScale, setPlaceScale] = useState("1");
   const [currentPlacement, setCurrentPlacement] = useState<{ lat: number; lng: number; scale: number } | null>(null);
   const [showLocationViewport, setShowLocationViewport] = useState(true);
