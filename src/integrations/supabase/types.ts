@@ -25,6 +25,8 @@ export type Database = {
           lng: number
           owner_id: string
           scale: number
+          surrounding_terrain: Json | null
+          terrain_expand_feet: number
           updated_at: string
         }
         Insert: {
@@ -37,6 +39,8 @@ export type Database = {
           lng: number
           owner_id: string
           scale?: number
+          surrounding_terrain?: Json | null
+          terrain_expand_feet?: number
           updated_at?: string
         }
         Update: {
@@ -49,6 +53,8 @@ export type Database = {
           lng?: number
           owner_id?: string
           scale?: number
+          surrounding_terrain?: Json | null
+          terrain_expand_feet?: number
           updated_at?: string
         }
         Relationships: [
