@@ -733,6 +733,17 @@ function SpaceshipPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   const [cameraAlt, setCameraAlt] = useState(0);
+  // Keyboard navigation (WASD / arrows) — persisted per device.
+  const [kbNavEnabled, setKbNavEnabled] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem("atlas.kbNav.v1") ?? "true"); }
+    catch { return true; }
+  });
+  const [kbSensitivity, setKbSensitivity] = useState<number>(() => {
+    const v = Number(localStorage.getItem("atlas.kbSensitivity.v1"));
+    return Number.isFinite(v) && v > 0 ? v : 1;
+  });
+  useEffect(() => { try { localStorage.setItem("atlas.kbNav.v1", JSON.stringify(kbNavEnabled)); } catch {} }, [kbNavEnabled]);
+  useEffect(() => { try { localStorage.setItem("atlas.kbSensitivity.v1", String(kbSensitivity)); } catch {} }, [kbSensitivity]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
