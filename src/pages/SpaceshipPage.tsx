@@ -1908,6 +1908,9 @@ function SpaceshipPage() {
     });
 
     viewerRef.current = viewer;
+    // Expose for components that need to sample the Cesium scene (e.g. the
+    // PlayableCharacter walking on Earth tiles outside the level perimeter).
+    (window as any).__cesiumViewer = viewer;
 
     // Dark space background
     viewer.scene.backgroundColor = Color.fromCssColorString("#0a0a1a");
