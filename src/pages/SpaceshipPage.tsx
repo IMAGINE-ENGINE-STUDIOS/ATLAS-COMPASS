@@ -58,6 +58,8 @@ import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
 import AtlasLevelPlayer from "@/components/atlas/AtlasLevelPlayer";
+import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
+import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import filterAllPng     from "@/assets/icons/filter-all.png";
 import filterFoodPng    from "@/assets/icons/filter-food.png";
 import filterCafePng    from "@/assets/icons/filter-cafe.png";
