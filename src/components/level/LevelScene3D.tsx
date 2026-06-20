@@ -1322,6 +1322,7 @@ export function LevelSceneContents({
   showGrid,
   playing,
   skipAmbient,
+  skipDirectional,
   focusRequest,
   onFocusHandled,
   controlsRef,
