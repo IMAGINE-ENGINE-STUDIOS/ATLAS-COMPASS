@@ -739,6 +739,7 @@ function SpaceshipPage() {
     levelName: string;
     sizeM: number;
     loc: EarthLoc | null;
+    heading: number;
   } | null>(null);
   const pendingLevelPlacementRef = useRef<typeof pendingLevelPlacement>(null);
   useEffect(() => { pendingLevelPlacementRef.current = pendingLevelPlacement; }, [pendingLevelPlacement]);
@@ -747,12 +748,16 @@ function SpaceshipPage() {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !pendingLevelPlacement?.loc) return;
-    const { loc, sizeM } = pendingLevelPlacement;
+    const { loc, sizeM, heading } = pendingLevelPlacement;
     const snap = snapToLevelTile(loc.lat, loc.lng, sizeM);
     const size = snap.tileSizeM;
+    const center = Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2);
+    const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading ?? 0), 0, 0);
+    const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr);
     const ent = viewer.entities.add({
       id: "pending-level-ghost",
-      position: Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2) as any,
+      position: center as any,
+      orientation: orientation as any,
       box: {
         dimensions: new Cartesian3(size, size, LEVEL_HEIGHT_M) as any,
         material: Color.fromCssColorString("#22c55e").withAlpha(0.35) as any,
@@ -761,7 +766,7 @@ function SpaceshipPage() {
         outlineWidth: 3,
       } as any,
       label: {
-        text: `Preview — ${pendingLevelPlacement.levelName}`,
+        text: `Preview — ${pendingLevelPlacement.levelName} · ${Math.round(heading ?? 0)}°`,
         font: "12px Inter, sans-serif",
         pixelOffset: new Cartesian2(0, -8),
         fillColor: Color.WHITE,
@@ -787,7 +792,7 @@ function SpaceshipPage() {
       lat: p.loc.lat,
       lng: p.loc.lng,
       altitude: Math.max(0, p.loc.alt),
-      heading: 0,
+      heading: p.heading ?? 0,
       scale: 1,
     });
     if (error) { toast.error(`Failed: ${error.message}`); return; }
