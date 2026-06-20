@@ -160,6 +160,19 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
+    // While THIS placement is being played, drop the ECEF transform: the
+    // level sits at world origin with identity rotation so PlayableCharacter
+    // (which uses world-space raycasts with world +Y as "up") works exactly
+    // like the standalone Level editor's play mode — terrain hits, gravity
+    // lands on the floor, no falling-into-infinity. The Cesium camera is
+    // frozen at the level's lat/lng so the city stays visible as a backdrop.
+    if (playing) {
+      groupRef.current.matrixAutoUpdate = true;
+      groupRef.current.position.set(0, 0, 0);
+      groupRef.current.rotation.set(0, headingRad, 0);
+      groupRef.current.scale.setScalar(placementScale);
+      return;
+    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
@@ -207,13 +220,12 @@ function PlacedLevel({
         skipBackground
         skipAmbient
         skipDirectional
-        onPlayCameraPose={playing ? (pose) => {
-          onPlayCameraPose?.(placement, {
-            eye: new THREE.Vector3(...pose.eye).applyMatrix4(worldMatrix),
-            target: new THREE.Vector3(...pose.target).applyMatrix4(worldMatrix),
-            player: new THREE.Vector3(...pose.player).applyMatrix4(worldMatrix),
-          });
-        } : undefined}
+        /*
+         * No onPlayCameraPose: we let PlayableCharacter drive the R3F camera
+         * directly (third/first-person follow), exactly like the standalone
+         * Level editor's play mode. The Cesium camera stays frozen at the
+         * level's lat/lng so the city around it remains a visible backdrop.
+         */
       />
     </group>
   );
