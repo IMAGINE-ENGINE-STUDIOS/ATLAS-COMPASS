@@ -2657,6 +2657,47 @@ export default function LevelEditorPage() {
           })
         }
       />
+
+      <DynamicObjectGallery
+        open={dynamicGalleryOpen}
+        onOpenChange={setDynamicGalleryOpen}
+        spawnAnchor={
+          selectedObj
+            ? [selectedObj.position[0] + 2, selectedObj.position[1], selectedObj.position[2] + 2]
+            : [0, 0, 0]
+        }
+        onSpawn={(objs, paths, groupId, groupName) => {
+          addObjects(objs);
+          if (paths.length) {
+            updateScene((s) => {
+              s.scenePaths = [...(s.scenePaths ?? []), ...paths];
+              return s;
+            });
+          }
+          if (groupId && objs.length > 1) {
+            const colors = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#a855f7", "#14b8a6"];
+            updateScene((s) => {
+              const groups = s.groups ?? [];
+              s.groups = [...groups, {
+                id: groupId,
+                name: groupName ?? "Dynamic group",
+                color: colors[groups.length % colors.length],
+                memberIds: objs.map((o) => o.id),
+              }];
+              return s;
+            });
+          }
+        }}
+      />
+
+      <SaveAsDynamicDialog
+        open={saveDynamicOpen}
+        onOpenChange={setSaveDynamicOpen}
+        selectedObject={selectedObj ?? null}
+        selectedGroup={currentGroup}
+        groupMembers={currentGroupMembers}
+        allPaths={scene.scenePaths ?? []}
+      />
     </div>
   );
 }
