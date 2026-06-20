@@ -47,6 +47,42 @@ function writeLocalLevels(levels: LocalLevelRecord[]) {
   window.localStorage.setItem(LEVELS_KEY, JSON.stringify(levels));
 }
 
+function isQuotaError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { name?: string; code?: number; message?: string };
+  return (
+    e.name === "QuotaExceededError" ||
+    e.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    e.code === 22 ||
+    e.code === 1014 ||
+    (typeof e.message === "string" && /quota/i.test(e.message))
+  );
+}
+
+/**
+ * Write levels with automatic pruning if localStorage is full.
+ * Drops the oldest local drafts (except the one we're trying to save) until the
+ * write succeeds, or throws QuotaExceededError if nothing else can be removed.
+ */
+function safeWriteLocalLevels(levels: LocalLevelRecord[], protectId?: string) {
+  let working = [...levels];
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try {
+      writeLocalLevels(working);
+      return;
+    } catch (err) {
+      if (!isQuotaError(err)) throw err;
+      // Drop oldest (excluding the protected one). Sort by updated_at asc.
+      const sorted = [...working].sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at));
+      const victim = sorted.find((l) => l.id !== protectId);
+      if (!victim) throw err;
+      working = working.filter((l) => l.id !== victim.id);
+      console.warn("[localLevels] localStorage full — pruned old draft", victim.id, victim.name);
+    }
+  }
+  throw new Error("localStorage quota exceeded");
+}
+
 export function listLocalLevels(): LocalLevelRecord[] {
   return readLocalLevels().sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
 }
@@ -68,7 +104,7 @@ export function createLocalLevel(scene: LevelScene = EMPTY_SCENE): LocalLevelRec
     owner_id: getLocalLevelOwnerId(),
     scene: cloneScene(scene),
   };
-  writeLocalLevels([level, ...readLocalLevels()]);
+  safeWriteLocalLevels([level, ...readLocalLevels()], level.id);
   return level;
 }
 
@@ -78,7 +114,7 @@ export function updateLocalLevel(id: string, patch: Partial<Omit<LocalLevelRecor
   if (index < 0) return false;
   levels[index] = { ...levels[index], ...patch, updated_at: new Date().toISOString() };
   try {
-    writeLocalLevels(levels);
+    safeWriteLocalLevels(levels, id);
     return true;
   } catch (err) {
     console.warn("[localLevels] write failed", err);
