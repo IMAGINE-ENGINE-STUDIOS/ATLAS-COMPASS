@@ -622,18 +622,30 @@ export default function LevelEditorPage() {
   const isOwner = userId && ownerId && userId === ownerId;
 
   const selectObject = (oid: string, multi = false) => {
+    // Group fan-out: when selecting a member of a group (without explicit
+    // multi-select), select EVERY member so transforms/lock/delete behave on
+    // the whole group. Alt-click bypasses this (callers can pass multi=true
+    // already; we additionally treat the Alt modifier as "atomize" — handled
+    // by a window event registered below).
+    const atomic = !!(window as any).__atomicSelect;
+    const obj = scene.objects.find((o) => o.id === oid);
+    const groupId = !atomic ? obj?.groupId : undefined;
+    const groupMemberIds = groupId
+      ? scene.objects.filter((o) => o.groupId === groupId).map((o) => o.id)
+      : [oid];
     if (multi) {
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        if (next.has(oid)) next.delete(oid);
-        else next.add(oid);
+        const allIn = groupMemberIds.every((gid) => next.has(gid));
+        if (allIn) for (const gid of groupMemberIds) next.delete(gid);
+        else for (const gid of groupMemberIds) next.add(gid);
         return next;
       });
       setSelectedId(oid);
       setSelectedLightIds(new Set());
       setSelectedLightId(null);
     } else {
-      setSelectedIds(new Set([oid]));
+      setSelectedIds(new Set(groupMemberIds));
       setSelectedId(oid);
       setSelectedLightIds(new Set());
       setSelectedLightId(null);
