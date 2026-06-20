@@ -4378,6 +4378,10 @@ function SpaceshipPage() {
         placements={levelPlacements}
       />
 
+      {/* Camera history scrubber + user-saved view bookmarks. Bottom-left
+          HUD; doesn't intercept globe input unless the panel is open. */}
+      <CameraHistoryTimeline viewerRef={viewerRef} isLoaded={isLoaded} />
+
       {/* Level Inspector — opens when the user clicks a placed Level on
           the globe. Provides info, control bars, Main Character readout
           and the ▶ Play here action. */}
