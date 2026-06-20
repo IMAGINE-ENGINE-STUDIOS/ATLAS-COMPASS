@@ -51,6 +51,7 @@ import {
   ClippingPolygon, ClippingPolygonCollection,
   CallbackProperty, ColorMaterialProperty, LabelStyle, HorizontalOrigin, VerticalOrigin,
   HeightReference,
+  CameraEventType, KeyboardEventModifier,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1907,6 +1908,49 @@ function SpaceshipPage() {
 
     // Dark space background
     viewer.scene.backgroundColor = Color.fromCssColorString("#0a0a1a");
+
+    // ── First-person camera controls ──
+    // Rebind LEFT_DRAG from "orbit globe center" to "look around" (FPS feel).
+    // Wheel still zooms, RIGHT_DRAG zooms (dolly), MIDDLE_DRAG tilts.
+    // SHIFT+LEFT_DRAG temporarily orbits the picked point (cinematic centering).
+    const ssec0 = viewer.scene.screenSpaceCameraController;
+    ssec0.enableLook = true;
+    ssec0.enableRotate = true;
+    ssec0.enableTilt = true;
+    ssec0.enableZoom = true;
+    ssec0.enableTranslate = true;
+    ssec0.lookEventTypes = [CameraEventType.LEFT_DRAG] as any;
+    ssec0.rotateEventTypes = [
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.SHIFT },
+    ] as any;
+    ssec0.tiltEventTypes = [
+      CameraEventType.MIDDLE_DRAG,
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
+      CameraEventType.PINCH,
+    ] as any;
+    ssec0.zoomEventTypes = [
+      CameraEventType.WHEEL,
+      CameraEventType.PINCH,
+      CameraEventType.RIGHT_DRAG,
+    ] as any;
+    ssec0.inertiaSpin = 0.6;
+    // Keep the camera free of any tracked transform so look is true first-person.
+    viewer.camera.lookAtTransform(Matrix4.IDENTITY);
+
+    // Global ESC + click-on-empty-globe → restore first-person (clear any
+    // sticky reference frame after fly-to / tracked entity).
+    const restoreFirstPerson = () => {
+      if (viewer.isDestroyed()) return;
+      viewer.trackedEntity = undefined;
+      viewer.selectedEntity = undefined;
+      try { viewer.camera.lookAtTransform(Matrix4.IDENTITY); } catch {}
+    };
+    const onEscFps = (e: KeyboardEvent) => {
+      if (e.key === "Escape") restoreFirstPerson();
+    };
+    window.addEventListener("keydown", onEscFps);
+    (viewer as any)._fpsCleanup = () => window.removeEventListener("keydown", onEscFps);
+
     viewer.scene.globe.enableLighting = true;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
@@ -2130,6 +2174,7 @@ function SpaceshipPage() {
         setDraggingModelId(modelId);
         viewer.scene.screenSpaceCameraController.enableRotate = false;
         viewer.scene.screenSpaceCameraController.enableTranslate = false;
+        viewer.scene.screenSpaceCameraController.enableLook = false;
       }
     }, ScreenSpaceEventType.LEFT_DOWN);
 
@@ -2154,6 +2199,7 @@ function SpaceshipPage() {
         setDraggingModelId(null);
         viewer.scene.screenSpaceCameraController.enableRotate = true;
         viewer.scene.screenSpaceCameraController.enableTranslate = true;
+        viewer.scene.screenSpaceCameraController.enableLook = true;
       }
     }, ScreenSpaceEventType.LEFT_UP);
 
@@ -2200,6 +2246,7 @@ function SpaceshipPage() {
     return () => {
       handler.destroy();
       if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
+      if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
