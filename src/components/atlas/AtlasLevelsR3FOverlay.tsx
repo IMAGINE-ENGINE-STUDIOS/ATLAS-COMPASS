@@ -30,7 +30,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, type LevelScene } from "@/lib/levelTypes";
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
-import type { LevelPlacement } from "@/lib/useAtlasLevelLayer";
+import {
+  hiddenLevelIds,
+  LEVEL_PLAY_EVENT,
+  type LevelPlacement,
+} from "@/lib/useAtlasLevelLayer";
 
 function CameraSync({ viewer }: { viewer: Viewer }) {
   const { camera, size } = useThree();
@@ -176,7 +180,7 @@ export default function AtlasLevelsR3FOverlay({
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!isLoaded) return;
-    const t = setTimeout(() => setReady(true), 1500);
+    const t = setTimeout(() => setReady(true), 400);
     return () => clearTimeout(t);
   }, [isLoaded]);
 
@@ -185,15 +189,16 @@ export default function AtlasLevelsR3FOverlay({
   // from useAtlasLevelLayer is enough. Recomputed at ~4Hz.
   const [nearIds, setNearIds] = useState<Set<string>>(new Set());
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
     const viewer = viewerRef.current;
-    const PROX_M = 3000; // within 3km → load real level
+    const PROX_M = 5000; // within 5km → load real level
     let raf = 0;
     let last = 0;
     const tick = (t: number) => {
       raf = requestAnimationFrame(tick);
-      if (t - last < 250) return;
+      if (t - last < 150) return;
       last = t;
       if (viewer.isDestroyed()) return;
       const cam = viewer.camera.positionWC;
@@ -211,6 +216,32 @@ export default function AtlasLevelsR3FOverlay({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [ready, placements, viewerRef]);
+
+  // Sync the shared hiddenLevelIds set so Cesium's green box fades out
+  // exactly when the R3F scene fades in (CallbackProperty re-reads each
+  // frame).
+  useEffect(() => {
+    hiddenLevelIds.clear();
+    nearIds.forEach((id) => hiddenLevelIds.add(id));
+    viewerRef.current?.scene.requestRender?.();
+  }, [nearIds, viewerRef]);
+
+  // Click a Cesium pin → request play. Auto-starts once camera arrives.
+  useEffect(() => {
+    const onReq = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id as string | undefined;
+      if (id) setPendingPlayId(id);
+    };
+    window.addEventListener(LEVEL_PLAY_EVENT, onReq as any);
+    return () => window.removeEventListener(LEVEL_PLAY_EVENT, onReq as any);
+  }, []);
+
+  useEffect(() => {
+    if (pendingPlayId && nearIds.has(pendingPlayId)) {
+      setPlayingId(pendingPlayId);
+      setPendingPlayId(null);
+    }
+  }, [pendingPlayId, nearIds]);
 
   // Disable Cesium camera controls while a level is being played so
   // mouse/keyboard go to the R3F player controller instead of orbiting
