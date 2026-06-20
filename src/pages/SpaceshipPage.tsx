@@ -2075,8 +2075,10 @@ function SpaceshipPage() {
         lng: CesiumMath.toDegrees(carto.longitude),
         alt: carto.height,
       };
-      // We dispatch a custom event so React state can decide the action
-      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: loc }));
+      // We dispatch a custom event so React state can decide the action.
+      // Include screen position so React can anchor a context menu near the cursor.
+      const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
+      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
     }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
     // Track camera altitude
