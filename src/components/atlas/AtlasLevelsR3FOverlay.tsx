@@ -279,6 +279,32 @@ export default function AtlasLevelsR3FOverlay({
   }, []);
 
   useEffect(() => {
+    if (!pendingPlayId || !viewerRef.current) return;
+    const viewer = viewerRef.current;
+    const p = placements.find((placement) => placement.id === pendingPlayId);
+    if (!p || viewer.isDestroyed()) return;
+    const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.6);
+    viewer.trackedEntity = undefined;
+    viewer.selectedEntity = undefined;
+    viewer.camera.flyToBoundingSphere(
+      new BoundingSphere(center, DEFAULT_LEVEL_SIZE_M * 0.55),
+      {
+        duration: 1.25,
+        offset: new HeadingPitchRange(
+          CesiumMath.toRadians((p.heading ?? 0) + 180),
+          CesiumMath.toRadians(-8),
+          Math.max(18, DEFAULT_LEVEL_SIZE_M * 0.42),
+        ),
+        complete: () => {
+          setNearIds((prev) => new Set(prev).add(p.id));
+          setPlayingId(p.id);
+          setPendingPlayId(null);
+        },
+      } as any,
+    );
+  }, [pendingPlayId, placements, viewerRef]);
+
+  useEffect(() => {
     if (pendingPlayId && nearIds.has(pendingPlayId)) {
       setPlayingId(pendingPlayId);
       setPendingPlayId(null);
@@ -317,7 +343,7 @@ export default function AtlasLevelsR3FOverlay({
 
   if (!isLoaded || !viewerRef.current || placements.length === 0 || !ready) return null;
   const viewer = viewerRef.current;
-  const visible = placements.filter((p) => nearIds.has(p.id));
+  const visible = placements.filter((p) => nearIds.has(p.id) || p.id === playingId || p.id === pendingPlayId);
   if (visible.length === 0) return null;
   const playablePlacement = visible[0]; // nearest = first added; good enough
   return (
@@ -334,7 +360,8 @@ export default function AtlasLevelsR3FOverlay({
             pointerEvents: playingId ? "auto" : "none",
           }}
         >
-          <CameraSync viewer={viewer} />
+          <CameraSync viewer={viewer} enabled={!playingId} />
+          <LocalPlayFallbackCamera active={!!playingId} />
           <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
           <directionalLight position={[100, 200, 100]} intensity={1.2} />
           {visible.map((p) => (
