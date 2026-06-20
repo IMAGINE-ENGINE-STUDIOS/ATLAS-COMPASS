@@ -754,12 +754,11 @@ function SpaceshipPage() {
     const { data: userRes } = await supabase.auth.getUser();
     const uid = userRes.user?.id;
     if (!uid) { toast.error("Sign in to place a level"); return; }
-    const snap = snapToLevelTile(p.loc.lat, p.loc.lng, p.sizeM);
     const { error } = await supabase.from("atlas_level_placements").insert({
       owner_id: uid,
       level_id: p.levelId,
-      lat: snap.lat,
-      lng: snap.lng,
+      lat: p.loc.lat,
+      lng: p.loc.lng,
       altitude: Math.max(0, p.loc.alt),
       heading: 0,
       scale: 1,
@@ -771,7 +770,7 @@ function SpaceshipPage() {
     // Fly the camera to the new placement so the user sees the cube immediately.
     try {
       viewerRef.current?.camera.flyTo({
-        destination: Cartesian3.fromDegrees(snap.lng, snap.lat, Math.max(snap.tileSizeM * 2.5, 1500)),
+        destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500),
         duration: 1.2,
       });
     } catch {}
@@ -2731,8 +2730,8 @@ function SpaceshipPage() {
       // Intercept while previewing a level placement — just move the ghost.
       const pending = pendingLevelPlacementRef.current;
       if (pending) {
-        const snap = snapToLevelTile(loc.lat, loc.lng, pending.sizeM);
-        setPendingLevelPlacement({ ...pending, loc: { lat: snap.lat, lng: snap.lng, alt: Math.max(0, loc.alt) } });
+        // Use the EXACT clicked coordinates (matches the HUD readout) — no tile snap.
+        setPendingLevelPlacement({ ...pending, loc: { lat: loc.lat, lng: loc.lng, alt: Math.max(0, loc.alt) } });
         return;
       }
       if (brushMode) {
@@ -6076,12 +6075,11 @@ function SpaceshipPage() {
             setPoiDescription("");
           }}
           onPickLevel={(lvl, l) => {
-            const snap = snapToLevelTile(l.lat, l.lng, DEFAULT_LEVEL_SIZE_M);
             setPendingLevelPlacement({
               levelId: lvl.id,
               levelName: lvl.name,
               sizeM: DEFAULT_LEVEL_SIZE_M,
-              loc: { lat: snap.lat, lng: snap.lng, alt: Math.max(0, l.alt) },
+              loc: { lat: l.lat, lng: l.lng, alt: Math.max(0, l.alt) },
             });
           }}
           onPasteEntry={(entry: FileClipboardEntry, l) => {
