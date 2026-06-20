@@ -436,23 +436,47 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
     { x: -60, z: 35, w: 16, d: 12, h: 22, facade: "concrete", name: "Granary" },
     { x: -85, z: 0, w: 14, d: 18, h: 14, facade: "wood", name: "Workshop" },
     // Tall feature towers
-    { x: 110, z: 20, w: 20, d: 20, h: 60, facade: "glass", name: "Eastlight Spire" },
+    { x: 110, z: 20, w: 20, d: 20, h: 60, facade: "glass", name: "Eastlight Spire", tag: "spire" },
     { x: 0, z: -80, w: 16, d: 16, h: 36, facade: "concrete", name: "Bell Tower" },
     // Industrial cluster
-    { x: 130, z: -30, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 1" },
-    { x: 130, z: -55, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 2" },
-    { x: 130, z: -80, w: 30, d: 20, h: 12, facade: "concrete", name: "Warehouse 3" },
+    { x: 130, z: -30, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 1", tag: "industrial" },
+    { x: 130, z: -55, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 2", tag: "industrial" },
+    { x: 130, z: -80, w: 30, d: 20, h: 12, facade: "concrete", name: "Warehouse 3", tag: "industrial" },
     // Plaza-facing
-    { x: 15, z: 18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Cafe" },
-    { x: -10, z: 18, w: 8, d: 6, h: 8, facade: "brick", name: "Plaza Bakery" },
-    { x: 15, z: -18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Florist" },
-    { x: -10, z: -18, w: 8, d: 6, h: 8, facade: "wood", name: "Plaza Bookshop" },
+    { x: 15, z: 18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Cafe", tag: "plaza" },
+    { x: -10, z: 18, w: 8, d: 6, h: 8, facade: "brick", name: "Plaza Bakery", tag: "plaza" },
+    { x: 15, z: -18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Florist", tag: "plaza" },
+    { x: -10, z: -18, w: 8, d: 6, h: 8, facade: "wood", name: "Plaza Bookshop", tag: "plaza" },
   ];
+  let buildingSpecs = allBuildingSpecs.filter((s) => cfg.buildings.facades[s.facade]);
+  if (!cfg.buildings.includeIndustrial) buildingSpecs = buildingSpecs.filter((s) => s.tag !== "industrial");
+  if (!cfg.buildings.includeTallSpire) buildingSpecs = buildingSpecs.filter((s) => s.tag !== "spire");
+  if (!cfg.buildings.includePlazaShops) buildingSpecs = buildingSpecs.filter((s) => s.tag !== "plaza");
+  const density = Math.max(0, Math.min(2, cfg.buildings.densityScale));
+  if (density < 1 && buildingSpecs.length > 0) {
+    const keep = Math.max(0, Math.round(buildingSpecs.length * density));
+    const stride = buildingSpecs.length / Math.max(1, keep);
+    const trimmed: typeof buildingSpecs = [];
+    for (let i = 0; i < keep; i++) trimmed.push(buildingSpecs[Math.floor(i * stride)]);
+    buildingSpecs = trimmed;
+  } else if (density > 1 && buildingSpecs.length > 0) {
+    const base = [...buildingSpecs];
+    const extras = Math.round(base.length * (density - 1));
+    for (let i = 0; i < extras; i++) {
+      const b = base[i % base.length];
+      buildingSpecs.push({
+        ...b,
+        name: `${b.name} ${Math.floor(i / base.length) + 2}`,
+        x: b.x + (i % 2 === 0 ? 28 : -28),
+        z: b.z + Math.floor(i / 2) * 6,
+      });
+    }
+  }
   for (const spec of buildingSpecs) {
     objects.push(...building({
       name: spec.name,
       cx: spec.x, cz: spec.z,
-      w: spec.w, d: spec.d, h: spec.h,
+      w: spec.w, d: spec.d, h: spec.h * cfg.buildings.heightScale,
       facade: spec.facade,
       layer: LAYERS.buildings,
     }));
