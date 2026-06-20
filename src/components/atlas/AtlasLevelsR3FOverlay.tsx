@@ -152,7 +152,6 @@ function PlacedLevel({
     out: new THREE.Matrix4(),
     eye: new THREE.Vector3(),
     target: new THREE.Vector3(),
-    player: new THREE.Vector3(),
     dir: new THREE.Vector3(),
     up: new THREE.Vector3(),
     right: new THREE.Vector3(),
@@ -163,7 +162,6 @@ function PlacedLevel({
     if (!playing || !viewer || viewer.isDestroyed()) return;
     const eyeEcef = scratch.eye.fromArray(pose.eye).applyMatrix4(worldMatrix);
     const targetEcef = scratch.target.fromArray(pose.target).applyMatrix4(worldMatrix);
-    const playerEcef = scratch.player.fromArray(pose.player).applyMatrix4(worldMatrix);
     scratch.dir.subVectors(targetEcef, eyeEcef).normalize();
     scratch.up.set(0, 1, 0).transformDirection(worldMatrix).normalize();
     scratch.right.crossVectors(scratch.dir, scratch.up);
@@ -179,7 +177,6 @@ function PlacedLevel({
           up: new Cartesian3(scratch.correctedUp.x, scratch.correctedUp.y, scratch.correctedUp.z),
         },
       });
-      void playerEcef;
     } catch {}
   };
 
@@ -191,8 +188,8 @@ function PlacedLevel({
       // character camera pose is mirrored into Cesium via handlePlayCameraPose.
       groupRef.current.matrixAutoUpdate = true;
       groupRef.current.position.set(0, 0, 0);
-      groupRef.current.rotation.set(0, headingRad, 0);
-      groupRef.current.scale.setScalar(placementScale);
+      groupRef.current.rotation.set(0, 0, 0);
+      groupRef.current.scale.setScalar(1);
       return;
     }
     const camPos = viewer.camera.positionWC;
