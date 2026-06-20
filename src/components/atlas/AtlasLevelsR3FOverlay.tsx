@@ -185,6 +185,16 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
+    if (playing) {
+      // Play mode is a normal local level scene. Do NOT apply the moving
+      // Cesium/ECEF camera-relative matrix to the level itself; only the
+      // character camera pose is mirrored into Cesium via handlePlayCameraPose.
+      groupRef.current.matrixAutoUpdate = true;
+      groupRef.current.position.set(0, 0, 0);
+      groupRef.current.rotation.set(0, headingRad, 0);
+      groupRef.current.scale.setScalar(placementScale);
+      return;
+    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
@@ -232,12 +242,7 @@ function PlacedLevel({
         skipBackground
         skipAmbient
         skipDirectional
-        /*
-         * No onPlayCameraPose: we let PlayableCharacter drive the R3F camera
-         * directly (third/first-person follow), exactly like the standalone
-         * Level editor's play mode. The Cesium camera stays frozen at the
-         * level's lat/lng so the city around it remains a visible backdrop.
-         */
+        onPlayCameraPose={handlePlayCameraPose}
       />
     </group>
   );
