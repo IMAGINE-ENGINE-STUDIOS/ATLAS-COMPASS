@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil, Footprints, Sparkles } from "lucide-react";
+import { Files as FilesIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
 import { EMPTY_SCENE } from "@/lib/levelTypes";
@@ -10,6 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import LevelWizardModal from "@/components/level/wizard/LevelWizardModal";
+import FileContextMenu from "@/components/shared/FileContextMenu";
+import ShareDialog from "@/components/sharing/ShareDialog";
+import type { FileLike } from "@/components/shared/FileContextMenu";
 
 interface LevelRow {
   id: string;
@@ -26,6 +30,7 @@ export default function LevelsListPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<FileLike | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -129,6 +134,9 @@ export default function LevelsListPage() {
           <h1 className="text-lg font-semibold">Levels</h1>
           <div className="ml-auto">
             <div className="flex items-center gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link to="/files"><FilesIcon className="w-4 h-4 mr-1" /> Files</Link>
+              </Button>
               <Button onClick={() => setWizardOpen(true)} size="sm" variant="outline" className="border-primary/40">
                 <Sparkles className="w-4 h-4 mr-1 text-primary" /> Level Wizard
               </Button>
@@ -160,7 +168,21 @@ export default function LevelsListPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {levels.map((l) => (
-              <Card key={l.id} className="group relative overflow-hidden hover:border-primary/60 transition-colors">
+              <FileContextMenu
+                key={l.id}
+                file={{
+                  kind: "level",
+                  name: l.name,
+                  payload: { id: l.id, name: l.name, description: l.description },
+                  sourceId: l.id,
+                  sourceTable: "levels",
+                  thumbnailUrl: l.thumbnail_url ?? undefined,
+                }}
+                onShare={(f) => setShareTarget(f)}
+                onOpen={() => navigate(`/level/${l.id}`)}
+                onDelete={l.owner_id === userId ? () => deleteLevel(l.id) : undefined}
+              >
+              <Card className="group relative overflow-hidden hover:border-primary/60 transition-colors">
                 <Link to={`/level/${l.id}`} className="block">
                   <div className="aspect-video bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
                     {l.thumbnail_url ? (
@@ -209,11 +231,13 @@ export default function LevelsListPage() {
                   )}
                 </div>
               </Card>
+              </FileContextMenu>
             ))}
           </div>
         )}
       </main>
       <LevelWizardModal open={wizardOpen} onOpenChange={setWizardOpen} />
+      <ShareDialog open={!!shareTarget} onOpenChange={(v) => !v && setShareTarget(null)} file={shareTarget} />
     </div>
   );
 }

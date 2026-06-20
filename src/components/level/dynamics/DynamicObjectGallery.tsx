@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Trash2, Boxes, Globe2, HardDrive, User, Loader2, Plus, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import type { SceneObject, ScenePath } from "@/lib/levelTypes";
+import FileContextMenu from "@/components/shared/FileContextMenu";
+import ShareDialog from "@/components/sharing/ShareDialog";
+import type { FileLike } from "@/components/shared/FileContextMenu";
+import { useState as useReactState } from "react";
 import {
   loadSavedDynamics,
   deleteDynamicLocal,
@@ -36,6 +40,7 @@ export default function DynamicObjectGallery({ open, onOpenChange, spawnAnchor, 
   const [pub, setPub] = useState<DynamicObjectEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [shareTarget, setShareTarget] = useReactState<FileLike | null>(null);
 
   const refreshLocal = () => setLocal(loadSavedDynamics());
   const refreshCloud = async () => {
@@ -153,9 +158,23 @@ export default function DynamicObjectGallery({ open, onOpenChange, spawnAnchor, 
             const count = entry.payload.objects.length;
             const isGroup = entry.payload.kind === "group";
             const canEdit = entry.source === "local" || tab === "mine";
+            const fileLike: FileLike = {
+              kind: "dynamic-object",
+              name: entry.name,
+              payload: entry,
+              sourceId: entry.id,
+              sourceTable: entry.source === "cloud" ? "dynamic_objects" : "local",
+              thumbnailUrl: entry.thumbnailUrl,
+            };
             return (
-              <div
+              <FileContextMenu
                 key={`${entry.source}-${entry.id}`}
+                file={fileLike}
+                onShare={(f) => setShareTarget(f)}
+                onDelete={canEdit ? () => handleDelete(entry) : undefined}
+                onOpen={() => handleSpawn(entry)}
+              >
+              <div
                 className="group rounded-lg border border-border/40 bg-card/60 overflow-hidden hover:border-primary/60 transition-colors flex flex-col"
               >
                 <button
@@ -216,9 +235,11 @@ export default function DynamicObjectGallery({ open, onOpenChange, spawnAnchor, 
                   </Button>
                 </div>
               </div>
+              </FileContextMenu>
             );
           })}
         </div>
+        <ShareDialog open={!!shareTarget} onOpenChange={(v) => !v && setShareTarget(null)} file={shareTarget} />
       </DialogContent>
     </Dialog>
   );
