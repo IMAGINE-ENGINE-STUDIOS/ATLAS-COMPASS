@@ -76,9 +76,11 @@ const THREE_TO_ENU = (() => {
 function PlacedLevel({
   viewer,
   placement,
+  playing,
 }: {
   viewer: Viewer;
   placement: LevelPlacement;
+  playing: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
@@ -144,15 +146,15 @@ function PlacedLevel({
   if (!scene) return null;
   return (
     <group ref={groupRef}>
-      {/* playing=false so the level's Play runtimes (locomotion, input,
-          physics, mouselook) don't activate — they would hijack the
-          mouse/keyboard from Cesium and visually rock the whole scene
-          when the user pans the globe. Levels render as a static
-          in-world snapshot here; the dedicated AtlasLevelPlayer is
-          still used for actually playing one. */}
+      {/* When `playing` is true, the level's full Play runtimes
+          (locomotion, input, physics, mouselook) activate so the user
+          can actually walk around inside the level. Only one placement
+          is `playing` at a time — the parent component handles that and
+          also disables Cesium camera input so mouselook/WASD don't fight
+          the globe. */}
       <LevelSceneContents
         scene={scene}
-        playing={false}
+        playing={playing}
         skipAmbient
         skipDirectional
       />
@@ -182,6 +184,7 @@ export default function AtlasLevelsR3FOverlay({
   // the camera is actually near. Far away, the cheap green Cesium box
   // from useAtlasLevelLayer is enough. Recomputed at ~4Hz.
   const [nearIds, setNearIds] = useState<Set<string>>(new Set());
+  const [playingId, setPlayingId] = useState<string | null>(null);
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
     const viewer = viewerRef.current;
@@ -209,26 +212,87 @@ export default function AtlasLevelsR3FOverlay({
     return () => cancelAnimationFrame(raf);
   }, [ready, placements, viewerRef]);
 
+  // Disable Cesium camera controls while a level is being played so
+  // mouse/keyboard go to the R3F player controller instead of orbiting
+  // the globe.
+  useEffect(() => {
+    const v = viewerRef.current;
+    if (!v || v.isDestroyed()) return;
+    const ctl: any = v.scene.screenSpaceCameraController;
+    if (!ctl) return;
+    if (playingId) {
+      ctl.enableInputs = false;
+    } else {
+      ctl.enableInputs = true;
+    }
+  }, [playingId, viewerRef]);
+
+  // Esc to exit play
+  useEffect(() => {
+    if (!playingId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPlayingId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [playingId]);
+
+  // Auto-exit if the playing level falls out of proximity
+  useEffect(() => {
+    if (playingId && !nearIds.has(playingId)) setPlayingId(null);
+  }, [playingId, nearIds]);
+
   if (!isLoaded || !viewerRef.current || placements.length === 0 || !ready) return null;
   const viewer = viewerRef.current;
   const visible = placements.filter((p) => nearIds.has(p.id));
   if (visible.length === 0) return null;
+  const playablePlacement = visible[0]; // nearest = first added; good enough
   return (
-    <div className="fixed inset-0 z-[40] pointer-events-none" style={{ pointerEvents: "none" }}>
-      <Canvas
-        gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
-        camera={{ position: [0, 0, 0], fov: 60, near: 1, far: 1e10 }}
-        style={{ background: "transparent", pointerEvents: "none" }}
-        eventSource={undefined}
+    <>
+      <div
+        className="fixed inset-0 z-[40]"
+        style={{ pointerEvents: playingId ? "auto" : "none" }}
       >
-        <CameraSync viewer={viewer} />
-        {/* Atlas-style key + fill lighting (level lights are stripped) */}
-        <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
-        <directionalLight position={[100, 200, 100]} intensity={1.2} />
-        {visible.map((p) => (
-          <PlacedLevel key={p.id} viewer={viewer} placement={p} />
-        ))}
-      </Canvas>
-    </div>
+        <Canvas
+          gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
+          camera={{ position: [0, 0, 0], fov: 60, near: 1, far: 1e10 }}
+          style={{
+            background: "transparent",
+            pointerEvents: playingId ? "auto" : "none",
+          }}
+        >
+          <CameraSync viewer={viewer} />
+          <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
+          <directionalLight position={[100, 200, 100]} intensity={1.2} />
+          {visible.map((p) => (
+            <PlacedLevel
+              key={p.id}
+              viewer={viewer}
+              placement={p}
+              playing={playingId === p.id}
+            />
+          ))}
+        </Canvas>
+      </div>
+      {/* In-world Play / Stop HUD button — only shows when a level is in
+          proximity. Lets the user actually enter the nearest level
+          without leaving the unified Atlas world. */}
+      {!playingId && playablePlacement && (
+        <button
+          onClick={() => setPlayingId(playablePlacement.id)}
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold shadow-lg pointer-events-auto"
+        >
+          ▶ Play {playablePlacement.levels?.name ?? "Level"}
+        </button>
+      )}
+      {playingId && (
+        <button
+          onClick={() => setPlayingId(null)}
+          className="fixed top-4 right-4 z-[55] px-3 py-1.5 rounded-md bg-black/70 hover:bg-black/90 text-white text-xs font-semibold border border-white/20 pointer-events-auto"
+        >
+          Exit Level (Esc)
+        </button>
+      )}
+    </>
   );
 }
