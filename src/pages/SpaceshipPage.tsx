@@ -767,7 +767,8 @@ function SpaceshipPage() {
   // Web Mercator (XYZ / "slippy") tiles. Zoom 18 ≈ building-scale.
   type TileKey = string; // `${z}/${x}/${y}`
   type TilesTool = "grid" | "rectangle" | "lasso";
-  const [tilesTool, setTilesTool] = useState<TilesTool>(savedUI.tilesTool ?? "grid");
+  type TilesToolExt = TilesTool | "terrain";
+  const [tilesTool, setTilesTool] = useState<TilesToolExt>(savedUI.tilesTool ?? "grid");
   const [tileZoom, setTileZoom] = useState<number>(savedUI.tileZoom ?? 18);
   const [selectedTiles, setSelectedTiles] = useState<Set<TileKey>>(new Set());
   const [rectStart, setRectStart] = useState<{ lat: number; lng: number } | null>(null);
@@ -776,7 +777,7 @@ function SpaceshipPage() {
   const [tilesScanResults, setTilesScanResults] = useState<SearchResult[]>([]);
   const tileEntitiesRef = useRef<Map<TileKey, any>>(new Map());
   const lassoEntityRef = useRef<any>(null);
-  const tilesToolRef = useRef<TilesTool>("grid");
+  const tilesToolRef = useRef<TilesToolExt>("grid");
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
   // Model transform editing state
@@ -2717,6 +2718,8 @@ function SpaceshipPage() {
             }
           } else if (tool === "lasso") {
             setLassoPoints(prev => [...prev, { lat: snappedLoc.lat, lng: snappedLoc.lng }]);
+          } else if (tool === "terrain") {
+            stampTerrainAt(snappedLoc);
           }
           return;
         }
@@ -4037,6 +4040,74 @@ function SpaceshipPage() {
     lastStampRef.current = null;
   }, []);
 
+  // Drop an editable terrain pad — no GLB, just a circular cropBase the user can sculpt.
+  const stampTerrainAt = useCallback((loc: { lat: number; lng: number; alt: number }) => {
+    const viewer = viewerRef.current;
+    let surfaceAlt = loc.alt;
+    if (viewer) {
+      try {
+        const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+        const sampled = viewer.scene.sampleHeight(carto);
+        if (typeof sampled === "number" && !isNaN(sampled)) surfaceAlt = sampled;
+        else {
+          const terrainH = viewer.scene.globe.getHeight(carto);
+          if (typeof terrainH === "number" && !isNaN(terrainH)) surfaceAlt = terrainH;
+        }
+      } catch {}
+    }
+    const radius = 15;
+    const id = crypto.randomUUID();
+    const newModel: PlacedModel = {
+      id,
+      name: `Terrain Pad ${placedModels.filter(m => m.category === "terrain-pad").length + 1}`,
+      fileName: "",
+      lat: loc.lat,
+      lng: loc.lng,
+      alt: surfaceAlt,
+      heading: 0,
+      pitch: 0,
+      roll: 0,
+      scale: 1,
+      createdAt: Date.now(),
+      category: "terrain-pad",
+      cropRadius: radius,
+      cropBase: DEFAULT_CROP_BASE(radius),
+    };
+    // Add a small clickable marker so users can double-click to open the terrain editor.
+    if (viewer) {
+      try {
+        viewer.entities.add({
+          id: `model-${id}`,
+          position: Cartesian3.fromDegrees(loc.lng, loc.lat, surfaceAlt + 1) as any,
+          point: {
+            pixelSize: 10,
+            color: Color.fromCssColorString("#10b981"),
+            outlineColor: Color.WHITE,
+            outlineWidth: 2,
+          } as any,
+          label: {
+            text: "Terrain",
+            font: "11px Inter, sans-serif",
+            pixelOffset: new Cartesian2(0, -18),
+            fillColor: Color.WHITE,
+            outlineColor: Color.BLACK,
+            outlineWidth: 2,
+            style: LabelStyle.FILL_AND_OUTLINE,
+            showBackground: true,
+            backgroundColor: Color.fromCssColorString("rgba(15,23,42,0.85)"),
+          } as any,
+        });
+      } catch {}
+    }
+    setPlacedModels(prev => {
+      const updated = [...prev, newModel];
+      savePlacedModels(updated);
+      return updated;
+    });
+    setEditingModel(newModel);
+    setTerrainEditing(true);
+  }, [placedModels]);
+
   const deleteModel = useCallback(async (id: string) => {
     const updated = placedModels.filter((m) => m.id !== id);
     setPlacedModels(updated);
@@ -4205,7 +4276,8 @@ function SpaceshipPage() {
                 {brushSubMode === "tiles" && (
                   tilesTool === "grid" ? "— Double-click to toggle tile"
                   : tilesTool === "rectangle" ? (rectStart ? "— Double-click second corner" : "— Double-click first corner")
-                  : "— Double-click to add lasso vertex"
+                  : tilesTool === "lasso" ? "— Double-click to add lasso vertex"
+                  : "— Double-click to drop a terrain pad"
                 )}
               </span>
             </div>
@@ -5109,8 +5181,8 @@ function SpaceshipPage() {
                       </div>
 
                       {/* Tool picker */}
-                      <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg">
-                        {(["grid", "rectangle", "lasso"] as const).map(t => (
+                      <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg">
+                        {(["grid", "rectangle", "lasso", "terrain"] as const).map(t => (
                           <button
                             key={t}
                             onClick={() => { setTilesTool(t); setRectStart(null); setLassoPoints([]); }}
@@ -5880,6 +5952,7 @@ function SpaceshipPage() {
                   altitude: Math.max(0, l.alt),
                   heading: 0, scale: 1,
                 });
+                window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
               })();
               return;
             }

@@ -38,9 +38,12 @@ export function useAtlasLevelLayer(
       .channel("atlas-level-placements")
       .on("postgres_changes", { event: "*", schema: "public", table: "atlas_level_placements" }, load)
       .subscribe();
+    const onRefresh = () => load();
+    window.addEventListener("atlas-level-placements-refresh", onRefresh);
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
+      window.removeEventListener("atlas-level-placements-refresh", onRefresh);
     };
   }, []);
 
