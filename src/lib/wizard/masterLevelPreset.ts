@@ -633,24 +633,16 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
       layer: LAYERS.station,
     }));
   }
+  }
 
   /* ---- train ---- */
-  // The locomotive + 2 cars are simple primitive groups. The TrainRuntime
-  // moves them along `path_train_track` and slides the door panels open.
   const locoId = newId("train_loco");
-  const car1Id = newId("train_car");
-  const car2Id = newId("train_car");
   const cabinId = newId("train_cabin");
-  const door1L = newId("train_door");
-  const door1R = newId("train_door");
-  const door2L = newId("train_door");
-  const door2R = newId("train_door");
-
-  // Locomotive body — placed at the stop pose. Rails are at x=-22 (along Z).
-  // The locomotive sits at the FRONT of the train; cars trail to -Z.
-  // (At Play time the TrainRuntime overwrites positions anyway, but a
-  // visually-correct edit pose helps when scrubbing in the editor.)
   const TRAIN_Y = 1.4;
+  const carIds: string[] = [];
+  const doorIds: string[] = [];
+  let trainSystem: TrainSystemConfig | undefined;
+  if (cfg.train.enabled && cfg.station.enabled) {
   objects.push(prim({
     id: locoId,
     name: "Locomotive",
@@ -690,8 +682,6 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
     layer: LAYERS.train,
   }));
 
-  // Cars (passenger wagons). Each is a box with two sliding doors on the
-  // +X (platform-facing) side.
   function buildCar(carId: string, posZ: number, label: string, doorL: string, doorR: string) {
     objects.push(prim({
       id: carId,
@@ -746,8 +736,32 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
       layer: LAYERS.train,
     }));
   }
-  buildCar(car1Id, -10, "Car A", door1L, door1R);
-  buildCar(car2Id, -19, "Car B", door2L, door2R);
+  for (let i = 0; i < cfg.train.carCount; i++) {
+    const carId = newId("train_car");
+    const dL = newId("train_door");
+    const dR = newId("train_door");
+    carIds.push(carId);
+    doorIds.push(dL, dR);
+    const label = `Car ${String.fromCharCode(65 + i)}`;
+    const posZ = -10 - i * cfg.train.carSpacing;
+    buildCar(carId, posZ, label, dL, dR);
+  }
+
+  trainSystem = {
+    trackPathId: "path_train_track",
+    locomotiveId: locoId,
+    carIds,
+    doorIds,
+    cabinId,
+    stops: [{ t: 0.085, name: "Eastlight Station" }],
+    baseSpeed: cfg.train.baseSpeed,
+    brakeDistance: 24,
+    stopDurationSeconds: cfg.train.stopDurationSeconds,
+    doorAnimSeconds: cfg.train.doorAnimSeconds,
+    carSpacing: cfg.train.carSpacing,
+    possessKey: "P",
+  };
+  }
 
   /* ---- animated decorations (rotating station sign) ---- */
   const spinId = newId("obj_spin");
