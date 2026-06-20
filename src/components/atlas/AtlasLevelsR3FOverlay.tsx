@@ -423,7 +423,7 @@ export default function AtlasLevelsR3FOverlay({
           without leaving the unified Atlas world. */}
       {!playingId && playablePlacement && (
         <button
-          onClick={() => setPlayingId(playablePlacement.id)}
+          onClick={() => setPendingPlayId(playablePlacement.id)}
           className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold shadow-lg pointer-events-auto"
         >
           ▶ Play {playablePlacement.levels?.name ?? "Level"}
