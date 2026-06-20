@@ -467,14 +467,18 @@ export default function PlayableCharacter({
       staticCache.current.nextAt = now + 250;
     }
     const staticTargets = staticCache.current.targets;
-    // Down ray from a bit above the feet.
+    // Down ray from a bit above the feet. Raycast in world space, but keep
+    // the character simulation in the level's local coordinates so Atlas can
+    // leave terrain/buildings locked to their real ground transform.
+    const groundProbeLocal = new THREE.Vector3(root.position.x, root.position.y + 1.2, root.position.z);
     tmp.raycaster.set(
-      new THREE.Vector3(root.position.x, root.position.y + 1.2, root.position.z),
-      tmp.down,
+      toWorldPoint(groundProbeLocal),
+      toWorldDir(tmp.down),
     );
     tmp.raycaster.far = 2.4;
     const hits = tmp.raycaster.intersectObjects(staticTargets, true);
     const groundHit = hits[0];
+    const groundPoint = groundHit ? toLocalPoint(groundHit.point) : null;
 
     // ---- forward ledge probe (for climb + jump-down) ----
     // Cast forward from waist height; if it hits something, measure how tall
@@ -488,20 +492,22 @@ export default function PlayableCharacter({
         root.position.y + measuredHeight * 0.55,
         root.position.z,
       );
-      tmp.raycaster.set(waist, new THREE.Vector3(facingX, 0, facingZ).normalize());
+      tmp.raycaster.set(waist, toWorldDir(new THREE.Vector3(facingX, 0, facingZ)));
       tmp.raycaster.far = radius + 0.45;
       const fh = tmp.raycaster.intersectObjects(staticTargets, true)[0];
       if (fh) {
+        const fhLocal = toLocalPoint(fh.point);
         // Find the top of the obstacle: down-ray from above the hit point
         // onto whatever surface caps it.
-        const topProbe = new THREE.Vector3(fh.point.x + facingX * 0.05, fh.point.y + 4, fh.point.z + facingZ * 0.05);
-        tmp.raycaster.set(topProbe, tmp.down);
+        const topProbe = new THREE.Vector3(fhLocal.x + facingX * 0.05, fhLocal.y + 4, fhLocal.z + facingZ * 0.05);
+        tmp.raycaster.set(toWorldPoint(topProbe), toWorldDir(tmp.down));
         tmp.raycaster.far = 6;
         const th = tmp.raycaster.intersectObjects(staticTargets, true)[0];
         if (th) {
-          const oh = th.point.y - root.position.y;
+          const thLocal = toLocalPoint(th.point);
+          const oh = thLocal.y - root.position.y;
           if (oh > 0.05 && oh < 2.2) {
-            ledge = { top: th.point.clone(), obstacleHeight: oh };
+            ledge = { top: thLocal.clone(), obstacleHeight: oh };
           }
         }
       }
@@ -515,10 +521,10 @@ export default function PlayableCharacter({
         root.position.y + 1.2,
         root.position.z + facingZ * (radius + 0.35),
       );
-      tmp.raycaster.set(ahead, tmp.down);
+      tmp.raycaster.set(toWorldPoint(ahead), toWorldDir(tmp.down));
       tmp.raycaster.far = 6;
       const dh = tmp.raycaster.intersectObjects(staticTargets, true)[0];
-      if (dh) frontDrop = root.position.y - dh.point.y;
+      if (dh) frontDrop = root.position.y - toLocalPoint(dh.point).y;
       else frontDrop = 6;
     }
 
@@ -573,25 +579,25 @@ export default function PlayableCharacter({
     }
     root.position.y += velocityY.current * dt;
 
-    if (groundHit && root.position.y <= groundHit.point.y + 0.001) {
+    if (groundPoint && root.position.y <= groundPoint.y + 0.001) {
       // Step-up smoothing: if the ground popped up by a small amount and we
       // were already grounded, lerp the foot upward over a short window so it
       // reads as planting a foot on a stair rather than teleporting.
-      const delta = groundHit.point.y - root.position.y;
+      const delta = groundPoint.y - root.position.y;
       const stepLimit = Math.max(0.45, cfg.maxStepHeight ?? 0.6);
       if (wasGrounded.current && delta > 0.04 && delta < stepLimit) {
         // Move part of the way this frame; the rest follows over 120ms.
         const a = Math.min(1, dt / 0.12);
         root.position.y += delta * a;
-        if (root.position.y < groundHit.point.y) {
+        if (root.position.y < groundPoint.y) {
           // still climbing → keep playing stepUp clip
           if (stateRef.current !== "stepUp" && moving) setState("stepUp", 0.15);
           stepUpUntil.current = performance.now() + 180;
         } else {
-          root.position.y = groundHit.point.y;
+          root.position.y = groundPoint.y;
         }
       } else {
-        root.position.y = groundHit.point.y;
+        root.position.y = groundPoint.y;
       }
       // Landing impact squash when we were just airborne.
       if (!wasGrounded.current && velocityY.current < -2) {
@@ -817,7 +823,7 @@ export default function PlayableCharacter({
       player: [root.position.x, root.position.y, root.position.z],
       cameraMode,
     });
-  });
+  }, -2);
 
   return (
     <group ref={rootRef} visible={obj.visible}>
