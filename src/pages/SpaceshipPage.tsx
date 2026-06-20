@@ -744,6 +744,23 @@ function SpaceshipPage() {
   useEffect(() => { try { localStorage.setItem("atlas.kbNav.v1", JSON.stringify(kbNavEnabled)); } catch {} }, [kbNavEnabled]);
   useEffect(() => { try { localStorage.setItem("atlas.kbSensitivity.v1", String(kbSensitivity)); } catch {} }, [kbSensitivity]);
 
+  // Camera focus point — set by left double-click on the globe so the
+  // user orbits around that spot. `null` = free camera.
+  const [focusPoint, setFocusPoint] = useState<{ lat: number; lng: number; alt: number } | null>(null);
+  const releaseFocus = () => {
+    const v = viewerRef.current;
+    if (v && !v.isDestroyed()) {
+      try { v.camera.lookAtTransform(Matrix4.IDENTITY); } catch {}
+    }
+    setFocusPoint(null);
+  };
+  useEffect(() => {
+    if (!focusPoint) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") releaseFocus(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusPoint]);
+
   // Wire WASD/arrow keys to the Cesium camera. Disabled while terrain
   // brush is active so its Shift modifier doesn't fight our boost key.
   useAtlasKeyboardNav(viewerRef, { enabled: kbNavEnabled, sensitivity: kbSensitivity });
