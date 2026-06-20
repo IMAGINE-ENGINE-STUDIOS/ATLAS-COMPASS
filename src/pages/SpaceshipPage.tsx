@@ -2929,14 +2929,33 @@ function SpaceshipPage() {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
-        const detail = (e as CustomEvent).detail as any;
-        const screen = detail?.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-        setEarthMenu({ x: screen.x, y: screen.y, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
+        // No brush / no pending placement: left double-click sets a
+        // camera focus point so the user can orbit around it.
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed()) return;
+        try {
+          const point = Cartesian3.fromDegrees(loc.lng, loc.lat, loc.alt);
+          const frame = Transforms.eastNorthUpToFixedFrame(point);
+          viewer.camera.lookAtTransform(frame);
+          setFocusPoint({ lat: loc.lat, lng: loc.lng, alt: loc.alt });
+        } catch {}
       }
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode, tileZoom, rectStart, stampSpacingM]);
+
+  // Right-click → open the earth context menu at the cursor.
+  useEffect(() => {
+    const onRight = (e: Event) => {
+      const detail = (e as CustomEvent).detail as any;
+      if (!detail) return;
+      const screen = detail.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      setEarthMenu({ x: screen.x, y: screen.y, loc: { lat: detail.lat, lng: detail.lng, alt: detail.alt } });
+    };
+    window.addEventListener("cesium-rightclick", onRight);
+    return () => window.removeEventListener("cesium-rightclick", onRight);
+  }, []);
 
   // Listen for model double-click (open transform widget)
   useEffect(() => {
