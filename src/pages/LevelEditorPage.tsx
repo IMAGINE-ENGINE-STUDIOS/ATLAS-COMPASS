@@ -2404,6 +2404,36 @@ export default function LevelEditorPage() {
                   className="h-8 text-xs"
                 />
               </div>
+              <div className="space-y-2 rounded-md border border-emerald-400/20 bg-emerald-500/[0.04] p-2">
+                <Label className="text-xs text-emerald-300">Main Character</Label>
+                <p className="text-[10px] text-muted-foreground leading-snug">
+                  This character is "posed" as the player when the level is
+                  entered from the Atlas. Falls back to the first playable
+                  character if unset.
+                </p>
+                <select
+                  className="w-full h-8 rounded-md bg-background border border-input text-xs px-2"
+                  value={scene.mainCharacterId ?? ""}
+                  disabled={!isOwner}
+                  onChange={(e) =>
+                    updateScene((s) => {
+                      const v = e.target.value;
+                      if (v) s.mainCharacterId = v;
+                      else delete s.mainCharacterId;
+                      return s;
+                    })
+                  }
+                >
+                  <option value="">— None (first playable wins) —</option>
+                  {scene.objects
+                    .filter((o) => o.kind === "character")
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name || o.id}
+                      </option>
+                    ))}
+                </select>
+              </div>
               <div className="space-y-2">
                 <Label className="text-xs">Background</Label>
                 <Input
