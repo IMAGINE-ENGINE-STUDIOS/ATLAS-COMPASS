@@ -691,8 +691,9 @@ export default function PlayableCharacter({
       }
       if (velocityY.current < 0) velocityY.current = 0;
       grounded.current = true;
-    } else if (!groundHit && root.position.y < -50) {
-      // safety: respawn if fell out of world
+    } else if (!groundHit && !groundPoint && root.position.y < -50) {
+      // safety: respawn if fell out of world (only when even the Earth
+      // nav-mesh failed to give us a surface).
       root.position.set(obj.position[0], obj.position[1] + 2, obj.position[2]);
       velocityY.current = 0;
     } else {
