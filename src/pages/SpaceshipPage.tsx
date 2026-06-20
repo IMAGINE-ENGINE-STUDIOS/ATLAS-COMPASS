@@ -64,6 +64,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
@@ -704,8 +705,23 @@ function SpaceshipPage() {
   const { placements: levelPlacements } = useAtlasLevelLayer(
     viewerRef,
     isLoaded,
-    useCallback((_p: LevelPlacement) => { /* no-op: in-world play */ }, []),
+    useCallback((p: LevelPlacement) => {
+      setSelectedLevelPlacement(p);
+    }, []),
   );
+  // Inspector panel: clicking a placed Level opens this floating panel
+  // with info, control bars (heading/scale/altitude), Main Character
+  // read-out, and ▶ Play / Edit / Delete actions.
+  const [selectedLevelPlacement, setSelectedLevelPlacement] =
+    useState<LevelPlacement | null>(null);
+  // Keep the inspector's placement in sync with the latest list (after
+  // slider edits / refreshes).
+  useEffect(() => {
+    if (!selectedLevelPlacement) return;
+    const fresh = levelPlacements.find((p) => p.id === selectedLevelPlacement.id);
+    if (fresh && fresh !== selectedLevelPlacement) setSelectedLevelPlacement(fresh);
+    if (!fresh) setSelectedLevelPlacement(null);
+  }, [levelPlacements, selectedLevelPlacement]);
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
