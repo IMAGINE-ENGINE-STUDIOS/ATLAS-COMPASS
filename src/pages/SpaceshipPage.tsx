@@ -6044,6 +6044,37 @@ function SpaceshipPage() {
           }}
         />
       )}
+      {pendingLevelPlacement && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] rounded-xl border border-emerald-500/30 bg-slate-900/95 backdrop-blur-xl shadow-2xl text-white px-3 py-2 flex items-center gap-3">
+          <div className="text-xs">
+            <div className="font-semibold text-emerald-300">{pendingLevelPlacement.levelName}</div>
+            <div className="text-[10px] text-white/60 font-mono">
+              {pendingLevelPlacement.loc
+                ? `${pendingLevelPlacement.loc.lat.toFixed(5)}, ${pendingLevelPlacement.loc.lng.toFixed(5)} · ~${pendingLevelPlacement.sizeM}m tile`
+                : "Double-click the globe to choose a tile"}
+            </div>
+          </div>
+          <button
+            onClick={confirmLevelPlacement}
+            disabled={!pendingLevelPlacement.loc}
+            className="px-3 py-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 text-[11px] font-semibold disabled:opacity-40"
+          >
+            Drop here
+          </button>
+          <button
+            onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, loc: null })}
+            className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-[11px]"
+          >
+            Choose another location
+          </button>
+          <button
+            onClick={() => setPendingLevelPlacement(null)}
+            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-[11px] text-white/70"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
