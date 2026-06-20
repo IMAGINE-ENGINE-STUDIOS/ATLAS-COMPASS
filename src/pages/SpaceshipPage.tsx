@@ -2819,8 +2819,23 @@ function SpaceshipPage() {
       // Intercept while previewing a level placement — just move the ghost.
       const pending = pendingLevelPlacementRef.current;
       if (pending) {
-        // Use the EXACT clicked coordinates (matches the HUD readout) — no tile snap.
-        setPendingLevelPlacement({ ...pending, loc: { lat: loc.lat, lng: loc.lng, alt: Math.max(0, loc.alt) } });
+        // Use the EXACT clicked coordinates (matches the HUD readout) — no
+        // tile snap. Sample the real OSM/terrain/tileset altitude so the
+        // level sits flat on the surface instead of floating.
+        let groundAlt = loc.alt;
+        const v = viewerRef.current;
+        if (v) {
+          try {
+            const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+            const sampled = v.scene.sampleHeight(carto);
+            if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
+            else {
+              const terrainH = v.scene.globe.getHeight(carto);
+              if (typeof terrainH === "number" && !isNaN(terrainH)) groundAlt = terrainH;
+            }
+          } catch {}
+        }
+        setPendingLevelPlacement({ ...pending, loc: { lat: loc.lat, lng: loc.lng, alt: groundAlt } });
         return;
       }
       if (brushMode) {
