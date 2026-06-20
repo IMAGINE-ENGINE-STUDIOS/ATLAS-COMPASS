@@ -60,6 +60,8 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 import AtlasLevelPlayer from "@/components/atlas/AtlasLevelPlayer";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
+import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
+import { toast } from "sonner";
 import filterAllPng     from "@/assets/icons/filter-all.png";
 import filterFoodPng    from "@/assets/icons/filter-food.png";
 import filterCafePng    from "@/assets/icons/filter-cafe.png";
@@ -704,6 +706,69 @@ function SpaceshipPage() {
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
+  // When set, the user is previewing a level placement; double-clicks move the ghost cube.
+  const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
+    levelId: string;
+    levelName: string;
+    sizeM: number;
+    loc: EarthLoc | null;
+  } | null>(null);
+  const pendingLevelPlacementRef = useRef<typeof pendingLevelPlacement>(null);
+  useEffect(() => { pendingLevelPlacementRef.current = pendingLevelPlacement; }, [pendingLevelPlacement]);
+
+  // Ghost preview cube for pending level placement.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !pendingLevelPlacement?.loc) return;
+    const { loc, sizeM } = pendingLevelPlacement;
+    const snap = snapToLevelTile(loc.lat, loc.lng, sizeM);
+    const size = snap.tileSizeM;
+    const ent = viewer.entities.add({
+      id: "pending-level-ghost",
+      position: Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2) as any,
+      box: {
+        dimensions: new Cartesian3(size, size, LEVEL_HEIGHT_M) as any,
+        material: Color.fromCssColorString("#22c55e").withAlpha(0.35) as any,
+        outline: true,
+        outlineColor: Color.fromCssColorString("#86efac") as any,
+        outlineWidth: 3,
+      } as any,
+      label: {
+        text: `Preview — ${pendingLevelPlacement.levelName}`,
+        font: "12px Inter, sans-serif",
+        pixelOffset: new Cartesian2(0, -8),
+        fillColor: Color.WHITE,
+        outlineColor: Color.BLACK,
+        outlineWidth: 2,
+        style: LabelStyle.FILL_AND_OUTLINE,
+        showBackground: true,
+        backgroundColor: Color.fromCssColorString("rgba(15,23,42,0.85)"),
+      } as any,
+    });
+    return () => { try { viewer.entities.remove(ent); } catch {} };
+  }, [pendingLevelPlacement]);
+
+  const confirmLevelPlacement = useCallback(async () => {
+    const p = pendingLevelPlacement;
+    if (!p?.loc) return;
+    const { data: userRes } = await supabase.auth.getUser();
+    const uid = userRes.user?.id;
+    if (!uid) { toast.error("Sign in to place a level"); return; }
+    const snap = snapToLevelTile(p.loc.lat, p.loc.lng, p.sizeM);
+    const { error } = await supabase.from("atlas_level_placements").insert({
+      owner_id: uid,
+      level_id: p.levelId,
+      lat: snap.lat,
+      lng: snap.lng,
+      altitude: Math.max(0, p.loc.alt),
+      heading: 0,
+      scale: 1,
+    });
+    if (error) { toast.error(`Failed: ${error.message}`); return; }
+    window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
+    toast.success(`Loaded "${p.levelName}" here`);
+    setPendingLevelPlacement(null);
+  }, [pendingLevelPlacement]);
   const [poiName, setPoiName] = useState("");
   const [poiDescription, setPoiDescription] = useState("");
   const [poisPanelOpen, setPoisPanelOpen] = useState(false);
@@ -2656,6 +2721,13 @@ function SpaceshipPage() {
   useEffect(() => {
     const handleDblClick = (e: Event) => {
       const loc = (e as CustomEvent).detail;
+      // Intercept while previewing a level placement — just move the ghost.
+      const pending = pendingLevelPlacementRef.current;
+      if (pending) {
+        const snap = snapToLevelTile(loc.lat, loc.lng, pending.sizeM);
+        setPendingLevelPlacement({ ...pending, loc: { lat: snap.lat, lng: snap.lng, alt: Math.max(0, loc.alt) } });
+        return;
+      }
       if (brushMode) {
         // Sample the actual tile/terrain altitude so all brush modes snap
         // to the real surface (incl. negative altitudes below sea level).
@@ -5938,6 +6010,15 @@ function SpaceshipPage() {
             setPoiName("");
             setPoiDescription("");
           }}
+          onPickLevel={(lvl, l) => {
+            const snap = snapToLevelTile(l.lat, l.lng, DEFAULT_LEVEL_SIZE_M);
+            setPendingLevelPlacement({
+              levelId: lvl.id,
+              levelName: lvl.name,
+              sizeM: DEFAULT_LEVEL_SIZE_M,
+              loc: { lat: snap.lat, lng: snap.lng, alt: Math.max(0, l.alt) },
+            });
+          }}
           onPasteEntry={(entry: FileClipboardEntry, l) => {
             // Levels paste → create placement
             if (entry.kind === "level" && entry.sourceId) {
@@ -5962,6 +6043,37 @@ function SpaceshipPage() {
             setPoiDescription("");
           }}
         />
+      )}
+      {pendingLevelPlacement && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] rounded-xl border border-emerald-500/30 bg-slate-900/95 backdrop-blur-xl shadow-2xl text-white px-3 py-2 flex items-center gap-3">
+          <div className="text-xs">
+            <div className="font-semibold text-emerald-300">{pendingLevelPlacement.levelName}</div>
+            <div className="text-[10px] text-white/60 font-mono">
+              {pendingLevelPlacement.loc
+                ? `${pendingLevelPlacement.loc.lat.toFixed(5)}, ${pendingLevelPlacement.loc.lng.toFixed(5)} · ~${pendingLevelPlacement.sizeM}m tile`
+                : "Double-click the globe to choose a tile"}
+            </div>
+          </div>
+          <button
+            onClick={confirmLevelPlacement}
+            disabled={!pendingLevelPlacement.loc}
+            className="px-3 py-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 text-[11px] font-semibold disabled:opacity-40"
+          >
+            Drop here
+          </button>
+          <button
+            onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, loc: null })}
+            className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-[11px]"
+          >
+            Choose another location
+          </button>
+          <button
+            onClick={() => setPendingLevelPlacement(null)}
+            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-[11px] text-white/70"
+          >
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );
