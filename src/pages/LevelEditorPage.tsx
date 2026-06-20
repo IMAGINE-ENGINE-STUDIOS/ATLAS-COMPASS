@@ -1624,8 +1624,32 @@ export default function LevelEditorPage() {
                         {items.map((o) => {
                           const objLocked = isObjectLocked(o);
                           return (
-                          <div
+                          <FileContextMenu
                             key={o.id}
+                            file={{ kind: "scene-object", name: o.name, payload: o, sourceId: o.id }}
+                            onShare={(f) => setShareTarget(f)}
+                            onDuplicate={() => {
+                              const clone = { ...o, id: newId("obj"), name: `${o.name} copy`,
+                                position: [o.position[0] + 1, o.position[1], o.position[2] + 1] as Vec3 };
+                              addObject(clone as SceneObject);
+                            }}
+                            onDelete={objLocked ? undefined : () => {
+                              removeObject(o.id);
+                              setSelectedIds((prev) => { const next = new Set(prev); next.delete(o.id); return next; });
+                              if (selectedId === o.id) setSelectedId(null);
+                            }}
+                            onPaste={(entry) => {
+                              const payload = entry.payload as SceneObject | undefined;
+                              if (!payload || typeof payload !== "object" || !("kind" in payload)) {
+                                toast.info("Clipboard does not hold a scene object");
+                                return;
+                              }
+                              const clone = { ...(payload as SceneObject), id: newId("obj"),
+                                name: `${(payload as SceneObject).name} copy` };
+                              addObject(clone);
+                            }}
+                          >
+                          <div
                             className={`group w-full px-1.5 py-1 rounded text-xs flex items-center gap-1.5 ${
                               selectedIds.has(o.id) ? "bg-primary/20 text-primary" : "hover:bg-muted/40"
                             } ${objLocked ? "opacity-80" : ""}`}
@@ -1678,6 +1702,7 @@ export default function LevelEditorPage() {
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
+                          </FileContextMenu>
                           );
                         })}
                       </div>
@@ -2715,6 +2740,8 @@ export default function LevelEditorPage() {
         groupMembers={currentGroupMembers}
         allPaths={scene.scenePaths ?? []}
       />
+
+      <ShareDialog open={!!shareTarget} onOpenChange={(v) => !v && setShareTarget(null)} file={shareTarget} />
     </div>
   );
 }
