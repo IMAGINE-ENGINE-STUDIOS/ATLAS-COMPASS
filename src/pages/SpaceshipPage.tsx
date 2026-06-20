@@ -4040,6 +4040,74 @@ function SpaceshipPage() {
     lastStampRef.current = null;
   }, []);
 
+  // Drop an editable terrain pad — no GLB, just a circular cropBase the user can sculpt.
+  const stampTerrainAt = useCallback((loc: { lat: number; lng: number; alt: number }) => {
+    const viewer = viewerRef.current;
+    let surfaceAlt = loc.alt;
+    if (viewer) {
+      try {
+        const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+        const sampled = viewer.scene.sampleHeight(carto);
+        if (typeof sampled === "number" && !isNaN(sampled)) surfaceAlt = sampled;
+        else {
+          const terrainH = viewer.scene.globe.getHeight(carto);
+          if (typeof terrainH === "number" && !isNaN(terrainH)) surfaceAlt = terrainH;
+        }
+      } catch {}
+    }
+    const radius = 15;
+    const id = crypto.randomUUID();
+    const newModel: PlacedModel = {
+      id,
+      name: `Terrain Pad ${placedModels.filter(m => m.category === "terrain-pad").length + 1}`,
+      fileName: "",
+      lat: loc.lat,
+      lng: loc.lng,
+      alt: surfaceAlt,
+      heading: 0,
+      pitch: 0,
+      roll: 0,
+      scale: 1,
+      createdAt: Date.now(),
+      category: "terrain-pad",
+      cropRadius: radius,
+      cropBase: DEFAULT_CROP_BASE(radius),
+    };
+    // Add a small clickable marker so users can double-click to open the terrain editor.
+    if (viewer) {
+      try {
+        viewer.entities.add({
+          id: `model-${id}`,
+          position: Cartesian3.fromDegrees(loc.lng, loc.lat, surfaceAlt + 1) as any,
+          point: {
+            pixelSize: 10,
+            color: Color.fromCssColorString("#10b981"),
+            outlineColor: Color.WHITE,
+            outlineWidth: 2,
+          } as any,
+          label: {
+            text: "Terrain",
+            font: "11px Inter, sans-serif",
+            pixelOffset: new Cartesian2(0, -18),
+            fillColor: Color.WHITE,
+            outlineColor: Color.BLACK,
+            outlineWidth: 2,
+            style: LabelStyle.FILL_AND_OUTLINE,
+            showBackground: true,
+            backgroundColor: Color.fromCssColorString("rgba(15,23,42,0.85)"),
+          } as any,
+        });
+      } catch {}
+    }
+    setPlacedModels(prev => {
+      const updated = [...prev, newModel];
+      savePlacedModels(updated);
+      return updated;
+    });
+    setEditingModel(newModel);
+    setTerrainEditing(true);
+  }, [placedModels]);
+
   const deleteModel = useCallback(async (id: string) => {
     const updated = placedModels.filter((m) => m.id !== id);
     setPlacedModels(updated);
