@@ -190,6 +190,8 @@ function PlacedLevel({
       groupRef.current.position.set(0, 0, 0);
       groupRef.current.rotation.set(0, 0, 0);
       groupRef.current.scale.setScalar(1);
+      groupRef.current.updateMatrix();
+      groupRef.current.matrixWorldNeedsUpdate = true;
       return;
     }
     const camPos = viewer.camera.positionWC;
