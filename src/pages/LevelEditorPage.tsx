@@ -2631,7 +2631,13 @@ export default function LevelEditorPage() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPlaceDialogOpen(false)}>Cancel</Button>
-            <Button onClick={placeOnAtlas}>
+            <Button
+              onClick={placeOnAtlas}
+              disabled={
+                !Number.isFinite(parseFloat(placeLat)) ||
+                !Number.isFinite(parseFloat(placeLng))
+              }
+            >
               <MapPin className="w-3.5 h-3.5 mr-1" /> Place
             </Button>
           </DialogFooter>
