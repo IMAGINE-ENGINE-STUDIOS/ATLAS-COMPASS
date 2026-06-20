@@ -8,7 +8,6 @@ import type { SceneObject, ScenePath } from "@/lib/levelTypes";
 import FileContextMenu from "@/components/shared/FileContextMenu";
 import ShareDialog from "@/components/sharing/ShareDialog";
 import type { FileLike } from "@/components/shared/FileContextMenu";
-import { useState as useReactState } from "react";
 import {
   loadSavedDynamics,
   deleteDynamicLocal,
@@ -40,7 +39,7 @@ export default function DynamicObjectGallery({ open, onOpenChange, spawnAnchor, 
   const [pub, setPub] = useState<DynamicObjectEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const [shareTarget, setShareTarget] = useReactState<FileLike | null>(null);
+  const [shareTarget, setShareTarget] = useState<FileLike | null>(null);
 
   const refreshLocal = () => setLocal(loadSavedDynamics());
   const refreshCloud = async () => {
