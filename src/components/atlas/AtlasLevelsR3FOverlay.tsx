@@ -23,7 +23,10 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
+  BoundingSphere,
+  HeadingPitchRange,
   Matrix4 as CesiumMatrix4,
+  Math as CesiumMath,
   Transforms,
   type Viewer,
 } from "cesium";
@@ -37,9 +40,10 @@ import {
   type LevelPlacement,
 } from "@/lib/useAtlasLevelLayer";
 
-function CameraSync({ viewer }: { viewer: Viewer }) {
+function CameraSync({ viewer, enabled }: { viewer: Viewer; enabled: boolean }) {
   const { camera, size } = useThree();
   useFrame(() => {
+    if (!enabled) return;
     if (!viewer || viewer.isDestroyed()) return;
     const cam = viewer.camera;
     const persp = camera as THREE.PerspectiveCamera;
@@ -59,6 +63,17 @@ function CameraSync({ viewer }: { viewer: Viewer }) {
     persp.lookAt(cam.direction.x, cam.direction.y, cam.direction.z);
     persp.updateMatrixWorld(true);
   });
+  return null;
+}
+
+function LocalPlayFallbackCamera({ active }: { active: boolean }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    if (!active) return;
+    camera.position.set(0, 3.2, 7);
+    camera.lookAt(0, 1.2, 0);
+    camera.updateMatrixWorld(true);
+  }, [active, camera]);
   return null;
 }
 
@@ -136,6 +151,12 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
+    if (playing) {
+      groupRef.current.matrixAutoUpdate = false;
+      groupRef.current.matrix.identity();
+      groupRef.current.matrixWorldNeedsUpdate = true;
+      return;
+    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
