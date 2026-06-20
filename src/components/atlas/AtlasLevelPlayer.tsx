@@ -54,7 +54,7 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
           toast.error("Couldn't load level scene.");
           setScene({ ...EMPTY_SCENE });
         } else {
-          setScene(data.scene as LevelScene);
+          setScene(data.scene as unknown as LevelScene);
         }
       } catch (e: any) {
         if (!cancelled) toast.error(e?.message ?? "Couldn't load level.");
