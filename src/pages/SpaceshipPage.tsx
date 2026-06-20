@@ -2246,6 +2246,7 @@ function SpaceshipPage() {
     return () => {
       handler.destroy();
       if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
+      if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
