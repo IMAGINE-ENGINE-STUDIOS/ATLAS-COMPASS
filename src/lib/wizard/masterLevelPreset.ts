@@ -93,6 +93,110 @@ const C = {
   trainGold: [0.88, 0.7, 0.2, 1] as RGBA,
 };
 
+/* ---------- configuration ---------- */
+
+export type WizardFacade = "brick" | "glass" | "stone" | "concrete" | "wood";
+
+export interface WizardConfig {
+  name: string;
+  worldSize: number;
+  terrain: {
+    enabled: boolean;
+    resolution: number;
+    hillAmplitude: number;
+    ridgeIntensity: number;
+  };
+  plaza: { enabled: boolean; width: number; depth: number };
+  roads: { enabled: boolean; laneMarks: boolean };
+  buildings: {
+    densityScale: number;
+    heightScale: number;
+    facades: Record<WizardFacade, boolean>;
+    includeIndustrial: boolean;
+    includeTallSpire: boolean;
+    includePlazaShops: boolean;
+  };
+  park: { enabled: boolean; treeCount: number };
+  station: { enabled: boolean };
+  train: {
+    enabled: boolean;
+    carCount: number;
+    baseSpeed: number;
+    stopDurationSeconds: number;
+    doorAnimSeconds: number;
+    carSpacing: number;
+  };
+  characters: {
+    includePlayable: boolean;
+    npcCount: number;
+  };
+  environment: {
+    background: string;
+    fogEnabled: boolean;
+    fogNear: number;
+    fogFar: number;
+    sunIntensity: number;
+    ambientIntensity: number;
+  };
+}
+
+export const DEFAULT_WIZARD_CONFIG: WizardConfig = {
+  name: "Eastlight Town",
+  worldSize: 400,
+  terrain: { enabled: true, resolution: 96, hillAmplitude: 1, ridgeIntensity: 1 },
+  plaza: { enabled: true, width: 40, depth: 30 },
+  roads: { enabled: true, laneMarks: true },
+  buildings: {
+    densityScale: 1,
+    heightScale: 1,
+    facades: { brick: true, glass: true, stone: true, concrete: true, wood: true },
+    includeIndustrial: true,
+    includeTallSpire: true,
+    includePlazaShops: true,
+  },
+  park: { enabled: true, treeCount: 14 },
+  station: { enabled: true },
+  train: {
+    enabled: true,
+    carCount: 2,
+    baseSpeed: 9,
+    stopDurationSeconds: 10,
+    doorAnimSeconds: 1.4,
+    carSpacing: 9,
+  },
+  characters: { includePlayable: true, npcCount: 4 },
+  environment: {
+    background: "#86a8c6",
+    fogEnabled: true,
+    fogNear: 120,
+    fogFar: 380,
+    sunIntensity: 1.5,
+    ambientIntensity: 0.35,
+  },
+};
+
+function mergeConfig(partial?: Partial<WizardConfig>): WizardConfig {
+  const d = DEFAULT_WIZARD_CONFIG;
+  if (!partial) return JSON.parse(JSON.stringify(d));
+  return {
+    name: partial.name ?? d.name,
+    worldSize: partial.worldSize ?? d.worldSize,
+    terrain: { ...d.terrain, ...(partial.terrain ?? {}) },
+    plaza: { ...d.plaza, ...(partial.plaza ?? {}) },
+    roads: { ...d.roads, ...(partial.roads ?? {}) },
+    buildings: {
+      ...d.buildings,
+      ...(partial.buildings ?? {}),
+      facades: { ...d.buildings.facades, ...(partial.buildings?.facades ?? {}) },
+    },
+    park: { ...d.park, ...(partial.park ?? {}) },
+    station: { ...d.station, ...(partial.station ?? {}) },
+    train: { ...d.train, ...(partial.train ?? {}) },
+    characters: { ...d.characters, ...(partial.characters ?? {}) },
+    environment: { ...d.environment, ...(partial.environment ?? {}) },
+  };
+}
+
 function prim(opts: {
   name: string;
   pos: Vec3;
@@ -183,23 +287,20 @@ function building(opts: {
 /* ---------- terrain heightmap ---------- */
 
 /** Build a (res+1)×(res+1) heightmap of rolling hills, in metres. */
-function buildHeightmap(res: number, sizeXZ: number): number[] {
+function buildHeightmap(res: number, sizeXZ: number, hillAmp = 1, ridgeAmp = 1): number[] {
   const data: number[] = [];
   const k = sizeXZ / res;
   for (let j = 0; j <= res; j++) {
     for (let i = 0; i <= res; i++) {
       const x = (i - res / 2) * k;
       const z = (j - res / 2) * k;
-      // Composite of 3 sinusoidal hills + a flat plateau around the centre
-      // (where the town + station live).
       const distToCentre = Math.hypot(x, z);
-      const plateau = Math.max(0, 1 - distToCentre / 90); // 0..1 weight near centre
+      const plateau = Math.max(0, 1 - distToCentre / 90);
       const hill =
-        2.5 * Math.sin(x * 0.013) * Math.cos(z * 0.011) +
-        1.4 * Math.sin(x * 0.027 + 1.3) * Math.cos(z * 0.019 + 0.4) +
-        0.6 * Math.sin(x * 0.05 + 2.1) * Math.cos(z * 0.043 + 1.7);
-      // Ridge far from centre (rim of hills)
-      const ridge = Math.max(0, (distToCentre - 140) / 60) * 4.0;
+        (2.5 * Math.sin(x * 0.013) * Math.cos(z * 0.011) +
+          1.4 * Math.sin(x * 0.027 + 1.3) * Math.cos(z * 0.019 + 0.4) +
+          0.6 * Math.sin(x * 0.05 + 2.1) * Math.cos(z * 0.043 + 1.7)) * hillAmp;
+      const ridge = Math.max(0, (distToCentre - 140) / 60) * 4.0 * ridgeAmp;
       const h = hill * (1 - plateau) + ridge;
       data.push(h);
     }
@@ -254,22 +355,24 @@ function buildTrack(): ScenePath {
 
 /* ---------- main builder ---------- */
 
-export function buildMasterLevelScene(): LevelScene {
+export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelScene {
+  const cfg = mergeConfig(partial);
   const objects: SceneObject[] = [];
   const animations: AnimationTrack[] = [];
 
   /* ---- pavers central plaza ---- */
-  objects.push(prim({
+  if (cfg.plaza.enabled) objects.push(prim({
     name: "Plaza pavers",
     pos: [0, 0.02, 0],
-    size: [40, 0.05, 30],
+    size: [cfg.plaza.width, 0.05, cfg.plaza.depth],
     color: C.paver,
     textureUrl: TEX_PAVERS,
-    textureRepeat: [10, 8],
+    textureRepeat: [Math.max(1, Math.round(cfg.plaza.width / 4)), Math.max(1, Math.round(cfg.plaza.depth / 4))],
     layer: LAYERS.roads,
   }));
 
   /* ---- asphalt main road (N–S) ---- */
+  if (cfg.roads.enabled) {
   objects.push(prim({
     name: "Main road",
     pos: [25, 0.025, 0],
@@ -280,7 +383,7 @@ export function buildMasterLevelScene(): LevelScene {
     layer: LAYERS.roads,
   }));
   // dashed white centre-line (a few short bars)
-  for (let z = -90; z <= 90; z += 6) {
+  if (cfg.roads.laneMarks) for (let z = -90; z <= 90; z += 6) {
     objects.push(prim({
       name: `Lane mark ${z}`,
       pos: [25, 0.055, z],
@@ -302,9 +405,10 @@ export function buildMasterLevelScene(): LevelScene {
     textureRepeat: [60, 4],
     layer: LAYERS.roads,
   }));
+  }
 
   /* ---- buildings ---- */
-  const buildingSpecs: Array<{ x: number; z: number; w: number; d: number; h: number; facade: any; name: string }> = [
+  const allBuildingSpecs: Array<{ x: number; z: number; w: number; d: number; h: number; facade: WizardFacade; name: string; tag?: "industrial" | "spire" | "plaza" }> = [
     // East commercial strip
     { x: 45, z: 60, w: 14, d: 14, h: 24, facade: "glass", name: "Aurora Tower" },
     { x: 65, z: 55, w: 16, d: 14, h: 18, facade: "concrete", name: "Lumen Office" },
@@ -332,29 +436,54 @@ export function buildMasterLevelScene(): LevelScene {
     { x: -60, z: 35, w: 16, d: 12, h: 22, facade: "concrete", name: "Granary" },
     { x: -85, z: 0, w: 14, d: 18, h: 14, facade: "wood", name: "Workshop" },
     // Tall feature towers
-    { x: 110, z: 20, w: 20, d: 20, h: 60, facade: "glass", name: "Eastlight Spire" },
+    { x: 110, z: 20, w: 20, d: 20, h: 60, facade: "glass", name: "Eastlight Spire", tag: "spire" },
     { x: 0, z: -80, w: 16, d: 16, h: 36, facade: "concrete", name: "Bell Tower" },
     // Industrial cluster
-    { x: 130, z: -30, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 1" },
-    { x: 130, z: -55, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 2" },
-    { x: 130, z: -80, w: 30, d: 20, h: 12, facade: "concrete", name: "Warehouse 3" },
+    { x: 130, z: -30, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 1", tag: "industrial" },
+    { x: 130, z: -55, w: 30, d: 20, h: 10, facade: "concrete", name: "Warehouse 2", tag: "industrial" },
+    { x: 130, z: -80, w: 30, d: 20, h: 12, facade: "concrete", name: "Warehouse 3", tag: "industrial" },
     // Plaza-facing
-    { x: 15, z: 18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Cafe" },
-    { x: -10, z: 18, w: 8, d: 6, h: 8, facade: "brick", name: "Plaza Bakery" },
-    { x: 15, z: -18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Florist" },
-    { x: -10, z: -18, w: 8, d: 6, h: 8, facade: "wood", name: "Plaza Bookshop" },
+    { x: 15, z: 18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Cafe", tag: "plaza" },
+    { x: -10, z: 18, w: 8, d: 6, h: 8, facade: "brick", name: "Plaza Bakery", tag: "plaza" },
+    { x: 15, z: -18, w: 8, d: 6, h: 8, facade: "stone", name: "Plaza Florist", tag: "plaza" },
+    { x: -10, z: -18, w: 8, d: 6, h: 8, facade: "wood", name: "Plaza Bookshop", tag: "plaza" },
   ];
+  let buildingSpecs = allBuildingSpecs.filter((s) => cfg.buildings.facades[s.facade]);
+  if (!cfg.buildings.includeIndustrial) buildingSpecs = buildingSpecs.filter((s) => s.tag !== "industrial");
+  if (!cfg.buildings.includeTallSpire) buildingSpecs = buildingSpecs.filter((s) => s.tag !== "spire");
+  if (!cfg.buildings.includePlazaShops) buildingSpecs = buildingSpecs.filter((s) => s.tag !== "plaza");
+  const density = Math.max(0, Math.min(2, cfg.buildings.densityScale));
+  if (density < 1 && buildingSpecs.length > 0) {
+    const keep = Math.max(0, Math.round(buildingSpecs.length * density));
+    const stride = buildingSpecs.length / Math.max(1, keep);
+    const trimmed: typeof buildingSpecs = [];
+    for (let i = 0; i < keep; i++) trimmed.push(buildingSpecs[Math.floor(i * stride)]);
+    buildingSpecs = trimmed;
+  } else if (density > 1 && buildingSpecs.length > 0) {
+    const base = [...buildingSpecs];
+    const extras = Math.round(base.length * (density - 1));
+    for (let i = 0; i < extras; i++) {
+      const b = base[i % base.length];
+      buildingSpecs.push({
+        ...b,
+        name: `${b.name} ${Math.floor(i / base.length) + 2}`,
+        x: b.x + (i % 2 === 0 ? 28 : -28),
+        z: b.z + Math.floor(i / 2) * 6,
+      });
+    }
+  }
   for (const spec of buildingSpecs) {
     objects.push(...building({
       name: spec.name,
       cx: spec.x, cz: spec.z,
-      w: spec.w, d: spec.d, h: spec.h,
+      w: spec.w, d: spec.d, h: spec.h * cfg.buildings.heightScale,
       facade: spec.facade,
       layer: LAYERS.buildings,
     }));
   }
 
   /* ---- park (lawn + trees) ---- */
+  if (cfg.park.enabled) {
   objects.push(prim({
     name: "Park lawn",
     pos: [-50, 0.03, 70],
@@ -364,7 +493,7 @@ export function buildMasterLevelScene(): LevelScene {
     textureRepeat: [15, 15],
     layer: LAYERS.park,
   }));
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < cfg.park.treeCount; i++) {
     const tx = -75 + (i % 5) * 12 + ((i % 2) * 3);
     const tz = 50 + Math.floor(i / 5) * 18;
     // trunk
@@ -390,12 +519,14 @@ export function buildMasterLevelScene(): LevelScene {
       layer: LAYERS.park,
     }));
   }
+  }
 
   /* ---- train station ---- */
   // Long platform on the +Z axis, parallel to the rails (rails at x = -22).
   const PLAT_X = -18; // platform centre
   const PLAT_Z = 0;
   const PLAT_LEN = 60;
+  if (cfg.station.enabled) {
   objects.push(prim({
     name: "Station platform",
     pos: [PLAT_X, 0.5, PLAT_Z],
@@ -502,24 +633,16 @@ export function buildMasterLevelScene(): LevelScene {
       layer: LAYERS.station,
     }));
   }
+  }
 
   /* ---- train ---- */
-  // The locomotive + 2 cars are simple primitive groups. The TrainRuntime
-  // moves them along `path_train_track` and slides the door panels open.
   const locoId = newId("train_loco");
-  const car1Id = newId("train_car");
-  const car2Id = newId("train_car");
   const cabinId = newId("train_cabin");
-  const door1L = newId("train_door");
-  const door1R = newId("train_door");
-  const door2L = newId("train_door");
-  const door2R = newId("train_door");
-
-  // Locomotive body — placed at the stop pose. Rails are at x=-22 (along Z).
-  // The locomotive sits at the FRONT of the train; cars trail to -Z.
-  // (At Play time the TrainRuntime overwrites positions anyway, but a
-  // visually-correct edit pose helps when scrubbing in the editor.)
   const TRAIN_Y = 1.4;
+  const carIds: string[] = [];
+  const doorIds: string[] = [];
+  let trainSystem: TrainSystemConfig | undefined;
+  if (cfg.train.enabled && cfg.station.enabled) {
   objects.push(prim({
     id: locoId,
     name: "Locomotive",
@@ -559,8 +682,6 @@ export function buildMasterLevelScene(): LevelScene {
     layer: LAYERS.train,
   }));
 
-  // Cars (passenger wagons). Each is a box with two sliding doors on the
-  // +X (platform-facing) side.
   function buildCar(carId: string, posZ: number, label: string, doorL: string, doorR: string) {
     objects.push(prim({
       id: carId,
@@ -615,8 +736,32 @@ export function buildMasterLevelScene(): LevelScene {
       layer: LAYERS.train,
     }));
   }
-  buildCar(car1Id, -10, "Car A", door1L, door1R);
-  buildCar(car2Id, -19, "Car B", door2L, door2R);
+  for (let i = 0; i < cfg.train.carCount; i++) {
+    const carId = newId("train_car");
+    const dL = newId("train_door");
+    const dR = newId("train_door");
+    carIds.push(carId);
+    doorIds.push(dL, dR);
+    const label = `Car ${String.fromCharCode(65 + i)}`;
+    const posZ = -10 - i * cfg.train.carSpacing;
+    buildCar(carId, posZ, label, dL, dR);
+  }
+
+  trainSystem = {
+    trackPathId: "path_train_track",
+    locomotiveId: locoId,
+    carIds,
+    doorIds,
+    cabinId,
+    stops: [{ t: 0.085, name: "Eastlight Station" }],
+    baseSpeed: cfg.train.baseSpeed,
+    brakeDistance: 24,
+    stopDurationSeconds: cfg.train.stopDurationSeconds,
+    doorAnimSeconds: cfg.train.doorAnimSeconds,
+    carSpacing: cfg.train.carSpacing,
+    possessKey: "P",
+  };
+  }
 
   /* ---- animated decorations (rotating station sign) ---- */
   const spinId = newId("obj_spin");
@@ -644,45 +789,45 @@ export function buildMasterLevelScene(): LevelScene {
   });
 
   /* ---- characters ---- */
-  // Playable spawn on the plaza
-  const playable: CharacterObject = {
-    id: newId("chr"),
-    name: "You",
-    kind: "character",
-    url: DEFAULT_CHARACTER_URL,
-    source: "Xbot (Mixamo)",
-    position: [0, 0.1, 5],
-    rotation: [0, Math.PI, 0],
-    scale: [1, 1, 1],
-    visible: true,
-    layerId: LAYERS.characters,
-    animationSpeed: 1,
-    paused: false,
-    crossfade: 0.2,
-    playable: true,
-    controlScheme: "both",
-    cameraMode: "third",
-    locomotion: {
-      walkSpeed: 2.2,
-      runSpeed: 5.5,
-      jumpHeight: 1.4,
-      gravity: 22,
-      height: 1.7,
-      radius: 0.32,
-      maxStepHeight: 0.45,
-    },
-  };
-  objects.push(playable);
+  if (cfg.characters.includePlayable) {
+    const playable: CharacterObject = {
+      id: newId("chr"),
+      name: "You",
+      kind: "character",
+      url: DEFAULT_CHARACTER_URL,
+      source: "Xbot (Mixamo)",
+      position: [0, 0.1, 5],
+      rotation: [0, Math.PI, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      layerId: LAYERS.characters,
+      animationSpeed: 1,
+      paused: false,
+      crossfade: 0.2,
+      playable: true,
+      controlScheme: "both",
+      cameraMode: "third",
+      locomotion: {
+        walkSpeed: 2.2,
+        runSpeed: 5.5,
+        jumpHeight: 1.4,
+        gravity: 22,
+        height: 1.7,
+        radius: 0.32,
+        maxStepHeight: 0.45,
+      },
+    };
+    objects.push(playable);
+  }
 
-  // NPC commuters on the platform
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < cfg.characters.npcCount; i++) {
     const npc: CharacterObject = {
       id: newId("chr"),
       name: `Commuter ${i + 1}`,
       kind: "character",
       url: DEFAULT_CHARACTER_URL,
       source: "Xbot (Mixamo)",
-      position: [PLAT_X + 0.5, 1.0, -16 + i * 8],
+      position: [PLAT_X + 0.5, 1.0, -20 + i * 6],
       rotation: [0, -Math.PI / 2, 0],
       scale: [1, 1, 1],
       visible: true,
@@ -690,26 +835,29 @@ export function buildMasterLevelScene(): LevelScene {
       animationSpeed: 1,
       paused: false,
       crossfade: 0.2,
-      currentAnimation: ["idle", "idle", "wave", "dance"][i],
+      currentAnimation: ["idle", "idle", "wave", "dance"][i % 4],
     };
     objects.push(npc);
   }
 
   /* ---- terrain (sculpted hills) ---- */
   const terrain = defaultTerrain();
-  terrain.enabled = true;
-  terrain.size = [400, 1, 400];
+  terrain.enabled = cfg.terrain.enabled;
+  terrain.size = [cfg.worldSize, 1, cfg.worldSize];
   terrain.color = [0.22, 0.4, 0.18, 1];
   terrain.snapToSurface = false;
-  terrain.texture = { url: TEX_GRASS, name: "Grass", repeat: 80 };
+  terrain.texture = { url: TEX_GRASS, name: "Grass", repeat: Math.max(20, Math.round(cfg.worldSize / 5)) };
   terrain.material = {
     metalness: 0,
     roughness: 1,
     reflectivity: 0.2,
     preset: "custom",
   };
-  const RES = 96;
-  terrain.heightmap = { resolution: RES, data: buildHeightmap(RES, 400) };
+  const RES = Math.max(16, Math.round(cfg.terrain.resolution));
+  terrain.heightmap = {
+    resolution: RES,
+    data: buildHeightmap(RES, cfg.worldSize, cfg.terrain.hillAmplitude, cfg.terrain.ridgeIntensity),
+  };
 
   /* ---- lights ---- */
   const lights: SceneLight[] = [
@@ -719,7 +867,7 @@ export function buildMasterLevelScene(): LevelScene {
       kind: "directional",
       position: [80, 120, 40],
       color: [1, 0.97, 0.88, 1],
-      intensity: 1.5,
+      intensity: cfg.environment.sunIntensity,
       castShadow: true,
     },
     {
@@ -728,7 +876,7 @@ export function buildMasterLevelScene(): LevelScene {
       kind: "ambient",
       position: [0, 0, 0],
       color: [0.6, 0.75, 0.95, 1],
-      intensity: 0.35,
+      intensity: cfg.environment.ambientIntensity,
     },
     {
       id: "ml-plat",
@@ -742,42 +890,21 @@ export function buildMasterLevelScene(): LevelScene {
     },
   ];
 
-  /* ---- train system config ---- */
-  // The stops sit at the t-values where the path passes through the
-  // station-straight middle. Our buildTrack() emits 3 points in the
-  // straight (indexes 0..2). The platform-centre point is index 2 (Z=0).
-  // We don't know the exact t until the runtime measures arc length, so
-  // we store a stop position as the WORLD position of the platform stop
-  // anchor — but the simpler way is to pick a t-fraction by ratio. With
-  // 24 control points, station centre is point #2 → t≈2/24=0.083.
-  const trainSystem: TrainSystemConfig = {
-    trackPathId: "path_train_track",
-    locomotiveId: locoId,
-    carIds: [car1Id, car2Id],
-    doorIds: [door1L, door1R, door2L, door2R],
-    cabinId,
-    stops: [{ t: 0.085, name: "Eastlight Station" }],
-    baseSpeed: 9, // m/s cruise
-    brakeDistance: 24, // m
-    stopDurationSeconds: 10,
-    doorAnimSeconds: 1.4,
-    carSpacing: 9,
-    possessKey: "P",
-  };
-
   return {
     ...EMPTY_SCENE,
     layers: makeLayers(),
     terrain,
     objects,
     animations,
-    scenePaths: [buildTrack()],
+    scenePaths: cfg.train.enabled && cfg.station.enabled ? [buildTrack()] : [],
     lights,
     trainSystem,
     environment: {
-      background: "#86a8c6",
-      ambient: 0.45,
-      fog: { color: "#9bbed8", near: 120, far: 380 },
+      background: cfg.environment.background,
+      ambient: cfg.environment.ambientIntensity + 0.1,
+      fog: cfg.environment.fogEnabled
+        ? { color: cfg.environment.background, near: cfg.environment.fogNear, far: cfg.environment.fogFar }
+        : undefined,
       gi: {
         enabled: true,
         skyColor: "#cfe6ff",
