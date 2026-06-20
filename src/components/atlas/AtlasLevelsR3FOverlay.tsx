@@ -23,7 +23,10 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
+  BoundingSphere,
+  HeadingPitchRange,
   Matrix4 as CesiumMatrix4,
+  Math as CesiumMath,
   Transforms,
   type Viewer,
 } from "cesium";
@@ -37,9 +40,10 @@ import {
   type LevelPlacement,
 } from "@/lib/useAtlasLevelLayer";
 
-function CameraSync({ viewer }: { viewer: Viewer }) {
+function CameraSync({ viewer, enabled }: { viewer: Viewer; enabled: boolean }) {
   const { camera, size } = useThree();
   useFrame(() => {
+    if (!enabled) return;
     if (!viewer || viewer.isDestroyed()) return;
     const cam = viewer.camera;
     const persp = camera as THREE.PerspectiveCamera;
@@ -59,6 +63,17 @@ function CameraSync({ viewer }: { viewer: Viewer }) {
     persp.lookAt(cam.direction.x, cam.direction.y, cam.direction.z);
     persp.updateMatrixWorld(true);
   });
+  return null;
+}
+
+function LocalPlayFallbackCamera({ active }: { active: boolean }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    if (!active) return;
+    camera.position.set(0, 3.2, 7);
+    camera.lookAt(0, 1.2, 0);
+    camera.updateMatrixWorld(true);
+  }, [active, camera]);
   return null;
 }
 
@@ -136,6 +151,12 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
+    if (playing) {
+      groupRef.current.matrixAutoUpdate = false;
+      groupRef.current.matrix.identity();
+      groupRef.current.matrixWorldNeedsUpdate = true;
+      return;
+    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
@@ -244,8 +265,10 @@ export default function AtlasLevelsR3FOverlay({
   useEffect(() => {
     hiddenLevelIds.clear();
     nearIds.forEach((id) => hiddenLevelIds.add(id));
+    if (playingId) hiddenLevelIds.add(playingId);
+    if (pendingPlayId) hiddenLevelIds.add(pendingPlayId);
     viewerRef.current?.scene.requestRender?.();
-  }, [nearIds, viewerRef]);
+  }, [nearIds, playingId, pendingPlayId, viewerRef]);
 
   // Click a Cesium pin → request play. Auto-starts once camera arrives.
   useEffect(() => {
@@ -256,6 +279,32 @@ export default function AtlasLevelsR3FOverlay({
     window.addEventListener(LEVEL_PLAY_EVENT, onReq as any);
     return () => window.removeEventListener(LEVEL_PLAY_EVENT, onReq as any);
   }, []);
+
+  useEffect(() => {
+    if (!pendingPlayId || !viewerRef.current) return;
+    const viewer = viewerRef.current;
+    const p = placements.find((placement) => placement.id === pendingPlayId);
+    if (!p || viewer.isDestroyed()) return;
+    const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.6);
+    viewer.trackedEntity = undefined;
+    viewer.selectedEntity = undefined;
+    viewer.camera.flyToBoundingSphere(
+      new BoundingSphere(center, DEFAULT_LEVEL_SIZE_M * 0.55),
+      {
+        duration: 1.25,
+        offset: new HeadingPitchRange(
+          CesiumMath.toRadians((p.heading ?? 0) + 180),
+          CesiumMath.toRadians(-8),
+          Math.max(18, DEFAULT_LEVEL_SIZE_M * 0.42),
+        ),
+        complete: () => {
+          setNearIds((prev) => new Set(prev).add(p.id));
+          setPlayingId(p.id);
+          setPendingPlayId(null);
+        },
+      } as any,
+    );
+  }, [pendingPlayId, placements, viewerRef]);
 
   useEffect(() => {
     if (pendingPlayId && nearIds.has(pendingPlayId)) {
@@ -296,7 +345,7 @@ export default function AtlasLevelsR3FOverlay({
 
   if (!isLoaded || !viewerRef.current || placements.length === 0 || !ready) return null;
   const viewer = viewerRef.current;
-  const visible = placements.filter((p) => nearIds.has(p.id));
+  const visible = placements.filter((p) => nearIds.has(p.id) || p.id === playingId || p.id === pendingPlayId);
   if (visible.length === 0) return null;
   const playablePlacement = visible[0]; // nearest = first added; good enough
   return (
@@ -313,7 +362,8 @@ export default function AtlasLevelsR3FOverlay({
             pointerEvents: playingId ? "auto" : "none",
           }}
         >
-          <CameraSync viewer={viewer} />
+          <CameraSync viewer={viewer} enabled={!playingId} />
+          <LocalPlayFallbackCamera active={!!playingId} />
           <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
           <directionalLight position={[100, 200, 100]} intensity={1.2} />
           {visible.map((p) => (
