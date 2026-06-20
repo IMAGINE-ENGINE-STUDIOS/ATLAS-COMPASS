@@ -2944,9 +2944,39 @@ function SpaceshipPage() {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
-        const detail = (e as CustomEvent).detail as any;
-        const screen = detail?.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-        setEarthMenu({ x: screen.x, y: screen.y, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
+        // Cinematic centering: smoothly orbit the camera around the
+        // clicked point and lock its reference frame to it so subsequent
+        // look/orbit gestures pivot around that target. Right-click or
+        // Esc drops the target (see handlers above).
+        const viewer = viewerRef.current;
+        if (!viewer || viewer.isDestroyed()) return;
+        const center = Cartesian3.fromDegrees(loc.lng, loc.lat, loc.alt ?? 0);
+        const camPos = viewer.camera.positionWC;
+        const dist = Cartesian3.distance(camPos, center);
+        // Cinematic distance: pull back to ~30% of current standoff,
+        // clamped so we never end up inside the surface or kilometres away.
+        const standoff = Math.min(Math.max(dist * 0.35, 120), 8000);
+        const heading = viewer.camera.heading;
+        const targetPitch = CesiumMath.toRadians(-28);
+        viewer.camera.flyToBoundingSphere(
+          new BoundingSphere(center, standoff * 0.4) as any,
+          {
+            duration: 1.6,
+            offset: new HeadingPitchRange(heading, targetPitch, standoff),
+            easingFunction: (t: number) =>
+              t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+            complete: () => {
+              try {
+                const transform = Transforms.eastNorthUpToFixedFrame(center);
+                viewer.camera.lookAtTransform(
+                  transform,
+                  new HeadingPitchRange(heading, targetPitch, standoff),
+                );
+                cameraTargetRef.current = center;
+              } catch {}
+            },
+          } as any,
+        );
       }
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
