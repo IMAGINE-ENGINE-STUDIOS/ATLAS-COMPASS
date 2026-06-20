@@ -67,20 +67,10 @@ export function useAtlasLevelLayer(
       const boxHeight = LEVEL_HEIGHT_M;
       const beaconTop = baseAlt + 600;
 
-      // Green translucent volume sized to the tile.
-      const boxEnt = viewer.entities.add({
-        id: `level-placement-${p.id}`,
-        position: Cartesian3.fromDegrees(p.lng, p.lat, baseAlt + boxHeight / 2) as any,
-        box: {
-          dimensions: new Cartesian3(size, size, boxHeight) as any,
-          material: Color.fromCssColorString("#10b981").withAlpha(0.45) as any,
-          outline: true,
-          outlineColor: Color.fromCssColorString("#86efac") as any,
-          outlineWidth: 3,
-        } as any,
-      });
-      (boxEnt as any)._levelPlacement = p;
-      added.push(boxEnt);
+      // The level's REAL R3F scene now renders directly on the globe via
+      // AtlasLevelsR3FOverlay, so the placeholder green cube is no longer
+      // drawn here. We keep the tall beacon polyline + label below as the
+      // discoverable marker / click target.
 
       // Tall beacon polyline so the cube is spotted from far away.
       const beacon = viewer.entities.add({

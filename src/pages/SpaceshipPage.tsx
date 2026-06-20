@@ -58,6 +58,7 @@ import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
 import AtlasLevelPlayer from "@/components/atlas/AtlasLevelPlayer";
+import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
@@ -6080,6 +6081,14 @@ function SpaceshipPage() {
           onClose={() => setActiveLevelPlacement(null)}
         />
       )}
+      {/* Real R3F scenes for every placed Level, rendered in-place on the
+          globe in sync with the Cesium camera (so they look like the
+          editor — geometry, terrain, characters, lights). */}
+      <AtlasLevelsR3FOverlay
+        viewerRef={viewerRef}
+        isLoaded={isLoaded}
+        placements={levelPlacements}
+      />
       {earthMenu && (
         <EarthContextMenu
           x={earthMenu.x}
