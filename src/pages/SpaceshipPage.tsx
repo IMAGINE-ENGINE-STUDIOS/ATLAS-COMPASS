@@ -6140,6 +6140,7 @@ function SpaceshipPage() {
               levelName: lvl.name,
               sizeM: DEFAULT_LEVEL_SIZE_M,
               loc: { lat: l.lat, lng: l.lng, alt: Math.max(0, l.alt) },
+              heading: 0,
             });
           }}
           onPasteEntry={(entry: FileClipboardEntry, l) => {
@@ -6168,34 +6169,79 @@ function SpaceshipPage() {
         />
       )}
       {pendingLevelPlacement && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] rounded-xl border border-emerald-500/30 bg-slate-900/95 backdrop-blur-xl shadow-2xl text-white px-3 py-2 flex items-center gap-3">
-          <div className="text-xs">
-            <div className="font-semibold text-emerald-300">{pendingLevelPlacement.levelName}</div>
-            <div className="text-[10px] text-white/60 font-mono">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] rounded-xl border border-emerald-500/30 bg-slate-900/95 backdrop-blur-xl shadow-2xl text-white p-3 w-[360px] space-y-3">
+          <div>
+            <div className="font-semibold text-sm text-emerald-300">{pendingLevelPlacement.levelName}</div>
+            <div className="text-[10px] text-white/60 font-mono mt-0.5">
               {pendingLevelPlacement.loc
                 ? `${pendingLevelPlacement.loc.lat.toFixed(5)}, ${pendingLevelPlacement.loc.lng.toFixed(5)} · ~${pendingLevelPlacement.sizeM}m tile`
                 : "Double-click the globe to choose a tile"}
             </div>
           </div>
-          <button
-            onClick={confirmLevelPlacement}
-            disabled={!pendingLevelPlacement.loc}
-            className="px-3 py-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 text-[11px] font-semibold disabled:opacity-40"
-          >
-            Drop here
-          </button>
-          <button
-            onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, loc: null })}
-            className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-[11px]"
-          >
-            Choose another location
-          </button>
-          <button
-            onClick={() => setPendingLevelPlacement(null)}
-            className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-[11px] text-white/70"
-          >
-            Cancel
-          </button>
+          {/* Rotation widget — drag to rotate the preview cube before
+              confirming. Saved to atlas_level_placements.heading on
+              "Drop here". */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-white/70">Rotation</span>
+              <span className="text-[11px] font-mono text-emerald-300">{Math.round(pendingLevelPlacement.heading)}°</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={1}
+              value={pendingLevelPlacement.heading}
+              onChange={(e) =>
+                setPendingLevelPlacement({ ...pendingLevelPlacement, heading: Number(e.target.value) })
+              }
+              className="w-full accent-emerald-400"
+            />
+            <div className="flex gap-1">
+              {[0, 90, 180, 270].map((deg) => (
+                <button
+                  key={deg}
+                  onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, heading: deg })}
+                  className={`flex-1 text-[10px] px-1 py-1 rounded border ${
+                    Math.round(pendingLevelPlacement.heading) === deg
+                      ? "bg-emerald-500/30 border-emerald-400/60"
+                      : "bg-white/5 hover:bg-white/15 border-white/10"
+                  }`}
+                >{deg}°</button>
+              ))}
+              <button
+                onClick={() =>
+                  setPendingLevelPlacement({
+                    ...pendingLevelPlacement,
+                    heading: (pendingLevelPlacement.heading + 15) % 360,
+                  })
+                }
+                className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/15 border border-white/10"
+                title="Nudge +15°"
+              >+15°</button>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={confirmLevelPlacement}
+              disabled={!pendingLevelPlacement.loc}
+              className="flex-1 px-3 py-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 text-[11px] font-semibold disabled:opacity-40"
+            >
+              Drop here
+            </button>
+            <button
+              onClick={() => setPendingLevelPlacement({ ...pendingLevelPlacement, loc: null })}
+              className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-[11px]"
+            >
+              Re-pick
+            </button>
+            <button
+              onClick={() => setPendingLevelPlacement(null)}
+              className="px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-[11px] text-white/70"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>
