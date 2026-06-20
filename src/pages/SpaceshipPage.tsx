@@ -2259,6 +2259,26 @@ function SpaceshipPage() {
       window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
     }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
+    // Right-click → open Earth context menu (formerly bound to dbl-click).
+    // If the camera is currently "targeted" on a centered point, right-click
+    // drops the target instead — keeps the gesture lightweight.
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      const ray = viewer.camera.getPickRay(click.position);
+      if (!ray) return;
+      const cartesian = viewer.scene.pickPosition(click.position)
+        || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
+      if (!defined(cartesian)) return;
+      const carto = Cartographic.fromCartesian(cartesian);
+      const loc = {
+        lat: CesiumMath.toDegrees(carto.latitude),
+        lng: CesiumMath.toDegrees(carto.longitude),
+        alt: carto.height,
+      };
+      const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
+      window.dispatchEvent(new CustomEvent("cesium-rightclick", { detail: { ...loc, screen, pickedModel: picked?.id?.id } }));
+    }, ScreenSpaceEventType.RIGHT_CLICK);
+
     // Track camera altitude
     viewer.scene.postRender.addEventListener(() => {
       if (viewer.isDestroyed()) return;
