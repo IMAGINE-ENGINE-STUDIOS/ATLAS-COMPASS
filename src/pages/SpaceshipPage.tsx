@@ -65,6 +65,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import CameraHistoryTimeline from "@/components/atlas/CameraHistoryTimeline";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
