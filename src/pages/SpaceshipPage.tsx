@@ -691,10 +691,15 @@ function SpaceshipPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
-  const [activeLevelPlacement, setActiveLevelPlacement] = useState<LevelPlacement | null>(null);
-  const { placements: levelPlacements } = useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
-    setActiveLevelPlacement(p);
-  }, []));
+  // Levels render directly in the same world as the globe via
+  // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
+  // there is no separate "open level" modal anymore. Earth + level share
+  // one coordinate system so the user can walk in and out of levels.
+  const { placements: levelPlacements } = useAtlasLevelLayer(
+    viewerRef,
+    isLoaded,
+    useCallback((_p: LevelPlacement) => { /* no-op: in-world play */ }, []),
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
@@ -6072,12 +6077,6 @@ function SpaceshipPage() {
           onResetTerrain={handleResetTerrain}
           terrainEditing={terrainEditing}
           onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
-        />
-      )}
-      {activeLevelPlacement && (
-        <AtlasLevelPlayer
-          placement={activeLevelPlacement}
-          onClose={() => setActiveLevelPlacement(null)}
         />
       )}
       {/* Real R3F scenes for every placed Level, rendered in-place on the
