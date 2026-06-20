@@ -1315,6 +1315,8 @@ export interface LevelSceneProps {
   };
   /** Terrain sculpt mode state (provided by the editor page). */
   sculpt?: TerrainSculptConfig;
+  /** Optional bridge used by Atlas Play to drive Cesium's camera from the playable character. */
+  onPlayCameraPose?: (pose: PlayCameraPose) => void;
 }
 
 /**
@@ -1347,6 +1349,7 @@ export function LevelSceneContents({
   onAddingPointHandled,
   facePaint,
   sculpt,
+  onPlayCameraPose,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -1429,6 +1432,7 @@ export function LevelSceneContents({
             playing={!!playing}
             controlsRef={controlsRef}
             onTrajectoryPointsChange={onTrajectoryPointsChange}
+            onPlayCameraPose={onPlayCameraPose}
           />
         ))}
       </group>
