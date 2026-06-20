@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, ChevronDown, Compass, Gamepad2, Settings as SettingsIcon, X } from "lucide-react";
 import { type Viewer } from "cesium";
 import CameraHistoryTimeline from "./CameraHistoryTimeline";
-import { GlyphIcon } from "./GlyphIcon";
+import GlyphIcon from "./GlyphIcon";
 
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
