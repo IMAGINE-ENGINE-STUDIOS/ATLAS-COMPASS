@@ -58,6 +58,8 @@ import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
 import AtlasLevelPlayer from "@/components/atlas/AtlasLevelPlayer";
+import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
+import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import filterAllPng     from "@/assets/icons/filter-all.png";
 import filterFoodPng    from "@/assets/icons/filter-food.png";
 import filterCafePng    from "@/assets/icons/filter-cafe.png";
@@ -701,6 +703,7 @@ function SpaceshipPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
+  const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
   const [poiName, setPoiName] = useState("");
   const [poiDescription, setPoiDescription] = useState("");
   const [poisPanelOpen, setPoisPanelOpen] = useState(false);
@@ -2075,8 +2078,10 @@ function SpaceshipPage() {
         lng: CesiumMath.toDegrees(carto.longitude),
         alt: carto.height,
       };
-      // We dispatch a custom event so React state can decide the action
-      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: loc }));
+      // We dispatch a custom event so React state can decide the action.
+      // Include screen position so React can anchor a context menu near the cursor.
+      const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
+      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
     }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
     // Track camera altitude
@@ -2734,9 +2739,9 @@ function SpaceshipPage() {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
-        setNamingPOI(loc);
-        setPoiName("");
-        setPoiDescription("");
+        const detail = (e as CustomEvent).detail as any;
+        const screen = detail?.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        setEarthMenu({ x: screen.x, y: screen.y, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
       }
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
@@ -5848,6 +5853,41 @@ function SpaceshipPage() {
         <AtlasLevelPlayer
           placement={activeLevelPlacement}
           onClose={() => setActiveLevelPlacement(null)}
+        />
+      )}
+      {earthMenu && (
+        <EarthContextMenu
+          x={earthMenu.x}
+          y={earthMenu.y}
+          loc={earthMenu.loc}
+          onClose={() => setEarthMenu(null)}
+          onCreatePOI={(l) => {
+            setNamingPOI(l);
+            setPoiName("");
+            setPoiDescription("");
+          }}
+          onPasteEntry={(entry: FileClipboardEntry, l) => {
+            // Levels paste → create placement
+            if (entry.kind === "level" && entry.sourceId) {
+              (async () => {
+                const { data: userRes } = await supabase.auth.getUser();
+                const uid = userRes.user?.id;
+                if (!uid) return;
+                await supabase.from("atlas_level_placements").insert({
+                  owner_id: uid,
+                  level_id: entry.sourceId,
+                  lat: l.lat, lng: l.lng,
+                  altitude: Math.max(0, l.alt),
+                  heading: 0, scale: 1,
+                });
+              })();
+              return;
+            }
+            // Default: drop a POI carrying the clipboard name
+            setNamingPOI(l);
+            setPoiName(entry.name || "");
+            setPoiDescription("");
+          }}
         />
       )}
     </div>
