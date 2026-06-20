@@ -1371,7 +1371,7 @@ export function LevelSceneContents({
         !skipAmbient && <ambientLight intensity={scene.environment.ambient} />
       )}
       {scene.lights.map((l) => (
-        <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} />
+        <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} skipDirectional={skipDirectional} />
       ))}
       {!playing &&
         scene.lights.map((l) => (
