@@ -2739,9 +2739,9 @@ function SpaceshipPage() {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
-        setNamingPOI(loc);
-        setPoiName("");
-        setPoiDescription("");
+        const detail = (e as CustomEvent).detail as any;
+        const screen = detail?.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        setEarthMenu({ x: screen.x, y: screen.y, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
       }
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
