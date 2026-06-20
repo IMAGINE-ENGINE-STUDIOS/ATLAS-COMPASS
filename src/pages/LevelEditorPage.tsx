@@ -509,6 +509,8 @@ export default function LevelEditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [playing, setPlaying] = useState(false);
+  const [dynamicGalleryOpen, setDynamicGalleryOpen] = useState(false);
+  const [saveDynamicOpen, setSaveDynamicOpen] = useState(false);
   // Live rig state surfaced from <RigControllerRoom/> so the left Components
   // panel can mirror the rig's character + bone hierarchy.
   const [rigState, setRigState] = useState<{
