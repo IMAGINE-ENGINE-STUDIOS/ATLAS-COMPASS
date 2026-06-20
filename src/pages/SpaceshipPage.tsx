@@ -703,6 +703,7 @@ function SpaceshipPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
+  const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
   const [poiName, setPoiName] = useState("");
   const [poiDescription, setPoiDescription] = useState("");
   const [poisPanelOpen, setPoisPanelOpen] = useState(false);
