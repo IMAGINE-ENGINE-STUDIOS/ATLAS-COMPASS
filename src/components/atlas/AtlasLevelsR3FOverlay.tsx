@@ -66,16 +66,11 @@ function CameraSync({ viewer, enabled }: { viewer: Viewer; enabled: boolean }) {
   return null;
 }
 
-function LocalPlayFallbackCamera({ active }: { active: boolean }) {
-  const { camera } = useThree();
-  useEffect(() => {
-    if (!active) return;
-    camera.position.set(0, 3.2, 7);
-    camera.lookAt(0, 1.2, 0);
-    camera.updateMatrixWorld(true);
-  }, [active, camera]);
-  return null;
-}
+// (Removed LocalPlayFallbackCamera — the level is always rendered as an
+//  in-world instance anchored to its ECEF position; Atlas's own first-person
+//  camera drives the view both before and during Play. No separate THREE
+//  camera frame is needed, which is what caused the "level spinning while
+//  earth stays static" effect.)
 
 // THREE local (+X right, +Y up, +Z toward viewer) → ENU (+X east, +Y north,
 // +Z up). Mapping: X→X, Y→Z, Z→Y. Both bases right-handed.
@@ -151,12 +146,6 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
-    if (playing) {
-      groupRef.current.matrixAutoUpdate = false;
-      groupRef.current.matrix.identity();
-      groupRef.current.matrixWorldNeedsUpdate = true;
-      return;
-    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
