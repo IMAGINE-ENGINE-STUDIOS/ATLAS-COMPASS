@@ -735,10 +735,6 @@ function SpaceshipPage() {
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
-  // ECEF position the camera is currently orbit-locked to (set by a
-  // double-click on the globe). When set, look/orbit gestures pivot
-  // around this point; right-click or Esc drops it.
-  const cameraTargetRef = useRef<Cartesian3 | null>(null);
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
     levelName: string;
@@ -1935,35 +1931,11 @@ function SpaceshipPage() {
     ssec0.zoomEventTypes = [
       CameraEventType.WHEEL,
       CameraEventType.PINCH,
+      CameraEventType.RIGHT_DRAG,
     ] as any;
     ssec0.inertiaSpin = 0.6;
     // Keep the camera free of any tracked transform so look is true first-person.
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
-
-    // Horizon-lock: zero out camera ROLL every frame so the camera behaves
-    // like a compass — heading and pitch are free, but the horizon never
-    // tilts. We rebuild camera.up / camera.right from the local geodetic
-    // up at the camera's current position, which is the true "no roll"
-    // basis on a curved planet (constrainedAxis alone is unreliable after
-    // flyTo / lookAtTransform).
-    const _scratchUp = new Cartesian3();
-    const _scratchRight = new Cartesian3();
-    const _scratchNewUp = new Cartesian3();
-    const lockRoll = () => {
-      if (viewer.isDestroyed()) return;
-      const cam = viewer.camera;
-      const ellipsoid = viewer.scene.globe.ellipsoid;
-      ellipsoid.geodeticSurfaceNormal(cam.positionWC, _scratchUp);
-      Cartesian3.cross(cam.direction, _scratchUp, _scratchRight);
-      if (Cartesian3.magnitudeSquared(_scratchRight) < 1e-10) return; // looking straight up/down
-      Cartesian3.normalize(_scratchRight, _scratchRight);
-      Cartesian3.cross(_scratchRight, cam.direction, _scratchNewUp);
-      Cartesian3.normalize(_scratchNewUp, _scratchNewUp);
-      Cartesian3.clone(_scratchRight, cam.right);
-      Cartesian3.clone(_scratchNewUp, cam.up);
-    };
-    viewer.scene.preRender.addEventListener(lockRoll);
-    viewer.scene.postRender.addEventListener(lockRoll);
 
     // Global ESC + click-on-empty-globe → restore first-person (clear any
     // sticky reference frame after fly-to / tracked entity).
@@ -1972,7 +1944,6 @@ function SpaceshipPage() {
       viewer.trackedEntity = undefined;
       viewer.selectedEntity = undefined;
       try { viewer.camera.lookAtTransform(Matrix4.IDENTITY); } catch {}
-      window.dispatchEvent(new CustomEvent("cesium-target-dropped"));
     };
     const onEscFps = (e: KeyboardEvent) => {
       if (e.key === "Escape") restoreFirstPerson();
@@ -2262,26 +2233,6 @@ function SpaceshipPage() {
       const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
       window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
     }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
-
-    // Right-click → open Earth context menu (formerly bound to dbl-click).
-    // If the camera is currently "targeted" on a centered point, right-click
-    // drops the target instead — keeps the gesture lightweight.
-    handler.setInputAction((click: any) => {
-      const picked = viewer.scene.pick(click.position);
-      const ray = viewer.camera.getPickRay(click.position);
-      if (!ray) return;
-      const cartesian = viewer.scene.pickPosition(click.position)
-        || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
-      if (!defined(cartesian)) return;
-      const carto = Cartographic.fromCartesian(cartesian);
-      const loc = {
-        lat: CesiumMath.toDegrees(carto.latitude),
-        lng: CesiumMath.toDegrees(carto.longitude),
-        alt: carto.height,
-      };
-      const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
-      window.dispatchEvent(new CustomEvent("cesium-rightclick", { detail: { ...loc, screen, pickedModel: picked?.id?.id } }));
-    }, ScreenSpaceEventType.RIGHT_CLICK);
 
     // Track camera altitude
     viewer.scene.postRender.addEventListener(() => {
@@ -2948,74 +2899,14 @@ function SpaceshipPage() {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
-        // Cinematic centering: smoothly orbit the camera around the
-        // clicked point and lock its reference frame to it so subsequent
-        // look/orbit gestures pivot around that target. Right-click or
-        // Esc drops the target (see handlers above).
-        const viewer = viewerRef.current;
-        if (!viewer || viewer.isDestroyed()) return;
-        const center = Cartesian3.fromDegrees(loc.lng, loc.lat, loc.alt ?? 0);
-        const camPos = viewer.camera.positionWC;
-        const dist = Cartesian3.distance(camPos, center);
-        // Cinematic distance: pull back to ~30% of current standoff,
-        // clamped so we never end up inside the surface or kilometres away.
-        const standoff = Math.min(Math.max(dist * 0.35, 120), 8000);
-        const heading = viewer.camera.heading;
-        const targetPitch = CesiumMath.toRadians(-28);
-        viewer.camera.flyToBoundingSphere(
-          new BoundingSphere(center, standoff * 0.4) as any,
-          {
-            duration: 1.6,
-            offset: new HeadingPitchRange(heading, targetPitch, standoff),
-            easingFunction: (t: number) =>
-              t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
-            complete: () => {
-              try {
-                const transform = Transforms.eastNorthUpToFixedFrame(center);
-                viewer.camera.lookAtTransform(
-                  transform,
-                  new HeadingPitchRange(heading, targetPitch, standoff),
-                );
-                cameraTargetRef.current = center;
-              } catch {}
-            },
-          } as any,
-        );
+        const detail = (e as CustomEvent).detail as any;
+        const screen = detail?.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        setEarthMenu({ x: screen.x, y: screen.y, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
       }
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode, tileZoom, rectStart, stampSpacingM]);
-
-  // Right-click on the globe → open the Earth context menu (this used to
-  // be triggered by double-click). If the camera is currently locked to
-  // a target point (set by a double-click), the right-click drops that
-  // target instead — same effect as pressing Esc.
-  useEffect(() => {
-    const onRight = (e: Event) => {
-      const detail = (e as CustomEvent).detail as any;
-      const viewer = viewerRef.current;
-      if (cameraTargetRef.current && viewer && !viewer.isDestroyed()) {
-        try { viewer.camera.lookAtTransform(Matrix4.IDENTITY); } catch {}
-        cameraTargetRef.current = null;
-        return;
-      }
-      if (brushMode) return; // brush handles its own gestures
-      const screen = detail?.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      setEarthMenu({
-        x: screen.x,
-        y: screen.y,
-        loc: { lat: detail.lat, lng: detail.lng, alt: detail.alt },
-      });
-    };
-    const onDropped = () => { cameraTargetRef.current = null; };
-    window.addEventListener("cesium-rightclick", onRight);
-    window.addEventListener("cesium-target-dropped", onDropped);
-    return () => {
-      window.removeEventListener("cesium-rightclick", onRight);
-      window.removeEventListener("cesium-target-dropped", onDropped);
-    };
-  }, [brushMode]);
 
   // Listen for model double-click (open transform widget)
   useEffect(() => {
