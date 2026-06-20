@@ -230,6 +230,7 @@ function PlacedLevel({
         skipAmbient
         skipDirectional
         onPlayCameraPose={handlePlayCameraPose}
+        immediatePlayCamera
       />
     </group>
   );
