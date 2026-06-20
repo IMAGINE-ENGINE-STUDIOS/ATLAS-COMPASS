@@ -767,7 +767,8 @@ function SpaceshipPage() {
   // Web Mercator (XYZ / "slippy") tiles. Zoom 18 ≈ building-scale.
   type TileKey = string; // `${z}/${x}/${y}`
   type TilesTool = "grid" | "rectangle" | "lasso";
-  const [tilesTool, setTilesTool] = useState<TilesTool>(savedUI.tilesTool ?? "grid");
+  type TilesToolExt = TilesTool | "terrain";
+  const [tilesTool, setTilesTool] = useState<TilesToolExt>(savedUI.tilesTool ?? "grid");
   const [tileZoom, setTileZoom] = useState<number>(savedUI.tileZoom ?? 18);
   const [selectedTiles, setSelectedTiles] = useState<Set<TileKey>>(new Set());
   const [rectStart, setRectStart] = useState<{ lat: number; lng: number } | null>(null);
@@ -776,7 +777,7 @@ function SpaceshipPage() {
   const [tilesScanResults, setTilesScanResults] = useState<SearchResult[]>([]);
   const tileEntitiesRef = useRef<Map<TileKey, any>>(new Map());
   const lassoEntityRef = useRef<any>(null);
-  const tilesToolRef = useRef<TilesTool>("grid");
+  const tilesToolRef = useRef<TilesToolExt>("grid");
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
   // Model transform editing state
