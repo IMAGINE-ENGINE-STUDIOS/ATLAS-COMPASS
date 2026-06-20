@@ -19,6 +19,18 @@ export interface LevelPlacement {
 }
 
 /**
+ * Shared mutable set of level placement ids whose cheap green Cesium box
+ * should be hidden — populated by AtlasLevelsR3FOverlay once it has mounted
+ * the real R3F scene for that placement. Read every frame via
+ * CallbackProperty so toggling is instant and doesn't require recreating
+ * entities.
+ */
+export const hiddenLevelIds: Set<string> = new Set();
+
+/** Fired by Cesium pin/box click — overlay listens and starts in-world play. */
+export const LEVEL_PLAY_EVENT = "atlas-level-play-request";
+
+/**
  * Loads atlas_level_placements and renders them as Cesium pins.
  * Double-click a pin to open its Level page.
  */
@@ -80,6 +92,7 @@ export function useAtlasLevelLayer(
           material: Color.fromCssColorString("#34d399").withAlpha(0.55) as any,
           outline: true,
           outlineColor: Color.fromCssColorString("#10b981") as any,
+          show: new CallbackProperty(() => !hiddenLevelIds.has(p.id), false) as any,
         } as any,
       });
       (boxEnt as any)._levelPlacement = p;
@@ -96,6 +109,7 @@ export function useAtlasLevelLayer(
           width: 4,
           material: Color.fromCssColorString("#34d399").withAlpha(0.9) as any,
           arcType: ArcType.NONE,
+          show: new CallbackProperty(() => !hiddenLevelIds.has(p.id), false) as any,
         } as any,
       });
       (beacon as any)._levelPlacement = p;
@@ -155,6 +169,11 @@ export function useAtlasLevelLayer(
           );
         } catch {}
         onOpenLevel(p);
+        // Ask the in-world overlay to start play as soon as the camera
+        // arrives near the placement.
+        try {
+          window.dispatchEvent(new CustomEvent(LEVEL_PLAY_EVENT, { detail: { id: p.id } }));
+        } catch {}
       }
     };
     handler.setInputAction(onPick, ScreenSpaceEventType.LEFT_CLICK);
