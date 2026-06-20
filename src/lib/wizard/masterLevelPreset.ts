@@ -789,45 +789,45 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
   });
 
   /* ---- characters ---- */
-  // Playable spawn on the plaza
-  const playable: CharacterObject = {
-    id: newId("chr"),
-    name: "You",
-    kind: "character",
-    url: DEFAULT_CHARACTER_URL,
-    source: "Xbot (Mixamo)",
-    position: [0, 0.1, 5],
-    rotation: [0, Math.PI, 0],
-    scale: [1, 1, 1],
-    visible: true,
-    layerId: LAYERS.characters,
-    animationSpeed: 1,
-    paused: false,
-    crossfade: 0.2,
-    playable: true,
-    controlScheme: "both",
-    cameraMode: "third",
-    locomotion: {
-      walkSpeed: 2.2,
-      runSpeed: 5.5,
-      jumpHeight: 1.4,
-      gravity: 22,
-      height: 1.7,
-      radius: 0.32,
-      maxStepHeight: 0.45,
-    },
-  };
-  objects.push(playable);
+  if (cfg.characters.includePlayable) {
+    const playable: CharacterObject = {
+      id: newId("chr"),
+      name: "You",
+      kind: "character",
+      url: DEFAULT_CHARACTER_URL,
+      source: "Xbot (Mixamo)",
+      position: [0, 0.1, 5],
+      rotation: [0, Math.PI, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      layerId: LAYERS.characters,
+      animationSpeed: 1,
+      paused: false,
+      crossfade: 0.2,
+      playable: true,
+      controlScheme: "both",
+      cameraMode: "third",
+      locomotion: {
+        walkSpeed: 2.2,
+        runSpeed: 5.5,
+        jumpHeight: 1.4,
+        gravity: 22,
+        height: 1.7,
+        radius: 0.32,
+        maxStepHeight: 0.45,
+      },
+    };
+    objects.push(playable);
+  }
 
-  // NPC commuters on the platform
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < cfg.characters.npcCount; i++) {
     const npc: CharacterObject = {
       id: newId("chr"),
       name: `Commuter ${i + 1}`,
       kind: "character",
       url: DEFAULT_CHARACTER_URL,
       source: "Xbot (Mixamo)",
-      position: [PLAT_X + 0.5, 1.0, -16 + i * 8],
+      position: [PLAT_X + 0.5, 1.0, -20 + i * 6],
       rotation: [0, -Math.PI / 2, 0],
       scale: [1, 1, 1],
       visible: true,
@@ -835,26 +835,29 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
       animationSpeed: 1,
       paused: false,
       crossfade: 0.2,
-      currentAnimation: ["idle", "idle", "wave", "dance"][i],
+      currentAnimation: ["idle", "idle", "wave", "dance"][i % 4],
     };
     objects.push(npc);
   }
 
   /* ---- terrain (sculpted hills) ---- */
   const terrain = defaultTerrain();
-  terrain.enabled = true;
-  terrain.size = [400, 1, 400];
+  terrain.enabled = cfg.terrain.enabled;
+  terrain.size = [cfg.worldSize, 1, cfg.worldSize];
   terrain.color = [0.22, 0.4, 0.18, 1];
   terrain.snapToSurface = false;
-  terrain.texture = { url: TEX_GRASS, name: "Grass", repeat: 80 };
+  terrain.texture = { url: TEX_GRASS, name: "Grass", repeat: Math.max(20, Math.round(cfg.worldSize / 5)) };
   terrain.material = {
     metalness: 0,
     roughness: 1,
     reflectivity: 0.2,
     preset: "custom",
   };
-  const RES = 96;
-  terrain.heightmap = { resolution: RES, data: buildHeightmap(RES, 400) };
+  const RES = Math.max(16, Math.round(cfg.terrain.resolution));
+  terrain.heightmap = {
+    resolution: RES,
+    data: buildHeightmap(RES, cfg.worldSize, cfg.terrain.hillAmplitude, cfg.terrain.ridgeIntensity),
+  };
 
   /* ---- lights ---- */
   const lights: SceneLight[] = [
@@ -864,7 +867,7 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
       kind: "directional",
       position: [80, 120, 40],
       color: [1, 0.97, 0.88, 1],
-      intensity: 1.5,
+      intensity: cfg.environment.sunIntensity,
       castShadow: true,
     },
     {
@@ -873,7 +876,7 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
       kind: "ambient",
       position: [0, 0, 0],
       color: [0.6, 0.75, 0.95, 1],
-      intensity: 0.35,
+      intensity: cfg.environment.ambientIntensity,
     },
     {
       id: "ml-plat",
@@ -887,42 +890,21 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
     },
   ];
 
-  /* ---- train system config ---- */
-  // The stops sit at the t-values where the path passes through the
-  // station-straight middle. Our buildTrack() emits 3 points in the
-  // straight (indexes 0..2). The platform-centre point is index 2 (Z=0).
-  // We don't know the exact t until the runtime measures arc length, so
-  // we store a stop position as the WORLD position of the platform stop
-  // anchor — but the simpler way is to pick a t-fraction by ratio. With
-  // 24 control points, station centre is point #2 → t≈2/24=0.083.
-  const trainSystem: TrainSystemConfig = {
-    trackPathId: "path_train_track",
-    locomotiveId: locoId,
-    carIds: [car1Id, car2Id],
-    doorIds: [door1L, door1R, door2L, door2R],
-    cabinId,
-    stops: [{ t: 0.085, name: "Eastlight Station" }],
-    baseSpeed: 9, // m/s cruise
-    brakeDistance: 24, // m
-    stopDurationSeconds: 10,
-    doorAnimSeconds: 1.4,
-    carSpacing: 9,
-    possessKey: "P",
-  };
-
   return {
     ...EMPTY_SCENE,
     layers: makeLayers(),
     terrain,
     objects,
     animations,
-    scenePaths: [buildTrack()],
+    scenePaths: cfg.train.enabled && cfg.station.enabled ? [buildTrack()] : [],
     lights,
     trainSystem,
     environment: {
-      background: "#86a8c6",
-      ambient: 0.45,
-      fog: { color: "#9bbed8", near: 120, far: 380 },
+      background: cfg.environment.background,
+      ambient: cfg.environment.ambientIntensity + 0.1,
+      fog: cfg.environment.fogEnabled
+        ? { color: cfg.environment.background, near: cfg.environment.fogNear, far: cfg.environment.fogFar }
+        : undefined,
       gi: {
         enabled: true,
         skyColor: "#cfe6ff",
