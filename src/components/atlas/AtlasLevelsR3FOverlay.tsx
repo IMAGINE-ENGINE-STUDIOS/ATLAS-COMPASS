@@ -23,15 +23,14 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
-  HeadingPitchRoll,
   Matrix4 as CesiumMatrix4,
-  Math as CesiumMath,
   Transforms,
   type Viewer,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, type LevelScene } from "@/lib/levelTypes";
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
+import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
 import { DEFAULT_LEVEL_SIZE_M } from "@/lib/atlasLevelGeo";
 import {
   hiddenLevelIds,
@@ -91,10 +90,12 @@ function PlacedLevel({
   viewer,
   placement,
   playing,
+  onPlayCameraPose,
 }: {
   viewer: Viewer;
   placement: LevelPlacement;
   playing: boolean;
+  onPlayCameraPose?: (placement: LevelPlacement, pose: PlayCameraPose) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
@@ -189,8 +190,10 @@ function PlacedLevel({
       <LevelSceneContents
         scene={scene}
         playing={playing}
+        skipBackground
         skipAmbient
         skipDirectional
+        onPlayCameraPose={playing ? (pose) => onPlayCameraPose?.(placement, pose) : undefined}
       />
     </group>
   );
