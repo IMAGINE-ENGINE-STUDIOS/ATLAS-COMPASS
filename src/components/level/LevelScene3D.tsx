@@ -884,6 +884,7 @@ function RenderObject({
   controlsRef,
   onTrajectoryPointsChange,
   onPlayCameraPose,
+  immediatePlayCamera,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -893,6 +894,7 @@ function RenderObject({
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
   onPlayCameraPose?: (pose: PlayCameraPose) => void;
+  immediatePlayCamera?: boolean;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
@@ -903,7 +905,7 @@ function RenderObject({
     if (isPlayer) {
       return (
         <Suspense fallback={null}>
-          <PlayableCharacter obj={obj as CharacterObject} enabled={true} onCameraPose={onPlayCameraPose} />
+          <PlayableCharacter obj={obj as CharacterObject} enabled={true} onCameraPose={onPlayCameraPose} immediateCamera={immediatePlayCamera} />
         </Suspense>
       );
     }
@@ -949,6 +951,7 @@ function ObjectSlot({
   controlsRef,
   onTrajectoryPointsChange,
   onPlayCameraPose,
+  immediatePlayCamera,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -957,6 +960,7 @@ function ObjectSlot({
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
   onPlayCameraPose?: (pose: PlayCameraPose) => void;
+  immediatePlayCamera?: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const isPlayer =
@@ -1007,6 +1011,7 @@ function ObjectSlot({
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
         onPlayCameraPose={onPlayCameraPose}
+        immediatePlayCamera={immediatePlayCamera}
       />
     );
   }
@@ -1032,6 +1037,7 @@ function ObjectSlot({
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
         onPlayCameraPose={onPlayCameraPose}
+        immediatePlayCamera={immediatePlayCamera}
       />
       {isPushable && (
         <PushableRuntime
@@ -1318,6 +1324,8 @@ export interface LevelSceneProps {
   sculpt?: TerrainSculptConfig;
   /** Optional bridge used by Atlas Play to drive Cesium's camera from the playable character. */
   onPlayCameraPose?: (pose: PlayCameraPose) => void;
+  /** Skip camera smoothing when embedded in Atlas play mode. */
+  immediatePlayCamera?: boolean;
 }
 
 /**
@@ -1352,6 +1360,7 @@ export function LevelSceneContents({
   facePaint,
   sculpt,
   onPlayCameraPose,
+  immediatePlayCamera,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -1445,6 +1454,7 @@ export function LevelSceneContents({
             controlsRef={controlsRef}
             onTrajectoryPointsChange={onTrajectoryPointsChange}
             onPlayCameraPose={onPlayCameraPose}
+            immediatePlayCamera={immediatePlayCamera}
           />
         ))}
       </group>

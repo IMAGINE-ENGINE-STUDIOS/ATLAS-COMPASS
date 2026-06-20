@@ -182,18 +182,6 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
-    if (playing) {
-      // Play mode is a normal local level scene. Do NOT apply the moving
-      // Cesium/ECEF camera-relative matrix to the level itself; only the
-      // character camera pose is mirrored into Cesium via handlePlayCameraPose.
-      groupRef.current.matrixAutoUpdate = true;
-      groupRef.current.position.set(0, 0, 0);
-      groupRef.current.rotation.set(0, 0, 0);
-      groupRef.current.scale.setScalar(1);
-      groupRef.current.updateMatrix();
-      groupRef.current.matrixWorldNeedsUpdate = true;
-      return;
-    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
@@ -242,6 +230,7 @@ function PlacedLevel({
         skipAmbient
         skipDirectional
         onPlayCameraPose={handlePlayCameraPose}
+        immediatePlayCamera
       />
     </group>
   );
@@ -432,7 +421,7 @@ export default function AtlasLevelsR3FOverlay({
               ECEF position when NOT playing. During Play we hand the R3F
               camera over to PlayableCharacter so the editor's play camera
               behaves identically inside Atlas. */}
-          <CameraSync viewer={viewer} enabled={!playingId} />
+          <CameraSync viewer={viewer} enabled />
           <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
           <directionalLight position={[100, 200, 100]} intensity={1.2} />
           {visible.map((p) => (
