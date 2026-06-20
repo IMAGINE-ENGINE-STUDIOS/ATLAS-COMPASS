@@ -145,6 +145,10 @@ function collectStaticTargets(root: THREE.Object3D, exclude: THREE.Object3D): TH
       if (ud.__gizmo || ud.__nocast) return;
       const material = (o as THREE.Mesh).material;
       if (!material || (Array.isArray(material) && material.some((m) => !m))) return;
+      if (Array.isArray(material)) {
+        const groups = ((o as THREE.Mesh).geometry as THREE.BufferGeometry).groups ?? [];
+        if (groups.some((g) => (g.materialIndex ?? 0) >= material.length)) return;
+      }
       // Skinned meshes (characters) are very expensive to raycast and we
       // handle character-vs-character separately with a cheap cylinder test.
       if ((o as any).isSkinnedMesh) return;
@@ -492,7 +496,7 @@ export default function PlayableCharacter({
         root.position.y + measuredHeight * 0.55,
         root.position.z,
       );
-      tmp.raycaster.set(waist, toWorldDir(new THREE.Vector3(facingX, 0, facingZ)));
+      tmp.raycaster.set(toWorldPoint(waist), toWorldDir(new THREE.Vector3(facingX, 0, facingZ)));
       tmp.raycaster.far = radius + 0.45;
       const fh = tmp.raycaster.intersectObjects(staticTargets, true)[0];
       if (fh) {
@@ -629,7 +633,7 @@ export default function PlayableCharacter({
       new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
     ];
     for (const d of dirs) {
-      tmp.raycaster.set(torso, d);
+      tmp.raycaster.set(toWorldPoint(torso), toWorldDir(d));
       tmp.raycaster.far = radius + 0.1;
       const hit = tmp.raycaster.intersectObjects(staticTargets, true)[0];
       if (hit && hit.distance < radius) {
