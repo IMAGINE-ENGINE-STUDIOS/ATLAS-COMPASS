@@ -786,7 +786,7 @@ export default function PlayableCharacter({
       finalEye.copy(fpEye);
       finalTarget.copy(fpTarget);
     } else {
-      finalEye.copy(onCameraPose ? tpEye : camera.position.clone().lerp(tpEye, Math.min(1, dt * 10)));
+      finalEye.copy(camera.position.clone().lerp(tpEye, Math.min(1, dt * 10)));
       finalTarget.copy(tpTarget);
     }
 
