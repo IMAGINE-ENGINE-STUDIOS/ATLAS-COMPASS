@@ -57,7 +57,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
-import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+// Levels in Atlas are rendered exactly like 3D model placements — as
+// Cesium entities (green box + beacon + label from useAtlasLevelLayer).
+// No separate R3F overlay, no in-Atlas Play mode (would hijack the
+// camera and make the city fly around). To actually play a level the
+// user navigates to /levels.
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
@@ -6086,14 +6090,6 @@ function SpaceshipPage() {
           onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
         />
       )}
-      {/* Real R3F scenes for every placed Level, rendered in-place on the
-          globe in sync with the Cesium camera (so they look like the
-          editor — geometry, terrain, characters, lights). */}
-      <AtlasLevelsR3FOverlay
-        viewerRef={viewerRef}
-        isLoaded={isLoaded}
-        placements={levelPlacements}
-      />
       {earthMenu && (
         <EarthContextMenu
           x={earthMenu.x}
