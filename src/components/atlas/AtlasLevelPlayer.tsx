@@ -14,6 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 import { X, Loader2, Edit3, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,10 +142,7 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
           // (the Cesium camera was flown to a ground-level view of the cube).
           camera={{ position: [0, 6, 28], fov: 55, near: 0.1, far: 5000 }}
           gl={{ alpha: true, antialias: true }}
-          // pointer-events: none lets mouse drags pass through to the Cesium
-          // globe underneath, so panning/zooming the Atlas no longer rotates
-          // the level. The header bar overrides this for its buttons.
-          style={{ background: "transparent", pointerEvents: "none" }}
+          style={{ background: "transparent" }}
         >
           {/* Atlas-style key + fill lighting (replaces stripped level lights) */}
           <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
@@ -159,6 +157,8 @@ export default function AtlasLevelPlayer({ placement, onClose }: Props) {
               controlsRef={controlsRef}
             />
           </group>
+
+          <OrbitControls ref={controlsRef} makeDefault enableDamping />
         </Canvas>
       )}
 
