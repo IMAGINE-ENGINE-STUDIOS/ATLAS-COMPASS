@@ -3,6 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
+import { Cartesian3 as CesiumCartesian3, Cartographic as CesiumCartographic, Math as CesiumMath } from "cesium";
 import type { CharacterObject } from "@/lib/levelTypes";
 import { modelForwardYawOffset } from "@/lib/modelOrientation";
 import {
@@ -486,7 +487,35 @@ export default function PlayableCharacter({
     tmp.raycaster.far = 2.4;
     const hits = tmp.raycaster.intersectObjects(staticTargets, true);
     const groundHit = hits[0];
-    const groundPoint = groundHit ? toLocalPoint(groundHit.point) : null;
+    let groundPoint = groundHit ? toLocalPoint(groundHit.point) : null;
+
+    // Fallback: when no level mesh is under the player (i.e. they walked
+    // off the level onto the surrounding Earth), sample the Cesium globe /
+    // 3D tilesets so the character lands on the real terrain instead of
+    // falling into the void.
+    if (!groundPoint) {
+      const viewer = (window as any).__cesiumViewer;
+      if (viewer && !viewer.isDestroyed?.()) {
+        try {
+          const worldFeet = toWorldPoint(new THREE.Vector3(root.position.x, root.position.y, root.position.z));
+          const carto = CesiumCartographic.fromCartesian(
+            new CesiumCartesian3(worldFeet.x, worldFeet.y, worldFeet.z),
+          );
+          if (carto) {
+            const sampled = viewer.scene.sampleHeight?.(carto, [], 0.05);
+            const h = (typeof sampled === "number" && Number.isFinite(sampled))
+              ? sampled
+              : (viewer.scene.globe?.getHeight?.(carto) ?? null);
+            if (h !== null && Number.isFinite(h)) {
+              carto.height = h;
+              const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, carto.height);
+              const localSurf = toLocalPoint(new THREE.Vector3(surfECEF.x, surfECEF.y, surfECEF.z));
+              groundPoint = localSurf;
+            }
+          }
+        } catch {}
+      }
+    }
 
     // ---- forward ledge probe (for climb + jump-down) ----
     // Cast forward from waist height; if it hits something, measure how tall
