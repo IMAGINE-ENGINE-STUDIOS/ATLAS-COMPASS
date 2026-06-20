@@ -68,6 +68,8 @@ import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
 import DynamicObjectGallery from "@/components/level/dynamics/DynamicObjectGallery";
+import FileContextMenu, { type FileLike } from "@/components/shared/FileContextMenu";
+import ShareDialog from "@/components/sharing/ShareDialog";
 import SaveAsDynamicDialog from "@/components/level/dynamics/SaveAsDynamicDialog";
 import { GeometryPanel } from "@/components/level/geometry/GeometryPanel";
 import { InteractionsPanel } from "@/components/level/geometry/InteractionsPanel";
@@ -539,6 +541,7 @@ export default function LevelEditorPage() {
   const [currentLayerId, setCurrentLayerId] = useState<string>(DEFAULT_LAYER_ID);
   const [terrainOpen, setTerrainOpen] = useState(false);
   const [terrainGalleryOpen, setTerrainGalleryOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<FileLike | null>(null);
 
   // Animation gallery modals — opened from inspectors.
   const [characterGalleryOpen, setCharacterGalleryOpen] = useState(false);
