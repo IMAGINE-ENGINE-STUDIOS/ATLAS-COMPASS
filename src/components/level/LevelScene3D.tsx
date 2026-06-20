@@ -951,6 +951,7 @@ function ObjectSlot({
   controlsRef,
   onTrajectoryPointsChange,
   onPlayCameraPose,
+  immediatePlayCamera,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -959,6 +960,7 @@ function ObjectSlot({
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
   onPlayCameraPose?: (pose: PlayCameraPose) => void;
+  immediatePlayCamera?: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const isPlayer =
@@ -1009,6 +1011,7 @@ function ObjectSlot({
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
         onPlayCameraPose={onPlayCameraPose}
+        immediatePlayCamera={immediatePlayCamera}
       />
     );
   }
@@ -1034,6 +1037,7 @@ function ObjectSlot({
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
         onPlayCameraPose={onPlayCameraPose}
+        immediatePlayCamera={immediatePlayCamera}
       />
       {isPushable && (
         <PushableRuntime
