@@ -415,9 +415,11 @@ export default function AtlasLevelsR3FOverlay({
             pointerEvents: playingId ? "auto" : "none",
           }}
         >
-          {/* Always-on Atlas camera sync — level instances stay anchored to
-              their ECEF position whether or not we're in Play. */}
-          <CameraSync viewer={viewer} enabled={true} />
+          {/* Atlas camera sync — level instances stay anchored to their
+              ECEF position when NOT playing. During Play we hand the R3F
+              camera over to PlayableCharacter so the editor's play camera
+              behaves identically inside Atlas. */}
+          <CameraSync viewer={viewer} enabled={!playingId} />
           <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
           <directionalLight position={[100, 200, 100]} intensity={1.2} />
           {visible.map((p) => (
