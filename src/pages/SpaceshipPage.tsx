@@ -730,38 +730,6 @@ function SpaceshipPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   const [cameraAlt, setCameraAlt] = useState(0);
-  // Keyboard navigation (WASD / arrows) — persisted per device.
-  const [kbNavEnabled, setKbNavEnabled] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem("atlas.kbNav.v1") ?? "true"); }
-    catch { return true; }
-  });
-  const [kbSensitivity, setKbSensitivity] = useState<number>(() => {
-    const v = Number(localStorage.getItem("atlas.kbSensitivity.v1"));
-    return Number.isFinite(v) && v > 0 ? v : 1;
-  });
-  useEffect(() => { try { localStorage.setItem("atlas.kbNav.v1", JSON.stringify(kbNavEnabled)); } catch {} }, [kbNavEnabled]);
-  useEffect(() => { try { localStorage.setItem("atlas.kbSensitivity.v1", String(kbSensitivity)); } catch {} }, [kbSensitivity]);
-
-  // Camera focus point — set by left double-click on the globe so the
-  // user orbits around that spot. `null` = free camera.
-  const [focusPoint, setFocusPoint] = useState<{ lat: number; lng: number; alt: number } | null>(null);
-  const releaseFocus = () => {
-    const v = viewerRef.current;
-    if (v && !v.isDestroyed()) {
-      try { v.camera.lookAtTransform(Matrix4.IDENTITY); } catch {}
-    }
-    setFocusPoint(null);
-  };
-  useEffect(() => {
-    if (!focusPoint) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") releaseFocus(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [focusPoint]);
-
-  // Wire WASD/arrow keys to the Cesium camera. Disabled while terrain
-  // brush is active so its Shift modifier doesn't fight our boost key.
-  useAtlasKeyboardNav(viewerRef, { enabled: kbNavEnabled, sensitivity: kbSensitivity });
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
