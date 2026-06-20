@@ -2666,6 +2666,13 @@ function SpaceshipPage() {
   useEffect(() => {
     const handleDblClick = (e: Event) => {
       const loc = (e as CustomEvent).detail;
+      // Intercept while previewing a level placement — just move the ghost.
+      const pending = pendingLevelPlacementRef.current;
+      if (pending) {
+        const snap = snapToLevelTile(loc.lat, loc.lng, pending.sizeM);
+        setPendingLevelPlacement({ ...pending, loc: { lat: snap.lat, lng: snap.lng, alt: Math.max(0, loc.alt) } });
+        return;
+      }
       if (brushMode) {
         // Sample the actual tile/terrain altitude so all brush modes snap
         // to the real surface (incl. negative altitudes below sea level).
