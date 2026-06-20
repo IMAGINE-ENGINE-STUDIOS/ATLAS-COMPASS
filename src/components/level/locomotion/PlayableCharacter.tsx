@@ -820,15 +820,17 @@ export default function PlayableCharacter({
       finalTarget.copy(tpTarget);
     }
 
-    camera.up.set(0, 1, 0);
-    camera.position.copy(finalEye);
-    camera.lookAt(finalTarget);
     onCameraPose?.({
       eye: [finalEye.x, finalEye.y, finalEye.z],
       target: [finalTarget.x, finalTarget.y, finalTarget.z],
       player: [root.position.x, root.position.y, root.position.z],
       cameraMode,
     });
+    if (!onCameraPose) {
+      camera.up.set(0, 1, 0);
+      camera.position.copy(finalEye);
+      camera.lookAt(finalTarget);
+    }
   }, -2);
 
   return (
