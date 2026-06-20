@@ -1,134 +1,80 @@
 ## Goal
 
-Two related additions to the Level Editor:
+Add a universal right-click menu (copy / paste / share / duplicate / delete) that works on the Object Control Bar, Scene Components panel, every gallery card, and the new Files page. Sharing sends any "file" (dynamic object, level, rig save, geometry, terrain entry) to another user by username, tracks recent + frequent recipients, and supports a friends graph. Add a Realtime matchmaking system on Lovable Cloud (not Kubernetes — Postgres + Realtime channels scale horizontally for the targeted concurrency; Kubernetes is not part of the Lovable Cloud platform and will be called out clearly to the user).
 
-1. **Groups** — a way to bind several scene objects together so the editor treats them as one selection unit, and so the Play runtime parents them as a rigid group.
-2. **Dynamic Objects** — a new category and gallery (Local + Cloud) for reusable "object presets". A Dynamic Object packages a single object **or** a whole group together with its interactions, scripts, splines, materials, animations, etc., so it can be dropped into any level later.
+## What gets built
 
-The save/load controls live inside the existing **Object Control Bar** (the contextual top bar that already appears when something is selected).
+### 1. Backend (one migration)
 
----
+New tables in `public` (with GRANTs + RLS in the same migration):
+- `profiles` — `id` (= `auth.users.id`), `username` (citext UNIQUE), `display_name`, `avatar_url`. Auto-created via `handle_new_user()` trigger on `auth.users`.
+- `friendships` — `requester_id`, `addressee_id`, `status` (`pending` / `accepted` / `blocked`). UNIQUE(requester, addressee). Symmetric helper view `friends_of(uuid)`.
+- `share_recipients_stats` — `owner_id`, `recipient_id`, `last_shared_at`, `share_count`. Drives "recent" + "most common" suggestions.
+- `file_shares` — `id`, `sender_id`, `recipient_id`, `kind` (`dynamic_object` | `level` | `rig_save` | `geometry` | `terrain` | `generic`), `source_table`, `source_id`, `payload jsonb` (snapshot so deletes don't orphan), `name`, `thumbnail_url`, `note`, `status` (`pending` / `accepted` / `declined`), `read_at`.
+- `match_queue` — `user_id` PK, `mode` text, `skill` int, `region` text, `joined_at`. Realtime-enabled.
+- `matches` — `id`, `mode`, `player_ids uuid[]`, `state` (`forming` / `ready` / `closed`), `room_channel`. Realtime-enabled.
 
-## 1 · Groups
+Security-definer helpers: `is_friend(a uuid, b uuid)`, `lookup_user_by_username(text)` (returns id + display + avatar only — never email).
 
-Schema (`src/lib/levelTypes.ts`)
-- New `SceneGroup { id, name, color?, memberIds: string[], locked?, collapsed? }`.
-- `LevelScene.groups?: SceneGroup[]`.
-- `BaseObject.groupId?: string` — convenience back-pointer, kept in sync.
+RLS highlights:
+- `profiles`: world-readable for username search; user updates own row.
+- `friendships`: visible to the two parties; insert by requester; update by addressee for accept/decline.
+- `file_shares`: visible to sender and recipient only; recipient can update `status`/`read_at`.
+- `match_queue` / `matches`: user sees own queue row + matches whose `player_ids` contains `auth.uid()`.
 
-Editor behaviour (`src/pages/LevelEditorPage.tsx`)
-- Selecting any group member auto-extends the selection to **all** members (Alt-click to override and pick the lone object).
-- Move / rotate / scale / duplicate / delete / lock / hide operations applied to a group member fan out to every member.
-- New "Groups" section in the left Layers / outline panel — collapsible, rename, ungroup, change color chip.
-- New `Ctrl+G` shortcut: group current selection. `Ctrl+Shift+G` ungroup.
+Edge function `matchmaking-tick` (cron-able / invokable): atomically groups queued users by mode + skill bucket + region, writes a `matches` row, deletes queued rows, broadcasts on the `matchmaking` Realtime channel. This is the horizontal-scaling primitive — Postgres handles the queue, Realtime fans out to clients.
 
-Runtime parenting (`src/components/level/LevelScene3D.tsx` + new `GroupRuntime.tsx`)
-- During Play, for each group with ≥2 members we mount an invisible `THREE.Group` anchored at the centroid and parent the live `objectWorldRefs` of every member into it on play-start. On stop we restore originals. While parented, child splines/physics still drive the parent, so kicking one member moves the whole group.
+### 2. Universal right-click menu
 
----
+New `src/components/shared/FileContextMenu.tsx` wrapping shadcn `ContextMenu` with items:
+- Copy, Cut, Paste, Duplicate
+- Share to user… (opens ShareDialog)
+- Copy share link
+- Rename / Delete (when handler provided)
 
-## 2 · Dynamic Object category & gallery
+A lightweight `src/lib/fileClipboard.ts` keeps an in-memory + `localStorage` clipboard of `{kind, payload, sourceId}` so paste works across panels and pages.
 
-Data model (`src/lib/dynamicObjects.ts` — new)
+Mounted in:
+- `ObjectControlBar` (per-object row, plus a global "Paste here")
+- `LayersPanel` / Scene Components rows
+- Every gallery card (`DynamicObjectGallery`, `TerrainGallery`, rig gallery, levels list) via a tiny `<GalleryCardMenu />` wrapper
+- New Files page rows
 
-```
-DynamicObjectEntry {
-  id, name, description?, tags[], createdAt,
-  source: "local" | "cloud" | "builtin",
-  ownerId?: string,         // cloud only
-  isPublic?: boolean,       // cloud only
-  thumbnailUrl?: string,
-  payload: {
-    kind: "single" | "group",
-    objects: SceneObject[],     // relative to payload origin (0,0,0)
-    scenePaths?: ScenePath[],   // any spline referenced by splineBindings
-    groupName?: string,
-  }
-}
-```
+### 3. Share dialog + user picker
 
-- Local store: `localStorage` key `lovable.dynamicObjects.v1` (mirrors the terrain library API: `loadSavedDynamics`, `saveDynamic`, `deleteDynamic`, `renameDynamic`).
-- Cloud store: new table `public.dynamic_objects` on Lovable Cloud with RLS + GRANTs, plus a `dynamic-thumbnails` storage bucket (public). Service uses the existing supabase client.
+`src/components/sharing/ShareDialog.tsx`:
+- Username input with debounced `lookup_user_by_username` RPC
+- Tabs: Recent (from `share_recipients_stats` ORDER BY `last_shared_at`), Frequent (ORDER BY `share_count`), Friends
+- "Add friend" button next to any user → inserts `friendships` row
+- Optional note field; submit inserts `file_shares` and bumps `share_recipients_stats` via RPC `record_share(recipient, kind, source_id, payload, name, thumb, note)`
 
-Cloud schema (migration)
-```
-create table public.dynamic_objects (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid references auth.users(id) on delete set null,
-  name text not null,
-  description text,
-  tags text[] not null default '{}',
-  is_public boolean not null default false,
-  thumbnail_url text,
-  payload jsonb not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
--- GRANTs (authenticated + service_role; anon SELECT only for public rows policy)
--- RLS: SELECT (is_public OR owner_id = auth.uid()), INSERT/UPDATE/DELETE owner_id = auth.uid()
-```
+### 4. New `/files` page
 
-UI surfaces
-- **Object Control Bar** — add a "Save as Dynamic" split-button. Click opens a small dialog asking:
-  - Scope: *Single object* / *Whole group* (auto-defaults based on current selection; disabled when not applicable).
-  - Name, description, tags.
-  - Destination: *Local only* · *Local + my cloud library* · *Local + cloud + share publicly*.
-- **Sidebar Components panel** — new "Dynamic Objects" group alongside the existing categories (Primitives, Polygons, Models, Characters …). Clicking opens the gallery.
-- **DynamicObjectGallery** (`src/components/level/dynamics/DynamicObjectGallery.tsx`) — modal modeled on `TerrainGallery` + `CharacterAnimationGallery`, with three tabs:
-  - **Local** (browser saves)
-  - **My Cloud** (`owner_id = auth.uid()`)
-  - **Public** (`is_public = true`, sorted recent)
-  Each card has thumbnail, name, tags, "Add to scene", rename (own only), delete (own only), "Publish/Unpublish" toggle for cloud rows you own.
-- **Adding to scene**: clone payload objects with fresh ids, offset to current cursor / camera-target, register any referenced `ScenePath`s (rewrite ids), set `groupId` if it was a group.
+`src/pages/FilesPage.tsx` route, linked from the main nav. Tabs:
+- **My Files** — unified list of items the user owns (dynamic objects, levels, rig saves, geometries, terrain entries) pulled from existing tables + local stores. Right-click each row for copy / share / delete.
+- **Shared with me** — `file_shares` where `recipient_id = auth.uid()`, with Accept (imports payload into the right store / table) and Decline.
+- **Sent** — outbound shares with status.
+- **Friends** — manage friend requests.
 
-Thumbnail capture
-- When saving, snapshot the selection by drawing an off-screen render of the scene's bounding-box framing using the existing R3F renderer (`gl.toDataURL`). Cloud uploads send the PNG to the `dynamic-thumbnails` bucket; local saves stash the data URL inline.
+Realtime subscription to `file_shares` shows a toast + badge when a new share arrives.
 
----
+### 5. Matchmaking client
 
-## Technical details
+`src/lib/matchmaking.ts` exposes `joinQueue({mode, skill, region})`, `leaveQueue()`, and subscribes to the `matchmaking` channel to resolve into a `match` row. A small `MatchmakingPanel` UI added under Files → Play tab as the first surface. Edge function ticks every few seconds (or on insert via trigger calling `pg_net`) so latency stays low.
 
-Files added
-- `src/lib/dynamicObjects.ts` — types + local store + cloud service
-- `src/components/level/dynamics/DynamicObjectGallery.tsx`
-- `src/components/level/dynamics/SaveAsDynamicDialog.tsx`
-- `src/components/level/GroupRuntime.tsx`
+## Files
 
-Files edited
-- `src/lib/levelTypes.ts` — `SceneGroup`, `LevelScene.groups`, `BaseObject.groupId`
-- `src/pages/LevelEditorPage.tsx` — group selection fan-out, Ctrl+G shortcut, Object Control Bar buttons, Components-panel "Dynamic Objects" entry, gallery wiring
-- `src/components/level/LevelScene3D.tsx` — mount `GroupRuntime`
-- Supabase migration — `dynamic_objects` table, RLS, GRANTs, storage bucket
+**New:** `src/components/shared/FileContextMenu.tsx`, `src/components/shared/GalleryCardMenu.tsx`, `src/components/sharing/ShareDialog.tsx`, `src/components/sharing/UserSearchPicker.tsx`, `src/components/sharing/FriendsList.tsx`, `src/components/matchmaking/MatchmakingPanel.tsx`, `src/lib/fileClipboard.ts`, `src/lib/sharing.ts`, `src/lib/matchmaking.ts`, `src/pages/FilesPage.tsx`, edge function `supabase/functions/matchmaking-tick/index.ts`.
 
-ASCII overview:
+**Edited:** `src/App.tsx` (route), main nav, `ObjectControlBar`, `LayersPanel`, `DynamicObjectGallery`, `TerrainGallery`, `LevelsListPage`, rig gallery — each gets the context-menu wrapper and uses `sharing.ts` for the share action.
 
-```text
-            ┌──────────── Object Control Bar ────────────┐
-selection → │ [Move][Rot][Scale]  …  [Group▾] [Save as▾] │
-            └────┬──────────────────────────────┬────────┘
-                 │                              │
-                 ▼                              ▼
-           SceneGroup added          SaveAsDynamicDialog
-           (members → groupId)       (scope, name, dest)
-                                          │
-                                          ▼
-                              ┌── local store ──┐ ┌── cloud table ──┐
-                              │  localStorage   │ │ dynamic_objects │
-                              └────────┬────────┘ └────────┬────────┘
-                                       └────────┬──────────┘
-                                                ▼
-                                  DynamicObjectGallery
-                                  (Local / Mine / Public)
-                                                │
-                                                ▼
-                                    addObjects(payload→fresh ids)
-```
+## Infra reality check
 
----
+Lovable Cloud = Supabase (Postgres + Realtime + Edge Functions). It already autoscales the database and fans out Realtime to very high concurrency without you managing pods. Kubernetes isn't a Lovable Cloud primitive, so this plan uses the equivalent scalable primitives instead. If the project later needs custom container workloads, that would have to live on an external provider — call this out, don't fake it.
 
-## Out of scope (follow-ups)
+## Out of scope (call out, don't build)
 
-- Nested groups (groups of groups).
-- Versioning / forking of cloud dynamic objects.
-- In-gallery search by tag (basic name filter only in v1).
-- Animation tracks bundled inside a dynamic object payload (v1 keeps tracks scene-level).
+- Group chat / DMs (only share notes for now)
+- File versioning
+- Public share-link landing pages (we copy a link string, but full anonymous viewer is deferred)
+- Voice / video matchmaking rooms
