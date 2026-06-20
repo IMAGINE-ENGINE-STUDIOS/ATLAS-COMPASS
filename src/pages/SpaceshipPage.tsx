@@ -57,7 +57,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
-import AtlasLevelPlayer from "@/components/atlas/AtlasLevelPlayer";
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
@@ -692,10 +691,15 @@ function SpaceshipPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
-  const [activeLevelPlacement, setActiveLevelPlacement] = useState<LevelPlacement | null>(null);
-  const { placements: levelPlacements } = useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
-    setActiveLevelPlacement(p);
-  }, []));
+  // Levels render directly in the same world as the globe via
+  // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
+  // there is no separate "open level" modal anymore. Earth + level share
+  // one coordinate system so the user can walk in and out of levels.
+  const { placements: levelPlacements } = useAtlasLevelLayer(
+    viewerRef,
+    isLoaded,
+    useCallback((_p: LevelPlacement) => { /* no-op: in-world play */ }, []),
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
@@ -5782,7 +5786,14 @@ function SpaceshipPage() {
                           {levelPlacements.map((lp) => (
                             <div key={lp.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-black/70 group transition-colors">
                               <button
-                                onClick={() => setActiveLevelPlacement(lp)}
+                                onClick={() => {
+                                  const viewer = viewerRef.current;
+                                  if (!viewer || viewer.isDestroyed()) return;
+                                  viewer.camera.flyTo({
+                                    destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 800),
+                                    duration: 1.2,
+                                  });
+                                }}
                                 className="flex-1 flex items-center gap-2.5 text-left min-w-0"
                               >
                                 <span className="w-3.5 h-3.5 shrink-0 rounded-sm bg-emerald-500/70 border border-emerald-300" />
@@ -6073,12 +6084,6 @@ function SpaceshipPage() {
           onResetTerrain={handleResetTerrain}
           terrainEditing={terrainEditing}
           onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
-        />
-      )}
-      {activeLevelPlacement && (
-        <AtlasLevelPlayer
-          placement={activeLevelPlacement}
-          onClose={() => setActiveLevelPlacement(null)}
         />
       )}
       {/* Real R3F scenes for every placed Level, rendered in-place on the
