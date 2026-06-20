@@ -32,7 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, type LevelScene } from "@/lib/levelTypes";
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
 import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
-import { DEFAULT_LEVEL_SIZE_M } from "@/lib/atlasLevelGeo";
+import { DEFAULT_LEVEL_SIZE_M, snapToLevelTile } from "@/lib/atlasLevelGeo";
 import {
   hiddenLevelIds,
   LEVEL_PLAY_EVENT,
@@ -117,10 +117,15 @@ function PlacedLevel({
 
   // Precompute the placement's ECEF origin and ENU→ECEF rotation. Only
   // changes when the placement's lat/lng/altitude does.
+  const lockedTile = useMemo(
+    () => snapToLevelTile(placement.lat, placement.lng, DEFAULT_LEVEL_SIZE_M),
+    [placement.lat, placement.lng],
+  );
+
   const { ecef, enuRot } = useMemo(() => {
     const origin = Cartesian3.fromDegrees(
-      placement.lng,
-      placement.lat,
+      lockedTile.lng,
+      lockedTile.lat,
       placement.altitude ?? 0,
     );
     const m = Transforms.eastNorthUpToFixedFrame(origin);
@@ -131,7 +136,7 @@ function PlacedLevel({
       ecef: new THREE.Vector3(origin.x, origin.y, origin.z),
       enuRot: rot,
     };
-  }, [placement.lat, placement.lng, placement.altitude]);
+  }, [lockedTile.lat, lockedTile.lng, placement.altitude]);
 
   const headingRad = -((placement.heading ?? 0) * Math.PI) / 180;
   const placementScale = placement.scale > 0 ? placement.scale : 1;
