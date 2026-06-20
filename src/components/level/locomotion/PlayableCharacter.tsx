@@ -790,6 +790,7 @@ export default function PlayableCharacter({
       finalTarget.copy(tpTarget);
     }
 
+    camera.up.set(0, 1, 0);
     camera.position.copy(finalEye);
     camera.lookAt(finalTarget);
     onCameraPose?.({
