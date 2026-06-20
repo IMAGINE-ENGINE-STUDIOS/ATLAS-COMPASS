@@ -5855,6 +5855,41 @@ function SpaceshipPage() {
           onClose={() => setActiveLevelPlacement(null)}
         />
       )}
+      {earthMenu && (
+        <EarthContextMenu
+          x={earthMenu.x}
+          y={earthMenu.y}
+          loc={earthMenu.loc}
+          onClose={() => setEarthMenu(null)}
+          onCreatePOI={(l) => {
+            setNamingPOI(l);
+            setPoiName("");
+            setPoiDescription("");
+          }}
+          onPasteEntry={(entry: FileClipboardEntry, l) => {
+            // Levels paste → create placement
+            if (entry.kind === "level" && entry.sourceId) {
+              (async () => {
+                const { data: userRes } = await supabase.auth.getUser();
+                const uid = userRes.user?.id;
+                if (!uid) return;
+                await supabase.from("atlas_level_placements").insert({
+                  owner_id: uid,
+                  level_id: entry.sourceId,
+                  lat: l.lat, lng: l.lng,
+                  altitude: Math.max(0, l.alt),
+                  heading: 0, scale: 1,
+                });
+              })();
+              return;
+            }
+            // Default: drop a POI carrying the clipboard name
+            setNamingPOI(l);
+            setPoiName(entry.name || "");
+            setPoiDescription("");
+          }}
+        />
+      )}
     </div>
   );
 }
