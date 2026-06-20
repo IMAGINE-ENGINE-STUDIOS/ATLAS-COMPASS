@@ -18,7 +18,7 @@
  * Cesium pin/beacon in useAtlasLevelLayer.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -31,6 +31,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, type LevelScene } from "@/lib/levelTypes";
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
+import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
 import { DEFAULT_LEVEL_SIZE_M } from "@/lib/atlasLevelGeo";
 import {
   hiddenLevelIds,
@@ -86,26 +87,17 @@ const THREE_TO_ENU = (() => {
   return m;
 })();
 
-interface AtlasWorldPlayPose {
-  eye: THREE.Vector3;
-  target: THREE.Vector3;
-  player: THREE.Vector3;
-}
-
 function PlacedLevel({
   viewer,
   placement,
   playing,
-  onPlayCameraPose,
 }: {
   viewer: Viewer;
   placement: LevelPlacement;
   playing: boolean;
-  onPlayCameraPose?: (placement: LevelPlacement, pose: AtlasWorldPlayPose) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
-  const { camera: r3fCamera } = useThree();
 
   useEffect(() => {
     let canceled = false;
@@ -159,52 +151,47 @@ function PlacedLevel({
     scaleM: new THREE.Matrix4(),
     out: new THREE.Matrix4(),
     eye: new THREE.Vector3(),
-    fwd: new THREE.Vector3(),
+    target: new THREE.Vector3(),
+    dir: new THREE.Vector3(),
     up: new THREE.Vector3(),
-    rotOnly: new THREE.Matrix4(),
+    right: new THREE.Vector3(),
+    correctedUp: new THREE.Vector3(),
   }).current;
+
+  const handlePlayCameraPose = (pose: PlayCameraPose) => {
+    if (!playing || !viewer || viewer.isDestroyed()) return;
+    const eyeEcef = scratch.eye.fromArray(pose.eye).applyMatrix4(worldMatrix);
+    const targetEcef = scratch.target.fromArray(pose.target).applyMatrix4(worldMatrix);
+    scratch.dir.subVectors(targetEcef, eyeEcef).normalize();
+    scratch.up.set(0, 1, 0).transformDirection(worldMatrix).normalize();
+    scratch.right.crossVectors(scratch.dir, scratch.up);
+    if (scratch.right.lengthSq() < 1e-8) return;
+    scratch.right.normalize();
+    scratch.correctedUp.crossVectors(scratch.right, scratch.dir).normalize();
+    try {
+      viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
+      viewer.camera.setView({
+        destination: new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z),
+        orientation: {
+          direction: new Cartesian3(scratch.dir.x, scratch.dir.y, scratch.dir.z),
+          up: new Cartesian3(scratch.correctedUp.x, scratch.correctedUp.y, scratch.correctedUp.z),
+        },
+      });
+    } catch {}
+  };
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
-    // While THIS placement is being played, drop the ECEF transform: the
-    // level sits at world origin with identity rotation so PlayableCharacter
-    // (which uses world-space raycasts with world +Y as "up") works exactly
-    // like the standalone Level editor's play mode — terrain hits, gravity
-    // lands on the floor, no falling-into-infinity. The Cesium camera is
-    // anchored at the level's lat/lng. To keep the surrounding city LOCKED
-    // to the level's real-world coordinates while the character walks, we
-    // mirror the R3F camera (driven by PlayableCharacter) into Cesium each
-    // frame by transforming the local eye/look from level-local THREE space
-    // into ECEF using the same worldMatrix the level group would have used.
     if (playing) {
+      // Play mode is a normal local level scene. Do NOT apply the moving
+      // Cesium/ECEF camera-relative matrix to the level itself; only the
+      // character camera pose is mirrored into Cesium via handlePlayCameraPose.
       groupRef.current.matrixAutoUpdate = true;
       groupRef.current.position.set(0, 0, 0);
-      groupRef.current.rotation.set(0, headingRad, 0);
-      groupRef.current.scale.setScalar(placementScale);
-
-      // Local THREE camera state -> ECEF via worldMatrix.
-      scratch.eye.copy(r3fCamera.position);
-      // forward in world space
-      r3fCamera.getWorldDirection(scratch.fwd);
-      scratch.up.copy(r3fCamera.up);
-
-      const eyeEcef = scratch.eye.clone().applyMatrix4(worldMatrix);
-      // rotation-only matrix (worldMatrix without translation)
-      scratch.rotOnly.copy(worldMatrix);
-      scratch.rotOnly.setPosition(0, 0, 0);
-      const dirEcef = scratch.fwd.clone().applyMatrix4(scratch.rotOnly).normalize();
-      const upEcef = scratch.up.clone().applyMatrix4(scratch.rotOnly).normalize();
-
-      try {
-        viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-        viewer.camera.setView({
-          destination: new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z),
-          orientation: {
-            direction: new Cartesian3(dirEcef.x, dirEcef.y, dirEcef.z),
-            up: new Cartesian3(upEcef.x, upEcef.y, upEcef.z),
-          },
-        });
-      } catch {}
+      groupRef.current.rotation.set(0, 0, 0);
+      groupRef.current.scale.setScalar(1);
+      groupRef.current.updateMatrix();
+      groupRef.current.matrixWorldNeedsUpdate = true;
       return;
     }
     const camPos = viewer.camera.positionWC;
@@ -254,12 +241,7 @@ function PlacedLevel({
         skipBackground
         skipAmbient
         skipDirectional
-        /*
-         * No onPlayCameraPose: we let PlayableCharacter drive the R3F camera
-         * directly (third/first-person follow), exactly like the standalone
-         * Level editor's play mode. The Cesium camera stays frozen at the
-         * level's lat/lng so the city around it remains a visible backdrop.
-         */
+        onPlayCameraPose={handlePlayCameraPose}
       />
     </group>
   );
@@ -377,22 +359,6 @@ export default function AtlasLevelsR3FOverlay({
     }
   }, [pendingPlayId, nearIds]);
 
-  const applyPlayCameraPose = useCallback((_: LevelPlacement, pose: AtlasWorldPlayPose) => {
-    const viewer = viewerRef.current;
-    if (!viewer || viewer.isDestroyed()) return;
-    const eye = new Cartesian3(pose.eye.x, pose.eye.y, pose.eye.z);
-    const target = new Cartesian3(pose.target.x, pose.target.y, pose.target.z);
-    const player = new Cartesian3(pose.player.x, pose.player.y, pose.player.z);
-    const direction = Cartesian3.normalize(Cartesian3.subtract(target, eye, new Cartesian3()), new Cartesian3());
-    const planetUp = Cartesian3.normalize(player, new Cartesian3());
-    const right = Cartesian3.cross(direction, planetUp, new Cartesian3());
-    if (Cartesian3.magnitudeSquared(right) < 1e-8) return;
-    Cartesian3.normalize(right, right);
-    const up = Cartesian3.normalize(Cartesian3.cross(right, direction, new Cartesian3()), new Cartesian3());
-    viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-    viewer.camera.setView({ destination: eye, orientation: { direction, up } });
-  }, [viewerRef]);
-
   // During Play, the level's playable/main character owns input and sends its
   // camera pose into Cesium every frame, so buildings and the Atlas world stay
   // visible while the user gets the same editor Play experience in-place.
@@ -443,7 +409,9 @@ export default function AtlasLevelsR3FOverlay({
 
   if (!isLoaded || !viewerRef.current || placements.length === 0 || !ready) return null;
   const viewer = viewerRef.current;
-  const visible = placements.filter((p) => nearIds.has(p.id) || p.id === playingId || p.id === pendingPlayId);
+  const visible = playingId
+    ? placements.filter((p) => p.id === playingId)
+    : placements.filter((p) => nearIds.has(p.id) || p.id === pendingPlayId);
   if (visible.length === 0) return null;
   const playablePlacement = visible[0]; // nearest = first added; good enough
   return (
@@ -473,7 +441,6 @@ export default function AtlasLevelsR3FOverlay({
               viewer={viewer}
               placement={p}
               playing={playingId === p.id}
-              onPlayCameraPose={applyPlayCameraPose}
             />
           ))}
         </Canvas>
