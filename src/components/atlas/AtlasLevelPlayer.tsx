@@ -14,9 +14,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Sky } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { X, Loader2, Edit3, Maximize2, Minimize2 } from "lucide-react";
-import * as THREE from "three";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { EMPTY_SCENE, LevelScene } from "@/lib/levelTypes";
