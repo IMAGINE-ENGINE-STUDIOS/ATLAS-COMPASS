@@ -51,6 +51,7 @@ import {
   ClippingPolygon, ClippingPolygonCollection,
   CallbackProperty, ColorMaterialProperty, LabelStyle, HorizontalOrigin, VerticalOrigin,
   HeightReference,
+  CameraEventType, KeyboardEventModifier,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
