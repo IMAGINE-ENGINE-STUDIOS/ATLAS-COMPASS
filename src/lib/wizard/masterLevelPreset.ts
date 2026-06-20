@@ -483,6 +483,7 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
   }
 
   /* ---- park (lawn + trees) ---- */
+  if (cfg.park.enabled) {
   objects.push(prim({
     name: "Park lawn",
     pos: [-50, 0.03, 70],
@@ -492,7 +493,7 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
     textureRepeat: [15, 15],
     layer: LAYERS.park,
   }));
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < cfg.park.treeCount; i++) {
     const tx = -75 + (i % 5) * 12 + ((i % 2) * 3);
     const tz = 50 + Math.floor(i / 5) * 18;
     // trunk
@@ -518,12 +519,14 @@ export function buildMasterLevelScene(partial?: Partial<WizardConfig>): LevelSce
       layer: LAYERS.park,
     }));
   }
+  }
 
   /* ---- train station ---- */
   // Long platform on the +Z axis, parallel to the rails (rails at x = -22).
   const PLAT_X = -18; // platform centre
   const PLAT_Z = 0;
   const PLAT_LEN = 60;
+  if (cfg.station.enabled) {
   objects.push(prim({
     name: "Station platform",
     pos: [PLAT_X, 0.5, PLAT_Z],
