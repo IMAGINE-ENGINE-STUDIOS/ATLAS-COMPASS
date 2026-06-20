@@ -5786,7 +5786,14 @@ function SpaceshipPage() {
                           {levelPlacements.map((lp) => (
                             <div key={lp.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-black/70 group transition-colors">
                               <button
-                                onClick={() => setActiveLevelPlacement(lp)}
+                                onClick={() => {
+                                  const viewer = viewerRef.current;
+                                  if (!viewer || viewer.isDestroyed()) return;
+                                  viewer.camera.flyTo({
+                                    destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 800),
+                                    duration: 1.2,
+                                  });
+                                }}
                                 className="flex-1 flex items-center gap-2.5 text-left min-w-0"
                               >
                                 <span className="w-3.5 h-3.5 shrink-0 rounded-sm bg-emerald-500/70 border border-emerald-300" />
