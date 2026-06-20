@@ -768,6 +768,13 @@ function SpaceshipPage() {
     window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
     toast.success(`Loaded "${p.levelName}" here`);
     setPendingLevelPlacement(null);
+    // Fly the camera to the new placement so the user sees the cube immediately.
+    try {
+      viewerRef.current?.camera.flyTo({
+        destination: Cartesian3.fromDegrees(snap.lng, snap.lat, Math.max(snap.tileSizeM * 2.5, 1500)),
+        duration: 1.2,
+      });
+    } catch {}
   }, [pendingLevelPlacement]);
   const [poiName, setPoiName] = useState("");
   const [poiDescription, setPoiDescription] = useState("");
