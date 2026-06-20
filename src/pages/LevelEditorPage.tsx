@@ -8,7 +8,7 @@ import {
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
-  X, ArrowUpRight, User, Camera,
+  X, ArrowUpRight, User, Camera, Boxes, Link2, Unlink,
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
 import { Sparkles, Library, ChevronLeft, Search, PanelLeft, PanelRight } from "lucide-react";
@@ -30,7 +30,7 @@ import {
 import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
-  SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
+  SceneLayer, DEFAULT_LAYER_ID, defaultLayers, SceneGroup,
   SceneTerrain, defaultTerrain,
   ModelMaterialOverride,
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
@@ -67,6 +67,8 @@ import {
 import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
+import DynamicObjectGallery from "@/components/level/dynamics/DynamicObjectGallery";
+import SaveAsDynamicDialog from "@/components/level/dynamics/SaveAsDynamicDialog";
 import { GeometryPanel } from "@/components/level/geometry/GeometryPanel";
 import { InteractionsPanel } from "@/components/level/geometry/InteractionsPanel";
 import {
