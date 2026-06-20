@@ -1262,6 +1262,7 @@ export interface LevelSceneProps {
   showGrid?: boolean;
   playing?: boolean;
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
+  skipDirectional?: boolean; // suppress directional + spot key lights (Atlas sun lights the scene)
   editingPolygonId?: string | null;
   onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
   onPolygonOffsetsChange?: (id: string, offsets: Array<[number, number]>) => void;
