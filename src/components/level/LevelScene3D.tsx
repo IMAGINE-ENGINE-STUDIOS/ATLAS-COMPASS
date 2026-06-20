@@ -1038,8 +1038,17 @@ function ObjectSlot({
   );
 }
 
-function RenderLight({ light, skipAmbient }: { light: SceneLight; skipAmbient?: boolean }) {
+function RenderLight({
+  light,
+  skipAmbient,
+  skipDirectional,
+}: {
+  light: SceneLight;
+  skipAmbient?: boolean;
+  skipDirectional?: boolean;
+}) {
   if (light.kind === "ambient" && skipAmbient) return null;
+  if ((light.kind === "directional" || light.kind === "spot") && skipDirectional) return null;
   const color = rgbaToColor(light.color);
   if (light.kind === "directional")
     return <directionalLight position={light.position} color={color} intensity={light.intensity} castShadow={light.castShadow} />;
