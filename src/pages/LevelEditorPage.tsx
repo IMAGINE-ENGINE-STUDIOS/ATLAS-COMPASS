@@ -1203,6 +1203,64 @@ export default function LevelEditorPage() {
       return s;
     });
 
+  /* ---------- groups ---------- */
+
+  /** Bundle the current selection into a SceneGroup (or extend an existing one). */
+  const groupSelection = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length < 2) {
+      toast.error("Select 2+ objects to group");
+      return;
+    }
+    updateScene((s) => {
+      const groups = s.groups ?? [];
+      const gid = newId("grp");
+      const colors = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#a855f7", "#14b8a6"];
+      const color = colors[groups.length % colors.length];
+      const name = `Group ${groups.length + 1}`;
+      s.objects = s.objects.map((o) =>
+        ids.includes(o.id) ? ({ ...o, groupId: gid } as SceneObject) : o,
+      );
+      s.groups = [...groups, { id: gid, name, color, memberIds: ids }];
+      return s;
+    });
+    toast.success(`Grouped ${ids.length} objects`);
+  };
+
+  /** Remove every object in the current selection from its group. */
+  const ungroupSelection = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    updateScene((s) => {
+      s.objects = s.objects.map((o) => {
+        if (!ids.includes(o.id) || !o.groupId) return o;
+        const { groupId, ...rest } = o as any;
+        return rest as SceneObject;
+      });
+      const groups = s.groups ?? [];
+      s.groups = groups
+        .map((g) => ({ ...g, memberIds: g.memberIds.filter((m) => !ids.includes(m)) }))
+        .filter((g) => g.memberIds.length > 0);
+      return s;
+    });
+    toast.success("Ungrouped");
+  };
+
+  /** Find the group (if any) that the focused object belongs to. */
+  const currentGroup: SceneGroup | null = useMemo(() => {
+    if (!selectedId) return null;
+    const obj = scene.objects.find((o) => o.id === selectedId);
+    const gid = obj?.groupId;
+    if (!gid) return null;
+    return (scene.groups ?? []).find((g) => g.id === gid) ?? null;
+  }, [selectedId, scene.objects, scene.groups]);
+
+  const currentGroupMembers: SceneObject[] = useMemo(() => {
+    if (!currentGroup) return [];
+    const set = new Set(currentGroup.memberIds);
+    return scene.objects.filter((o) => set.has(o.id));
+  }, [currentGroup, scene.objects]);
+
   /* ---------- glTF upload ---------- */
 
   const fileRef = useRef<HTMLInputElement>(null);
