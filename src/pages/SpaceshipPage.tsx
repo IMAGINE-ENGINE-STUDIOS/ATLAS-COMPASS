@@ -5955,6 +5955,15 @@ function SpaceshipPage() {
             setPoiName("");
             setPoiDescription("");
           }}
+          onPickLevel={(lvl, l) => {
+            const snap = snapToLevelTile(l.lat, l.lng, DEFAULT_LEVEL_SIZE_M);
+            setPendingLevelPlacement({
+              levelId: lvl.id,
+              levelName: lvl.name,
+              sizeM: DEFAULT_LEVEL_SIZE_M,
+              loc: { lat: snap.lat, lng: snap.lng, alt: Math.max(0, l.alt) },
+            });
+          }}
           onPasteEntry={(entry: FileClipboardEntry, l) => {
             // Levels paste → create placement
             if (entry.kind === "level" && entry.sourceId) {
