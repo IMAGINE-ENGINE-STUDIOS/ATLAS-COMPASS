@@ -62,8 +62,9 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
       const k = keys.current;
       if (k.KeyW || k.ArrowUp) z -= 1;
       if (k.KeyS || k.ArrowDown) z += 1;
-      if (k.KeyA || k.ArrowLeft) x -= 1;
-      if (k.KeyD || k.ArrowRight) x += 1;
+      // Inverted strafe: A/Left moves right, D/Right moves left.
+      if (k.KeyA || k.ArrowLeft) x += 1;
+      if (k.KeyD || k.ArrowRight) x -= 1;
       if (k.Space) jump = true;
       if (k.ShiftLeft || k.ShiftRight) run = true;
     }
@@ -296,7 +297,8 @@ export default function PlayableCharacter({
     };
     const onMove = (e: MouseEvent) => {
       if (!pointerLocked.current) return;
-      camOrbit.current.yaw -= e.movementX * 0.0025;
+      // Inverted mouse X to match inverted strafe controls.
+      camOrbit.current.yaw += e.movementX * 0.0025;
       camOrbit.current.pitch -= e.movementY * 0.0025;
       camOrbit.current.pitch = Math.max(-1.2, Math.min(1.2, camOrbit.current.pitch));
     };
