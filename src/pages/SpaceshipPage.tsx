@@ -3429,11 +3429,16 @@ function SpaceshipPage() {
     if (!viewer) return;
     const cropped = placedModels.filter(m => m.cropRadius && m.cropRadius > 0);
     const polygons = cropped.map(m => buildCircleClippingPolygon(m.lat, m.lng, m.cropRadius!));
-    // Cut a square hole in the 3D tilesets for every placed Level, so the
-    // level scene sits flush on the planet's tile floor (same mechanism as
-    // placed 3D models). The square is sized to DEFAULT_LEVEL_SIZE_M.
-    const half = DEFAULT_LEVEL_SIZE_M / 2;
+    // Cut a square hole in the 3D tilesets for every placed Level. The
+    // cut NEVER extends beyond the level's own perimeter unless the user
+    // explicitly grows it via `terrain_expand_feet` in the Level
+    // Inspector — in which case the cut grows outward by that many feet
+    // and an editable terrain plane fills the new area (rendered by
+    // AtlasLevelsR3FOverlay). With 0 ft the hole is exactly the level's
+    // footprint so no visible "hole in the world" ever appears.
     for (const lp of levelPlacements) {
+      const expandM = (lp.terrain_expand_feet ?? 0) * 0.3048;
+      const half = DEFAULT_LEVEL_SIZE_M / 2 + expandM;
       const metersPerDegLat = 111320;
       const metersPerDegLng = 111320 * Math.cos(CesiumMath.toRadians(lp.lat));
       const dLat = half / metersPerDegLat;
