@@ -6081,6 +6081,14 @@ function SpaceshipPage() {
           onClose={() => setActiveLevelPlacement(null)}
         />
       )}
+      {/* Real R3F scenes for every placed Level, rendered in-place on the
+          globe in sync with the Cesium camera (so they look like the
+          editor — geometry, terrain, characters, lights). */}
+      <AtlasLevelsR3FOverlay
+        viewerRef={viewerRef}
+        isLoaded={isLoaded}
+        placements={levelPlacements}
+      />
       {earthMenu && (
         <EarthContextMenu
           x={earthMenu.x}
