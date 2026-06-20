@@ -22,6 +22,13 @@ interface InputAxes {
   run: boolean;
 }
 
+export interface PlayCameraPose {
+  eye: [number, number, number];
+  target: [number, number, number];
+  player: [number, number, number];
+  cameraMode: "third" | "first";
+}
+
 function useInput(scheme: "keyboard" | "gamepad" | "both") {
   const axes = useRef<InputAxes>({ x: 0, z: 0, jump: false, run: false });
   const keys = useRef<Record<string, boolean>>({});
@@ -157,9 +164,11 @@ function collectStaticTargets(root: THREE.Object3D, exclude: THREE.Object3D): TH
 export default function PlayableCharacter({
   obj,
   enabled,
+  onCameraPose,
 }: {
   obj: CharacterObject;
   enabled: boolean;
+  onCameraPose?: (pose: PlayCameraPose) => void;
 }) {
   const gltf = useGLTF(obj.url);
   const cloned = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
@@ -755,6 +764,9 @@ export default function PlayableCharacter({
     );
 
     const cb = camBlend.current;
+    const finalEye = tmp.camPos;
+    const finalTarget = tmp.camTarget;
+
     if (cb.t < 1) {
       cb.t = Math.min(1, cb.t + dt / cb.duration);
       // ease-in-out cubic
@@ -768,15 +780,26 @@ export default function PlayableCharacter({
       const fromTargetSnap = cb.lastTarget.clone().lerp(fromTarget, k);
       const toEye = cb.to === "first" ? fpEye : tpEye;
       const toTarget = cb.to === "first" ? fpTarget : tpTarget;
-      camera.position.copy(fromEyeSnap.lerp(toEye, k));
-      const finalTarget = fromTargetSnap.lerp(toTarget, k);
-      camera.lookAt(finalTarget);
+      finalEye.copy(fromEyeSnap.lerp(toEye, k));
+      finalTarget.copy(fromTargetSnap.lerp(toTarget, k));
     } else if (cameraMode === "first") {
-      camera.position.copy(fpEye);
-      camera.lookAt(fpTarget);
+      finalEye.copy(fpEye);
+      finalTarget.copy(fpTarget);
     } else {
-      camera.position.lerp(tpEye, Math.min(1, dt * 10));
-      camera.lookAt(tpTarget);
+      finalEye.copy(onCameraPose ? tpEye : camera.position.clone().lerp(tpEye, Math.min(1, dt * 10)));
+      finalTarget.copy(tpTarget);
+    }
+
+    if (onCameraPose) {
+      onCameraPose({
+        eye: [finalEye.x, finalEye.y, finalEye.z],
+        target: [finalTarget.x, finalTarget.y, finalTarget.z],
+        player: [root.position.x, root.position.y, root.position.z],
+        cameraMode,
+      });
+    } else {
+      camera.position.copy(finalEye);
+      camera.lookAt(finalTarget);
     }
   });
 

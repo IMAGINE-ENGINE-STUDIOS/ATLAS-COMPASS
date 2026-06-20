@@ -26,7 +26,7 @@ import {
 } from "@/lib/face-system";
 import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 import LevelCharacter from "./LevelCharacter";
-import PlayableCharacter from "./locomotion/PlayableCharacter";
+import PlayableCharacter, { type PlayCameraPose } from "./locomotion/PlayableCharacter";
 import PushableRuntime from "./locomotion/PushableRuntime";
 import TeleportPickerOverlay from "./play/TeleportPickerOverlay";
 import { characterRegistry } from "./locomotion/locomotionState";
@@ -883,6 +883,7 @@ function RenderObject({
   playing,
   controlsRef,
   onTrajectoryPointsChange,
+  onPlayCameraPose,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -891,6 +892,7 @@ function RenderObject({
   playing?: boolean;
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
+  onPlayCameraPose?: (pose: PlayCameraPose) => void;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
@@ -901,7 +903,7 @@ function RenderObject({
     if (isPlayer) {
       return (
         <Suspense fallback={null}>
-          <PlayableCharacter obj={obj as CharacterObject} enabled={true} />
+          <PlayableCharacter obj={obj as CharacterObject} enabled={true} onCameraPose={onPlayCameraPose} />
         </Suspense>
       );
     }
@@ -946,6 +948,7 @@ function ObjectSlot({
   playing,
   controlsRef,
   onTrajectoryPointsChange,
+  onPlayCameraPose,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -953,6 +956,7 @@ function ObjectSlot({
   playing: boolean;
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
+  onPlayCameraPose?: (pose: PlayCameraPose) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const isPlayer =
@@ -1002,6 +1006,7 @@ function ObjectSlot({
         playing={playing}
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
+        onPlayCameraPose={onPlayCameraPose}
       />
     );
   }
@@ -1026,6 +1031,7 @@ function ObjectSlot({
         playing={playing}
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
+        onPlayCameraPose={onPlayCameraPose}
       />
       {isPushable && (
         <PushableRuntime
@@ -1261,6 +1267,7 @@ export interface LevelSceneProps {
   onSelect?: (id: string | null) => void;
   showGrid?: boolean;
   playing?: boolean;
+  skipBackground?: boolean; // keep host canvas/world visible when embedded in Atlas
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
   skipDirectional?: boolean; // suppress directional + spot key lights (Atlas sun lights the scene)
   editingPolygonId?: string | null;
@@ -1309,6 +1316,8 @@ export interface LevelSceneProps {
   };
   /** Terrain sculpt mode state (provided by the editor page). */
   sculpt?: TerrainSculptConfig;
+  /** Optional bridge used by Atlas Play to drive Cesium's camera from the playable character. */
+  onPlayCameraPose?: (pose: PlayCameraPose) => void;
 }
 
 /**
@@ -1321,6 +1330,7 @@ export function LevelSceneContents({
   onSelect,
   showGrid,
   playing,
+  skipBackground,
   skipAmbient,
   skipDirectional,
   focusRequest,
@@ -1341,6 +1351,7 @@ export function LevelSceneContents({
   onAddingPointHandled,
   facePaint,
   sculpt,
+  onPlayCameraPose,
 }: LevelSceneProps & {
   focusRequest?: { id: string; nonce: number } | null;
   onFocusHandled?: () => void;
@@ -1352,16 +1363,23 @@ export function LevelSceneContents({
   // mutating the persisted scene.
   const scene = useMemo(() => {
     const mainId = rawScene.mainCharacterId;
-    if (!mainId) return rawScene;
+    const firstPlayableId = rawScene.objects.find(
+      (o) => o.kind === "character" && (o as CharacterObject).playable,
+    )?.id;
+    const fallbackCharacterId = playing
+      ? rawScene.objects.find((o) => o.kind === "character")?.id
+      : undefined;
+    const playableId = mainId || firstPlayableId || fallbackCharacterId;
+    if (!playableId) return rawScene;
     return {
       ...rawScene,
       objects: rawScene.objects.map((o) =>
         o.kind === "character"
-          ? ({ ...(o as CharacterObject), playable: o.id === mainId } as SceneObject)
+          ? ({ ...(o as CharacterObject), playable: o.id === playableId } as SceneObject)
           : o,
       ),
     };
-  }, [rawScene]);
+  }, [rawScene, playing]);
   const groupRef = useRef<THREE.Group>(null);
   // Pick a sensible focus action for double-click — set focus request from parent
   const handleFocus = (id: string) => onSelect?.(id);
@@ -1372,14 +1390,17 @@ export function LevelSceneContents({
     toggle: () => {},
     clear: () => {},
   };
+  const hdriCfg = scene.environment.hdri && skipBackground
+    ? { ...scene.environment.hdri, asBackground: false }
+    : scene.environment.hdri;
   return (
     <FacePaintContext.Provider value={facePaintValue}>
       {/* HDRI takes over the background when asBackground is on; otherwise solid color. */}
-      {!(scene.environment.hdri && scene.environment.hdri.asBackground && scene.environment.hdri.activeId) && (
+      {!skipBackground && !(hdriCfg && hdriCfg.asBackground && hdriCfg.activeId) && (
         <color attach="background" args={[scene.environment.background]} />
       )}
-      {scene.environment.hdri && scene.environment.hdri.activeId && (
-        <HDRIEnvironmentRuntime cfg={scene.environment.hdri} />
+      {hdriCfg && hdriCfg.activeId && (
+        <HDRIEnvironmentRuntime cfg={hdriCfg} />
       )}
       {scene.environment.gi?.enabled ? (
         <GlobalIllumination gi={scene.environment.gi} />
@@ -1423,6 +1444,7 @@ export function LevelSceneContents({
             playing={!!playing}
             controlsRef={controlsRef}
             onTrajectoryPointsChange={onTrajectoryPointsChange}
+            onPlayCameraPose={onPlayCameraPose}
           />
         ))}
       </group>

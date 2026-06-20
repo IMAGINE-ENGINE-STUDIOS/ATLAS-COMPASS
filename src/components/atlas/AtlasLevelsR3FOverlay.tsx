@@ -18,14 +18,12 @@
  * Cesium pin/beacon in useAtlasLevelLayer.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
-  HeadingPitchRoll,
   Matrix4 as CesiumMatrix4,
-  Math as CesiumMath,
   Transforms,
   type Viewer,
 } from "cesium";
@@ -87,14 +85,22 @@ const THREE_TO_ENU = (() => {
   return m;
 })();
 
+interface AtlasWorldPlayPose {
+  eye: THREE.Vector3;
+  target: THREE.Vector3;
+  player: THREE.Vector3;
+}
+
 function PlacedLevel({
   viewer,
   placement,
   playing,
+  onPlayCameraPose,
 }: {
   viewer: Viewer;
   placement: LevelPlacement;
   playing: boolean;
+  onPlayCameraPose?: (placement: LevelPlacement, pose: AtlasWorldPlayPose) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
@@ -135,6 +141,15 @@ function PlacedLevel({
 
   const headingRad = -((placement.heading ?? 0) * Math.PI) / 180;
   const placementScale = placement.scale > 0 ? placement.scale : 1;
+
+  const worldMatrix = useMemo(() => {
+    return new THREE.Matrix4()
+      .makeTranslation(ecef.x, ecef.y, ecef.z)
+      .multiply(enuRot)
+      .multiply(THREE_TO_ENU)
+      .multiply(new THREE.Matrix4().makeRotationY(headingRad))
+      .multiply(new THREE.Matrix4().makeScale(placementScale, placementScale, placementScale));
+  }, [ecef, enuRot, headingRad, placementScale]);
 
   // Reusable scratch matrices
   const scratch = useRef({
@@ -189,8 +204,16 @@ function PlacedLevel({
       <LevelSceneContents
         scene={scene}
         playing={playing}
+        skipBackground
         skipAmbient
         skipDirectional
+        onPlayCameraPose={playing ? (pose) => {
+          onPlayCameraPose?.(placement, {
+            eye: new THREE.Vector3(...pose.eye).applyMatrix4(worldMatrix),
+            target: new THREE.Vector3(...pose.target).applyMatrix4(worldMatrix),
+            player: new THREE.Vector3(...pose.player).applyMatrix4(worldMatrix),
+          });
+        } : undefined}
       />
     </group>
   );
@@ -283,14 +306,7 @@ export default function AtlasLevelsR3FOverlay({
     try {
       const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.7);
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-      viewer.camera.setView({
-        destination: eye,
-        orientation: new HeadingPitchRoll(
-          CesiumMath.toRadians(p.heading ?? 0),
-          0,
-          0,
-        ),
-      });
+      viewer.camera.setView({ destination: eye });
     } catch {}
     setNearIds((prev) => new Set(prev).add(p.id));
     setPlayingId(p.id);
@@ -304,10 +320,51 @@ export default function AtlasLevelsR3FOverlay({
     }
   }, [pendingPlayId, nearIds]);
 
-  // Keep Atlas camera inputs enabled even during Play — the level is
-  // rendered as an in-world instance, so Atlas's own first-person camera
-  // is what the user uses to look/walk around it. (No separate level
-  // camera takes over; that prevented the "static earth" feel.)
+  const applyPlayCameraPose = useCallback((_: LevelPlacement, pose: AtlasWorldPlayPose) => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const eye = new Cartesian3(pose.eye.x, pose.eye.y, pose.eye.z);
+    const target = new Cartesian3(pose.target.x, pose.target.y, pose.target.z);
+    const player = new Cartesian3(pose.player.x, pose.player.y, pose.player.z);
+    const direction = Cartesian3.normalize(Cartesian3.subtract(target, eye, new Cartesian3()), new Cartesian3());
+    const planetUp = Cartesian3.normalize(player, new Cartesian3());
+    const right = Cartesian3.cross(direction, planetUp, new Cartesian3());
+    if (Cartesian3.magnitudeSquared(right) < 1e-8) return;
+    Cartesian3.normalize(right, right);
+    const up = Cartesian3.normalize(Cartesian3.cross(right, direction, new Cartesian3()), new Cartesian3());
+    viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
+    viewer.camera.setView({ destination: eye, orientation: { direction, up } });
+  }, [viewerRef]);
+
+  // During Play, the level's playable/main character owns input and sends its
+  // camera pose into Cesium every frame, so buildings and the Atlas world stay
+  // visible while the user gets the same editor Play experience in-place.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const c = viewer.scene.screenSpaceCameraController;
+    const prev = {
+      rotate: c.enableRotate,
+      translate: c.enableTranslate,
+      zoom: c.enableZoom,
+      tilt: c.enableTilt,
+      look: c.enableLook,
+    };
+    if (playingId) {
+      c.enableRotate = false;
+      c.enableTranslate = false;
+      c.enableZoom = false;
+      c.enableTilt = false;
+      c.enableLook = false;
+    }
+    return () => {
+      c.enableRotate = prev.rotate;
+      c.enableTranslate = prev.translate;
+      c.enableZoom = prev.zoom;
+      c.enableTilt = prev.tilt;
+      c.enableLook = prev.look;
+    };
+  }, [playingId, viewerRef]);
 
   // Esc to exit play
   useEffect(() => {
@@ -318,11 +375,6 @@ export default function AtlasLevelsR3FOverlay({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [playingId]);
-
-  // Auto-exit if the playing level falls out of proximity
-  useEffect(() => {
-    if (playingId && !nearIds.has(playingId)) setPlayingId(null);
-  }, [playingId, nearIds]);
 
   if (!isLoaded || !viewerRef.current || placements.length === 0 || !ready) return null;
   const viewer = viewerRef.current;
@@ -354,6 +406,7 @@ export default function AtlasLevelsR3FOverlay({
               viewer={viewer}
               placement={p}
               playing={playingId === p.id}
+              onPlayCameraPose={applyPlayCameraPose}
             />
           ))}
         </Canvas>
@@ -363,7 +416,7 @@ export default function AtlasLevelsR3FOverlay({
           without leaving the unified Atlas world. */}
       {!playingId && playablePlacement && (
         <button
-          onClick={() => setPlayingId(playablePlacement.id)}
+          onClick={() => setPendingPlayId(playablePlacement.id)}
           className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold shadow-lg pointer-events-auto"
         >
           ▶ Play {playablePlacement.levels?.name ?? "Level"}
