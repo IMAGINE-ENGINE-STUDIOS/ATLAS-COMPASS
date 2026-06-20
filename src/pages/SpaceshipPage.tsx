@@ -1937,6 +1937,17 @@ function SpaceshipPage() {
     // Keep the camera free of any tracked transform so look is true first-person.
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
+    // Lock camera ROLL — yaw + pitch only. Cesium's constrainedAxis pins the
+    // local "up" so left-drag look never tilts the horizon. Re-apply each
+    // frame because flyTo / lookAtTransform can clear it.
+    const Z_UP = new Cartesian3(0, 0, 1);
+    viewer.camera.constrainedAxis = Z_UP;
+    const lockRoll = () => {
+      if (viewer.isDestroyed()) return;
+      viewer.camera.constrainedAxis = Z_UP;
+    };
+    viewer.scene.preRender.addEventListener(lockRoll);
+
     // Global ESC + click-on-empty-globe → restore first-person (clear any
     // sticky reference frame after fly-to / tracked entity).
     const restoreFirstPerson = () => {
