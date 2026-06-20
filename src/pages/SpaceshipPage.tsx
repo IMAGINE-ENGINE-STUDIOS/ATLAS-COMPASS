@@ -2987,6 +2987,36 @@ function SpaceshipPage() {
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode, tileZoom, rectStart, stampSpacingM]);
 
+  // Right-click on the globe → open the Earth context menu (this used to
+  // be triggered by double-click). If the camera is currently locked to
+  // a target point (set by a double-click), the right-click drops that
+  // target instead — same effect as pressing Esc.
+  useEffect(() => {
+    const onRight = (e: Event) => {
+      const detail = (e as CustomEvent).detail as any;
+      const viewer = viewerRef.current;
+      if (cameraTargetRef.current && viewer && !viewer.isDestroyed()) {
+        try { viewer.camera.lookAtTransform(Matrix4.IDENTITY); } catch {}
+        cameraTargetRef.current = null;
+        return;
+      }
+      if (brushMode) return; // brush handles its own gestures
+      const screen = detail?.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      setEarthMenu({
+        x: screen.x,
+        y: screen.y,
+        loc: { lat: detail.lat, lng: detail.lng, alt: detail.alt },
+      });
+    };
+    const onDropped = () => { cameraTargetRef.current = null; };
+    window.addEventListener("cesium-rightclick", onRight);
+    window.addEventListener("cesium-target-dropped", onDropped);
+    return () => {
+      window.removeEventListener("cesium-rightclick", onRight);
+      window.removeEventListener("cesium-target-dropped", onDropped);
+    };
+  }, [brushMode]);
+
   // Listen for model double-click (open transform widget)
   useEffect(() => {
     const handleModelDblClick = (e: Event) => {
