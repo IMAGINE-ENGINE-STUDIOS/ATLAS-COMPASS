@@ -753,9 +753,10 @@ function SpaceshipPage() {
     const viewer = viewerRef.current;
     if (!viewer || !pendingLevelPlacement?.loc) return;
     const { loc, sizeM, heading } = pendingLevelPlacement;
-    const snap = snapToLevelTile(loc.lat, loc.lng, sizeM);
-    const size = snap.tileSizeM;
-    const center = Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2);
+    // No tile snap — drop the ghost at the EXACT clicked lng/lat so the
+    // user gets pixel-accurate placement.
+    const size = sizeM;
+    const center = Cartesian3.fromDegrees(loc.lng, loc.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2);
     const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading ?? 0), 0, 0);
     const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr);
     const ent = viewer.entities.add({
@@ -795,7 +796,7 @@ function SpaceshipPage() {
       level_id: p.levelId,
       lat: p.loc.lat,
       lng: p.loc.lng,
-      altitude: Math.max(0, p.loc.alt),
+      altitude: p.loc.alt,
       heading: p.heading ?? 0,
       scale: 1,
     });
@@ -2818,8 +2819,23 @@ function SpaceshipPage() {
       // Intercept while previewing a level placement — just move the ghost.
       const pending = pendingLevelPlacementRef.current;
       if (pending) {
-        // Use the EXACT clicked coordinates (matches the HUD readout) — no tile snap.
-        setPendingLevelPlacement({ ...pending, loc: { lat: loc.lat, lng: loc.lng, alt: Math.max(0, loc.alt) } });
+        // Use the EXACT clicked coordinates (matches the HUD readout) — no
+        // tile snap. Sample the real OSM/terrain/tileset altitude so the
+        // level sits flat on the surface instead of floating.
+        let groundAlt = loc.alt;
+        const v = viewerRef.current;
+        if (v) {
+          try {
+            const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+            const sampled = v.scene.sampleHeight(carto);
+            if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
+            else {
+              const terrainH = v.scene.globe.getHeight(carto);
+              if (typeof terrainH === "number" && !isNaN(terrainH)) groundAlt = terrainH;
+            }
+          } catch {}
+        }
+        setPendingLevelPlacement({ ...pending, loc: { lat: loc.lat, lng: loc.lng, alt: groundAlt } });
         return;
       }
       if (brushMode) {
@@ -6214,11 +6230,26 @@ function SpaceshipPage() {
             setPoiDescription("");
           }}
           onPickLevel={(lvl, l) => {
+            // Snap initial drop altitude to the real tile surface so the
+            // level isn't floating above (or buried below) the buildings.
+            let groundAlt = l.alt;
+            const v = viewerRef.current;
+            if (v) {
+              try {
+                const carto = Cartographic.fromDegrees(l.lng, l.lat);
+                const sampled = v.scene.sampleHeight(carto);
+                if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
+                else {
+                  const terrainH = v.scene.globe.getHeight(carto);
+                  if (typeof terrainH === "number" && !isNaN(terrainH)) groundAlt = terrainH;
+                }
+              } catch {}
+            }
             setPendingLevelPlacement({
               levelId: lvl.id,
               levelName: lvl.name,
               sizeM: DEFAULT_LEVEL_SIZE_M,
-              loc: { lat: l.lat, lng: l.lng, alt: Math.max(0, l.alt) },
+              loc: { lat: l.lat, lng: l.lng, alt: groundAlt },
               heading: 0,
             });
           }}
