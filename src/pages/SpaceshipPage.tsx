@@ -65,6 +65,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import CameraHistoryTimeline from "@/components/atlas/CameraHistoryTimeline";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
@@ -4377,6 +4378,10 @@ function SpaceshipPage() {
         isLoaded={isLoaded}
         placements={levelPlacements}
       />
+
+      {/* Camera history scrubber + user-saved view bookmarks. Bottom-left
+          HUD; doesn't intercept globe input unless the panel is open. */}
+      <CameraHistoryTimeline viewerRef={viewerRef} isLoaded={isLoaded} />
 
       {/* Level Inspector — opens when the user clicks a placed Level on
           the globe. Provides info, control bars, Main Character readout
