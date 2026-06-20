@@ -2277,6 +2277,12 @@ export default function LevelEditorPage() {
                   onSpawnObjects={(objs) => addObjects(objs)}
                   scenePaths={scene.scenePaths ?? []}
                   onPatchScenePaths={(next) => updateScene((s) => { s.scenePaths = next; return s; })}
+                  currentGroup={currentGroup}
+                  currentGroupSize={currentGroupMembers.length}
+                  selectionSize={selectedIds.size}
+                  onGroup={groupSelection}
+                  onUngroup={ungroupSelection}
+                  onSaveAsDynamic={() => setSaveDynamicOpen(true)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
