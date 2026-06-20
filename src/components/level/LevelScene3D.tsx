@@ -1361,16 +1361,23 @@ export function LevelSceneContents({
   // mutating the persisted scene.
   const scene = useMemo(() => {
     const mainId = rawScene.mainCharacterId;
-    if (!mainId) return rawScene;
+    const firstPlayableId = rawScene.objects.find(
+      (o) => o.kind === "character" && (o as CharacterObject).playable,
+    )?.id;
+    const fallbackCharacterId = playing
+      ? rawScene.objects.find((o) => o.kind === "character")?.id
+      : undefined;
+    const playableId = mainId || firstPlayableId || fallbackCharacterId;
+    if (!playableId) return rawScene;
     return {
       ...rawScene,
       objects: rawScene.objects.map((o) =>
         o.kind === "character"
-          ? ({ ...(o as CharacterObject), playable: o.id === mainId } as SceneObject)
+          ? ({ ...(o as CharacterObject), playable: o.id === playableId } as SceneObject)
           : o,
       ),
     };
-  }, [rawScene]);
+  }, [rawScene, playing]);
   const groupRef = useRef<THREE.Group>(null);
   // Pick a sensible focus action for double-click — set focus request from parent
   const handleFocus = (id: string) => onSelect?.(id);
