@@ -4535,11 +4535,20 @@ function SpaceshipPage() {
                     <ArrowLeft className="w-4 h-4 text-white/70" />
                   </GlassPanel>
                 </Link>
-                <GlassPanel className="hidden sm:flex px-3 py-2 items-center gap-1.5">
-                  <GlyphIcon name="atlas" alt="Atlas" glow="#22d3ee" />
-                  <span className="text-sm font-bold text-white">ATLAS</span>
-                  <span className="text-xs text-white/70 font-mono">ATLAS</span>
-                </GlassPanel>
+                <div className="hidden sm:block">
+                  <AtlasSettingsDropdown
+                    viewerRef={viewerRef}
+                    isLoaded={isLoaded}
+                    kbNavEnabled={kbNavEnabled}
+                    onKbNavChange={setKbNavEnabled}
+                    kbSensitivity={kbSensitivity}
+                    onKbSensitivityChange={setKbSensitivity}
+                    hudVisible={hudVisible}
+                    onHudVisibleChange={setHudVisible}
+                    showBuildings={showBuildings}
+                    onShowBuildingsChange={setShowBuildings}
+                  />
+                </div>
               </div>
 
               <GlassPanel className="flex items-center flex-nowrap gap-1 p-1 overflow-x-auto max-w-[calc(100vw-5rem)] sm:max-w-none sm:flex-wrap sm:overflow-visible">
