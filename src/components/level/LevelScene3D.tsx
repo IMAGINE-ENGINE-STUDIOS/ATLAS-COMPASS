@@ -26,7 +26,7 @@ import {
 } from "@/lib/face-system";
 import { FacePaintContext, useFacePaint } from "./FacePaintContext";
 import LevelCharacter from "./LevelCharacter";
-import PlayableCharacter from "./locomotion/PlayableCharacter";
+import PlayableCharacter, { type PlayCameraPose } from "./locomotion/PlayableCharacter";
 import PushableRuntime from "./locomotion/PushableRuntime";
 import TeleportPickerOverlay from "./play/TeleportPickerOverlay";
 import { characterRegistry } from "./locomotion/locomotionState";
@@ -883,6 +883,7 @@ function RenderObject({
   playing,
   controlsRef,
   onTrajectoryPointsChange,
+  onPlayCameraPose,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -891,6 +892,7 @@ function RenderObject({
   playing?: boolean;
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
+  onPlayCameraPose?: (pose: PlayCameraPose) => void;
 }) {
   const selected = selectedId === obj.id;
   if (obj.kind === "primitive") return <PrimitiveMesh obj={obj} selected={selected} onSelect={onSelect} />;
@@ -901,7 +903,7 @@ function RenderObject({
     if (isPlayer) {
       return (
         <Suspense fallback={null}>
-          <PlayableCharacter obj={obj as CharacterObject} enabled={true} />
+          <PlayableCharacter obj={obj as CharacterObject} enabled={true} onCameraPose={onPlayCameraPose} />
         </Suspense>
       );
     }
@@ -946,6 +948,7 @@ function ObjectSlot({
   playing,
   controlsRef,
   onTrajectoryPointsChange,
+  onPlayCameraPose,
 }: {
   obj: SceneObject;
   selectedId?: string | null;
@@ -953,6 +956,7 @@ function ObjectSlot({
   playing: boolean;
   controlsRef?: React.MutableRefObject<any>;
   onTrajectoryPointsChange?: (id: string, points: [number, number, number][]) => void;
+  onPlayCameraPose?: (pose: PlayCameraPose) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const isPlayer =
@@ -1002,6 +1006,7 @@ function ObjectSlot({
         playing={playing}
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
+        onPlayCameraPose={onPlayCameraPose}
       />
     );
   }
@@ -1026,6 +1031,7 @@ function ObjectSlot({
         playing={playing}
         controlsRef={controlsRef}
         onTrajectoryPointsChange={onTrajectoryPointsChange}
+        onPlayCameraPose={onPlayCameraPose}
       />
       {isPushable && (
         <PushableRuntime
