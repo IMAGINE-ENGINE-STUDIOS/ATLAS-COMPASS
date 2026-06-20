@@ -24,6 +24,7 @@ import * as THREE from "three";
 import {
   Cartesian3,
   Matrix4 as CesiumMatrix4,
+  Math as CesiumMath,
   Transforms,
   type Viewer,
 } from "cesium";
@@ -316,9 +317,20 @@ export default function AtlasLevelsR3FOverlay({
     viewer.trackedEntity = undefined;
     viewer.selectedEntity = undefined;
     try {
-      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.7);
+      // Park the Cesium camera in a third-person-ish pose looking horizontally
+      // across the level so the surrounding city stays visible as a backdrop
+      // while the R3F PlayableCharacter owns the play view. Slightly behind
+      // and above the level origin, looking forward.
+      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 8);
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-      viewer.camera.setView({ destination: eye });
+      viewer.camera.setView({
+        destination: eye,
+        orientation: {
+          heading: CesiumMath.toRadians(0),
+          pitch: CesiumMath.toRadians(-15),
+          roll: 0,
+        },
+      });
     } catch {}
     setNearIds((prev) => new Set(prev).add(p.id));
     setPlayingId(p.id);
