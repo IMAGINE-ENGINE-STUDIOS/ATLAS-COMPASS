@@ -2619,13 +2619,14 @@ export default function LevelEditorPage() {
               <Input value={placeScale} onChange={(e) => setPlaceScale(e.target.value)} />
             </div>
             <AtlasMiniMap
-              lat={parseFloat(placeLat)}
-              lng={parseFloat(placeLng)}
+              lat={Number.isFinite(parseFloat(placeLat)) ? parseFloat(placeLat) : 0}
+              lng={Number.isFinite(parseFloat(placeLng)) ? parseFloat(placeLng) : 0}
               onChange={(la, ln) => { setPlaceLat(la.toFixed(6)); setPlaceLng(ln.toFixed(6)); }}
               className="h-56 w-full rounded-lg overflow-hidden border border-white/10"
             />
             <p className="text-[10px] text-muted-foreground">
-              Drag the pin (or click the map) to move the placement.
+              Click the map (or drag the pin) to choose the exact spot — the level
+              drops at those coordinates. Defaults to your last Atlas view.
             </p>
           </div>
           <DialogFooter>
