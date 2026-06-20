@@ -4295,6 +4295,16 @@ function SpaceshipPage() {
         />
       )}
 
+      {/* In-world Levels — full R3F scenes geo-anchored to the globe.
+          Far away the cheap green Cesium box stands in; up close the
+          real level fades in and the user can Play it without leaving
+          the Atlas (Esc to exit). */}
+      <AtlasLevelsR3FOverlay
+        viewerRef={viewerRef}
+        isLoaded={isLoaded}
+        placements={levelPlacements}
+      />
+
       {/* Unified Atlas tag clustering overlay */}
       {isLoaded && (() => {
         const allTags: AtlasTag[] = [];
