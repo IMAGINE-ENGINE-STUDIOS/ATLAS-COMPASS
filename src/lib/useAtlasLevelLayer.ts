@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { Cartesian2, Cartesian3, Color, LabelStyle, ScreenSpaceEventHandler, ScreenSpaceEventType, defined, type Viewer } from "cesium";
+import {
+  Cartesian2, Cartesian3, Color, HeightReference, LabelStyle,
+  ScreenSpaceEventHandler, ScreenSpaceEventType, defined, type Viewer,
+} from "cesium";
 import { supabase } from "@/integrations/supabase/client";
+import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "./atlasLevelGeo";
 
 export interface LevelPlacement {
   id: string;
@@ -55,25 +59,30 @@ export function useAtlasLevelLayer(
 
     const added: any[] = [];
     for (const p of placements) {
+      const snap = snapToLevelTile(p.lat, p.lng, DEFAULT_LEVEL_SIZE_M);
+      const size = snap.tileSizeM;
       const ent = viewer.entities.add({
         id: `level-placement-${p.id}`,
-        position: Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 0.5),
-        point: {
-          pixelSize: 14,
-          color: Color.fromCssColorString("#3b82f6"),
-          outlineColor: Color.WHITE,
+        position: Cartesian3.fromDegrees(snap.lng, snap.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2) as any,
+        box: {
+          dimensions: new Cartesian3(size, size, LEVEL_HEIGHT_M) as any,
+          material: Color.fromCssColorString("#10b981").withAlpha(0.28) as any,
+          outline: true,
+          outlineColor: Color.fromCssColorString("#10b981") as any,
           outlineWidth: 2,
-        },
+        } as any,
         label: {
           text: `▣ ${p.levels?.name ?? "Level"}`,
           font: "12px Inter, sans-serif",
-          pixelOffset: new Cartesian2(0, -22),
+          pixelOffset: new Cartesian2(0, -8),
           fillColor: Color.WHITE,
           outlineColor: Color.BLACK,
           outlineWidth: 2,
           style: LabelStyle.FILL_AND_OUTLINE,
           showBackground: true,
           backgroundColor: Color.fromCssColorString("rgba(15,23,42,0.85)"),
+          heightReference: HeightReference.NONE,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
       (ent as any)._levelPlacement = p;
