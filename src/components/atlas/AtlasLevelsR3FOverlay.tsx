@@ -23,8 +23,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
-  BoundingSphere,
-  HeadingPitchRange,
+  HeadingPitchRoll,
   Matrix4 as CesiumMatrix4,
   Math as CesiumMath,
   Transforms,
@@ -274,25 +273,28 @@ export default function AtlasLevelsR3FOverlay({
     const viewer = viewerRef.current;
     const p = placements.find((placement) => placement.id === pendingPlayId);
     if (!p || viewer.isDestroyed()) return;
-    const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.6);
+    // No fly-in: snap the camera into the level at the playable
+    // character's eye height so the user immediately controls the
+    // character. The level stays fixed where it sits in the Atlas
+    // world and the Earth itself stays fixed — the user can walk
+    // out of the level and (eventually) all over the planet.
     viewer.trackedEntity = undefined;
     viewer.selectedEntity = undefined;
-    viewer.camera.flyToBoundingSphere(
-      new BoundingSphere(center, DEFAULT_LEVEL_SIZE_M * 0.55),
-      {
-        duration: 1.25,
-        offset: new HeadingPitchRange(
-          CesiumMath.toRadians((p.heading ?? 0) + 180),
-          CesiumMath.toRadians(-8),
-          Math.max(18, DEFAULT_LEVEL_SIZE_M * 0.42),
+    try {
+      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.7);
+      viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
+      viewer.camera.setView({
+        destination: eye,
+        orientation: new HeadingPitchRoll(
+          CesiumMath.toRadians(p.heading ?? 0),
+          0,
+          0,
         ),
-        complete: () => {
-          setNearIds((prev) => new Set(prev).add(p.id));
-          setPlayingId(p.id);
-          setPendingPlayId(null);
-        },
-      } as any,
-    );
+      });
+    } catch {}
+    setNearIds((prev) => new Set(prev).add(p.id));
+    setPlayingId(p.id);
+    setPendingPlayId(null);
   }, [pendingPlayId, placements, viewerRef]);
 
   useEffect(() => {
