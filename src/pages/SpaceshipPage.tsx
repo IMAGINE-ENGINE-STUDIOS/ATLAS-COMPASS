@@ -4444,6 +4444,19 @@ function SpaceshipPage() {
         placements={levelPlacements}
       />
 
+      {/* Focus-point indicator (left double-click sets it) */}
+      {focusPoint && (
+        <button
+          onClick={releaseFocus}
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 backdrop-blur-md text-cyan-100 text-xs font-medium pointer-events-auto"
+          title="Release focus point (Esc)"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
+          Orbiting · {focusPoint.lat.toFixed(4)}, {focusPoint.lng.toFixed(4)}
+          <span className="text-cyan-300/70 text-[10px]">Esc</span>
+        </button>
+      )}
+
       {/* Camera history is now embedded inside the ATLAS dropdown
           (top-left). The floating bottom-left pill was removed to clean
           up the HUD. */}
