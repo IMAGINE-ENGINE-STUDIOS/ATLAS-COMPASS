@@ -714,6 +714,60 @@ function SpaceshipPage() {
   } | null>(null);
   const pendingLevelPlacementRef = useRef<typeof pendingLevelPlacement>(null);
   useEffect(() => { pendingLevelPlacementRef.current = pendingLevelPlacement; }, [pendingLevelPlacement]);
+
+  // Ghost preview cube for pending level placement.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !pendingLevelPlacement?.loc) return;
+    const { loc, sizeM } = pendingLevelPlacement;
+    const snap = snapToLevelTile(loc.lat, loc.lng, sizeM);
+    const size = snap.tileSizeM;
+    const ent = viewer.entities.add({
+      id: "pending-level-ghost",
+      position: Cartesian3.fromDegrees(snap.lng, snap.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2) as any,
+      box: {
+        dimensions: new Cartesian3(size, size, LEVEL_HEIGHT_M) as any,
+        material: Color.fromCssColorString("#22c55e").withAlpha(0.35) as any,
+        outline: true,
+        outlineColor: Color.fromCssColorString("#86efac") as any,
+        outlineWidth: 3,
+      } as any,
+      label: {
+        text: `Preview — ${pendingLevelPlacement.levelName}`,
+        font: "12px Inter, sans-serif",
+        pixelOffset: new Cartesian2(0, -8),
+        fillColor: Color.WHITE,
+        outlineColor: Color.BLACK,
+        outlineWidth: 2,
+        style: LabelStyle.FILL_AND_OUTLINE,
+        showBackground: true,
+        backgroundColor: Color.fromCssColorString("rgba(15,23,42,0.85)"),
+      } as any,
+    });
+    return () => { try { viewer.entities.remove(ent); } catch {} };
+  }, [pendingLevelPlacement]);
+
+  const confirmLevelPlacement = useCallback(async () => {
+    const p = pendingLevelPlacement;
+    if (!p?.loc) return;
+    const { data: userRes } = await supabase.auth.getUser();
+    const uid = userRes.user?.id;
+    if (!uid) { toast.error("Sign in to place a level"); return; }
+    const snap = snapToLevelTile(p.loc.lat, p.loc.lng, p.sizeM);
+    const { error } = await supabase.from("atlas_level_placements").insert({
+      owner_id: uid,
+      level_id: p.levelId,
+      lat: snap.lat,
+      lng: snap.lng,
+      altitude: Math.max(0, p.loc.alt),
+      heading: 0,
+      scale: 1,
+    });
+    if (error) { toast.error(`Failed: ${error.message}`); return; }
+    window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
+    toast.success(`Loaded "${p.levelName}" here`);
+    setPendingLevelPlacement(null);
+  }, [pendingLevelPlacement]);
   const [poiName, setPoiName] = useState("");
   const [poiDescription, setPoiDescription] = useState("");
   const [poisPanelOpen, setPoisPanelOpen] = useState(false);
