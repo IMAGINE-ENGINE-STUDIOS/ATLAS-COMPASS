@@ -302,20 +302,10 @@ export default function AtlasLevelsR3FOverlay({
     }
   }, [pendingPlayId, nearIds]);
 
-  // Disable Cesium camera controls while a level is being played so
-  // mouse/keyboard go to the R3F player controller instead of orbiting
-  // the globe.
-  useEffect(() => {
-    const v = viewerRef.current;
-    if (!v || v.isDestroyed()) return;
-    const ctl: any = v.scene.screenSpaceCameraController;
-    if (!ctl) return;
-    if (playingId) {
-      ctl.enableInputs = false;
-    } else {
-      ctl.enableInputs = true;
-    }
-  }, [playingId, viewerRef]);
+  // Keep Atlas camera inputs enabled even during Play — the level is
+  // rendered as an in-world instance, so Atlas's own first-person camera
+  // is what the user uses to look/walk around it. (No separate level
+  // camera takes over; that prevented the "static earth" feel.)
 
   // Esc to exit play
   useEffect(() => {
