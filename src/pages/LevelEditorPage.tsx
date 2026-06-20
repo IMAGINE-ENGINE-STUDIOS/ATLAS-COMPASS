@@ -1020,6 +1020,13 @@ export default function LevelEditorPage() {
         }
       }
 
+      // Group / ungroup shortcuts
+      if (!inField && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+      }
+
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         const oids = Array.from(selectedIds).filter(
