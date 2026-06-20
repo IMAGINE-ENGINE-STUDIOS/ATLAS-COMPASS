@@ -735,6 +735,10 @@ function SpaceshipPage() {
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
+  // ECEF position the camera is currently orbit-locked to (set by a
+  // double-click on the globe). When set, look/orbit gestures pivot
+  // around this point; right-click or Esc drops it.
+  const cameraTargetRef = useRef<Cartesian3 | null>(null);
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
     levelName: string;
