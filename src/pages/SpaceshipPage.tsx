@@ -5844,6 +5844,12 @@ function SpaceshipPage() {
           onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
         />
       )}
+      {activeLevelPlacement && (
+        <AtlasLevelPlayer
+          placement={activeLevelPlacement}
+          onClose={() => setActiveLevelPlacement(null)}
+        />
+      )}
     </div>
   );
 }
