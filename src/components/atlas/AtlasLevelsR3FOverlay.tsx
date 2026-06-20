@@ -18,7 +18,7 @@
  * Cesium pin/beacon in useAtlasLevelLayer.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -101,7 +101,7 @@ function PlacedLevel({
   viewer: Viewer;
   placement: LevelPlacement;
   playing: boolean;
-  onPlayCameraPose?: (placement: LevelPlacement, pose: PlayCameraPose) => void;
+  onPlayCameraPose?: (placement: LevelPlacement, pose: AtlasWorldPlayPose) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
