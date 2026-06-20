@@ -545,27 +545,21 @@ export default function PlayableCharacter({
     // 3D tilesets so the character lands on the real terrain instead of
     // falling into the void.
     if (!groundPoint) {
-      const viewer = (window as any).__cesiumViewer;
-      if (viewer && !viewer.isDestroyed?.()) {
-        try {
-          const worldFeet = toWorldPoint(new THREE.Vector3(root.position.x, root.position.y, root.position.z));
-          const carto = CesiumCartographic.fromCartesian(
-            new CesiumCartesian3(worldFeet.x, worldFeet.y, worldFeet.z),
-          );
-          if (carto) {
-            const sampled = viewer.scene.sampleHeight?.(carto, [], 0.05);
-            const h = (typeof sampled === "number" && Number.isFinite(sampled))
-              ? sampled
-              : (viewer.scene.globe?.getHeight?.(carto) ?? null);
-            if (h !== null && Number.isFinite(h)) {
-              carto.height = h;
-              const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, carto.height);
-              const localSurf = toLocalPoint(new THREE.Vector3(surfECEF.x, surfECEF.y, surfECEF.z));
-              groundPoint = localSurf;
-            }
+      try {
+        const worldFeet = toWorldPoint(new THREE.Vector3(root.position.x, root.position.y, root.position.z));
+        const carto = CesiumCartographic.fromCartesian(
+          new CesiumCartesian3(worldFeet.x, worldFeet.y, worldFeet.z),
+        );
+        if (carto) {
+          const lngDeg = CesiumMath.toDegrees(carto.longitude);
+          const latDeg = CesiumMath.toDegrees(carto.latitude);
+          const h = sampleEarthHeight(lngDeg, latDeg);
+          if (h !== null) {
+            const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, h);
+            groundPoint = toLocalPoint(new THREE.Vector3(surfECEF.x, surfECEF.y, surfECEF.z));
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
 
     // ---- forward ledge probe (for climb + jump-down) ----
