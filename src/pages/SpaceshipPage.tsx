@@ -2219,19 +2219,8 @@ function SpaceshipPage() {
     };
 
     // LEFT double click → set a camera focus point to orbit around, OR
-    // drive the active brush / pending-placement mode. The React-side
-    // listener decides which based on current mode.
-    handler.setInputAction((click: any) => {
-      viewer.trackedEntity = undefined;
-      viewer.selectedEntity = undefined;
-      const loc = pickWorldLoc(click.position);
-      if (!loc) return;
-      const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
-      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
-    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
-
-    // RIGHT click → context menu (formerly bound to left double-click).
-    // Edit a model if right-clicked on one, otherwise open the earth menu.
+    // LEFT DOUBLE CLICK → drive brush / pending placement, or open the
+    // earth context menu. Edit a model if double-clicked on one.
     handler.setInputAction((click: any) => {
       viewer.trackedEntity = undefined;
       viewer.selectedEntity = undefined;
@@ -2244,8 +2233,8 @@ function SpaceshipPage() {
       const loc = pickWorldLoc(click.position);
       if (!loc) return;
       const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
-      window.dispatchEvent(new CustomEvent("cesium-rightclick", { detail: { ...loc, screen } }));
-    }, ScreenSpaceEventType.RIGHT_CLICK);
+      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
+    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
     // Track camera altitude
     viewer.scene.postRender.addEventListener(() => {
