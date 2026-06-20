@@ -788,9 +788,17 @@ function SpaceshipPage() {
   const confirmLevelPlacement = useCallback(async () => {
     const p = pendingLevelPlacement;
     if (!p?.loc) return;
-    const { data: userRes } = await supabase.auth.getUser();
-    const uid = userRes.user?.id;
-    if (!uid) { toast.error("Sign in to place a level"); return; }
+    // Bypass sign-in: silently create an anonymous session if needed.
+    let uid: string | null = null;
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      uid = userRes.user?.id ?? null;
+    } catch {}
+    if (!uid) {
+      const { ensureLevelSession } = await import("@/lib/levelSession");
+      uid = await ensureLevelSession({ allowAnonymous: true });
+    }
+    if (!uid) { toast.error("Could not start session"); return; }
     const { error } = await supabase.from("atlas_level_placements").insert({
       owner_id: uid,
       level_id: p.levelId,
