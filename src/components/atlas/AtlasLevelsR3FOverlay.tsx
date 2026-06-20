@@ -24,6 +24,7 @@ import * as THREE from "three";
 import {
   Cartesian3,
   Matrix4 as CesiumMatrix4,
+  Math as CesiumMath,
   Transforms,
   type Viewer,
 } from "cesium";
@@ -160,6 +161,19 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
+    // While THIS placement is being played, drop the ECEF transform: the
+    // level sits at world origin with identity rotation so PlayableCharacter
+    // (which uses world-space raycasts with world +Y as "up") works exactly
+    // like the standalone Level editor's play mode — terrain hits, gravity
+    // lands on the floor, no falling-into-infinity. The Cesium camera is
+    // frozen at the level's lat/lng so the city stays visible as a backdrop.
+    if (playing) {
+      groupRef.current.matrixAutoUpdate = true;
+      groupRef.current.position.set(0, 0, 0);
+      groupRef.current.rotation.set(0, headingRad, 0);
+      groupRef.current.scale.setScalar(placementScale);
+      return;
+    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
@@ -207,13 +221,12 @@ function PlacedLevel({
         skipBackground
         skipAmbient
         skipDirectional
-        onPlayCameraPose={playing ? (pose) => {
-          onPlayCameraPose?.(placement, {
-            eye: new THREE.Vector3(...pose.eye).applyMatrix4(worldMatrix),
-            target: new THREE.Vector3(...pose.target).applyMatrix4(worldMatrix),
-            player: new THREE.Vector3(...pose.player).applyMatrix4(worldMatrix),
-          });
-        } : undefined}
+        /*
+         * No onPlayCameraPose: we let PlayableCharacter drive the R3F camera
+         * directly (third/first-person follow), exactly like the standalone
+         * Level editor's play mode. The Cesium camera stays frozen at the
+         * level's lat/lng so the city around it remains a visible backdrop.
+         */
       />
     </group>
   );
@@ -304,9 +317,20 @@ export default function AtlasLevelsR3FOverlay({
     viewer.trackedEntity = undefined;
     viewer.selectedEntity = undefined;
     try {
-      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 1.7);
+      // Park the Cesium camera in a third-person-ish pose looking horizontally
+      // across the level so the surrounding city stays visible as a backdrop
+      // while the R3F PlayableCharacter owns the play view. Slightly behind
+      // and above the level origin, looking forward.
+      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 8);
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-      viewer.camera.setView({ destination: eye });
+      viewer.camera.setView({
+        destination: eye,
+        orientation: {
+          heading: CesiumMath.toRadians(0),
+          pitch: CesiumMath.toRadians(-15),
+          roll: 0,
+        },
+      });
     } catch {}
     setNearIds((prev) => new Set(prev).add(p.id));
     setPlayingId(p.id);
@@ -403,9 +427,11 @@ export default function AtlasLevelsR3FOverlay({
             pointerEvents: playingId ? "auto" : "none",
           }}
         >
-          {/* Always-on Atlas camera sync — level instances stay anchored to
-              their ECEF position whether or not we're in Play. */}
-          <CameraSync viewer={viewer} enabled={true} />
+          {/* Atlas camera sync — level instances stay anchored to their
+              ECEF position when NOT playing. During Play we hand the R3F
+              camera over to PlayableCharacter so the editor's play camera
+              behaves identically inside Atlas. */}
+          <CameraSync viewer={viewer} enabled={!playingId} />
           <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
           <directionalLight position={[100, 200, 100]} intensity={1.2} />
           {visible.map((p) => (
