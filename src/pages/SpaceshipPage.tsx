@@ -692,7 +692,7 @@ function SpaceshipPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   const [activeLevelPlacement, setActiveLevelPlacement] = useState<LevelPlacement | null>(null);
-  useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
+  const { placements: levelPlacements } = useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
     setActiveLevelPlacement(p);
   }, []));
   const [searchQuery, setSearchQuery] = useState("");
