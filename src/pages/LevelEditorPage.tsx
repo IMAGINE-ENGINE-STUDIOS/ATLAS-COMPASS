@@ -526,8 +526,24 @@ export default function LevelEditorPage() {
   const clipboardRef = useRef<SceneObject[]>([]);
   const [showGrid, setShowGrid] = useState(true);
   const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
-  const [placeLat, setPlaceLat] = useState("40.7580");
-  const [placeLng, setPlaceLng] = useState("-73.9855");
+  // Default the placement coordinates to the user's last Atlas camera
+  // position so the cube drops where they were just looking — not at a
+  // hardcoded NYC fallback that feels random. If the user has never
+  // opened Atlas, leave the inputs blank and force them to click the
+  // mini-map (or paste coords) before placing.
+  const initialPlaceCoords = (() => {
+    try {
+      const raw = localStorage.getItem("atlas_camera");
+      if (!raw) return { lat: "", lng: "" };
+      const c = JSON.parse(raw);
+      if (typeof c?.lat === "number" && typeof c?.lng === "number") {
+        return { lat: c.lat.toFixed(6), lng: c.lng.toFixed(6) };
+      }
+    } catch {}
+    return { lat: "", lng: "" };
+  })();
+  const [placeLat, setPlaceLat] = useState(initialPlaceCoords.lat);
+  const [placeLng, setPlaceLng] = useState(initialPlaceCoords.lng);
   const [placeScale, setPlaceScale] = useState("1");
   const [currentPlacement, setCurrentPlacement] = useState<{ lat: number; lng: number; scale: number } | null>(null);
   const [showLocationViewport, setShowLocationViewport] = useState(true);
@@ -2603,18 +2619,25 @@ export default function LevelEditorPage() {
               <Input value={placeScale} onChange={(e) => setPlaceScale(e.target.value)} />
             </div>
             <AtlasMiniMap
-              lat={parseFloat(placeLat)}
-              lng={parseFloat(placeLng)}
+              lat={Number.isFinite(parseFloat(placeLat)) ? parseFloat(placeLat) : 0}
+              lng={Number.isFinite(parseFloat(placeLng)) ? parseFloat(placeLng) : 0}
               onChange={(la, ln) => { setPlaceLat(la.toFixed(6)); setPlaceLng(ln.toFixed(6)); }}
               className="h-56 w-full rounded-lg overflow-hidden border border-white/10"
             />
             <p className="text-[10px] text-muted-foreground">
-              Drag the pin (or click the map) to move the placement.
+              Click the map (or drag the pin) to choose the exact spot — the level
+              drops at those coordinates. Defaults to your last Atlas view.
             </p>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPlaceDialogOpen(false)}>Cancel</Button>
-            <Button onClick={placeOnAtlas}>
+            <Button
+              onClick={placeOnAtlas}
+              disabled={
+                !Number.isFinite(parseFloat(placeLat)) ||
+                !Number.isFinite(parseFloat(placeLng))
+              }
+            >
               <MapPin className="w-3.5 h-3.5 mr-1" /> Place
             </Button>
           </DialogFooter>
