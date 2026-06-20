@@ -8,7 +8,7 @@ import {
   Move3d, Rotate3d, Scaling,
   Layers as LayersIcon, FolderPlus,
   Unlock, Mountain, Brush, ArrowUp, ArrowDown, Waves, Minus,
-  X, ArrowUpRight, User, Camera,
+  X, ArrowUpRight, User, Camera, Boxes, Link2, Unlink,
 } from "lucide-react";
 import { Spline as SplineIcon, Paintbrush } from "lucide-react";
 import { Sparkles, Library, ChevronLeft, Search, PanelLeft, PanelRight } from "lucide-react";
@@ -30,7 +30,7 @@ import {
 import {
   EMPTY_SCENE, LevelScene, SceneObject, SceneLight, AnimationTrack,
   PrimitiveObject, PolygonObject, ModelObject, newId, Vec3, RGBA,
-  SceneLayer, DEFAULT_LAYER_ID, defaultLayers,
+  SceneLayer, DEFAULT_LAYER_ID, defaultLayers, SceneGroup,
   SceneTerrain, defaultTerrain,
   ModelMaterialOverride,
   HDRIMap, HDRIEnvironment as HDRIEnvironmentCfg,
@@ -67,6 +67,8 @@ import {
 import { GLTFLoader } from "three-stdlib";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
+import DynamicObjectGallery from "@/components/level/dynamics/DynamicObjectGallery";
+import SaveAsDynamicDialog from "@/components/level/dynamics/SaveAsDynamicDialog";
 import { GeometryPanel } from "@/components/level/geometry/GeometryPanel";
 import { InteractionsPanel } from "@/components/level/geometry/InteractionsPanel";
 import {
@@ -507,6 +509,8 @@ export default function LevelEditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [playing, setPlaying] = useState(false);
+  const [dynamicGalleryOpen, setDynamicGalleryOpen] = useState(false);
+  const [saveDynamicOpen, setSaveDynamicOpen] = useState(false);
   // Live rig state surfaced from <RigControllerRoom/> so the left Components
   // panel can mirror the rig's character + bone hierarchy.
   const [rigState, setRigState] = useState<{
@@ -618,18 +622,30 @@ export default function LevelEditorPage() {
   const isOwner = userId && ownerId && userId === ownerId;
 
   const selectObject = (oid: string, multi = false) => {
+    // Group fan-out: when selecting a member of a group (without explicit
+    // multi-select), select EVERY member so transforms/lock/delete behave on
+    // the whole group. Alt-click bypasses this (callers can pass multi=true
+    // already; we additionally treat the Alt modifier as "atomize" — handled
+    // by a window event registered below).
+    const atomic = !!(window as any).__atomicSelect;
+    const obj = scene.objects.find((o) => o.id === oid);
+    const groupId = !atomic ? obj?.groupId : undefined;
+    const groupMemberIds = groupId
+      ? scene.objects.filter((o) => o.groupId === groupId).map((o) => o.id)
+      : [oid];
     if (multi) {
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        if (next.has(oid)) next.delete(oid);
-        else next.add(oid);
+        const allIn = groupMemberIds.every((gid) => next.has(gid));
+        if (allIn) for (const gid of groupMemberIds) next.delete(gid);
+        else for (const gid of groupMemberIds) next.add(gid);
         return next;
       });
       setSelectedId(oid);
       setSelectedLightIds(new Set());
       setSelectedLightId(null);
     } else {
-      setSelectedIds(new Set([oid]));
+      setSelectedIds(new Set(groupMemberIds));
       setSelectedId(oid);
       setSelectedLightIds(new Set());
       setSelectedLightId(null);
@@ -1004,6 +1020,13 @@ export default function LevelEditorPage() {
         }
       }
 
+      // Group / ungroup shortcuts
+      if (!inField && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+      }
+
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         const oids = Array.from(selectedIds).filter(
@@ -1186,6 +1209,64 @@ export default function LevelEditorPage() {
       );
       return s;
     });
+
+  /* ---------- groups ---------- */
+
+  /** Bundle the current selection into a SceneGroup (or extend an existing one). */
+  const groupSelection = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length < 2) {
+      toast.error("Select 2+ objects to group");
+      return;
+    }
+    updateScene((s) => {
+      const groups = s.groups ?? [];
+      const gid = newId("grp");
+      const colors = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#a855f7", "#14b8a6"];
+      const color = colors[groups.length % colors.length];
+      const name = `Group ${groups.length + 1}`;
+      s.objects = s.objects.map((o) =>
+        ids.includes(o.id) ? ({ ...o, groupId: gid } as SceneObject) : o,
+      );
+      s.groups = [...groups, { id: gid, name, color, memberIds: ids }];
+      return s;
+    });
+    toast.success(`Grouped ${ids.length} objects`);
+  };
+
+  /** Remove every object in the current selection from its group. */
+  const ungroupSelection = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    updateScene((s) => {
+      s.objects = s.objects.map((o) => {
+        if (!ids.includes(o.id) || !o.groupId) return o;
+        const { groupId, ...rest } = o as any;
+        return rest as SceneObject;
+      });
+      const groups = s.groups ?? [];
+      s.groups = groups
+        .map((g) => ({ ...g, memberIds: g.memberIds.filter((m) => !ids.includes(m)) }))
+        .filter((g) => g.memberIds.length > 0);
+      return s;
+    });
+    toast.success("Ungrouped");
+  };
+
+  /** Find the group (if any) that the focused object belongs to. */
+  const currentGroup: SceneGroup | null = useMemo(() => {
+    if (!selectedId) return null;
+    const obj = scene.objects.find((o) => o.id === selectedId);
+    const gid = obj?.groupId;
+    if (!gid) return null;
+    return (scene.groups ?? []).find((g) => g.id === gid) ?? null;
+  }, [selectedId, scene.objects, scene.groups]);
+
+  const currentGroupMembers: SceneObject[] = useMemo(() => {
+    if (!currentGroup) return [];
+    const set = new Set(currentGroup.memberIds);
+    return scene.objects.filter((o) => set.has(o.id));
+  }, [currentGroup, scene.objects]);
 
   /* ---------- glTF upload ---------- */
 
@@ -1443,6 +1524,20 @@ export default function LevelEditorPage() {
                 if (editingPolygonId === id) setEditingPolygonId(null);
               }}
             />
+
+            <div className="mt-3 pt-3 border-t border-border/40">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-8 text-[11px] justify-start"
+                onClick={() => setDynamicGalleryOpen(true)}
+                title="Browse, add, and manage Dynamic Objects"
+              >
+                <Boxes className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                Dynamic Objects
+                <span className="ml-auto text-[9px] uppercase tracking-wider text-muted-foreground">Gallery</span>
+              </Button>
+            </div>
 
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4">Layers</p>
@@ -2196,6 +2291,12 @@ export default function LevelEditorPage() {
                   onSpawnObjects={(objs) => addObjects(objs)}
                   scenePaths={scene.scenePaths ?? []}
                   onPatchScenePaths={(next) => updateScene((s) => { s.scenePaths = next; return s; })}
+                  currentGroup={currentGroup}
+                  currentGroupSize={currentGroupMembers.length}
+                  selectionSize={selectedIds.size}
+                  onGroup={groupSelection}
+                  onUngroup={ungroupSelection}
+                  onSaveAsDynamic={() => setSaveDynamicOpen(true)}
                   onDelete={() => {
                     removeObject(selectedObj.id);
                     setSelectedIds((prev) => {
@@ -2570,6 +2671,47 @@ export default function LevelEditorPage() {
           })
         }
       />
+
+      <DynamicObjectGallery
+        open={dynamicGalleryOpen}
+        onOpenChange={setDynamicGalleryOpen}
+        spawnAnchor={
+          selectedObj
+            ? [selectedObj.position[0] + 2, selectedObj.position[1], selectedObj.position[2] + 2]
+            : [0, 0, 0]
+        }
+        onSpawn={(objs, paths, groupId, groupName) => {
+          addObjects(objs);
+          if (paths.length) {
+            updateScene((s) => {
+              s.scenePaths = [...(s.scenePaths ?? []), ...paths];
+              return s;
+            });
+          }
+          if (groupId && objs.length > 1) {
+            const colors = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#a855f7", "#14b8a6"];
+            updateScene((s) => {
+              const groups = s.groups ?? [];
+              s.groups = [...groups, {
+                id: groupId,
+                name: groupName ?? "Dynamic group",
+                color: colors[groups.length % colors.length],
+                memberIds: objs.map((o) => o.id),
+              }];
+              return s;
+            });
+          }
+        }}
+      />
+
+      <SaveAsDynamicDialog
+        open={saveDynamicOpen}
+        onOpenChange={setSaveDynamicOpen}
+        selectedObject={selectedObj ?? null}
+        selectedGroup={currentGroup}
+        groupMembers={currentGroupMembers}
+        allPaths={scene.scenePaths ?? []}
+      />
     </div>
   );
 }
@@ -2857,6 +2999,8 @@ function ObjectInspector({
   projectId, facePaintActive, paintedFaces, onToggleFacePaint, onClearFacePaint,
   userClips, onOpenCharacterGallery, onSpawnObjects, allObjects = [],
   scenePaths = [], onPatchScenePaths,
+  currentGroup, currentGroupSize = 0, selectionSize = 1,
+  onGroup, onUngroup, onSaveAsDynamic,
 }: {
   obj: SceneObject;
   onPatch: (p: Partial<SceneObject>) => void;
@@ -2878,6 +3022,12 @@ function ObjectInspector({
   allObjects?: SceneObject[];
   scenePaths?: import("@/lib/levelTypes").ScenePath[];
   onPatchScenePaths?: (next: import("@/lib/levelTypes").ScenePath[]) => void;
+  currentGroup?: SceneGroup | null;
+  currentGroupSize?: number;
+  selectionSize?: number;
+  onGroup?: () => void;
+  onUngroup?: () => void;
+  onSaveAsDynamic?: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -2885,6 +3035,49 @@ function ObjectInspector({
         <Label className="text-xs">Name</Label>
         <Input value={obj.name} disabled={disabled} onChange={(e) => onPatch({ name: e.target.value } as any)} className="h-7 text-xs" />
       </div>
+
+      {(onGroup || onUngroup || onSaveAsDynamic) && (
+        <div className="flex flex-wrap items-center gap-1 rounded-md border border-border/40 bg-card/40 px-1.5 py-1">
+          {currentGroup ? (
+            <span
+              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded"
+              style={{ background: `${currentGroup.color ?? "#3b82f6"}22`, color: currentGroup.color ?? "#3b82f6" }}
+              title={`Member of "${currentGroup.name}"`}
+            >
+              ⛓ {currentGroup.name} · {currentGroupSize}
+            </span>
+          ) : (
+            <span className="text-[10px] text-muted-foreground px-1">No group</span>
+          )}
+          <div className="flex-1" />
+          {currentGroup ? (
+            <Button
+              size="sm" variant="ghost" className="h-6 px-2 text-[10px]"
+              disabled={disabled} onClick={onUngroup}
+              title="Remove from group (Ctrl+Shift+G)"
+            >
+              <Unlink className="w-3 h-3 mr-1" /> Ungroup
+            </Button>
+          ) : (
+            <Button
+              size="sm" variant="ghost" className="h-6 px-2 text-[10px]"
+              disabled={disabled || selectionSize < 2} onClick={onGroup}
+              title={selectionSize < 2 ? "Select 2+ objects to group" : "Group selection (Ctrl+G)"}
+            >
+              <Link2 className="w-3 h-3 mr-1" /> Group
+            </Button>
+          )}
+          {onSaveAsDynamic && (
+            <Button
+              size="sm" variant="outline" className="h-6 px-2 text-[10px]"
+              disabled={disabled} onClick={onSaveAsDynamic}
+              title="Package this object (or its group) as a reusable Dynamic Object"
+            >
+              <Save className="w-3 h-3 mr-1" /> Save as Dynamic
+            </Button>
+          )}
+        </div>
+      )}
 
       {onPatchScenePaths && obj.kind !== "trajectory" && (
         <InteractionsPanel

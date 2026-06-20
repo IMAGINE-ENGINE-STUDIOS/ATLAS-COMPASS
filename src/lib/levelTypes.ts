@@ -72,6 +72,13 @@ export interface BaseObject {
   layerId?: string; // optional; falls back to default layer
   locked?: boolean;
   /**
+   * Optional group membership. When set, the editor treats any selection of
+   * a group member as a selection of the entire group: transforms / lock /
+   * visibility / duplicate / delete fan out across every member, and the
+   * Play runtime parents the members into a shared rigid `THREE.Group`.
+   */
+  groupId?: string;
+  /**
    * Locomotion / interaction role for play mode.
    *  - "pushable": small-object dynamics; the player can push/kick it.
    *  - "sit":      acts as a sit marker (proximity prompt → sit animation).
@@ -519,6 +526,21 @@ export interface SceneLayer {
   collapsed?: boolean;
 }
 
+/**
+ * A named collection of scene objects that move and behave together. Members
+ * carry a back-pointer (`BaseObject.groupId`) so cheap lookups don't need to
+ * scan the group list. Groups are flat (no nesting) for v1.
+ */
+export interface SceneGroup {
+  id: string;
+  name: string;
+  /** Hex chip color shown in the Layers / Groups outline. */
+  color?: string;
+  memberIds: string[];
+  locked?: boolean;
+  collapsed?: boolean;
+}
+
 export interface SceneTerrain {
   enabled: boolean;
   source: "primitive" | "model";
@@ -593,6 +615,8 @@ export interface LevelScene {
   lights: SceneLight[];
   animations: AnimationTrack[];
   layers?: SceneLayer[];
+  /** Reusable rigid-group bindings between scene objects. */
+  groups?: SceneGroup[];
   terrain?: SceneTerrain;
   /** Scene-wide named splines reusable by object spline bindings. */
   scenePaths?: ScenePath[];
