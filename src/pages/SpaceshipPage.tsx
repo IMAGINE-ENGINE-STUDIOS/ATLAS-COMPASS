@@ -705,6 +705,15 @@ function SpaceshipPage() {
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
+  // When set, the user is previewing a level placement; double-clicks move the ghost cube.
+  const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
+    levelId: string;
+    levelName: string;
+    sizeM: number;
+    loc: EarthLoc | null;
+  } | null>(null);
+  const pendingLevelPlacementRef = useRef<typeof pendingLevelPlacement>(null);
+  useEffect(() => { pendingLevelPlacementRef.current = pendingLevelPlacement; }, [pendingLevelPlacement]);
   const [poiName, setPoiName] = useState("");
   const [poiDescription, setPoiDescription] = useState("");
   const [poisPanelOpen, setPoisPanelOpen] = useState(false);
