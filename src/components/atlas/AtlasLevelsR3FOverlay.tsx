@@ -322,7 +322,6 @@ export default function AtlasLevelsR3FOverlay({
     const viewer = viewerRef.current;
     const p = placements.find((placement) => placement.id === pendingPlayId);
     if (!p || viewer.isDestroyed()) return;
-    const lockedTile = snapToLevelTile(p.lat, p.lng, DEFAULT_LEVEL_SIZE_M);
     // No fly-in: snap the camera into the level at the playable
     // character's eye height so the user immediately controls the
     // character. The level stays fixed where it sits in the Atlas
@@ -335,7 +334,7 @@ export default function AtlasLevelsR3FOverlay({
       // across the level so the surrounding city stays visible as a backdrop
       // while the R3F PlayableCharacter owns the play view. Slightly behind
       // and above the level origin, looking forward.
-      const eye = Cartesian3.fromDegrees(lockedTile.lng, lockedTile.lat, (p.altitude ?? 0) + 8);
+      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 8);
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
       viewer.camera.setView({
         destination: eye,
