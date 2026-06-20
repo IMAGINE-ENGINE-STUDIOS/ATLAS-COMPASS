@@ -2901,33 +2901,14 @@ function SpaceshipPage() {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       } else {
-        // No brush / no pending placement: left double-click sets a
-        // camera focus point so the user can orbit around it.
-        const viewer = viewerRef.current;
-        if (!viewer || viewer.isDestroyed()) return;
-        try {
-          const point = Cartesian3.fromDegrees(loc.lng, loc.lat, loc.alt);
-          const frame = Transforms.eastNorthUpToFixedFrame(point);
-          viewer.camera.lookAtTransform(frame);
-          setFocusPoint({ lat: loc.lat, lng: loc.lng, alt: loc.alt });
-        } catch {}
+        // No brush / no pending placement: open the earth context menu.
+        setEarthMenu({ x: loc.screen?.x ?? window.innerWidth / 2, y: loc.screen?.y ?? window.innerHeight / 2, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
       }
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
     return () => window.removeEventListener("cesium-dblclick", handleDblClick);
   }, [brushMode, tileZoom, rectStart, stampSpacingM]);
 
-  // Right-click → open the earth context menu at the cursor.
-  useEffect(() => {
-    const onRight = (e: Event) => {
-      const detail = (e as CustomEvent).detail as any;
-      if (!detail) return;
-      const screen = detail.screen ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      setEarthMenu({ x: screen.x, y: screen.y, loc: { lat: detail.lat, lng: detail.lng, alt: detail.alt } });
-    };
-    window.addEventListener("cesium-rightclick", onRight);
-    return () => window.removeEventListener("cesium-rightclick", onRight);
-  }, []);
 
   // Listen for model double-click (open transform widget)
   useEffect(() => {
@@ -4399,22 +4380,6 @@ function SpaceshipPage() {
         placements={levelPlacements}
       />
 
-      {/* Focus-point indicator (left double-click sets it) */}
-      {focusPoint && (
-        <button
-          onClick={releaseFocus}
-          className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 backdrop-blur-md text-cyan-100 text-xs font-medium pointer-events-auto"
-          title="Release focus point (Esc)"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
-          Orbiting · {focusPoint.lat.toFixed(4)}, {focusPoint.lng.toFixed(4)}
-          <span className="text-cyan-300/70 text-[10px]">Esc</span>
-        </button>
-      )}
-
-      {/* Camera history is now embedded inside the ATLAS dropdown
-          (top-left). The floating bottom-left pill was removed to clean
-          up the HUD. */}
       {/* Level Inspector — opens when the user clicks a placed Level on
           the globe. Provides info, control bars, Main Character readout
           and the ▶ Play here action. */}
