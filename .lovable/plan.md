@@ -1,55 +1,53 @@
-## Atlas Levels — Placement, Inspector, Play-as-Character
+## Atlas home button → settings dropdown
 
-### 1. Rotation gizmo on the placement preview (before confirmation)
+In `src/pages/SpaceshipPage.tsx` around line 4522:
+- Remove the duplicate "ATLAS" text (currently `ATLASATLAS`).
+- Turn the `GlassPanel` into a button that toggles a popover dropdown containing three collapsible sections:
+  1. **Camera Controls** — mounts the existing `CameraHistoryTimeline` panel body (scrubber, save view, bookmarks). I'll lift its internal UI into a reusable `CameraControlsPanel` so it works both as an embedded section and as the old floating HUD.
+  2. **Navigation Controls** — toggles for `WASD / Arrow keys` walk-mode, mouse-look sensitivity slider, "rotate around focus point" toggle.
+  3. **Settings** — HUD visibility, buildings, atmosphere (re-using existing state setters already in the page).
+- Remove the standalone floating `CameraHistoryTimeline` pill from `SpaceshipPage.tsx` (it now lives in the dropdown).
 
-While a level placement is pending (the green preview box already shown by `pendingLevelPlacement` in `SpaceshipPage.tsx`), add a draggable rotation handle around the box:
-- A thin ring entity (Cesium ellipse on the ground) + a small handle pin.
-- Mouse-drag the handle to rotate; live-updates `pendingLevelPlacement.heading`.
-- The confirmation card already exists ("Confirm placement" button) — heading is saved on confirm.
-- Until confirmed the box stays editable: user can re-click the globe to move it, drag the gizmo to rotate.
+## WASD + arrow keys camera navigation
 
-### 2. Re-placing confirmed (green) boxes
+New file `src/components/atlas/useAtlasKeyboardNav.ts`:
+- Hook that listens to keydown/keyup on `W A S D` + `ArrowUp/Down/Left/Right` + `Q/E` (up/down).
+- Each animation frame, while keys are held, translates Cesium's `viewer.camera` along its local frame using `moveForward/Backward/Left/Right/Up/Down` scaled by current camera altitude (so it feels right both near ground and in orbit).
+- Skips when focus is in an input/textarea/contenteditable.
+- Controlled by an `enabled` flag wired to the Navigation Controls toggle (persisted in `localStorage` `atlas.kbNav.v1`, default ON).
+- Called from `SpaceshipPage.tsx` after viewer init.
 
-Each saved placement gets a small "Edit placement" action that re-enters pending mode pre-filled with that placement's data. Confirming overwrites the existing row (`atlas_level_placements.update` by id). Same rotation gizmo applies.
+## Level click UX
 
-### 3. Clickable Level objects + Level Inspector panel
+In `src/components/atlas/AtlasLevelsR3FOverlay.tsx` (and/or the level pin layer in `SpaceshipPage.tsx` — I'll confirm which renders pins):
+- Single click → just selects the level (highlights pin, opens compact info popover, no fly-to).
+- Double click → flies camera to the level placement (existing fly-to behavior).
+- Currently double-click both selects and opens a menu — split those.
 
-Left-click on a placed level (Cesium box / beacon / label) opens an Atlas-side **Level Inspector** sheet:
-- **Info table:** name, description, lat/lng/altitude, heading, scale, level_id, last edited.
-- **Control bars:** sliders for heading, scale, altitude; toggles for "Lock to tile". Saves to `atlas_level_placements`.
-- **Actions:** Open editor (`/level/:id`), Re-place, Delete, ▶ Play here.
-- **Main Character section** (see #5).
+## Right-click = old left-double-click menu
 
-### 4. Camera travels and poses a playable character
+In `SpaceshipPage.tsx` ~line 2208:
+- Move the current `LEFT_DOUBLE_CLICK` handler (model edit / POI menu) to `ScreenSpaceEventType.RIGHT_CLICK`.
+- Keep the model-drag and brush-paint LEFT actions untouched.
 
-When the user clicks ▶ Play (from inspector, HUD, or the existing in-world button):
-- Camera flies (existing `flyToBoundingSphere`) to the placement.
-- Cesium camera input is disabled (already done).
-- `AtlasLevelsR3FOverlay` mounts the level scene at that placement with `playing=true`.
-- Spawn the **main character** (see #5) at the level's spawn point and hand it input/locomotion via the existing `PlayableCharacter` runtime in `LevelSceneContents`.
-- Esc exits play and re-enables Cesium input.
+## Left double click = camera focus point (orbit-around)
 
-### 5. "Main Character" in Level settings
+Replace the LEFT_DOUBLE_CLICK action with:
+- Pick world position under cursor.
+- Call `viewer.camera.lookAtTransform(Transforms.eastNorthUpToFixedFrame(picked))` so subsequent mouse drag orbits around that point.
+- Show a small pulsing marker entity at the focus point.
+- Pressing `Esc` (or clicking the "Release focus" chip that appears) calls `lookAtTransform(Matrix4.IDENTITY)` to restore free camera.
 
-In the Level editor (`/level/:id`), add a **Main Character** section to the settings panel:
-- Picker that lists characters present in the level's scene (existing `LevelCharacter`/character nodes).
-- Selected character id is stored on the level (`scene.mainCharacterId`, persisted with the rest of the scene JSONB — no schema change).
-- When Atlas play activates, `LevelSceneContents` reads `scene.mainCharacterId` and assigns control to it via `PlayableCharacter`. If none is set, fall back to the first character in the scene.
+## Technical notes
 
-The same Main Character picker is mirrored (read-only selector) inside the Atlas Level Inspector so the user can switch without leaving Atlas.
+- All keyboard input is gated when brush/terrain-edit modes are active (those already capture keys).
+- `CameraHistoryTimeline` becomes `CameraControlsPanel` (renamed export) with an `embedded?: boolean` prop — when embedded, it skips the fixed-position wrapper and the toggle pill.
+- Persistence keys reused: `atlas.cameraBookmarks.v1`. New keys: `atlas.kbNav.v1`, `atlas.navSensitivity.v1`.
 
-### Technical notes
-- No DB schema changes. `mainCharacterId` lives inside the existing `levels.scene` JSONB.
-- New files:
-  - `src/components/atlas/LevelPlacementGizmo.tsx` — Cesium rotation ring + handle, wired to `pendingLevelPlacement`.
-  - `src/components/atlas/LevelInspectorPanel.tsx` — info table + control bars + actions, opened from Cesium pin click.
-  - `src/components/level/MainCharacterPicker.tsx` — used in Level editor settings.
-- Edits:
-  - `useAtlasLevelLayer.ts` — left-click now opens the inspector instead of immediately requesting play; ▶ Play stays a button in the inspector + the existing proximity HUD.
-  - `SpaceshipPage.tsx` — mount gizmo while pending; mount inspector when a placement is selected.
-  - `AtlasLevelsR3FOverlay.tsx` — pass `scene.mainCharacterId` through to `LevelSceneContents` for the controlled character.
+## Files touched
 
-### Out of scope (confirm if you want these too)
-- Multi-character switching mid-play.
-- Driving/flying vehicles between levels.
-- Persisting the player's position across level entries.
+- `src/pages/SpaceshipPage.tsx` — dropdown, remove duplicate label, swap dblclick/right-click handlers, wire keyboard hook, focus-point marker.
+- `src/components/atlas/CameraHistoryTimeline.tsx` — add `embedded` mode.
+- `src/components/atlas/AtlasLevelsR3FOverlay.tsx` — single-click select vs double-click navigate.
+- New: `src/components/atlas/useAtlasKeyboardNav.ts`.
+- New: `src/components/atlas/AtlasSettingsDropdown.tsx` (the dropdown shell).
