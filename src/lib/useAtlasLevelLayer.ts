@@ -152,37 +152,42 @@ export function useAtlasLevelLayer(
     }
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
-    const onPick = (click: any) => {
+    const flyTo = (p: LevelPlacement) => {
+      try {
+        const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2);
+        viewer.camera.flyToBoundingSphere(
+          { center, radius: DEFAULT_LEVEL_SIZE_M * 0.9 } as any,
+          {
+            duration: 1.0,
+            offset: new HeadingPitchRange(
+              CesiumMath.toRadians(p.heading ?? 0),
+              CesiumMath.toRadians(-12),
+              DEFAULT_LEVEL_SIZE_M * 1.8,
+            ),
+          } as any,
+        );
+      } catch {}
+    };
+
+    // Single click → just select (open the inspector panel). No fly-in.
+    const onClick = (click: any) => {
       const picked = viewer.scene.pick(click.position);
       if (defined(picked) && picked.id && (picked.id as any)._levelPlacement) {
         const p = (picked.id as any)._levelPlacement as LevelPlacement;
-        // Fly the camera to the placement so the user sees it framed,
-        // then hand control back to the host page (which will navigate).
-        // Frame the cube from ground level so the Level scene overlay sits on
-        // the tile floor instead of appearing to float in the sky.
-        try {
-          const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2);
-          viewer.camera.flyToBoundingSphere(
-            { center, radius: DEFAULT_LEVEL_SIZE_M * 0.9 } as any,
-            {
-              duration: 1.0,
-              offset: new HeadingPitchRange(
-                CesiumMath.toRadians(p.heading ?? 0),
-                CesiumMath.toRadians(-12),
-                DEFAULT_LEVEL_SIZE_M * 1.8,
-              ),
-            } as any,
-          );
-        } catch {}
         onOpenLevel(p);
-        // The inspector panel (opened via onOpenLevel) is now responsible
-        // for triggering play — clicking a pin only flies in and opens
-        // the panel so the user can configure heading/scale/altitude
-        // first.
       }
     };
-    handler.setInputAction(onPick, ScreenSpaceEventType.LEFT_CLICK);
-    handler.setInputAction(onPick, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+    // Double click → fly to the level and open the inspector.
+    const onDbl = (click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (defined(picked) && picked.id && (picked.id as any)._levelPlacement) {
+        const p = (picked.id as any)._levelPlacement as LevelPlacement;
+        flyTo(p);
+        onOpenLevel(p);
+      }
+    };
+    handler.setInputAction(onClick, ScreenSpaceEventType.LEFT_CLICK);
+    handler.setInputAction(onDbl, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
     return () => {
       for (const e of added) {
