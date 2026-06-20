@@ -5880,6 +5880,7 @@ function SpaceshipPage() {
                   altitude: Math.max(0, l.alt),
                   heading: 0, scale: 1,
                 });
+                window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
               })();
               return;
             }
