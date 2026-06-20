@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import {
-  Cartesian2, Cartesian3, Color, HeightReference, LabelStyle,
-  ScreenSpaceEventHandler, ScreenSpaceEventType, defined, type Viewer,
+  ArcType, Cartesian2, Cartesian3, Color, HeightReference, LabelStyle,
+  ScreenSpaceEventHandler, ScreenSpaceEventType, defined, VerticalOrigin,
+  type Viewer,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "./atlasLevelGeo";
@@ -61,32 +62,69 @@ export function useAtlasLevelLayer(
     for (const p of placements) {
       const snap = snapToLevelTile(p.lat, p.lng, DEFAULT_LEVEL_SIZE_M);
       const size = snap.tileSizeM;
-      const ent = viewer.entities.add({
+      const baseAlt = p.altitude ?? 0;
+      const boxHeight = LEVEL_HEIGHT_M;
+      const beaconTop = baseAlt + 600;
+
+      // Green translucent volume sized to the tile.
+      const boxEnt = viewer.entities.add({
         id: `level-placement-${p.id}`,
-        position: Cartesian3.fromDegrees(snap.lng, snap.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2) as any,
+        position: Cartesian3.fromDegrees(snap.lng, snap.lat, baseAlt + boxHeight / 2) as any,
         box: {
-          dimensions: new Cartesian3(size, size, LEVEL_HEIGHT_M) as any,
-          material: Color.fromCssColorString("#10b981").withAlpha(0.28) as any,
+          dimensions: new Cartesian3(size, size, boxHeight) as any,
+          material: Color.fromCssColorString("#10b981").withAlpha(0.45) as any,
           outline: true,
-          outlineColor: Color.fromCssColorString("#10b981") as any,
-          outlineWidth: 2,
+          outlineColor: Color.fromCssColorString("#86efac") as any,
+          outlineWidth: 3,
         } as any,
+      });
+      (boxEnt as any)._levelPlacement = p;
+      added.push(boxEnt);
+
+      // Tall beacon polyline so the cube is spotted from far away.
+      const beacon = viewer.entities.add({
+        id: `level-placement-${p.id}-beacon`,
+        polyline: {
+          positions: [
+            Cartesian3.fromDegrees(snap.lng, snap.lat, baseAlt),
+            Cartesian3.fromDegrees(snap.lng, snap.lat, beaconTop),
+          ] as any,
+          width: 4,
+          material: Color.fromCssColorString("#34d399").withAlpha(0.9) as any,
+          arcType: ArcType.NONE,
+        } as any,
+      });
+      (beacon as any)._levelPlacement = p;
+      added.push(beacon);
+
+      // Floating label always on top.
+      const label = viewer.entities.add({
+        id: `level-placement-${p.id}-label`,
+        position: Cartesian3.fromDegrees(snap.lng, snap.lat, beaconTop) as any,
         label: {
           text: `▣ ${p.levels?.name ?? "Level"}`,
-          font: "12px Inter, sans-serif",
+          font: "bold 13px Inter, sans-serif",
           pixelOffset: new Cartesian2(0, -8),
           fillColor: Color.WHITE,
           outlineColor: Color.BLACK,
           outlineWidth: 2,
           style: LabelStyle.FILL_AND_OUTLINE,
           showBackground: true,
-          backgroundColor: Color.fromCssColorString("rgba(15,23,42,0.85)"),
+          backgroundColor: Color.fromCssColorString("rgba(16,185,129,0.85)"),
           heightReference: HeightReference.NONE,
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        point: {
+          pixelSize: 12,
+          color: Color.fromCssColorString("#34d399"),
+          outlineColor: Color.WHITE,
+          outlineWidth: 2,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
-      (ent as any)._levelPlacement = p;
-      added.push(ent);
+      (label as any)._levelPlacement = p;
+      added.push(label);
     }
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
