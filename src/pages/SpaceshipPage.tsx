@@ -2220,36 +2220,49 @@ function SpaceshipPage() {
       }
     }, ScreenSpaceEventType.LEFT_UP);
 
-    // Double-click handler — edit model, create POI, or place model depending on mode
+    // Helper: pick a world location under the given screen point.
+    const pickWorldLoc = (screenPos: any) => {
+      const ray = viewer.camera.getPickRay(screenPos);
+      if (!ray) return null;
+      const cartesian = viewer.scene.pickPosition(screenPos)
+        || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
+      if (!defined(cartesian)) return null;
+      const carto = Cartographic.fromCartesian(cartesian);
+      return {
+        lat: CesiumMath.toDegrees(carto.latitude),
+        lng: CesiumMath.toDegrees(carto.longitude),
+        alt: carto.height,
+      };
+    };
+
+    // LEFT double click → set a camera focus point to orbit around, OR
+    // drive the active brush / pending-placement mode. The React-side
+    // listener decides which based on current mode.
     handler.setInputAction((click: any) => {
-      // Always clear tracked/selected entity so camera never gets stuck
       viewer.trackedEntity = undefined;
       viewer.selectedEntity = undefined;
+      const loc = pickWorldLoc(click.position);
+      if (!loc) return;
+      const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
+      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
+    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
-      // Check if double-clicked on a model entity
+    // RIGHT click → context menu (formerly bound to left double-click).
+    // Edit a model if right-clicked on one, otherwise open the earth menu.
+    handler.setInputAction((click: any) => {
+      viewer.trackedEntity = undefined;
+      viewer.selectedEntity = undefined;
       const picked = viewer.scene.pick(click.position);
       if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
         const modelId = picked.id.id.replace("model-", "");
         window.dispatchEvent(new CustomEvent("cesium-model-dblclick", { detail: { id: modelId } }));
         return;
       }
-
-      const ray = viewer.camera.getPickRay(click.position);
-      if (!ray) return;
-      const cartesian = viewer.scene.pickPosition(click.position)
-        || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
-      if (!defined(cartesian)) return;
-      const carto = Cartographic.fromCartesian(cartesian);
-      const loc = {
-        lat: CesiumMath.toDegrees(carto.latitude),
-        lng: CesiumMath.toDegrees(carto.longitude),
-        alt: carto.height,
-      };
-      // We dispatch a custom event so React state can decide the action.
-      // Include screen position so React can anchor a context menu near the cursor.
+      const loc = pickWorldLoc(click.position);
+      if (!loc) return;
       const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
-      window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
-    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+      window.dispatchEvent(new CustomEvent("cesium-rightclick", { detail: { ...loc, screen } }));
+    }, ScreenSpaceEventType.RIGHT_CLICK);
 
     // Track camera altitude
     viewer.scene.postRender.addEventListener(() => {
