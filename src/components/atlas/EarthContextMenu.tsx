@@ -106,6 +106,7 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
     });
     setPlacing(null);
     if (error) { toast.error(`Failed: ${error.message}`); return; }
+    window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
     toast.success(`Loaded "${lvl.name}" here`);
     onClose();
   };
