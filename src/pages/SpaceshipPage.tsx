@@ -4326,6 +4326,17 @@ function SpaceshipPage() {
         placements={levelPlacements}
       />
 
+      {/* Level Inspector — opens when the user clicks a placed Level on
+          the globe. Provides info, control bars, Main Character readout
+          and the ▶ Play here action. */}
+      {selectedLevelPlacement && (
+        <LevelInspectorPanel
+          placement={selectedLevelPlacement}
+          onClose={() => setSelectedLevelPlacement(null)}
+          onChanged={() => { /* placements stream refresh via realtime + custom event */ }}
+        />
+      )}
+
       {/* Unified Atlas tag clustering overlay */}
       {isLoaded && (() => {
         const allTags: AtlasTag[] = [];
