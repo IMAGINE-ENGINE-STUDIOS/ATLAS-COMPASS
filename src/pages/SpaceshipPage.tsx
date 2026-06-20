@@ -3491,6 +3491,12 @@ function SpaceshipPage() {
     // footprint so no visible "hole in the world" ever appears.
     for (const lp of levelPlacements) {
       const expandM = (lp.terrain_expand_feet ?? 0) * 0.3048;
+      // Only cut a hole in the Earth tiles when the user has explicitly
+      // expanded the surrounding terrain — that hole is then filled by
+      // the matching surrounding-terrain plane in AtlasLevelsR3FOverlay.
+      // With 0 ft expansion we skip clipping entirely so no empty hole
+      // is visible around the level.
+      if (expandM <= 0) continue;
       const half = DEFAULT_LEVEL_SIZE_M / 2 + expandM;
       const metersPerDegLat = 111320;
       const metersPerDegLng = 111320 * Math.cos(CesiumMath.toRadians(lp.lat));
