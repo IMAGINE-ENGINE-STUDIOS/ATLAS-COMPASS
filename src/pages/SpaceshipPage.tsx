@@ -57,6 +57,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
+import AtlasLevelPlayer from "@/components/atlas/AtlasLevelPlayer";
 import filterAllPng     from "@/assets/icons/filter-all.png";
 import filterFoodPng    from "@/assets/icons/filter-food.png";
 import filterCafePng    from "@/assets/icons/filter-cafe.png";
@@ -685,11 +686,11 @@ function SpaceshipPage() {
   })();
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  // LEVEL placements on Atlas — double-click a pin to open the Level page
+  // LEVEL placements on Atlas — click a pin to play the Level in-place
+  const [activeLevelPlacement, setActiveLevelPlacement] = useState<LevelPlacement | null>(null);
   useAtlasLevelLayer(viewerRef, isLoaded, useCallback((p: LevelPlacement) => {
-    // Single click on a Level pin opens its editor immediately.
-    navigate(`/level/${p.level_id}`);
-  }, [navigate]));
+    setActiveLevelPlacement(p);
+  }, []));
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
@@ -5841,6 +5842,12 @@ function SpaceshipPage() {
           onResetTerrain={handleResetTerrain}
           terrainEditing={terrainEditing}
           onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
+        />
+      )}
+      {activeLevelPlacement && (
+        <AtlasLevelPlayer
+          placement={activeLevelPlacement}
+          onClose={() => setActiveLevelPlacement(null)}
         />
       )}
     </div>

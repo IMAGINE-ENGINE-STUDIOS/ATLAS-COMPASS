@@ -1038,8 +1038,17 @@ function ObjectSlot({
   );
 }
 
-function RenderLight({ light, skipAmbient }: { light: SceneLight; skipAmbient?: boolean }) {
+function RenderLight({
+  light,
+  skipAmbient,
+  skipDirectional,
+}: {
+  light: SceneLight;
+  skipAmbient?: boolean;
+  skipDirectional?: boolean;
+}) {
   if (light.kind === "ambient" && skipAmbient) return null;
+  if ((light.kind === "directional" || light.kind === "spot") && skipDirectional) return null;
   const color = rgbaToColor(light.color);
   if (light.kind === "directional")
     return <directionalLight position={light.position} color={color} intensity={light.intensity} castShadow={light.castShadow} />;
@@ -1253,6 +1262,7 @@ export interface LevelSceneProps {
   showGrid?: boolean;
   playing?: boolean;
   skipAmbient?: boolean; // suppress ambient when embedded under a global light rig
+  skipDirectional?: boolean; // suppress directional + spot key lights (Atlas sun lights the scene)
   editingPolygonId?: string | null;
   onPolygonPointsChange?: (id: string, points: Array<[number, number]>) => void;
   onPolygonOffsetsChange?: (id: string, offsets: Array<[number, number]>) => void;
@@ -1312,6 +1322,7 @@ export function LevelSceneContents({
   showGrid,
   playing,
   skipAmbient,
+  skipDirectional,
   focusRequest,
   onFocusHandled,
   controlsRef,
@@ -1360,7 +1371,7 @@ export function LevelSceneContents({
         !skipAmbient && <ambientLight intensity={scene.environment.ambient} />
       )}
       {scene.lights.map((l) => (
-        <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} />
+        <RenderLight key={l.id} light={l} skipAmbient={skipAmbient} skipDirectional={skipDirectional} />
       ))}
       {!playing &&
         scene.lights.map((l) => (
