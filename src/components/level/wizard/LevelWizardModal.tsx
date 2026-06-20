@@ -78,10 +78,18 @@ export default function LevelWizardModal({
       const scene = preset.build();
       const uid = await ensureLevelSession({ allowAnonymous: false });
       if (!uid) {
-        const local = createLocalLevel(scene);
-        try { updateLocalLevel(local.id, { name: preset.name }); } catch {}
-        toast.success(`Generated ${preset.name} (local draft)`);
-        navigate(`/level/${local.id}`);
+        try {
+          const local = createLocalLevel(scene);
+          try { updateLocalLevel(local.id, { name: preset.name }); } catch {}
+          toast.success(`Generated ${preset.name} (local draft)`);
+          navigate(`/level/${local.id}`);
+        } catch (err: any) {
+          if (/quota/i.test(String(err?.message ?? err?.name))) {
+            toast.error("Browser storage is full. Delete old local drafts from /levels and retry.");
+          } else {
+            throw err;
+          }
+        }
         return;
       }
       const { data, error } = await withTimeout(
@@ -94,16 +102,30 @@ export default function LevelWizardModal({
         { data: null, error: { message: "Level creation timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
       );
       if (error || !data) {
-        toast.warning("Backend unreachable — saved as local draft.");
-        const local = createLocalLevel(scene);
-        try { updateLocalLevel(local.id, { name: preset.name }); } catch {}
-        navigate(`/level/${local.id}`);
+        try {
+          const local = createLocalLevel(scene);
+          try { updateLocalLevel(local.id, { name: preset.name }); } catch {}
+          toast.warning("Backend unreachable — saved as local draft.");
+          navigate(`/level/${local.id}`);
+        } catch (err: any) {
+          if (/quota/i.test(String(err?.message ?? err?.name))) {
+            toast.error(
+              "Couldn't save: backend unreachable and browser storage is full. Delete some local drafts from /levels and try again.",
+            );
+          } else {
+            toast.error(err?.message ?? "Couldn't save the generated level.");
+          }
+        }
       } else {
         toast.success(`Generated ${preset.name}`);
         navigate(`/level/${data.id}`);
       }
     } catch (e: any) {
-      toast.error(e?.message ?? "Generation failed");
+      if (/quota/i.test(String(e?.message ?? e?.name))) {
+        toast.error("Browser storage is full. Delete old local drafts from /levels and retry.");
+      } else {
+        toast.error(e?.message ?? "Generation failed");
+      }
     } finally {
       setBusy(null);
     }
