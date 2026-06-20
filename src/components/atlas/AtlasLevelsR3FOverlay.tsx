@@ -144,9 +144,15 @@ function PlacedLevel({
   if (!scene) return null;
   return (
     <group ref={groupRef}>
+      {/* playing=false so the level's Play runtimes (locomotion, input,
+          physics, mouselook) don't activate — they would hijack the
+          mouse/keyboard from Cesium and visually rock the whole scene
+          when the user pans the globe. Levels render as a static
+          in-world snapshot here; the dedicated AtlasLevelPlayer is
+          still used for actually playing one. */}
       <LevelSceneContents
         scene={scene}
-        playing
+        playing={false}
         skipAmbient
         skipDirectional
       />
