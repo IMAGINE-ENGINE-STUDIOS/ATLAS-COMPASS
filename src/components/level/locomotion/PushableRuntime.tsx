@@ -73,6 +73,17 @@ export default function PushableRuntime({
         if (ud.__gizmo || ud.__nocast) return;
         // Skip drei <Line> meshes and trajectory line types.
         if ((o as any).isLine || (o as any).isLine2 || (o as any).isLineSegments || (o as any).isLineSegments2) return;
+        // Guard against meshes with missing or partially-undefined materials
+        // (e.g. a box with a material array whose entries weren't all set).
+        // three's raycaster reads `material.side` and throws otherwise.
+        const material = (o as THREE.Mesh).material;
+        if (!material) return;
+        if (Array.isArray(material)) {
+          if (material.some((m) => !m)) return;
+          const groups = ((o as THREE.Mesh).geometry as THREE.BufferGeometry).groups ?? [];
+          if (groups.some((g) => (g.materialIndex ?? 0) >= material.length)) return;
+        }
+        if ((o as any).isSkinnedMesh) return;
         // Walk up the ancestor chain; if any parent is a spline, skip.
         let p: THREE.Object3D | null = o.parent;
         while (p) {
