@@ -61,7 +61,7 @@ function CameraSync({ viewer, enabled }: { viewer: Viewer; enabled: boolean }) {
     persp.up.set(cam.up.x, cam.up.y, cam.up.z);
     persp.lookAt(cam.direction.x, cam.direction.y, cam.direction.z);
     persp.updateMatrixWorld(true);
-  });
+  }, 10);
   return null;
 }
 
@@ -192,31 +192,16 @@ function PlacedLevel({
     groupRef.current.matrixAutoUpdate = false;
     groupRef.current.matrix.copy(scratch.out);
     groupRef.current.matrixWorldNeedsUpdate = true;
-  });
+  }, 11);
 
   if (!scene) return null;
   return (
     <group ref={groupRef}>
-      {/* Surrounding terrain frame — flat plane the user grew outward
-          from the level's edge via the Inspector. Same plane geometry
-          the level editor produces; color is read from the placement's
-          `surrounding_terrain` config (full editing tools live in the
-          Level page). At 0 ft this is skipped entirely. */}
-      {(() => {
-        const ft = placement.terrain_expand_feet ?? 0;
-        if (!ft || ft <= 0) return null;
-        const expandM = ft * 0.3048;
-        const outer = DEFAULT_LEVEL_SIZE_M + expandM * 2;
-        const color = (placement.surrounding_terrain as any)?.color ?? "#2f5d3a";
-        // Plane lies in level-local ENU (XZ), slightly below 0 so the
-        // level's own ground doesn't z-fight.
-        return (
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-            <planeGeometry args={[outer, outer, 1, 1]} />
-            <meshStandardMaterial color={color} roughness={1} metalness={0} />
-          </mesh>
-        );
-      })()}
+      {/* The terrain footprint is strictly the level's own ground geometry
+          (authored in the Level editor). We intentionally do NOT extend a
+          surrounding plane outward here — the user must be able to walk
+          OFF the level edge onto the real Earth (Cesium tiles), and into
+          a neighboring level, with no overlap that hides the ground. */}
       {/* When `playing` is true, the level's full Play runtimes
           (locomotion, input, physics, mouselook) activate so the user
           can actually walk around inside the level. Only one placement
