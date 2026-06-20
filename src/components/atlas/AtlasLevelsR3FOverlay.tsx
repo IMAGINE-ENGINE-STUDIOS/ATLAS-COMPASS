@@ -360,22 +360,6 @@ export default function AtlasLevelsR3FOverlay({
     }
   }, [pendingPlayId, nearIds]);
 
-  const applyPlayCameraPose = useCallback((_: LevelPlacement, pose: AtlasWorldPlayPose) => {
-    const viewer = viewerRef.current;
-    if (!viewer || viewer.isDestroyed()) return;
-    const eye = new Cartesian3(pose.eye.x, pose.eye.y, pose.eye.z);
-    const target = new Cartesian3(pose.target.x, pose.target.y, pose.target.z);
-    const player = new Cartesian3(pose.player.x, pose.player.y, pose.player.z);
-    const direction = Cartesian3.normalize(Cartesian3.subtract(target, eye, new Cartesian3()), new Cartesian3());
-    const planetUp = Cartesian3.normalize(player, new Cartesian3());
-    const right = Cartesian3.cross(direction, planetUp, new Cartesian3());
-    if (Cartesian3.magnitudeSquared(right) < 1e-8) return;
-    Cartesian3.normalize(right, right);
-    const up = Cartesian3.normalize(Cartesian3.cross(right, direction, new Cartesian3()), new Cartesian3());
-    viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
-    viewer.camera.setView({ destination: eye, orientation: { direction, up } });
-  }, [viewerRef]);
-
   // During Play, the level's playable/main character owns input and sends its
   // camera pose into Cesium every frame, so buildings and the Atlas world stay
   // visible while the user gets the same editor Play experience in-place.
@@ -456,7 +440,6 @@ export default function AtlasLevelsR3FOverlay({
               viewer={viewer}
               placement={p}
               playing={playingId === p.id}
-              onPlayCameraPose={applyPlayCameraPose}
             />
           ))}
         </Canvas>
