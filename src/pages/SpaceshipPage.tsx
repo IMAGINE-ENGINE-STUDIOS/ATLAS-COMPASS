@@ -4517,18 +4517,10 @@ function SpaceshipPage() {
                   </GlassPanel>
                 </Link>
                 <div className="hidden sm:block">
-                  <AtlasSettingsDropdown
-                    viewerRef={viewerRef}
-                    isLoaded={isLoaded}
-                    kbNavEnabled={kbNavEnabled}
-                    onKbNavChange={setKbNavEnabled}
-                    kbSensitivity={kbSensitivity}
-                    onKbSensitivityChange={setKbSensitivity}
-                    hudVisible={hudVisible}
-                    onHudVisibleChange={setHudVisible}
-                    showBuildings={showBuildings}
-                    onShowBuildingsChange={setShowBuildings}
-                  />
+                  <GlassPanel className="px-3 py-2 flex items-center gap-1.5">
+                    <GlyphIcon name="atlas" alt="Atlas" glow="#22d3ee" />
+                    <span className="text-sm font-bold">ATLAS</span>
+                  </GlassPanel>
                 </div>
               </div>
 
