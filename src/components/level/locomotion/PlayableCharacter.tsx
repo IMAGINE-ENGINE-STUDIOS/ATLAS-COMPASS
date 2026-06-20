@@ -41,12 +41,20 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || (t as any).isContentEditable)) return;
       keys.current[e.code] = true;
+      // Track Shift via the modifier flag too — some keyboards / focus
+      // states drop the discrete ShiftLeft/ShiftRight keydown.
+      if (e.shiftKey) { keys.current.ShiftLeft = true; }
       if (e.code === "KeyE") inputPulse.interact = true;
       if (["KeyW","KeyA","KeyS","KeyD","Space","ShiftLeft","ShiftRight","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) {
         e.preventDefault();
       }
     };
-    const up = (e: KeyboardEvent) => { keys.current[e.code] = false; };
+    const up = (e: KeyboardEvent) => {
+      keys.current[e.code] = false;
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+        if (!e.shiftKey) { keys.current.ShiftLeft = false; keys.current.ShiftRight = false; }
+      }
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     return () => {
