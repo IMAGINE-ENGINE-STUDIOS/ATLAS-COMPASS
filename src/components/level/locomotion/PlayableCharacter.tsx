@@ -790,17 +790,14 @@ export default function PlayableCharacter({
       finalTarget.copy(tpTarget);
     }
 
-    if (onCameraPose) {
-      onCameraPose({
-        eye: [finalEye.x, finalEye.y, finalEye.z],
-        target: [finalTarget.x, finalTarget.y, finalTarget.z],
-        player: [root.position.x, root.position.y, root.position.z],
-        cameraMode,
-      });
-    } else {
-      camera.position.copy(finalEye);
-      camera.lookAt(finalTarget);
-    }
+    camera.position.copy(finalEye);
+    camera.lookAt(finalTarget);
+    onCameraPose?.({
+      eye: [finalEye.x, finalEye.y, finalEye.z],
+      target: [finalTarget.x, finalTarget.y, finalTarget.z],
+      player: [root.position.x, root.position.y, root.position.z],
+      cameraMode,
+    });
   });
 
   return (
