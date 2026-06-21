@@ -544,7 +544,8 @@ export default function PlayableCharacter({
     // off the level onto the surrounding Earth), sample the Cesium globe /
     // 3D tilesets so the character lands on the real terrain instead of
     // falling into the void.
-    if (!groundPoint) {
+    const walkOnEarth = obj.walkOnEarth !== false; // default ON
+    if (!groundPoint && walkOnEarth) {
       try {
         const worldFeet = toWorldPoint(new THREE.Vector3(root.position.x, root.position.y, root.position.z));
         // In Atlas the level group is rendered camera-relative (origin =
