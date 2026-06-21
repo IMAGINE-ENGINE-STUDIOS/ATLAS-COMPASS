@@ -17,11 +17,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { LevelPlacement } from "@/lib/useAtlasLevelLayer";
 import { LEVEL_PLAY_EVENT } from "@/lib/useAtlasLevelLayer";
 import type { LevelScene } from "@/lib/levelTypes";
 import { toast } from "sonner";
+import LevelPackageInspector from "./LevelPackageInspector";
 
 interface Props {
   placement: LevelPlacement;
@@ -142,6 +144,20 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
         <Row icon={<Compass className="w-3 h-3" />} label="Heading" value={`${heading.toFixed(0)}°`} />
         <Row icon={<Ruler className="w-3 h-3" />} label="Scale" value={`${scale.toFixed(2)}×`} />
       </div>
+
+      {/* Tabs — Controls (default) vs Manuscript & Package */}
+      <Tabs defaultValue="controls" className="px-3 pt-3">
+        <TabsList className="grid grid-cols-2 w-full">
+          <TabsTrigger value="controls" className="text-[11px]">Controls</TabsTrigger>
+          <TabsTrigger value="manifest" className="text-[11px]">Manuscript & Package</TabsTrigger>
+        </TabsList>
+        <TabsContent value="manifest" className="pt-3">
+          <LevelPackageInspector
+            manifest={(placement.manifest_snapshot as any) ?? null}
+            packageStoragePath={placement.package_storage_path ?? null}
+          />
+        </TabsContent>
+        <TabsContent value="controls" className="pt-0">
 
       {/* Main Character */}
       <div className="p-3 border-b border-white/10">
@@ -294,6 +310,8 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
           <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove placement
         </Button>
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
