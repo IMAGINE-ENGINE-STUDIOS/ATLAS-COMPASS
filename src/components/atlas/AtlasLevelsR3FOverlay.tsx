@@ -240,10 +240,12 @@ export default function AtlasLevelsR3FOverlay({
   viewerRef,
   isLoaded,
   placements,
+  onPlayingChange,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   isLoaded: boolean;
   placements: LevelPlacement[];
+  onPlayingChange?: (id: string | null) => void;
 }) {
   // Defer mounting the heavy R3F overlay so the globe + green placeholder
   // boxes paint first. Keeps initial Atlas load snappy.
