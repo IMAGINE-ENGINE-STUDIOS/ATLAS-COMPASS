@@ -399,6 +399,14 @@ export interface CharacterObject extends BaseObject {
     maxStepHeight?: number;
   };
   /**
+   * Default-on: when the character is placed inside an Atlas level (or
+   * walks off it), the locomotion runtime samples the live Cesium globe /
+   * 3D tilesets and snaps the feet onto the real Earth surface. Set to
+   * false only for purely abstract / sandbox levels where the planet
+   * shouldn't act as a fallback nav-mesh.
+   */
+  walkOnEarth?: boolean;
+  /**
    * When true, the editor renders a walkability heatmap over the scene:
    * green tiles = the character can stand here, red tiles = blocked
    * (no ground, ceiling too low, or a step too tall to climb).
