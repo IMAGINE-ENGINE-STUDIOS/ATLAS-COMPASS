@@ -547,8 +547,21 @@ export default function PlayableCharacter({
     if (!groundPoint) {
       try {
         const worldFeet = toWorldPoint(new THREE.Vector3(root.position.x, root.position.y, root.position.z));
+        // In Atlas the level group is rendered camera-relative (origin =
+        // Cesium camera position) so THREE world coords are NOT ECEF. Add
+        // the Cesium camera ECEF offset to recover true ECEF before
+        // sampling, then subtract it back when projecting the surface
+        // point into the level's local frame.
+        const viewer = (window as any).__cesiumViewer;
+        const camPos = viewer?.camera?.positionWC;
+        const offX = camPos?.x ?? 0;
+        const offY = camPos?.y ?? 0;
+        const offZ = camPos?.z ?? 0;
+        const ecefX = worldFeet.x + offX;
+        const ecefY = worldFeet.y + offY;
+        const ecefZ = worldFeet.z + offZ;
         const carto = CesiumCartographic.fromCartesian(
-          new CesiumCartesian3(worldFeet.x, worldFeet.y, worldFeet.z),
+          new CesiumCartesian3(ecefX, ecefY, ecefZ),
         );
         if (carto) {
           const lngDeg = CesiumMath.toDegrees(carto.longitude);
@@ -556,7 +569,13 @@ export default function PlayableCharacter({
           const h = sampleEarthHeight(lngDeg, latDeg);
           if (h !== null) {
             const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, h);
-            groundPoint = toLocalPoint(new THREE.Vector3(surfECEF.x, surfECEF.y, surfECEF.z));
+            groundPoint = toLocalPoint(
+              new THREE.Vector3(
+                surfECEF.x - offX,
+                surfECEF.y - offY,
+                surfECEF.z - offZ,
+              ),
+            );
           }
         }
       } catch {}
