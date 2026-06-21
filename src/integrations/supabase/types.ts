@@ -23,7 +23,12 @@ export type Database = {
           lat: number
           level_id: string
           lng: number
+          manifest_snapshot: Json | null
           owner_id: string
+          package_id: string | null
+          package_sha256: string | null
+          package_storage_path: string | null
+          package_version: string | null
           scale: number
           surrounding_terrain: Json | null
           terrain_expand_feet: number
@@ -37,7 +42,12 @@ export type Database = {
           lat: number
           level_id: string
           lng: number
+          manifest_snapshot?: Json | null
           owner_id: string
+          package_id?: string | null
+          package_sha256?: string | null
+          package_storage_path?: string | null
+          package_version?: string | null
           scale?: number
           surrounding_terrain?: Json | null
           terrain_expand_feet?: number
@@ -51,7 +61,12 @@ export type Database = {
           lat?: number
           level_id?: string
           lng?: number
+          manifest_snapshot?: Json | null
           owner_id?: string
+          package_id?: string | null
+          package_sha256?: string | null
+          package_storage_path?: string | null
+          package_version?: string | null
           scale?: number
           surrounding_terrain?: Json | null
           terrain_expand_feet?: number
@@ -354,8 +369,14 @@ export type Database = {
           description: string | null
           id: string
           is_public: boolean
+          manifest: Json | null
           name: string
           owner_id: string
+          package_id: string | null
+          package_sha256: string | null
+          package_size_bytes: number | null
+          package_storage_path: string | null
+          package_version: string | null
           scene: Json
           shared_with: string[]
           thumbnail_url: string | null
@@ -366,8 +387,14 @@ export type Database = {
           description?: string | null
           id?: string
           is_public?: boolean
+          manifest?: Json | null
           name?: string
           owner_id: string
+          package_id?: string | null
+          package_sha256?: string | null
+          package_size_bytes?: number | null
+          package_storage_path?: string | null
+          package_version?: string | null
           scene?: Json
           shared_with?: string[]
           thumbnail_url?: string | null
@@ -378,8 +405,14 @@ export type Database = {
           description?: string | null
           id?: string
           is_public?: boolean
+          manifest?: Json | null
           name?: string
           owner_id?: string
+          package_id?: string | null
+          package_sha256?: string | null
+          package_size_bytes?: number | null
+          package_storage_path?: string | null
+          package_version?: string | null
           scene?: Json
           shared_with?: string[]
           thumbnail_url?: string | null
