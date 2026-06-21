@@ -240,10 +240,12 @@ export default function AtlasLevelsR3FOverlay({
   viewerRef,
   isLoaded,
   placements,
+  onPlayingChange,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   isLoaded: boolean;
   placements: LevelPlacement[];
+  onPlayingChange?: (id: string | null) => void;
 }) {
   // Defer mounting the heavy R3F overlay so the globe + green placeholder
   // boxes paint first. Keeps initial Atlas load snappy.
@@ -260,6 +262,12 @@ export default function AtlasLevelsR3FOverlay({
   const [nearIds, setNearIds] = useState<Set<string>>(new Set());
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
+
+  // Notify parent when a level enters/exits play so the Atlas UI can hide
+  // control widgets (e.g. the LevelInspectorPanel) while the user is inside.
+  useEffect(() => {
+    onPlayingChange?.(playingId);
+  }, [playingId, onPlayingChange]);
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
     const viewer = viewerRef.current;

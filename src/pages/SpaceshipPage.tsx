@@ -718,6 +718,13 @@ function SpaceshipPage() {
   // read-out, and ▶ Play / Edit / Delete actions.
   const [selectedLevelPlacement, setSelectedLevelPlacement] =
     useState<LevelPlacement | null>(null);
+  // Track whether any level is currently in-world play so the Level
+  // inspector control widget can be hidden while the user is playing.
+  const [playingLevelId, setPlayingLevelId] = useState<string | null>(null);
+  const handleLevelPlayingChange = useCallback((id: string | null) => {
+    setPlayingLevelId(id);
+    if (id) setSelectedLevelPlacement(null); // close controls while playing
+  }, []);
   // Keep the inspector's placement in sync with the latest list (after
   // slider edits / refreshes).
   useEffect(() => {
@@ -4415,12 +4422,13 @@ function SpaceshipPage() {
         viewerRef={viewerRef}
         isLoaded={isLoaded}
         placements={levelPlacements}
+        onPlayingChange={handleLevelPlayingChange}
       />
 
       {/* Level Inspector — opens when the user clicks a placed Level on
-          the globe. Provides info, control bars, Main Character readout
-          and the ▶ Play here action. */}
-      {selectedLevelPlacement && (
+          the globe. Hidden while a level is in play so the play view isn't
+          obstructed by control widgets. */}
+      {selectedLevelPlacement && !playingLevelId && (
         <LevelInspectorPanel
           placement={selectedLevelPlacement}
           onClose={() => setSelectedLevelPlacement(null)}
