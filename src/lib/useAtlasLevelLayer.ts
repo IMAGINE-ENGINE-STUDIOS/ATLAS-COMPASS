@@ -21,6 +21,14 @@ export interface LevelPlacement {
   /** Optional configuration for the surrounding terrain plane
    *  (color / texture / etc.) — mirrors the level editor's SceneTerrain. */
   surrounding_terrain?: any | null;
+  /** Snapshot of the LevelManifest active when this placement was created.
+   *  Pins the placement to those rules + the package version below. */
+  manifest_snapshot?: any | null;
+  package_id?: string | null;
+  package_version?: string | null;
+  package_sha256?: string | null;
+  /** Path inside the private `level-packages` storage bucket. */
+  package_storage_path?: string | null;
   levels?: { id: string; name: string; description: string | null } | null;
 }
 
@@ -53,7 +61,11 @@ export function useAtlasLevelLayer(
     const load = async () => {
       const { data } = await supabase
         .from("atlas_level_placements")
-        .select("id,level_id,lat,lng,altitude,heading,scale,terrain_expand_feet,surrounding_terrain,levels(id,name,description)");
+        .select(
+          "id,level_id,lat,lng,altitude,heading,scale,terrain_expand_feet,surrounding_terrain," +
+          "manifest_snapshot,package_id,package_version,package_sha256,package_storage_path," +
+          "levels(id,name,description)"
+        );
       if (!cancelled) setPlacements((data ?? []) as any);
     };
     load();
