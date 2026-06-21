@@ -4422,12 +4422,13 @@ function SpaceshipPage() {
         viewerRef={viewerRef}
         isLoaded={isLoaded}
         placements={levelPlacements}
+        onPlayingChange={handleLevelPlayingChange}
       />
 
       {/* Level Inspector — opens when the user clicks a placed Level on
-          the globe. Provides info, control bars, Main Character readout
-          and the ▶ Play here action. */}
-      {selectedLevelPlacement && (
+          the globe. Hidden while a level is in play so the play view isn't
+          obstructed by control widgets. */}
+      {selectedLevelPlacement && !playingLevelId && (
         <LevelInspectorPanel
           placement={selectedLevelPlacement}
           onClose={() => setSelectedLevelPlacement(null)}
