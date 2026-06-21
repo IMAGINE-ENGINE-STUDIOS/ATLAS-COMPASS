@@ -718,6 +718,13 @@ function SpaceshipPage() {
   // read-out, and ▶ Play / Edit / Delete actions.
   const [selectedLevelPlacement, setSelectedLevelPlacement] =
     useState<LevelPlacement | null>(null);
+  // Track whether any level is currently in-world play so the Level
+  // inspector control widget can be hidden while the user is playing.
+  const [playingLevelId, setPlayingLevelId] = useState<string | null>(null);
+  const handleLevelPlayingChange = useCallback((id: string | null) => {
+    setPlayingLevelId(id);
+    if (id) setSelectedLevelPlacement(null); // close controls while playing
+  }, []);
   // Keep the inspector's placement in sync with the latest list (after
   // slider edits / refreshes).
   useEffect(() => {
