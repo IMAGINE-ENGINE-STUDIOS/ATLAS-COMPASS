@@ -298,7 +298,8 @@ export default function AtlasLevelsR3FOverlay({
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
     const viewer = viewerRef.current;
-    const PROX_M = 5000; // within 5km → load real level
+    const PROX_M = 5000;          // within 5km → mount full R3F
+    const BEHIND_PROX_M = 800;    // behind the camera → only if very close
     let raf = 0;
     let last = 0;
     const tick = (t: number) => {
@@ -307,11 +308,19 @@ export default function AtlasLevelsR3FOverlay({
       last = t;
       if (viewer.isDestroyed()) return;
       const cam = viewer.camera.positionWC;
+      const dir = viewer.camera.directionWC;
       const next = new Set<string>();
       for (const p of placements) {
         const o = Cartesian3.fromDegrees(p.lng, p.lat, p.altitude ?? 0);
         const dx = o.x - cam.x, dy = o.y - cam.y, dz = o.z - cam.z;
-        if (dx * dx + dy * dy + dz * dz < PROX_M * PROX_M) next.add(p.id);
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 > PROX_M * PROX_M) continue;
+        // Frustum-ish cull: drop MAPs that are behind the camera unless
+        // they're within arm's reach (so spinning the view doesn't
+        // re-mount their scenes during the turn).
+        const dot = dx * dir.x + dy * dir.y + dz * dir.z;
+        if (dot < 0 && d2 > BEHIND_PROX_M * BEHIND_PROX_M) continue;
+        next.add(p.id);
       }
       setNearIds((prev) => {
         if (prev.size === next.size && [...prev].every((id) => next.has(id))) return prev;
