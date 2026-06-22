@@ -128,7 +128,7 @@ export function coerceMapFile(input: unknown): MapFile {
     const anchor = normalizeAnchor(obj.anchor as MapAnchor);
     return {
       kind: "lovable.map",
-      version: typeof obj.version === "number" ? obj.version : MAP_FILE_VERSION,
+      version: MAP_FILE_VERSION,
       sourceLevelId: obj.sourceLevelId,
       name: typeof obj.name === "string" && obj.name.trim() ? obj.name : "Untitled Map",
       description: typeof obj.description === "string" ? obj.description : undefined,
