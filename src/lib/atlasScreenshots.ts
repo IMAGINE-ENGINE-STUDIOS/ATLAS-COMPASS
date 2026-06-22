@@ -105,14 +105,11 @@ export async function captureAtlasShot(
 
   const scene = viewer.scene;
   const prevScale = viewer.resolutionScale;
-  const prevPreserve = (scene as any)?.canvas?.getContext?.("webgl2") ?? null;
-  // Force preserveDrawingBuffer-equivalent path: render synchronously and
-  // read the canvas immediately after.
   try {
     viewer.resolutionScale = ss;
-    // Render twice to let post-FX settle (FXAA / globe tiles).
-    scene.requestRender();
-    (scene as any).render?.();
+    // Wait for any pending tiles, then render synchronously and immediately
+    // read the WebGL canvas in the same task — this works even when Cesium
+    // is started without preserveDrawingBuffer.
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     (scene as any).render?.();
 
@@ -120,20 +117,23 @@ export async function captureAtlasShot(
     const width = src.width;
     const height = src.height;
 
-    // Copy to an offscreen 2D canvas — Cesium's WebGL canvas is not
-    // toBlob-friendly without preserveDrawingBuffer, but drawImage works
-    // immediately after a synchronous render call.
-    const out = document.createElement("canvas");
-    out.width = width;
-    out.height = height;
-    const ctx = out.getContext("2d");
-    if (!ctx) throw new Error("2D context unavailable");
-    ctx.drawImage(src, 0, 0, width, height);
+    // Read the WebGL canvas synchronously into a PNG data URL (must happen
+    // in the same microtask as the render call above).
+    const pngDataUrl = src.toDataURL("image/png");
+    const jpegDataUrl = src.toDataURL("image/jpeg", 0.98);
 
-    const [jpeg, png] = await Promise.all([
-      canvasToBlob(out, "image/jpeg", 0.98),
-      canvasToBlob(out, "image/png"),
+    const [png, jpeg] = await Promise.all([
+      fetch(pngDataUrl).then((r) => r.blob()),
+      fetch(jpegDataUrl).then((r) => r.blob()),
     ]);
+
+    // Build an offscreen 2D copy from the PNG for the thumbnail pass.
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = pngDataUrl;
+    });
 
     // Thumbnail — long edge 480px.
     const tScale = Math.min(1, 480 / Math.max(width, height));
@@ -142,7 +142,7 @@ export async function captureAtlasShot(
     const tCanvas = document.createElement("canvas");
     tCanvas.width = tw;
     tCanvas.height = th;
-    tCanvas.getContext("2d")!.drawImage(out, 0, 0, tw, th);
+    tCanvas.getContext("2d")!.drawImage(img, 0, 0, tw, th);
     const thumb = await canvasToBlob(tCanvas, "image/webp", 0.85)
       .catch(() => canvasToBlob(tCanvas, "image/jpeg", 0.85));
 
@@ -160,7 +160,6 @@ export async function captureAtlasShot(
     return shot;
   } finally {
     viewer.resolutionScale = prevScale;
-    void prevPreserve;
     viewer.scene.requestRender();
   }
 }
