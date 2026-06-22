@@ -6287,6 +6287,34 @@ function SpaceshipPage() {
               ...DEFAULT_FREEPLAY_CHARACTER,
             });
           }}
+          onImportMap={async (l) => {
+            // Import a MAP file picked by the user and drop it at this click
+            // point. The MAP's stored anchor is overridden by where the user
+            // clicked — that's the whole point of "Import here".
+            try {
+              const file = await pickMapFile();
+              if (!file) return;
+              let groundAlt = l.alt;
+              const v = viewerRef.current;
+              if (v) {
+                try {
+                  const carto = Cartographic.fromDegrees(l.lng, l.lat);
+                  const sampled = v.scene.sampleHeight(carto);
+                  if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
+                  else {
+                    const terrainH = v.scene.globe.getHeight(carto);
+                    if (typeof terrainH === "number" && !isNaN(terrainH)) groundAlt = terrainH;
+                  }
+                } catch {}
+              }
+              const result = await importMapToAtlas(file, {
+                lat: l.lat, lng: l.lng, alt: groundAlt,
+              });
+              toast.success(`MAP "${result.name}" imported.`);
+            } catch (err: any) {
+              toast.error(err?.message ?? "Couldn't import MAP file.");
+            }
+          }}
           onPickLevel={(lvl, l) => {
             // Snap initial drop altitude to the real tile surface so the
             // level isn't floating above (or buried below) the buildings.
