@@ -6263,6 +6263,29 @@ function SpaceshipPage() {
             setPoiName("");
             setPoiDescription("");
           }}
+          onPlayHere={(l) => {
+            // Snap altitude to live terrain/tile surface so the soldier
+            // doesn't fall through or stand mid-air on first frame.
+            let groundAlt = l.alt;
+            const v = viewerRef.current;
+            if (v) {
+              try {
+                const carto = Cartographic.fromDegrees(l.lng, l.lat);
+                const sampled = v.scene.sampleHeight(carto);
+                if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
+                else {
+                  const terrainH = v.scene.globe.getHeight(carto);
+                  if (typeof terrainH === "number" && !isNaN(terrainH)) groundAlt = terrainH;
+                }
+              } catch {}
+            }
+            setFreePlaySpawn({
+              lat: l.lat,
+              lng: l.lng,
+              alt: groundAlt,
+              ...DEFAULT_FREEPLAY_CHARACTER,
+            });
+          }}
           onPickLevel={(lvl, l) => {
             // Snap initial drop altitude to the real tile surface so the
             // level isn't floating above (or buried below) the buildings.
