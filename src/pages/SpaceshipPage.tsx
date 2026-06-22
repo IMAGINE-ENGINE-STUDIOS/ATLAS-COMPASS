@@ -4433,6 +4433,15 @@ function SpaceshipPage() {
         onPlayingChange={handleLevelPlayingChange}
       />
 
+      {/* Free-play: drop a playable Soldier anywhere via the Earth menu
+          (right-click / double-click → "Play from here"). WASD + mouse,
+          Shift to run, Space to jump, Esc to exit. */}
+      <AtlasFreePlayOverlay
+        viewerRef={viewerRef}
+        spawn={freePlaySpawn}
+        onExit={() => setFreePlaySpawn(null)}
+      />
+
       {/* Level Inspector — opens when the user clicks a placed Level on
           the globe. Hidden while a level is in play so the play view isn't
           obstructed by control widgets. */}
