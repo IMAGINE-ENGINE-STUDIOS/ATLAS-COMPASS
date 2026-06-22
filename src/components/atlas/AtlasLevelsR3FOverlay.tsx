@@ -23,6 +23,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
+  Cartographic,
   Matrix4 as CesiumMatrix4,
   Math as CesiumMath,
   Transforms,
@@ -98,6 +99,13 @@ function PlacedLevel({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
+  // Effective altitude actually used to anchor the level. We *never* let
+  // the level sink below the live ground (terrain + 3D Tiles buildings)
+  // beneath its origin. We start at the placement's stored altitude and
+  // lift it up to whatever the scene reports as the highest sampled
+  // ground height at (lng, lat).
+  const [groundLift, setGroundLift] = useState<number>(0);
+  const lastSampleRef = useRef<{ t: number; v: number | null }>({ t: 0, v: null });
 
   useEffect(() => {
     let canceled = false;
@@ -115,13 +123,20 @@ function PlacedLevel({
     };
   }, [placement.level_id]);
 
+  // Reset the lift whenever the placement origin changes.
+  useEffect(() => {
+    setGroundLift(0);
+    lastSampleRef.current = { t: 0, v: null };
+  }, [placement.lat, placement.lng, placement.altitude]);
+
   // Precompute the placement's ECEF origin and ENU→ECEF rotation. Only
   // changes when the placement's lat/lng/altitude does.
   const { ecef, enuRot } = useMemo(() => {
+    const baseAlt = Math.max(placement.altitude ?? 0, (placement.altitude ?? 0) + groundLift);
     const origin = Cartesian3.fromDegrees(
       placement.lng,
       placement.lat,
-      placement.altitude ?? 0,
+      baseAlt,
     );
     const m = Transforms.eastNorthUpToFixedFrame(origin);
     const arr = CesiumMatrix4.toArray(m, []) as number[]; // column-major
@@ -131,7 +146,7 @@ function PlacedLevel({
       ecef: new THREE.Vector3(origin.x, origin.y, origin.z),
       enuRot: rot,
     };
-  }, [placement.lat, placement.lng, placement.altitude]);
+  }, [placement.lat, placement.lng, placement.altitude, groundLift]);
 
   const headingRad = -((placement.heading ?? 0) * Math.PI) / 180;
   const placementScale = placement.scale > 0 ? placement.scale : 1;
@@ -182,6 +197,32 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
+    // ── Ground-clamp: continuously sample the live scene height (terrain
+    //   + photogrammetry + buildings) at the placement origin and lift
+    //   the level so its floor is never below it. Resampled at ~4Hz —
+    //   enough to catch new tiles streaming in without burning frames.
+    const now = performance.now();
+    if (now - lastSampleRef.current.t > 250) {
+      lastSampleRef.current.t = now;
+      try {
+        const carto = Cartographic.fromDegrees(placement.lng, placement.lat);
+        // sampleHeight considers 3D Tiles + terrain; falls back to globe height.
+        let h: number | undefined =
+          (viewer.scene as any).sampleHeight?.(carto);
+        if (h == null || Number.isNaN(h)) {
+          h = viewer.scene.globe.getHeight(carto) ?? undefined;
+        }
+        if (h != null && !Number.isNaN(h)) {
+          const base = placement.altitude ?? 0;
+          // Lift = how much we need to add to base so we sit at ground+ε.
+          const needed = Math.max(0, h - base + 0.05);
+          if (Math.abs(needed - groundLift) > 0.05) {
+            setGroundLift(needed);
+          }
+          lastSampleRef.current.v = h;
+        }
+      } catch {}
+    }
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
