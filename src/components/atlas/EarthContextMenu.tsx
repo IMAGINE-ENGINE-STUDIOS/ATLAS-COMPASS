@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search } from "lucide-react";
+import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search, PersonStanding } from "lucide-react";
 import { toast } from "sonner";
 import { copyToClipboard, getClipboard, type FileClipboardEntry } from "@/lib/fileClipboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,11 +14,12 @@ interface Props {
   onCreatePOI: (loc: EarthLoc) => void;
   onPasteEntry: (entry: FileClipboardEntry, loc: EarthLoc) => void;
   onPickLevel?: (level: { id: string; name: string }, loc: EarthLoc) => void;
+  onPlayHere?: (loc: EarthLoc) => void;
 }
 
 type LevelRow = { id: string; name: string; description: string | null };
 
-export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPasteEntry, onPickLevel }: Props) {
+export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPasteEntry, onPickLevel, onPlayHere }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"root" | "levels">("root");
   const [levels, setLevels] = useState<LevelRow[] | null>(null);
@@ -123,6 +124,13 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
 
       {view === "root" && (
         <div className="py-1">
+          {onPlayHere && (
+            <MenuItem
+              icon={<PersonStanding className="w-3.5 h-3.5 text-emerald-300" />}
+              label="Play from here"
+              onClick={() => { onPlayHere(loc); onClose(); }}
+            />
+          )}
           <MenuItem icon={<Copy className="w-3.5 h-3.5" />} label="Copy location" onClick={handleCopyLoc} />
           <MenuItem icon={<ClipboardPaste className="w-3.5 h-3.5" />} label="Paste in place" onClick={handlePaste} />
           <MenuItem icon={<Share2 className="w-3.5 h-3.5" />} label="Share" onClick={handleShare} />
