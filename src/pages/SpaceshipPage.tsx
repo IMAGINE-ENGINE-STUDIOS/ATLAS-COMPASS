@@ -70,6 +70,7 @@ import AtlasFreePlayOverlay, {
   DEFAULT_FREEPLAY_CHARACTER,
   type FreePlaySpawn,
 } from "@/components/atlas/AtlasFreePlayOverlay";
+import { importMapToAtlas, pickMapFile } from "@/lib/atlasMapImport";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
