@@ -23,7 +23,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
-  Cartographic,
   Matrix4 as CesiumMatrix4,
   Math as CesiumMath,
   Transforms,
@@ -39,6 +38,7 @@ import {
   LEVEL_PLAY_EVENT,
   type LevelPlacement,
 } from "@/lib/useAtlasLevelLayer";
+import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 function CameraSync({ viewer, enabled }: { viewer: Viewer; enabled: boolean }) {
   const { camera, size } = useThree();
@@ -99,13 +99,7 @@ function PlacedLevel({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
-  // Effective altitude actually used to anchor the level. We *never* let
-  // the level sink below the live ground (terrain + 3D Tiles buildings)
-  // beneath its origin. We start at the placement's stored altitude and
-  // lift it up to whatever the scene reports as the highest sampled
-  // ground height at (lng, lat).
   const [groundLift, setGroundLift] = useState<number>(0);
-  const lastSampleRef = useRef<{ t: number; v: number | null }>({ t: 0, v: null });
 
   useEffect(() => {
     let canceled = false;
@@ -126,8 +120,22 @@ function PlacedLevel({
   // Reset the lift whenever the placement origin changes.
   useEffect(() => {
     setGroundLift(0);
-    lastSampleRef.current = { t: 0, v: null };
   }, [placement.lat, placement.lng, placement.altitude]);
+
+  // Share Cesium ground-sampling across all placements via the
+  // round-robin scheduler so N MAPs cost the same as 1.
+  useEffect(() => {
+    const unregister = atlasWorldScheduler.registerGroundProbe(viewer, {
+      id: `placed:${placement.id}`,
+      getLngLat: () => ({ lng: placement.lng, lat: placement.lat }),
+      onHeight: (h) => {
+        const base = placement.altitude ?? 0;
+        const needed = Math.max(0, h - base + 0.05);
+        setGroundLift((prev) => (Math.abs(needed - prev) > 0.05 ? needed : prev));
+      },
+    });
+    return unregister;
+  }, [viewer, placement.id, placement.lat, placement.lng, placement.altitude]);
 
   // Precompute the placement's ECEF origin and ENU→ECEF rotation. Only
   // changes when the placement's lat/lng/altitude does.
@@ -197,32 +205,9 @@ function PlacedLevel({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
-    // ── Ground-clamp: continuously sample the live scene height (terrain
-    //   + photogrammetry + buildings) at the placement origin and lift
-    //   the level so its floor is never below it. Resampled at ~4Hz —
-    //   enough to catch new tiles streaming in without burning frames.
-    const now = performance.now();
-    if (now - lastSampleRef.current.t > 250) {
-      lastSampleRef.current.t = now;
-      try {
-        const carto = Cartographic.fromDegrees(placement.lng, placement.lat);
-        // sampleHeight considers 3D Tiles + terrain; falls back to globe height.
-        let h: number | undefined =
-          (viewer.scene as any).sampleHeight?.(carto);
-        if (h == null || Number.isNaN(h)) {
-          h = viewer.scene.globe.getHeight(carto) ?? undefined;
-        }
-        if (h != null && !Number.isNaN(h)) {
-          const base = placement.altitude ?? 0;
-          // Lift = how much we need to add to base so we sit at ground+ε.
-          const needed = Math.max(0, h - base + 0.05);
-          if (Math.abs(needed - groundLift) > 0.05) {
-            setGroundLift(needed);
-          }
-          lastSampleRef.current.v = h;
-        }
-      } catch {}
-    }
+    // Ground-clamp now happens in the shared scheduler — this frame loop
+    // only needs to refresh the placement's world matrix relative to the
+    // Cesium camera origin.
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
@@ -312,7 +297,8 @@ export default function AtlasLevelsR3FOverlay({
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
     const viewer = viewerRef.current;
-    const PROX_M = 5000; // within 5km → load real level
+    const PROX_M = 5000;          // within 5km → mount full R3F
+    const BEHIND_PROX_M = 800;    // behind the camera → only if very close
     let raf = 0;
     let last = 0;
     const tick = (t: number) => {
@@ -321,11 +307,19 @@ export default function AtlasLevelsR3FOverlay({
       last = t;
       if (viewer.isDestroyed()) return;
       const cam = viewer.camera.positionWC;
+      const dir = viewer.camera.directionWC;
       const next = new Set<string>();
       for (const p of placements) {
         const o = Cartesian3.fromDegrees(p.lng, p.lat, p.altitude ?? 0);
         const dx = o.x - cam.x, dy = o.y - cam.y, dz = o.z - cam.z;
-        if (dx * dx + dy * dy + dz * dz < PROX_M * PROX_M) next.add(p.id);
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 > PROX_M * PROX_M) continue;
+        // Frustum-ish cull: drop MAPs that are behind the camera unless
+        // they're within arm's reach (so spinning the view doesn't
+        // re-mount their scenes during the turn).
+        const dot = dx * dir.x + dy * dir.y + dz * dir.z;
+        if (dot < 0 && d2 > BEHIND_PROX_M * BEHIND_PROX_M) continue;
+        next.add(p.id);
       }
       setNearIds((prev) => {
         if (prev.size === next.size && [...prev].every((id) => next.has(id))) return prev;

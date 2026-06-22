@@ -16,7 +16,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
-  Cartographic,
   Matrix4 as CesiumMatrix4,
   Math as CesiumMath,
   Transforms,
@@ -25,6 +24,7 @@ import {
 import { EMPTY_SCENE, type LevelScene, type CharacterObject } from "@/lib/levelTypes";
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
 import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
+import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 export interface FreePlaySpawn {
   lat: number;
@@ -79,12 +79,23 @@ function FreePlayInstance({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [groundLift, setGroundLift] = useState(0);
-  const lastSampleRef = useRef<{ t: number; v: number | null }>({ t: 0, v: null });
 
   useEffect(() => {
     setGroundLift(0);
-    lastSampleRef.current = { t: 0, v: null };
   }, [spawn.lat, spawn.lng, spawn.alt]);
+
+  // Share the global ground-sampling budget so free-play doesn't compete
+  // with placed MAPs for Cesium height samples.
+  useEffect(() => {
+    return atlasWorldScheduler.registerGroundProbe(viewer, {
+      id: "freeplay",
+      getLngLat: () => ({ lng: spawn.lng, lat: spawn.lat }),
+      onHeight: (h) => {
+        const needed = Math.max(0, h - (spawn.alt ?? 0) + 0.05);
+        setGroundLift((prev) => (Math.abs(needed - prev) > 0.05 ? needed : prev));
+      },
+    });
+  }, [viewer, spawn.lat, spawn.lng, spawn.alt]);
 
   const { ecef, enuRot } = useMemo(() => {
     const baseAlt = (spawn.alt ?? 0) + groundLift;
@@ -140,20 +151,7 @@ function FreePlayInstance({
 
   useFrame(() => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
-    const now = performance.now();
-    if (now - lastSampleRef.current.t > 250) {
-      lastSampleRef.current.t = now;
-      try {
-        const carto = Cartographic.fromDegrees(spawn.lng, spawn.lat);
-        let h: number | undefined = (viewer.scene as any).sampleHeight?.(carto);
-        if (h == null || Number.isNaN(h)) h = viewer.scene.globe.getHeight(carto) ?? undefined;
-        if (h != null && !Number.isNaN(h)) {
-          const needed = Math.max(0, h - (spawn.alt ?? 0) + 0.05);
-          if (Math.abs(needed - groundLift) > 0.05) setGroundLift(needed);
-          lastSampleRef.current.v = h;
-        }
-      } catch {}
-    }
+    // Ground-clamp handled by atlasWorldScheduler.
     const camPos = viewer.camera.positionWC;
     scratch.out
       .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
