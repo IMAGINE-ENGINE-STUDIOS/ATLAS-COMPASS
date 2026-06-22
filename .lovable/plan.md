@@ -1,91 +1,55 @@
+## Moving Level → MAP, into the Atlas
 
-# Level Manifest & Atlas Package Pipeline
+Today: levels live as their own page (`/level/:id`) and are streamed into Atlas as proximity-loaded R3F overlays anchored to lat/lng. With more than one nearby placement the dual canvas + per-level mixers + ground sampling crush the frame rate.
 
-Replace the lightweight "preview vs playable" performance trick with a real **Level Manifest** that ships with every uploaded level, plus a **Level Package** format that consolidates every asset (models, terrain, characters, animations, interactions, audio, code/scripts) into Atlas as a single addressable unit.
-
-## 1. Level Manifest ("manuscript")
-
-A signed JSON document stored on the `levels` row and mirrored into each `atlas_level_placements` row at upload time. It declares the rules that apply inside the **level volume** = level footprint × 10 km vertical column above the ground.
-
-```ts
-// src/lib/levelManifest.ts
-export interface LevelManifest {
-  manifestVersion: 1;
-  levelId: string;
-  name: string;
-  authorId: string;
-
-  // Spatial authority
-  volume: {
-    shape: "polygon" | "circle";
-    points?: [lng, lat][];          // polygon footprint
-    center?: [lng, lat]; radiusM?: number;
-    ceilingM: 10_000;               // hard 10 km cap
-    floorM: number;                 // usually 0, can go negative
-  };
-
-  // Rules applied while camera/character is inside volume
-  rules: {
-    physics:   { gravity: number; airDensity: number; allowFlight: boolean };
-    time:      { lockTimeOfDay?: number; timeScale: number };
-    weather:   { override?: "clear"|"rain"|"snow"|"fog"; windMps?: number };
-    audio:     { ambientBusId?: string; reverbPreset?: string; masterDb: number };
-    camera:    { minZoomM: number; maxZoomM: number; allowFreeFly: boolean };
-    locomotion:{ defaultMode: "walk"|"drive"|"fly"; allowSwitch: boolean; speedMul: number };
-    rendering: { hdriPackId?: string; fogColor?: string; shadowQuality: "off"|"low"|"high" };
-    network:   { multiplayer: boolean; maxPlayers: number };
-    access:    { visibility: "public"|"unlisted"|"private"; allowEdits: boolean };
-  };
-
-  // Pointer to the package
-  package: { id: string; version: string; sha256: string; sizeBytes: number };
-}
-```
-
-A new hook `useActiveLevelManifest(cameraLatLngAlt)` resolves which manifest currently owns the camera and exposes the merged rule-set; Atlas systems (camera, audio, weather, locomotion, Cesium time, R3F lights) subscribe and apply overrides while inside, restoring globals on exit.
-
-## 2. Level Package (.lvlpkg)
-
-One zipped, content-addressed bundle per level version. Layout:
+Goal: a **MAP** is a single importable file group (geometry, models, characters, terrain, lights, splines, train, etc.) that, when loaded, lays its objects directly into Atlas's own R3F world — no separate overlay per placement, no streaming windows. The full Level toolset (terrain sculpt, face paint, geometry, splines, characters, behaviors, train, etc.) becomes available **inside Atlas** when "Edit MAP" is active.
 
 ```text
-manifest.json                 ← the manuscript above
-scene.json                    ← LevelScene (objects, transforms, refs)
-models/<sha>.glb              ← every 3D model
-terrain/<sha>.{glb,heightmap.bin}
-characters/<sha>.glb
-animations/<sha>.glb
-audio/<sha>.{mp3,ogg,wav}
-textures/<sha>.{ktx2,webp,png}
-hdri/<sha>.hdr
-scripts/<name>.lua|js         ← interaction/behavior code
-interactions.json             ← triggers, prompts, teleports
-index.json                    ← { kind, sha, originalName, mime, size }[]
+Before                              After
+──────                              ─────
+/level/:id  (editor page)           /atlas  (one editor + viewer)
+  └─ scene.json                       ├─ MAP file (.map / JSON in DB)
+                                      │   = same scene payload + ENU anchor
+/atlas                                └─ Atlas R3F overlay owns ALL objects
+  └─ N AtlasLevelsR3FOverlay              from every loaded MAP, one canvas
+      └─ N PlacedLevel (one per             one mixer pool, one ground-clamp
+          placement, each its own
+          R3F canvas / mixer)         (Levels list page → "Maps" library:
+                                       import / export / share .map files)
 ```
 
-- Built on **upload to Atlas**, not in the editor. A new edge function `pack-level` (or client worker for size) walks the scene, gathers every referenced asset from current sources (IndexedDB blobs, Supabase storage, scene-embedded data), hashes each file, writes the zip, uploads to a new `level-packages` storage bucket as `levels/<levelId>/<version>.lvlpkg`.
-- On Atlas load, a new resolver `useLevelPackage(levelId, version)` streams the package, mounts it into an in-memory virtual FS (`pkgfs://<levelId>/...`), and rewrites scene asset URLs to that VFS so nothing else in the runtime needs to know about packaging.
+### Phase 1 — MAP file format & I/O (no UI change yet)
+- Rename concept: `Level` → `Map` at the type level. Add `src/lib/mapFile.ts` with:
+  - `MapFile = { version, name, anchor: {lat, lng, alt, heading}, scene: LevelScene, assets?: PackagedAssets }` — wraps the existing `LevelScene` so nothing in the runtime renderers has to change yet.
+  - `exportMap(level) → Blob` (JSON, optionally zipped with bundled HDRI/glb via the existing `levelPackage.ts` pipeline).
+  - `importMap(file) → MapFile` with migration of legacy `level` rows.
+- DB: rename surface only. Keep `levels` + `atlas_level_placements` tables, add views/aliases `maps` / `atlas_map_placements`. No destructive migration.
 
-## 3. Atlas consolidation
+### Phase 2 — Unified Atlas scene (the perf win)
+Replace `AtlasLevelsR3FOverlay` (one Canvas per placement) with **one** `AtlasMapWorld`:
+- A single full-viewport R3F `<Canvas>` already drawing the levels overlay.
+- One ECEF camera sync, one ground-clamp loop, one animation mixer registry.
+- For each loaded MAP, render its objects under a `<group>` whose matrix = ECEF(anchor) · ENU · heading. Re-uses `LevelSceneContents` per map but inside the shared canvas — no extra canvases.
+- Proximity LOD becomes a per-object cull (frustum + distance) instead of per-level mount/unmount, so panning between maps is jank-free.
 
-- `atlas_level_placements` gains `manifest_id`, `package_id`, `package_version`, `package_sha256`. When a user drops a level onto Atlas, the placement copies the current manifest+package pointer (so future edits don't silently mutate placed levels — they get an "update available" badge instead).
-- `LevelInspectorPanel` adds two tabs: **Manuscript** (read-only rules + diff vs editor) and **Package** (file tree, sizes, integrity check).
-- `AtlasLevelsR3FOverlay` mounts content from the package VFS instead of fetching individual records. This naturally fixes the perf issue: one fetch, one cache, no per-asset round-trips, easy LRU eviction at the package level.
+### Phase 3 — Level tools, in-place inside Atlas
+Surface the existing tool panels (currently in `LevelEditor`) as Atlas side-panels that bind to the **active MAP**:
+- Geometry / Terrain / FacePaint / Characters / Animations / Splines / Train / Lights / HDRI — all current panels move under `src/components/atlas/map-editor/` and read+write the active MAP's `scene`.
+- "Edit MAP" toggle on a placed map shows handles + tool tabs. Saving writes back to the same row.
+- Right-click "Play from here" (just shipped) keeps working; "Play this MAP" enters with the map's `mainCharacterId`.
 
-## 4. New / changed files
+### Phase 4 — Retire `/level/:id`
+- Replace the Levels list page with a **Maps library** (import `.map`, export, duplicate, share, "Place on Atlas"). The old standalone editor route redirects to `/atlas?map=:id&edit=1`.
+- Keep the route shim for one release so existing links resolve.
 
-- **New**: `src/lib/levelManifest.ts`, `src/lib/levelPackage.ts` (build/read), `src/lib/pkgfs.ts` (virtual FS + URL rewriter), `src/lib/useActiveLevelManifest.ts`, `src/lib/useLevelPackage.ts`, `src/components/level/manifest/ManifestEditor.tsx`, `src/components/atlas/LevelPackageInspector.tsx`, `supabase/functions/pack-level/index.ts`.
-- **Changed**: `src/lib/levelTypes.ts` (+manifest, +package refs), `src/lib/useAtlasLevelLayer.ts` (load via package), `src/components/atlas/AtlasLevelsR3FOverlay.tsx`, `src/components/atlas/LevelInspectorPanel.tsx`, `src/pages/AtlasPage.tsx` (rule application bridge), `src/components/level/LevelScene3D.tsx` (read assets from pkgfs when present).
-- **Migrations**: add `manifest jsonb`, `package_id text`, `package_version text`, `package_sha256 text`, `package_size_bytes bigint` to `levels`; mirror `manifest_snapshot jsonb`, `package_id`, `package_version`, `package_sha256` on `atlas_level_placements`. New storage bucket `level-packages` (private, owner-scoped RLS).
+### Technical notes
+- The on-disk shape is unchanged — `LevelScene` is the scene payload of a MAP. The win comes from **one canvas, many maps** instead of **one canvas per nearby map**.
+- `useAtlasLevelLayer` (Cesium pin/box fallback) keeps the cheap green box for far-away maps; up close, the unified R3F renders them.
+- Soldier free-play (just added) stays independent of MAPs.
 
-## 5. Performance outcome
+### What I need from you before I cut code
+1. Confirm "MAP" is the user-facing name (vs. "World" / "Scene" / "Place").
+2. OK to keep DB table names internally (`levels`) with a UI-only rename? Or do you want a real rename migration?
+3. Should the `/level/:id` route hard-redirect now, or stay live in parallel for one release?
 
-- One HTTP range-fetched `.lvlpkg` per placed level instead of N asset requests.
-- Manifest-driven LOD: outside volume → Cesium-only proxy box from manifest footprint; inside volume → stream package and mount full scene.
-- Rules cap shadow/HDRI/physics cost per-level so a heavy level can't tank Atlas.
-
-## Open decisions
-
-1. Build packages **client-side in a worker** (fast iteration, no edge cost) or **server-side via `pack-level` edge function** (canonical, signable). Recommendation: server-side, with client fallback for offline editor saves.
-2. Scripts/interactions language: keep current JSON behavior graph, or allow sandboxed JS in `scripts/`? Recommendation: JSON-only v1, JS sandbox v2.
-3. Should placing a level **pin** to that package version (safe, current proposal) or **always track latest** (live updates, riskier)? Recommendation: pin + "Update available" action in the inspector.
+I'll execute Phase 1+2 first (file format + unified canvas — the perf fix), then Phase 3 (tools in Atlas), then Phase 4 (retire the page).
