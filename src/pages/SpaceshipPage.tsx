@@ -66,6 +66,10 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import AtlasFreePlayOverlay, {
+  DEFAULT_FREEPLAY_CHARACTER,
+  type FreePlaySpawn,
+} from "@/components/atlas/AtlasFreePlayOverlay";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
@@ -745,6 +749,9 @@ function SpaceshipPage() {
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
+  // Active free-play spawn: when set, a playable character (default Soldier)
+  // is dropped at the given lat/lng and the user controls it via WASD + mouse.
+  const [freePlaySpawn, setFreePlaySpawn] = useState<FreePlaySpawn | null>(null);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
@@ -4426,6 +4433,15 @@ function SpaceshipPage() {
         onPlayingChange={handleLevelPlayingChange}
       />
 
+      {/* Free-play: drop a playable Soldier anywhere via the Earth menu
+          (right-click / double-click → "Play from here"). WASD + mouse,
+          Shift to run, Space to jump, Esc to exit. */}
+      <AtlasFreePlayOverlay
+        viewerRef={viewerRef}
+        spawn={freePlaySpawn}
+        onExit={() => setFreePlaySpawn(null)}
+      />
+
       {/* Level Inspector — opens when the user clicks a placed Level on
           the globe. Hidden while a level is in play so the play view isn't
           obstructed by control widgets. */}
@@ -6246,6 +6262,29 @@ function SpaceshipPage() {
             setNamingPOI(l);
             setPoiName("");
             setPoiDescription("");
+          }}
+          onPlayHere={(l) => {
+            // Snap altitude to live terrain/tile surface so the soldier
+            // doesn't fall through or stand mid-air on first frame.
+            let groundAlt = l.alt;
+            const v = viewerRef.current;
+            if (v) {
+              try {
+                const carto = Cartographic.fromDegrees(l.lng, l.lat);
+                const sampled = v.scene.sampleHeight(carto);
+                if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
+                else {
+                  const terrainH = v.scene.globe.getHeight(carto);
+                  if (typeof terrainH === "number" && !isNaN(terrainH)) groundAlt = terrainH;
+                }
+              } catch {}
+            }
+            setFreePlaySpawn({
+              lat: l.lat,
+              lng: l.lng,
+              alt: groundAlt,
+              ...DEFAULT_FREEPLAY_CHARACTER,
+            });
           }}
           onPickLevel={(lvl, l) => {
             // Snap initial drop altitude to the real tile surface so the

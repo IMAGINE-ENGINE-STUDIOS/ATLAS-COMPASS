@@ -41,9 +41,15 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || (t as any).isContentEditable)) return;
       keys.current[e.code] = true;
-      // Track Shift via the modifier flag too — some keyboards / focus
-      // states drop the discrete ShiftLeft/ShiftRight keydown.
-      if (e.shiftKey) { keys.current.ShiftLeft = true; }
+      // Always trust the live modifier state — discrete ShiftLeft / ShiftRight
+      // keydowns are unreliable (browser autorepeat, OS focus changes, Cesium
+      // canvas swallowing the first event). getModifierState reflects the
+      // current physical state of Shift on every key event we receive.
+      const shift = typeof e.getModifierState === "function"
+        ? e.getModifierState("Shift")
+        : !!e.shiftKey;
+      keys.current.Shift = shift;
+      if (shift) { keys.current.ShiftLeft = true; }
       if (e.code === "KeyE") inputPulse.interact = true;
       if (["KeyW","KeyA","KeyS","KeyD","Space","ShiftLeft","ShiftRight","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) {
         e.preventDefault();
@@ -51,15 +57,21 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
     };
     const up = (e: KeyboardEvent) => {
       keys.current[e.code] = false;
-      if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
-        if (!e.shiftKey) { keys.current.ShiftLeft = false; keys.current.ShiftRight = false; }
-      }
+      const shift = typeof e.getModifierState === "function"
+        ? e.getModifierState("Shift")
+        : !!e.shiftKey;
+      keys.current.Shift = shift;
+      if (!shift) { keys.current.ShiftLeft = false; keys.current.ShiftRight = false; }
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    // Reset on focus loss so a stuck Shift never freezes the run state.
+    const onBlur = () => { keys.current = {}; };
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", onBlur);
       keys.current = {};
     };
   }, [scheme]);
@@ -75,7 +87,7 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
       if (k.KeyA || k.ArrowLeft) x += 1;
       if (k.KeyD || k.ArrowRight) x -= 1;
       if (k.Space) jump = true;
-      if (k.ShiftLeft || k.ShiftRight) run = true;
+      if (k.Shift || k.ShiftLeft || k.ShiftRight) run = true;
     }
     if (scheme !== "keyboard") {
       const pads = navigator.getGamepads?.() ?? [];
