@@ -16,7 +16,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
-  Cartographic,
   Matrix4 as CesiumMatrix4,
   Math as CesiumMath,
   Transforms,
