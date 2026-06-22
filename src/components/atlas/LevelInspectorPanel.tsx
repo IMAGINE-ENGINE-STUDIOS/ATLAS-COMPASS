@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   X, Play, Edit3, Trash2, MapPin, Compass, Ruler, ArrowUpDown,
-  Loader2, User, RefreshCw, Layers, Scissors,
+  Loader2, User, RefreshCw, Layers, Scissors, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -24,6 +24,7 @@ import { LEVEL_PLAY_EVENT } from "@/lib/useAtlasLevelLayer";
 import type { LevelScene } from "@/lib/levelTypes";
 import { toast } from "sonner";
 import LevelPackageInspector from "./LevelPackageInspector";
+import { exportPlacementAsMap } from "@/lib/atlasMapImport";
 
 interface Props {
   placement: LevelPlacement;
@@ -116,6 +117,24 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
       toast.success("Placement removed");
       window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
       onClose();
+    }
+  };
+
+  const exportAsMap = async () => {
+    try {
+      await exportPlacementAsMap({
+        levelId: placement.level_id,
+        name: placement.levels?.name ?? "Map",
+        description: placement.levels?.description ?? null,
+        lat: placement.lat,
+        lng: placement.lng,
+        altitude: placement.altitude ?? 0,
+        heading,
+        scale,
+      });
+      toast.success("MAP file downloaded");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Couldn't export MAP");
     }
   };
 
@@ -308,6 +327,9 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
         </Button>
         <Button size="sm" variant="destructive" className="col-span-2" onClick={deletePlacement}>
           <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove placement
+        </Button>
+        <Button size="sm" variant="secondary" className="col-span-2" onClick={exportAsMap}>
+          <Download className="w-3.5 h-3.5 mr-1" /> Export as MAP (.map)
         </Button>
       </div>
         </TabsContent>
