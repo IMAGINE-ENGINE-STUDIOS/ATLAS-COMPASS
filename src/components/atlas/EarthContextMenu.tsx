@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search, PersonStanding } from "lucide-react";
+import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search, PersonStanding, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { copyToClipboard, getClipboard, type FileClipboardEntry } from "@/lib/fileClipboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,11 +15,13 @@ interface Props {
   onPasteEntry: (entry: FileClipboardEntry, loc: EarthLoc) => void;
   onPickLevel?: (level: { id: string; name: string }, loc: EarthLoc) => void;
   onPlayHere?: (loc: EarthLoc) => void;
+  /** "Import a MAP file (.map) here." Receives the click point. */
+  onImportMap?: (loc: EarthLoc) => void;
 }
 
 type LevelRow = { id: string; name: string; description: string | null };
 
-export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPasteEntry, onPickLevel, onPlayHere }: Props) {
+export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPasteEntry, onPickLevel, onPlayHere, onImportMap }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"root" | "levels">("root");
   const [levels, setLevels] = useState<LevelRow[] | null>(null);
@@ -135,7 +137,14 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
           <MenuItem icon={<ClipboardPaste className="w-3.5 h-3.5" />} label="Paste in place" onClick={handlePaste} />
           <MenuItem icon={<Share2 className="w-3.5 h-3.5" />} label="Share" onClick={handleShare} />
           <div className="h-px bg-white/10 my-1" />
-          <MenuItem icon={<Layers className="w-3.5 h-3.5" />} label="Load level here…" onClick={() => setView("levels")} />
+          <MenuItem icon={<Layers className="w-3.5 h-3.5" />} label="Load MAP here…" onClick={() => setView("levels")} />
+          {onImportMap && (
+            <MenuItem
+              icon={<FileUp className="w-3.5 h-3.5" />}
+              label="Import MAP file (.map)…"
+              onClick={() => { onImportMap(loc); onClose(); }}
+            />
+          )}
           <MenuItem icon={<MapPin className="w-3.5 h-3.5" />} label="Drop POI here" onClick={() => { onCreatePOI(loc); onClose(); }} />
         </div>
       )}
