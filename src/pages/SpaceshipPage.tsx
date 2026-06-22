@@ -66,6 +66,10 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import AtlasFreePlayOverlay, {
+  DEFAULT_FREEPLAY_CHARACTER,
+  type FreePlaySpawn,
+} from "@/components/atlas/AtlasFreePlayOverlay";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
@@ -745,6 +749,9 @@ function SpaceshipPage() {
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
+  // Active free-play spawn: when set, a playable character (default Soldier)
+  // is dropped at the given lat/lng and the user controls it via WASD + mouse.
+  const [freePlaySpawn, setFreePlaySpawn] = useState<FreePlaySpawn | null>(null);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
