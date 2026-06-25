@@ -43,7 +43,7 @@ import {
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined,
   HeadingPitchRoll, Transforms,
-  Cartesian2, Cesium3DTileset,
+  Cartesian2, Cesium3DTileset, RequestScheduler,
   PolylineGlowMaterialProperty,
   ClassificationType,
   SceneTransforms,
