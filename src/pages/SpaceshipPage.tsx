@@ -2210,6 +2210,16 @@ function SpaceshipPage() {
       if (!viewer.isDestroyed()) {
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 8;
+        // Persistent in-memory cache (~1.5 GiB) so tiles the user
+        // already saw stay resident for kilometers around as they
+        // walk back and forth. Cesium evicts least-recently-used
+        // tiles when this is exceeded.
+        try {
+          (tileset as any).cacheBytes = 1.5 * 1024 * 1024 * 1024;
+          (tileset as any).maximumCacheOverflowBytes = 512 * 1024 * 1024;
+          (tileset as any).preloadWhenHidden = true;
+          (tileset as any).loadSiblings = true;
+        } catch {}
         (viewer as any)._realisticTileset = tileset;
         viewer.scene.requestRender();
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
@@ -2237,6 +2247,12 @@ function SpaceshipPage() {
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 4;
         tileset.show = false;
+        try {
+          (tileset as any).cacheBytes = 768 * 1024 * 1024;
+          (tileset as any).maximumCacheOverflowBytes = 256 * 1024 * 1024;
+          (tileset as any).preloadWhenHidden = true;
+          (tileset as any).loadSiblings = true;
+        } catch {}
         (viewer as any)._osmTileset = tileset;
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
