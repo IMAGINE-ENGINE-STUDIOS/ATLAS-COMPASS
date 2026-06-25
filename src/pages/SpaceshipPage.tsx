@@ -2182,6 +2182,18 @@ function SpaceshipPage() {
     viewer.scene.requestRenderMode = false;
     viewer.scene.maximumRenderTimeChange = Infinity;
 
+    // ── Tile loading speed ──────────────────────────────────────
+    // Raise Cesium's global request scheduler limits so many more
+    // tile requests can be in flight at once. The defaults (6 per
+    // host / 50 total) bottleneck Google Photoreal + OSM streaming
+    // on fast connections. Higher concurrency = faster fill, fewer
+    // visible popins as the character walks.
+    try {
+      RequestScheduler.maximumRequests = 128;
+      RequestScheduler.maximumRequestsPerServer = 24;
+      RequestScheduler.throttleRequests = true;
+    } catch {}
+
     // Add world terrain
     createWorldTerrainAsync({
       requestWaterMask: false,
