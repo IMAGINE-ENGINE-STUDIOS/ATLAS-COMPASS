@@ -810,12 +810,12 @@ function SpaceshipPage() {
       ts.loadSiblings = true;
     };
     if (playing) {
-      apply(rt, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD photoreal
-      apply(ot, 1, 1024 * 1024 * 1024);     // 1 GiB cache, top LOD OSM
+      apply(rt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD photoreal
+      apply(ot, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD OSM
       viewer.scene.globe.maximumScreenSpaceError = 1;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = true;
-      try { viewer.scene.globe.tileCacheSize = 2000; } catch {}
+      try { viewer.scene.globe.tileCacheSize = 4000; } catch {}
       viewer.scene.requestRender();
 
       // ── Warmup prefetch pass ───────────────────────────────────
