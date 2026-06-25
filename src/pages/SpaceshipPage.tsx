@@ -2333,6 +2333,39 @@ function SpaceshipPage() {
       }
     });
 
+    // ── Google Photorealistic 3D Tiles (Direct via Map Tiles API) ──
+    // Streams the freshest mesh straight from tile.googleapis.com
+    // through an edge-function proxy that injects the connector API key
+    // server-side. This is the same dataset Google ships to Unity/Unreal
+    // "Geospatial Creator" — no separate higher-detail tier exists.
+    const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json`;
+    Cesium3DTileset.fromUrl(G3D_URL, {
+      showCreditsOnScreen: false,
+    } as any).then((tileset) => {
+      if (viewer.isDestroyed()) return;
+      viewer.scene.primitives.add(tileset);
+      tileset.maximumScreenSpaceError = 8;
+      try {
+        (tileset as any).cacheBytes = 1.5 * 1024 * 1024 * 1024;
+        (tileset as any).maximumCacheOverflowBytes = 512 * 1024 * 1024;
+        (tileset as any).preloadWhenHidden = true;
+        (tileset as any).loadSiblings = true;
+      } catch {}
+      (viewer as any)._googleDirectTileset = tileset;
+      // New default: hide Ion-routed photoreal in favour of the direct feed.
+      const ion = (viewer as any)._realisticTileset;
+      if (ion) ion.show = false;
+      tileset.show = true;
+      viewer.scene.globe.show = false;
+      viewer.scene.requestRender();
+      window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
+    }).catch((err) => {
+      console.warn("[Google 3D Direct] tileset failed to load — falling back to Ion route", err);
+      // Re-show the Ion realistic tileset on failure.
+      const ion = (viewer as any)._realisticTileset;
+      if (ion) ion.show = true;
+    });
+
     // Create brush indicator entity (hidden by default)
     const brushEntity = viewer.entities.add({
       id: "brush-indicator",
