@@ -43,7 +43,7 @@ import {
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined,
   HeadingPitchRoll, Transforms,
-  Cartesian2, Cesium3DTileset,
+  Cartesian2, Cesium3DTileset, RequestScheduler,
   PolylineGlowMaterialProperty,
   ClassificationType,
   SceneTransforms,
@@ -810,12 +810,12 @@ function SpaceshipPage() {
       ts.loadSiblings = true;
     };
     if (playing) {
-      apply(rt, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD photoreal
-      apply(ot, 1, 1024 * 1024 * 1024);     // 1 GiB cache, top LOD OSM
+      apply(rt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD photoreal
+      apply(ot, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD OSM
       viewer.scene.globe.maximumScreenSpaceError = 1;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = true;
-      try { viewer.scene.globe.tileCacheSize = 2000; } catch {}
+      try { viewer.scene.globe.tileCacheSize = 4000; } catch {}
       viewer.scene.requestRender();
 
       // ── Warmup prefetch pass ───────────────────────────────────
@@ -2182,6 +2182,18 @@ function SpaceshipPage() {
     viewer.scene.requestRenderMode = false;
     viewer.scene.maximumRenderTimeChange = Infinity;
 
+    // ── Tile loading speed ──────────────────────────────────────
+    // Raise Cesium's global request scheduler limits so many more
+    // tile requests can be in flight at once. The defaults (6 per
+    // host / 50 total) bottleneck Google Photoreal + OSM streaming
+    // on fast connections. Higher concurrency = faster fill, fewer
+    // visible popins as the character walks.
+    try {
+      RequestScheduler.maximumRequests = 128;
+      RequestScheduler.maximumRequestsPerServer = 24;
+      RequestScheduler.throttleRequests = true;
+    } catch {}
+
     // Add world terrain
     createWorldTerrainAsync({
       requestWaterMask: false,
@@ -2198,6 +2210,16 @@ function SpaceshipPage() {
       if (!viewer.isDestroyed()) {
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 8;
+        // Persistent in-memory cache (~1.5 GiB) so tiles the user
+        // already saw stay resident for kilometers around as they
+        // walk back and forth. Cesium evicts least-recently-used
+        // tiles when this is exceeded.
+        try {
+          (tileset as any).cacheBytes = 1.5 * 1024 * 1024 * 1024;
+          (tileset as any).maximumCacheOverflowBytes = 512 * 1024 * 1024;
+          (tileset as any).preloadWhenHidden = true;
+          (tileset as any).loadSiblings = true;
+        } catch {}
         (viewer as any)._realisticTileset = tileset;
         viewer.scene.requestRender();
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
@@ -2225,6 +2247,12 @@ function SpaceshipPage() {
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 4;
         tileset.show = false;
+        try {
+          (tileset as any).cacheBytes = 768 * 1024 * 1024;
+          (tileset as any).maximumCacheOverflowBytes = 256 * 1024 * 1024;
+          (tileset as any).preloadWhenHidden = true;
+          (tileset as any).loadSiblings = true;
+        } catch {}
         (viewer as any)._osmTileset = tileset;
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
