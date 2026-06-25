@@ -27,6 +27,7 @@ import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
 import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
 import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLabelsOverlay";
 import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
+import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import {
   amenityToCategoryId,
   clearSelected,
@@ -742,7 +743,7 @@ function SpaceshipPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
-  const [viewMode, setViewMode] = useState<"realistic" | "osm">(savedUI.viewMode ?? "realistic");
+  const [viewMode, setViewMode] = useState<"google" | "realistic" | "osm">(savedUI.viewMode ?? "google");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   const [cameraAlt, setCameraAlt] = useState(0);
@@ -766,6 +767,7 @@ function SpaceshipPage() {
     if (!viewer || viewer.isDestroyed()) return;
     const rt = (viewer as any)._realisticTileset as any | undefined;
     const ot = (viewer as any)._osmTileset as any | undefined;
+    const gt = (viewer as any)._googleDirectTileset as any | undefined;
     const prev = {
       rtSse: rt?.maximumScreenSpaceError,
       otSse: ot?.maximumScreenSpaceError,
@@ -812,6 +814,7 @@ function SpaceshipPage() {
     if (playing) {
       apply(rt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD photoreal
       apply(ot, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD OSM
+      apply(gt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD Google Direct
       viewer.scene.globe.maximumScreenSpaceError = 1;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = true;
@@ -1134,9 +1137,9 @@ function SpaceshipPage() {
   // 3D Tiles are the only visible surface — Cesium's CLAMP_TO_GROUND falls
   // back to sea level there, dropping pins under buildings. CLAMP_TO_3D_TILE
   // anchors them to the photogrammetry top instead.
-  const viewModeRef = useRef<"realistic" | "osm">("realistic");
+  const viewModeRef = useRef<"google" | "realistic" | "osm">("google");
   const pinHeightRef = useCallback(() => (
-    viewModeRef.current === "realistic"
+    viewModeRef.current === "realistic" || viewModeRef.current === "google"
       ? HeightReference.CLAMP_TO_3D_TILE
       : HeightReference.CLAMP_TO_GROUND
   ), []);
@@ -1187,7 +1190,7 @@ function SpaceshipPage() {
   // Re-anchor every existing pin billboard when the view mode toggles.
   useEffect(() => {
     viewModeRef.current = viewMode;
-    const hr = viewMode === "realistic"
+    const hr = (viewMode === "realistic" || viewMode === "google")
       ? HeightReference.CLAMP_TO_3D_TILE
       : HeightReference.CLAMP_TO_GROUND;
     const refs = [
@@ -2331,6 +2334,39 @@ function SpaceshipPage() {
         (viewer as any)._osmTileset = tileset;
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
+    });
+
+    // ── Google Photorealistic 3D Tiles (Direct via Map Tiles API) ──
+    // Streams the freshest mesh straight from tile.googleapis.com
+    // through an edge-function proxy that injects the connector API key
+    // server-side. This is the same dataset Google ships to Unity/Unreal
+    // "Geospatial Creator" — no separate higher-detail tier exists.
+    const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json`;
+    Cesium3DTileset.fromUrl(G3D_URL, {
+      showCreditsOnScreen: false,
+    } as any).then((tileset) => {
+      if (viewer.isDestroyed()) return;
+      viewer.scene.primitives.add(tileset);
+      tileset.maximumScreenSpaceError = 8;
+      try {
+        (tileset as any).cacheBytes = 1.5 * 1024 * 1024 * 1024;
+        (tileset as any).maximumCacheOverflowBytes = 512 * 1024 * 1024;
+        (tileset as any).preloadWhenHidden = true;
+        (tileset as any).loadSiblings = true;
+      } catch {}
+      (viewer as any)._googleDirectTileset = tileset;
+      // New default: hide Ion-routed photoreal in favour of the direct feed.
+      const ion = (viewer as any)._realisticTileset;
+      if (ion) ion.show = false;
+      tileset.show = true;
+      viewer.scene.globe.show = false;
+      viewer.scene.requestRender();
+      window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
+    }).catch((err) => {
+      console.warn("[Google 3D Direct] tileset failed to load — falling back to Ion route", err);
+      // Re-show the Ion realistic tileset on failure.
+      const ion = (viewer as any)._realisticTileset;
+      if (ion) ion.show = true;
     });
 
     // Create brush indicator entity (hidden by default)
@@ -3639,17 +3675,25 @@ function SpaceshipPage() {
     setSearchQuery("");
   }, []);
 
-  const switchViewMode = useCallback((mode: "realistic" | "osm") => {
+  const switchViewMode = useCallback((mode: "google" | "realistic" | "osm") => {
     if (!viewerRef.current) return;
     const viewer = viewerRef.current;
+    const google = (viewer as any)._googleDirectTileset;
     const realistic = (viewer as any)._realisticTileset;
     const osm = (viewer as any)._osmTileset;
 
-    if (mode === "realistic") {
+    if (mode === "google") {
+      if (google) { google.show = true; }
+      if (realistic) { realistic.show = false; }
+      if (osm) { osm.show = false; }
+      viewer.scene.globe.show = !google;
+    } else if (mode === "realistic") {
+      if (google) { google.show = false; }
       if (realistic) { realistic.show = true; }
       if (osm) { osm.show = false; }
-      viewer.scene.globe.show = !realistic; // hide globe only if realistic tiles loaded
+      viewer.scene.globe.show = !realistic;
     } else {
+      if (google) { google.show = false; }
       if (realistic) { realistic.show = false; }
       if (osm) { osm.show = true; }
       viewer.scene.globe.show = true;
@@ -3660,10 +3704,13 @@ function SpaceshipPage() {
 
   const toggleBuildings = useCallback(() => {
     if (!viewerRef.current) return;
+    const google = (viewerRef.current as any)._googleDirectTileset;
     const realistic = (viewerRef.current as any)._realisticTileset;
     const osm = (viewerRef.current as any)._osmTileset;
     const newShow = !showBuildings;
-    if (viewMode === "realistic" && realistic) {
+    if (viewMode === "google" && google) {
+      google.show = newShow;
+    } else if (viewMode === "realistic" && realistic) {
       realistic.show = newShow;
     } else if (osm) {
       osm.show = newShow;
@@ -3805,6 +3852,7 @@ function SpaceshipPage() {
     const tilesets = [
       (viewer as any)._realisticTileset as Cesium3DTileset | undefined,
       (viewer as any)._osmTileset as Cesium3DTileset | undefined,
+      (viewer as any)._googleDirectTileset as Cesium3DTileset | undefined,
     ].filter(Boolean) as Cesium3DTileset[];
     tilesets.forEach((ts) => {
       try {
@@ -6431,6 +6479,8 @@ function SpaceshipPage() {
                 </div>
               </GlassPanel>
 
+              <div className="flex flex-col items-end shrink-0">
+              <GoogleAttributionPill viewer={viewerRef.current} visible={viewMode === "google"} />
               <GlassPanel className="px-2.5 py-1.5 sm:px-3 sm:py-2.5 shrink-0">
                 <div className="flex items-center gap-1.5 sm:gap-2.5">
                   <img src={eyePng} alt="Eye" width={16} height={16} className="w-3 h-3 sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
@@ -6442,6 +6492,10 @@ function SpaceshipPage() {
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">Mode</p>
                     <div className="flex items-center gap-1">
+                      <button onClick={() => switchViewMode("google")}
+                        className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "google" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
+                        <span className="flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> <span className="hidden sm:inline">Google 3D</span><span className="sm:hidden">G3D</span></span>
+                      </button>
                       <button onClick={() => switchViewMode("realistic")}
                         className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Satellite className="w-2.5 h-2.5" /> <span className="hidden sm:inline">Realistic</span><span className="sm:hidden">3D</span></span>
@@ -6454,6 +6508,7 @@ function SpaceshipPage() {
                   </div>
                 </div>
               </GlassPanel>
+              </div>
             </div>
           </div>
 
