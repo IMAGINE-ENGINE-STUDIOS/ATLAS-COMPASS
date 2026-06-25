@@ -766,6 +766,7 @@ function SpaceshipPage() {
     if (!viewer || viewer.isDestroyed()) return;
     const rt = (viewer as any)._realisticTileset as any | undefined;
     const ot = (viewer as any)._osmTileset as any | undefined;
+    const gt = (viewer as any)._googleDirectTileset as any | undefined;
     const prev = {
       rtSse: rt?.maximumScreenSpaceError,
       otSse: ot?.maximumScreenSpaceError,
@@ -812,6 +813,7 @@ function SpaceshipPage() {
     if (playing) {
       apply(rt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD photoreal
       apply(ot, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD OSM
+      apply(gt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD Google Direct
       viewer.scene.globe.maximumScreenSpaceError = 1;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = true;
