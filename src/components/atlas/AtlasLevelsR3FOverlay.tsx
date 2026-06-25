@@ -297,7 +297,7 @@ export default function AtlasLevelsR3FOverlay({
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
     const viewer = viewerRef.current;
-    const PROX_M = 5000;          // within 5km → mount full R3F
+    const PROX_M = 3219;          // 2 miles → mount full R3F
     const BEHIND_PROX_M = 800;    // behind the camera → only if very close
     let raf = 0;
     let last = 0;
