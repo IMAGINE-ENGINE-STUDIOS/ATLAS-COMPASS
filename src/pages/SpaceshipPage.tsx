@@ -2194,6 +2194,31 @@ function SpaceshipPage() {
       RequestScheduler.throttleRequests = true;
     } catch {}
 
+    // ── Worker pool ────────────────────────────────────────────
+    // Cesium decodes glTF / 3D-Tile content on Web Workers. The
+    // default pool is tiny; raise it to the CPU's logical core count
+    // for much faster tile decode + texture upload on modern laptops.
+    try {
+      const cores = Math.max(2, Math.min(16, (navigator.hardwareConcurrency || 4)));
+      (TaskProcessor as any).maximumActiveTasks = cores * 4;
+      (TaskProcessor as any)._defaultWorkerOptions; // touch to ensure loaded
+      // @ts-ignore — Cesium internal
+      if (typeof (TaskProcessor as any).setMaximumActiveTasks === "function") {
+        (TaskProcessor as any).setMaximumActiveTasks(cores * 4);
+      }
+    } catch {}
+
+    // ── Render-resolution / post-processing ───────────────────
+    // Drop pixel work and disable FXAA — biggest single FPS win on
+    // photoreal tilesets. Restored when the component unmounts.
+    try {
+      (viewer as any).useBrowserRecommendedResolution = false;
+      viewer.resolutionScale = 0.85;
+      if (viewer.scene.postProcessStages?.fxaa) {
+        viewer.scene.postProcessStages.fxaa.enabled = false;
+      }
+    } catch {}
+
     // Add world terrain
     createWorldTerrainAsync({
       requestWaterMask: false,
