@@ -6479,6 +6479,8 @@ function SpaceshipPage() {
                 </div>
               </GlassPanel>
 
+              <div className="flex flex-col items-end shrink-0">
+              <GoogleAttributionPill viewer={viewerRef.current} visible={viewMode === "google"} />
               <GlassPanel className="px-2.5 py-1.5 sm:px-3 sm:py-2.5 shrink-0">
                 <div className="flex items-center gap-1.5 sm:gap-2.5">
                   <img src={eyePng} alt="Eye" width={16} height={16} className="w-3 h-3 sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
@@ -6506,6 +6508,7 @@ function SpaceshipPage() {
                   </div>
                 </div>
               </GlassPanel>
+              </div>
             </div>
           </div>
 
