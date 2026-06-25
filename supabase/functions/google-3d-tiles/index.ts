@@ -48,9 +48,16 @@ Deno.serve(async (req) => {
     });
   }
 
-  const apiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
+  // Prefer the dedicated Map Tiles key (user-supplied with Map Tiles API
+  // enabled on it). Fall back to the connector key if present — note that
+  // the Lovable-managed Google Maps connector key is a gateway token, not
+  // a real Google API key, and will be rejected by tile.googleapis.com.
+  const apiKey =
+    Deno.env.get("GOOGLE_MAP_TILES_API_KEY") ||
+    Deno.env.get("GOOGLE_MAPS_BROWSER_KEY") ||
+    Deno.env.get("GOOGLE_MAPS_API_KEY");
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: "GOOGLE_MAPS_API_KEY not configured" }), {
+    return new Response(JSON.stringify({ error: "GOOGLE_MAP_TILES_API_KEY not configured" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
