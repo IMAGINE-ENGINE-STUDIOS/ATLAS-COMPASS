@@ -27,6 +27,7 @@ import MarketplaceProductCard from "@/components/atlas/MarketplaceProductCard";
 import { fetchMarketplaceProducts, type MarketplaceProduct } from "@/lib/marketplace-products";
 import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLabelsOverlay";
 import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
+import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import {
   amenityToCategoryId,
   clearSelected,
