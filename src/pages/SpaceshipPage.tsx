@@ -742,7 +742,7 @@ function SpaceshipPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
-  const [viewMode, setViewMode] = useState<"realistic" | "osm">(savedUI.viewMode ?? "realistic");
+  const [viewMode, setViewMode] = useState<"google" | "realistic" | "osm">(savedUI.viewMode ?? "google");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   const [cameraAlt, setCameraAlt] = useState(0);
@@ -1134,9 +1134,9 @@ function SpaceshipPage() {
   // 3D Tiles are the only visible surface — Cesium's CLAMP_TO_GROUND falls
   // back to sea level there, dropping pins under buildings. CLAMP_TO_3D_TILE
   // anchors them to the photogrammetry top instead.
-  const viewModeRef = useRef<"realistic" | "osm">("realistic");
+  const viewModeRef = useRef<"google" | "realistic" | "osm">("google");
   const pinHeightRef = useCallback(() => (
-    viewModeRef.current === "realistic"
+    viewModeRef.current === "realistic" || viewModeRef.current === "google"
       ? HeightReference.CLAMP_TO_3D_TILE
       : HeightReference.CLAMP_TO_GROUND
   ), []);
@@ -1187,7 +1187,7 @@ function SpaceshipPage() {
   // Re-anchor every existing pin billboard when the view mode toggles.
   useEffect(() => {
     viewModeRef.current = viewMode;
-    const hr = viewMode === "realistic"
+    const hr = (viewMode === "realistic" || viewMode === "google")
       ? HeightReference.CLAMP_TO_3D_TILE
       : HeightReference.CLAMP_TO_GROUND;
     const refs = [
