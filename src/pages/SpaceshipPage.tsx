@@ -784,6 +784,11 @@ function SpaceshipPage() {
       otPreloadF: ot?.preloadFlightDestinations,
       preAnc: viewer.scene.globe.preloadAncestors,
       preSib: viewer.scene.globe.preloadSiblings,
+      rtImm: rt?.immediatelyLoadDesiredLevelOfDetail,
+      otImm: ot?.immediatelyLoadDesiredLevelOfDetail,
+      rtSib: rt?.loadSiblings,
+      otSib: ot?.loadSiblings,
+      gTileCache: viewer.scene.globe.tileCacheSize,
     };
     const apply = (ts: any, sse: number, cacheBytes: number) => {
       if (!ts) return;
@@ -797,6 +802,12 @@ function SpaceshipPage() {
       ts.preloadFlightDestinations = true;
       ts.progressiveResolutionHeightFraction = 0;
       ts.skipLevelOfDetail = false;
+      // Force top LOD immediately and proactively load neighbouring
+      // tiles so the player never sees a lower-LOD popin while walking
+      // / turning. Combined with the warmup pass below this gives a
+      // ~10mi (16km) hot cache around the character.
+      ts.immediatelyLoadDesiredLevelOfDetail = true;
+      ts.loadSiblings = true;
     };
     if (playing) {
       apply(rt, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD photoreal
@@ -804,10 +815,60 @@ function SpaceshipPage() {
       viewer.scene.globe.maximumScreenSpaceError = 1;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = true;
+      try { viewer.scene.globe.tileCacheSize = 2000; } catch {}
       viewer.scene.requestRender();
+
+      // ── Warmup prefetch pass ───────────────────────────────────
+      // Briefly point Cesium's camera straight down from ~6km above
+      // the player's spawn so the tilesets queue requests for a wide
+      // (~10mi) ring of tiles, then restore the camera. Repeat at a
+      // slow cadence so the hot ring follows the player as they walk.
+      const getAnchor = (): { lng: number; lat: number } | null => {
+        if (freePlaySpawn) return { lng: freePlaySpawn.lng, lat: freePlaySpawn.lat };
+        const p = levelPlacements.find((x) => x.level_id === playingLevelId);
+        if (p) return { lng: p.lng, lat: p.lat };
+        return null;
+      };
+      const prefetch = () => {
+        if (viewer.isDestroyed?.()) return;
+        const a = getAnchor();
+        if (!a) return;
+        const cam = viewer.camera;
+        const saved = {
+          pos: cam.positionWC.clone(),
+          dir: cam.directionWC.clone(),
+          up: cam.upWC.clone(),
+          right: cam.rightWC.clone(),
+        };
+        try {
+          // Top-down at 6km — frustum covers ~12km / ~7.5mi at 60° FOV,
+          // SSE=1 forces top LOD across that footprint.
+          cam.setView({
+            destination: Cartesian3.fromDegrees(a.lng, a.lat, 6000),
+            orientation: { heading: 0, pitch: -CesiumMath.PI_OVER_TWO, roll: 0 },
+          });
+          viewer.scene.render();
+        } catch {}
+        try {
+          cam.position = saved.pos;
+          cam.direction = saved.dir;
+          cam.up = saved.up;
+          cam.right = saved.right;
+          viewer.scene.requestRender();
+        } catch {}
+      };
+      // Run one immediately and then every 4s while playing.
+      prefetch();
+      const interval = window.setInterval(prefetch, 4000);
+      (viewer as any).__playPrefetchInterval = interval;
     }
     return () => {
       if (viewer.isDestroyed()) return;
+      const interval = (viewer as any).__playPrefetchInterval;
+      if (interval) {
+        clearInterval(interval);
+        delete (viewer as any).__playPrefetchInterval;
+      }
       if (rt) {
         if (typeof prev.rtSse === "number") rt.maximumScreenSpaceError = prev.rtSse;
         if (typeof prev.rtCache === "number") rt.cacheBytes = prev.rtCache;
@@ -816,6 +877,8 @@ function SpaceshipPage() {
         if (typeof prev.rtDyn === "boolean") rt.dynamicScreenSpaceError = prev.rtDyn;
         if (typeof prev.rtPreloadH === "boolean") rt.preloadWhenHidden = prev.rtPreloadH;
         if (typeof prev.rtPreloadF === "boolean") rt.preloadFlightDestinations = prev.rtPreloadF;
+        if (typeof prev.rtImm === "boolean") rt.immediatelyLoadDesiredLevelOfDetail = prev.rtImm;
+        if (typeof prev.rtSib === "boolean") rt.loadSiblings = prev.rtSib;
       }
       if (ot) {
         if (typeof prev.otSse === "number") ot.maximumScreenSpaceError = prev.otSse;
@@ -825,12 +888,17 @@ function SpaceshipPage() {
         if (typeof prev.otDyn === "boolean") ot.dynamicScreenSpaceError = prev.otDyn;
         if (typeof prev.otPreloadH === "boolean") ot.preloadWhenHidden = prev.otPreloadH;
         if (typeof prev.otPreloadF === "boolean") ot.preloadFlightDestinations = prev.otPreloadF;
+        if (typeof prev.otImm === "boolean") ot.immediatelyLoadDesiredLevelOfDetail = prev.otImm;
+        if (typeof prev.otSib === "boolean") ot.loadSiblings = prev.otSib;
       }
       if (typeof prev.gSse === "number") viewer.scene.globe.maximumScreenSpaceError = prev.gSse;
       if (typeof prev.preAnc === "boolean") viewer.scene.globe.preloadAncestors = prev.preAnc;
       if (typeof prev.preSib === "boolean") viewer.scene.globe.preloadSiblings = prev.preSib;
+      if (typeof prev.gTileCache === "number") {
+        try { viewer.scene.globe.tileCacheSize = prev.gTileCache; } catch {}
+      }
     };
-  }, [playingLevelId, freePlaySpawn, isLoaded]);
+  }, [playingLevelId, freePlaySpawn, isLoaded, levelPlacements]);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
