@@ -3851,6 +3851,7 @@ function SpaceshipPage() {
     const tilesets = [
       (viewer as any)._realisticTileset as Cesium3DTileset | undefined,
       (viewer as any)._osmTileset as Cesium3DTileset | undefined,
+      (viewer as any)._googleDirectTileset as Cesium3DTileset | undefined,
     ].filter(Boolean) as Cesium3DTileset[];
     tilesets.forEach((ts) => {
       try {
