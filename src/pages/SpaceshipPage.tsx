@@ -753,6 +753,84 @@ function SpaceshipPage() {
   // Active free-play spawn: when set, a playable character (default Soldier)
   // is dropped at the given lat/lng and the user controls it via WASD + mouse.
   const [freePlaySpawn, setFreePlaySpawn] = useState<FreePlaySpawn | null>(null);
+  // ───────────────────────────────────────────────────────────────
+  // PLAY-MODE TILE PRELOADER
+  // When the user is playing a level OR free-playing a character on
+  // the Earth, crank Cesium tilesets + globe to top LOD and let them
+  // pre-cache a wide area around the player so buildings never pop
+  // in. Restores the original "explore-mode" thresholds on exit.
+  // ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const playing = !!playingLevelId || !!freePlaySpawn;
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const rt = (viewer as any)._realisticTileset as any | undefined;
+    const ot = (viewer as any)._osmTileset as any | undefined;
+    const prev = {
+      rtSse: rt?.maximumScreenSpaceError,
+      otSse: ot?.maximumScreenSpaceError,
+      gSse: viewer.scene.globe.maximumScreenSpaceError,
+      rtCache: rt?.cacheBytes,
+      otCache: ot?.cacheBytes,
+      rtCull: rt?.cullRequestsWhileMoving,
+      otCull: ot?.cullRequestsWhileMoving,
+      rtFov: rt?.foveatedScreenSpaceError,
+      otFov: ot?.foveatedScreenSpaceError,
+      rtDyn: rt?.dynamicScreenSpaceError,
+      otDyn: ot?.dynamicScreenSpaceError,
+      rtPreloadH: rt?.preloadWhenHidden,
+      otPreloadH: ot?.preloadWhenHidden,
+      rtPreloadF: rt?.preloadFlightDestinations,
+      otPreloadF: ot?.preloadFlightDestinations,
+      preAnc: viewer.scene.globe.preloadAncestors,
+      preSib: viewer.scene.globe.preloadSiblings,
+    };
+    const apply = (ts: any, sse: number, cacheBytes: number) => {
+      if (!ts) return;
+      ts.maximumScreenSpaceError = sse;
+      ts.cacheBytes = cacheBytes;
+      ts.maximumCacheOverflowBytes = cacheBytes;
+      ts.cullRequestsWhileMoving = false;
+      ts.foveatedScreenSpaceError = false;
+      ts.dynamicScreenSpaceError = false;
+      ts.preloadWhenHidden = true;
+      ts.preloadFlightDestinations = true;
+      ts.progressiveResolutionHeightFraction = 0;
+      ts.skipLevelOfDetail = false;
+    };
+    if (playing) {
+      apply(rt, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD photoreal
+      apply(ot, 1, 1024 * 1024 * 1024);     // 1 GiB cache, top LOD OSM
+      viewer.scene.globe.maximumScreenSpaceError = 1;
+      viewer.scene.globe.preloadAncestors = true;
+      viewer.scene.globe.preloadSiblings = true;
+      viewer.scene.requestRender();
+    }
+    return () => {
+      if (viewer.isDestroyed()) return;
+      if (rt) {
+        if (typeof prev.rtSse === "number") rt.maximumScreenSpaceError = prev.rtSse;
+        if (typeof prev.rtCache === "number") rt.cacheBytes = prev.rtCache;
+        if (typeof prev.rtCull === "boolean") rt.cullRequestsWhileMoving = prev.rtCull;
+        if (typeof prev.rtFov === "boolean") rt.foveatedScreenSpaceError = prev.rtFov;
+        if (typeof prev.rtDyn === "boolean") rt.dynamicScreenSpaceError = prev.rtDyn;
+        if (typeof prev.rtPreloadH === "boolean") rt.preloadWhenHidden = prev.rtPreloadH;
+        if (typeof prev.rtPreloadF === "boolean") rt.preloadFlightDestinations = prev.rtPreloadF;
+      }
+      if (ot) {
+        if (typeof prev.otSse === "number") ot.maximumScreenSpaceError = prev.otSse;
+        if (typeof prev.otCache === "number") ot.cacheBytes = prev.otCache;
+        if (typeof prev.otCull === "boolean") ot.cullRequestsWhileMoving = prev.otCull;
+        if (typeof prev.otFov === "boolean") ot.foveatedScreenSpaceError = prev.otFov;
+        if (typeof prev.otDyn === "boolean") ot.dynamicScreenSpaceError = prev.otDyn;
+        if (typeof prev.otPreloadH === "boolean") ot.preloadWhenHidden = prev.otPreloadH;
+        if (typeof prev.otPreloadF === "boolean") ot.preloadFlightDestinations = prev.otPreloadF;
+      }
+      if (typeof prev.gSse === "number") viewer.scene.globe.maximumScreenSpaceError = prev.gSse;
+      if (typeof prev.preAnc === "boolean") viewer.scene.globe.preloadAncestors = prev.preAnc;
+      if (typeof prev.preSib === "boolean") viewer.scene.globe.preloadSiblings = prev.preSib;
+    };
+  }, [playingLevelId, freePlaySpawn, isLoaded]);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
