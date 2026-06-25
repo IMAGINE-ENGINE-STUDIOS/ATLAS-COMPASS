@@ -6490,6 +6490,10 @@ function SpaceshipPage() {
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">Mode</p>
                     <div className="flex items-center gap-1">
+                      <button onClick={() => switchViewMode("google")}
+                        className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "google" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
+                        <span className="flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> <span className="hidden sm:inline">Google 3D</span><span className="sm:hidden">G3D</span></span>
+                      </button>
                       <button onClick={() => switchViewMode("realistic")}
                         className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "realistic" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Satellite className="w-2.5 h-2.5" /> <span className="hidden sm:inline">Realistic</span><span className="sm:hidden">3D</span></span>
