@@ -43,7 +43,7 @@ import {
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined,
   HeadingPitchRoll, Transforms,
-  Cartesian2, Cesium3DTileset, RequestScheduler,
+  Cartesian2, Cesium3DTileset, RequestScheduler, TaskProcessor,
   PolylineGlowMaterialProperty,
   ClassificationType,
   SceneTransforms,
@@ -861,6 +861,46 @@ function SpaceshipPage() {
       prefetch();
       const interval = window.setInterval(prefetch, 4000);
       (viewer as any).__playPrefetchInterval = interval;
+
+      // ── Dynamic quality: sharper when idle, faster when moving ──
+      // While the camera/character is moving we relax SSE (more blur,
+      // higher FPS, less tile churn). The moment the user stops, we
+      // crank SSE back to 1 and bump resolutionScale back up so the
+      // standing-still frame is crisp.
+      const cam = viewer.camera;
+      let lastPos = cam.positionWC.clone();
+      let lastDir = cam.directionWC.clone();
+      let lastMoveT = performance.now();
+      let idleMode = false;
+      const prevResScale = viewer.resolutionScale;
+      // Aggressive play-mode baseline (quality floor = max-FPS).
+      try { viewer.resolutionScale = 0.7; } catch {}
+      const dynTick = () => {
+        if (viewer.isDestroyed()) return;
+        const moved =
+          Cartesian3.distance(cam.positionWC, lastPos) > 0.05 ||
+          Cartesian3.distance(cam.directionWC, lastDir) > 0.001;
+        if (moved) {
+          lastPos = cam.positionWC.clone();
+          lastDir = cam.directionWC.clone();
+          lastMoveT = performance.now();
+          if (idleMode) {
+            idleMode = false;
+            try { viewer.resolutionScale = 0.7; } catch {}
+            if (rt) rt.maximumScreenSpaceError = 4;
+            if (ot) ot.maximumScreenSpaceError = 4;
+          }
+        } else if (!idleMode && performance.now() - lastMoveT > 250) {
+          idleMode = true;
+          try { viewer.resolutionScale = 1.0; } catch {}
+          if (rt) rt.maximumScreenSpaceError = 1;
+          if (ot) ot.maximumScreenSpaceError = 1;
+          viewer.scene.requestRender();
+        }
+      };
+      const dynInterval = window.setInterval(dynTick, 100);
+      (viewer as any).__playDynInterval = dynInterval;
+      (viewer as any).__playPrevResScale = prevResScale;
     }
     return () => {
       if (viewer.isDestroyed()) return;
@@ -868,6 +908,16 @@ function SpaceshipPage() {
       if (interval) {
         clearInterval(interval);
         delete (viewer as any).__playPrefetchInterval;
+      }
+      const dynInterval = (viewer as any).__playDynInterval;
+      if (dynInterval) {
+        clearInterval(dynInterval);
+        delete (viewer as any).__playDynInterval;
+      }
+      const prevRS = (viewer as any).__playPrevResScale;
+      if (typeof prevRS === "number") {
+        try { viewer.resolutionScale = prevRS; } catch {}
+        delete (viewer as any).__playPrevResScale;
       }
       if (rt) {
         if (typeof prev.rtSse === "number") rt.maximumScreenSpaceError = prev.rtSse;
@@ -2192,6 +2242,31 @@ function SpaceshipPage() {
       RequestScheduler.maximumRequests = 128;
       RequestScheduler.maximumRequestsPerServer = 24;
       RequestScheduler.throttleRequests = true;
+    } catch {}
+
+    // ── Worker pool ────────────────────────────────────────────
+    // Cesium decodes glTF / 3D-Tile content on Web Workers. The
+    // default pool is tiny; raise it to the CPU's logical core count
+    // for much faster tile decode + texture upload on modern laptops.
+    try {
+      const cores = Math.max(2, Math.min(16, (navigator.hardwareConcurrency || 4)));
+      (TaskProcessor as any).maximumActiveTasks = cores * 4;
+      (TaskProcessor as any)._defaultWorkerOptions; // touch to ensure loaded
+      // @ts-ignore — Cesium internal
+      if (typeof (TaskProcessor as any).setMaximumActiveTasks === "function") {
+        (TaskProcessor as any).setMaximumActiveTasks(cores * 4);
+      }
+    } catch {}
+
+    // ── Render-resolution / post-processing ───────────────────
+    // Drop pixel work and disable FXAA — biggest single FPS win on
+    // photoreal tilesets. Restored when the component unmounts.
+    try {
+      (viewer as any).useBrowserRecommendedResolution = false;
+      viewer.resolutionScale = 0.85;
+      if (viewer.scene.postProcessStages?.fxaa) {
+        viewer.scene.postProcessStages.fxaa.enabled = false;
+      }
     } catch {}
 
     // Add world terrain
