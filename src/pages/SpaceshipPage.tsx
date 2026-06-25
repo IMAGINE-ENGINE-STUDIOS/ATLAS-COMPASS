@@ -861,6 +861,46 @@ function SpaceshipPage() {
       prefetch();
       const interval = window.setInterval(prefetch, 4000);
       (viewer as any).__playPrefetchInterval = interval;
+
+      // ── Dynamic quality: sharper when idle, faster when moving ──
+      // While the camera/character is moving we relax SSE (more blur,
+      // higher FPS, less tile churn). The moment the user stops, we
+      // crank SSE back to 1 and bump resolutionScale back up so the
+      // standing-still frame is crisp.
+      const cam = viewer.camera;
+      let lastPos = cam.positionWC.clone();
+      let lastDir = cam.directionWC.clone();
+      let lastMoveT = performance.now();
+      let idleMode = false;
+      const prevResScale = viewer.resolutionScale;
+      // Aggressive play-mode baseline (quality floor = max-FPS).
+      try { viewer.resolutionScale = 0.7; } catch {}
+      const dynTick = () => {
+        if (viewer.isDestroyed()) return;
+        const moved =
+          Cartesian3.distance(cam.positionWC, lastPos) > 0.05 ||
+          Cartesian3.distance(cam.directionWC, lastDir) > 0.001;
+        if (moved) {
+          lastPos = cam.positionWC.clone();
+          lastDir = cam.directionWC.clone();
+          lastMoveT = performance.now();
+          if (idleMode) {
+            idleMode = false;
+            try { viewer.resolutionScale = 0.7; } catch {}
+            if (rt) rt.maximumScreenSpaceError = 4;
+            if (ot) ot.maximumScreenSpaceError = 4;
+          }
+        } else if (!idleMode && performance.now() - lastMoveT > 250) {
+          idleMode = true;
+          try { viewer.resolutionScale = 1.0; } catch {}
+          if (rt) rt.maximumScreenSpaceError = 1;
+          if (ot) ot.maximumScreenSpaceError = 1;
+          viewer.scene.requestRender();
+        }
+      };
+      const dynInterval = window.setInterval(dynTick, 100);
+      (viewer as any).__playDynInterval = dynInterval;
+      (viewer as any).__playPrevResScale = prevResScale;
     }
     return () => {
       if (viewer.isDestroyed()) return;
@@ -868,6 +908,16 @@ function SpaceshipPage() {
       if (interval) {
         clearInterval(interval);
         delete (viewer as any).__playPrefetchInterval;
+      }
+      const dynInterval = (viewer as any).__playDynInterval;
+      if (dynInterval) {
+        clearInterval(dynInterval);
+        delete (viewer as any).__playDynInterval;
+      }
+      const prevRS = (viewer as any).__playPrevResScale;
+      if (typeof prevRS === "number") {
+        try { viewer.resolutionScale = prevRS; } catch {}
+        delete (viewer as any).__playPrevResScale;
       }
       if (rt) {
         if (typeof prev.rtSse === "number") rt.maximumScreenSpaceError = prev.rtSse;
