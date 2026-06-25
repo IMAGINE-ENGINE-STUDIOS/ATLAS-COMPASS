@@ -4,7 +4,9 @@
 // child URIs in JSON manifests so subsequent requests come back to us.
 
 const GOOGLE_BASE = "https://tile.googleapis.com/v1/3dtiles";
-const FN_PREFIX_RE = /^\/functions\/v1\/google-3d-tiles\/?/;
+// Match both the externally-visible path (/functions/v1/google-3d-tiles/...)
+// and the path Supabase forwards to the function runtime (/google-3d-tiles/...).
+const FN_PREFIX_RE = /^(?:\/functions\/v1)?\/google-3d-tiles\/?/;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
