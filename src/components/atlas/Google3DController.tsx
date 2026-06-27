@@ -38,7 +38,7 @@ const DEFAULTS: Settings = {
   showCredits: true,
 };
 
-const LS_KEY = "atlas.google3d.settings.v3";
+const LS_KEY = "atlas.google3d.settings.v4";
 
 function load(): Settings {
   try {
