@@ -32,7 +32,7 @@ const DEFAULTS: Settings = {
   dynamicSSE: true,
   dynamicSSEDensity: 0.00278,
   dynamicSSEFactor: 4,
-  skipLOD: true,
+  skipLOD: false,
   immediatelyLoad: false,
   shadows: false,
   showCredits: true,
