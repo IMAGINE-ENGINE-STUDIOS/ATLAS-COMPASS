@@ -3,7 +3,7 @@
  * Stale tiles are served instantly, fresh tiles stream directly to Cesium, and
  * cache maintenance is batched so rapid camera movement cannot freeze loading.
  */
-const CACHE = "atlas-tiles-v2";
+const CACHE = "atlas-tiles-v3";
 const MAX_ENTRIES = 1800;
 const TRIM_EVERY_PUTS = 25;
 const MAX_CACHEABLE_BYTES = 32 * 1024 * 1024;

@@ -1,6 +1,7 @@
 // Proxies Google Map Tiles API (Photorealistic 3D Tiles)
 const GOOGLE_BASE = "https://tile.googleapis.com/v1/3dtiles";
 const FN_PREFIX_RE = /^(?:\/functions\/v1)?\/google-3d-tiles\/?/;
+const DATASET_FILES_RE = /^datasets\/([^/]+)\/files\//;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,6 +63,23 @@ function rewriteUris(json: any, proxyRoot: string): any {
   return json;
 }
 
+function normalizeGoogle3DTilePath(path: string): string {
+  let normalized = path.replace(/^\/+/, "");
+  // Repair URLs produced by previously cached/re-resolved manifests, e.g.
+  // datasets/A/files/datasets/A/files/tile.glb -> datasets/A/files/tile.glb
+  // Google rejects the duplicated form with 400, which makes Cesium stall.
+  for (let i = 0; i < 4; i += 1) {
+    const match = normalized.match(DATASET_FILES_RE);
+    if (!match) break;
+    const prefix = match[0];
+    const duplicate = `datasets/${match[1]}/files/`;
+    const rest = normalized.slice(prefix.length);
+    if (!rest.startsWith(duplicate)) break;
+    normalized = prefix + rest.slice(duplicate.length);
+  }
+  return normalized;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "GET") {
@@ -85,11 +103,11 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const sub = url.pathname.replace(FN_PREFIX_RE, "");
-  const upstreamPath = sub.length === 0 ? "root.json" : sub;
+  const upstreamPath = sub.length === 0 ? "root.json" : normalizeGoogle3DTilePath(sub);
 
   const upstream = new URL(`${GOOGLE_BASE}/${upstreamPath}`);
   for (const [k, v] of url.searchParams.entries()) {
-    if (k === "key") continue;
+    if (k === "key" || k === "atlas_cache_bust") continue;
     upstream.searchParams.set(k, v);
   }
   upstream.searchParams.set("key", apiKey);
@@ -110,12 +128,16 @@ Deno.serve(async (req) => {
   }
 
   const ct = upstreamRes.headers.get("content-type") || "application/octet-stream";
+  const isJsonTile = ct.includes("application/json") || upstreamPath.endsWith(".json");
+  const okCacheControl = isJsonTile
+    ? "public, max-age=30, stale-while-revalidate=300"
+    : "public, max-age=86400, immutable";
   const passHeaders: Record<string, string> = {
     ...corsHeaders,
     "Content-Type": ct,
     // Cache successful tiles only. Never pin 4xx/5xx because Cesium will keep
     // retrying stale broken manifests/GLBs and the map appears frozen.
-    "Cache-Control": upstreamRes.ok ? "public, max-age=86400, immutable" : "no-store, max-age=0",
+    "Cache-Control": upstreamRes.ok ? okCacheControl : "no-store, max-age=0",
   };
   const etag = upstreamRes.headers.get("etag");
   if (etag) passHeaders["ETag"] = etag;
@@ -130,11 +152,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (ct.includes("application/json")) {
+  if (isJsonTile) {
     const json = await upstreamRes.json().catch(() => null);
     if (json) {
       // Proxy root for rewriting absolute-ish paths
-      const proxyRoot = `${url.origin}/functions/v1/google-3d-tiles/`;
+      const proxyRoot = `https://${url.host}/functions/v1/google-3d-tiles/`;
       const rewritten = rewriteUris(json, proxyRoot);
       return new Response(JSON.stringify(rewritten), {
         status: upstreamRes.status,

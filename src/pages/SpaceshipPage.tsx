@@ -2348,7 +2348,7 @@ function SpaceshipPage() {
     // through an edge-function proxy that injects the connector API key
     // server-side. This is the same dataset Google ships to Unity/Unreal
     // "Geospatial Creator" — no separate higher-detail tier exists.
-    const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json`;
+    const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json?atlas_cache_bust=4`;
     Cesium3DTileset.fromUrl(G3D_URL, {
       showCreditsOnScreen: false,
       maximumNumberOfLoadedTiles: 512,
