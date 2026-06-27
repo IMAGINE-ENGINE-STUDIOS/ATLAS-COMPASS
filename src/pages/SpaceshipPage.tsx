@@ -3796,55 +3796,28 @@ function SpaceshipPage() {
     setSearchQuery("");
   }, []);
 
-  const switchViewMode = useCallback((mode: "google" | "realistic" | "osm") => {
+  const switchViewMode = useCallback((mode: AtlasViewMode) => {
     if (!viewerRef.current) return;
     const viewer = viewerRef.current;
-    const google = (viewer as any)._googleDirectTileset;
-    // Ion realistic + OSM tilesets are lazy — only instantiated when the
-    // user actually switches to them. Saves a full parallel tileset load
-    // at boot which is what made the map feel "eternally slow" before.
-    if (mode === "realistic" && !(viewer as any)._realisticTileset) {
+    viewModeRef.current = mode;
+    showBuildingsRef.current = true;
+    if (mode === "google") {
+      (viewer as any)._ensureGoogleDirectTileset?.();
+    } else if (mode === "realistic") {
       (viewer as any)._ensureRealisticTileset?.();
-    }
-    if (mode === "osm" && !(viewer as any)._osmTileset) {
+    } else if (mode === "osm") {
       (viewer as any)._ensureOsmTileset?.();
     }
-    const realistic = (viewer as any)._realisticTileset;
-    const osm = (viewer as any)._osmTileset;
-
-    if (mode === "google") {
-      if (google) { google.show = true; }
-      if (realistic) { realistic.show = false; }
-      if (osm) { osm.show = false; }
-      viewer.scene.globe.show = !google;
-    } else if (mode === "realistic") {
-      if (google) { google.show = false; }
-      if (realistic) { realistic.show = true; }
-      if (osm) { osm.show = false; }
-      viewer.scene.globe.show = !realistic;
-    } else {
-      if (google) { google.show = false; }
-      if (realistic) { realistic.show = false; }
-      if (osm) { osm.show = true; }
-      viewer.scene.globe.show = true;
-    }
+    applyAtlasMapVisibility(viewer, mode, true);
     setViewMode(mode);
     setShowBuildings(true);
   }, []);
 
   const toggleBuildings = useCallback(() => {
     if (!viewerRef.current) return;
-    const google = (viewerRef.current as any)._googleDirectTileset;
-    const realistic = (viewerRef.current as any)._realisticTileset;
-    const osm = (viewerRef.current as any)._osmTileset;
     const newShow = !showBuildings;
-    if (viewMode === "google" && google) {
-      google.show = newShow;
-    } else if (viewMode === "realistic" && realistic) {
-      realistic.show = newShow;
-    } else if (osm) {
-      osm.show = newShow;
-    }
+    showBuildingsRef.current = newShow;
+    applyAtlasMapVisibility(viewerRef.current, viewMode, newShow);
     setShowBuildings(newShow);
   }, [showBuildings, viewMode]);
 
