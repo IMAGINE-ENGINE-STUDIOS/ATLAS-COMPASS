@@ -162,16 +162,14 @@ const applyAtlasMapVisibility = (
   const google = viewer._googleDirectTileset as Cesium3DTileset | undefined;
   const realistic = viewer._realisticTileset as Cesium3DTileset | undefined;
   const osm = viewer._osmTileset as Cesium3DTileset | undefined;
+  const wantsPhotoreal = mode === "google" || mode === "realistic";
+  const activePhotoreal = google ?? realistic;
 
-  const googleFallback = mode === "google" && !google && realistic ? realistic : null;
-  if (google) google.show = mode === "google" && showBuildings;
-  if (realistic) realistic.show = showBuildings && (mode === "realistic" || realistic === googleFallback);
+  if (google) google.show = wantsPhotoreal && showBuildings && activePhotoreal === google;
+  if (realistic) realistic.show = wantsPhotoreal && showBuildings && activePhotoreal === realistic;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
-  const hasVisiblePhotoreal = showBuildings && (
-    (mode === "google" && !!(google || googleFallback)) ||
-    (mode === "realistic" && !!realistic)
-  );
+  const hasVisiblePhotoreal = wantsPhotoreal && showBuildings && !!activePhotoreal;
   viewer.scene.globe.show = mode === "osm" || !hasVisiblePhotoreal;
   viewer.scene.requestRender?.();
 };
