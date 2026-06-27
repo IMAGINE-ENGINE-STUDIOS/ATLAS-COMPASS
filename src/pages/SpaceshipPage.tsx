@@ -755,6 +755,16 @@ function SpaceshipPage() {
   // Active free-play spawn: when set, a playable character (default Soldier)
   // is dropped at the given lat/lng and the user controls it via WASD + mouse.
   const [freePlaySpawn, setFreePlaySpawn] = useState<FreePlaySpawn | null>(null);
+  // Refs mirror the play-mode anchors so the boost-effect below can read
+  // them without `levelPlacements` sitting in its deps array (which would
+  // re-run the effect on every placement-list change and leak the boosted
+  // SSE/cache values back as the "previous" explore-mode baseline).
+  const playingLevelIdRef = useRef<string | null>(null);
+  const freePlaySpawnRef = useRef<FreePlaySpawn | null>(null);
+  const levelPlacementsRef = useRef<typeof levelPlacements>([]);
+  useEffect(() => { playingLevelIdRef.current = playingLevelId; }, [playingLevelId]);
+  useEffect(() => { freePlaySpawnRef.current = freePlaySpawn; }, [freePlaySpawn]);
+  useEffect(() => { levelPlacementsRef.current = levelPlacements; }, [levelPlacements]);
   // ───────────────────────────────────────────────────────────────
   // PLAY-MODE TILE PRELOADER
   // When the user is playing a level OR free-playing a character on
