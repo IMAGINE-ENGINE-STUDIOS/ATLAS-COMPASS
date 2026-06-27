@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
   const upstream = new URL(`${GOOGLE_BASE}/${upstreamPath}`);
   for (const [k, v] of url.searchParams.entries()) {
-    if (k === "key") continue;
+    if (k === "key" || k === "atlas_cache_bust") continue;
     upstream.searchParams.set(k, v);
   }
   upstream.searchParams.set("key", apiKey);
@@ -128,12 +128,16 @@ Deno.serve(async (req) => {
   }
 
   const ct = upstreamRes.headers.get("content-type") || "application/octet-stream";
+  const isJsonTile = ct.includes("application/json") || upstreamPath.endsWith(".json");
+  const okCacheControl = isJsonTile
+    ? "public, max-age=30, stale-while-revalidate=300"
+    : "public, max-age=86400, immutable";
   const passHeaders: Record<string, string> = {
     ...corsHeaders,
     "Content-Type": ct,
     // Cache successful tiles only. Never pin 4xx/5xx because Cesium will keep
     // retrying stale broken manifests/GLBs and the map appears frozen.
-    "Cache-Control": upstreamRes.ok ? "public, max-age=86400, immutable" : "no-store, max-age=0",
+    "Cache-Control": upstreamRes.ok ? okCacheControl : "no-store, max-age=0",
   };
   const etag = upstreamRes.headers.get("etag");
   if (etag) passHeaders["ETag"] = etag;
@@ -148,7 +152,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (ct.includes("application/json") || upstreamPath.endsWith(".json")) {
+  if (isJsonTile) {
     const json = await upstreamRes.json().catch(() => null);
     if (json) {
       // Proxy root for rewriting absolute-ish paths
