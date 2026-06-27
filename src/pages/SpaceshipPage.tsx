@@ -119,6 +119,8 @@ const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyM
  *  - keep memory caches large enough to prevent thrash, but below OOM sizes
  */
 const TILE_MIB = 1024 * 1024;
+type AtlasViewMode = "google" | "realistic" | "osm";
+
 const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "boot") => {
   if (!ts) return;
   const isFar = profile === "far";
@@ -149,6 +151,29 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
     ts.skipLevels = 1;
     ts.shadows = 0;
   } catch {}
+};
+
+const applyAtlasMapVisibility = (
+  viewer: any,
+  mode: AtlasViewMode,
+  showBuildings: boolean,
+) => {
+  if (!viewer || viewer.isDestroyed?.()) return;
+  const google = viewer._googleDirectTileset as Cesium3DTileset | undefined;
+  const realistic = viewer._realisticTileset as Cesium3DTileset | undefined;
+  const osm = viewer._osmTileset as Cesium3DTileset | undefined;
+
+  const googleFallback = mode === "google" && !google && realistic ? realistic : null;
+  if (google) google.show = mode === "google" && showBuildings;
+  if (realistic) realistic.show = showBuildings && (mode === "realistic" || realistic === googleFallback);
+  if (osm) osm.show = mode === "osm" && showBuildings;
+
+  const hasVisiblePhotoreal = showBuildings && (
+    (mode === "google" && !!(google || googleFallback)) ||
+    (mode === "realistic" && !!realistic)
+  );
+  viewer.scene.globe.show = mode === "osm" || !hasVisiblePhotoreal;
+  viewer.scene.requestRender?.();
 };
 
 /* ── Types ── */
