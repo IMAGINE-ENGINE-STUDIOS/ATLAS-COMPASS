@@ -61,7 +61,10 @@ serve(async (req) => {
       throw new Error(error.message);
     }
 
-    const rows = data || [];
+    const sourceRows = data || [];
+    const rows = sourceRows.filter((row: any) => (
+      Math.abs(Number(row.lat) || 0) > 0.000001 || Math.abs(Number(row.lng) || 0) > 0.000001
+    ));
     const cameras = rows.map((row: any) => ({
       id: row.id,
       name: row.name,
@@ -76,7 +79,7 @@ serve(async (req) => {
 
     const total = count || 0;
     // Advance cursor by actual returned count to prevent skipping
-    const nextOffset = offset + rows.length;
+    const nextOffset = offset + sourceRows.length;
     const hasMore = nextOffset < total;
     const nextCursor = hasMore ? nextOffset : undefined;
 
