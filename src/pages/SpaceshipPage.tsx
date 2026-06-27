@@ -69,6 +69,8 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import AtlasSplatOverlay from "@/components/atlas/AtlasSplatOverlay";
+import AtlasSplatUploader from "@/components/atlas/AtlasSplatUploader";
 import AtlasFreePlayOverlay, {
   DEFAULT_FREEPLAY_CHARACTER,
   type FreePlaySpawn,
@@ -4846,6 +4848,11 @@ function SpaceshipPage() {
         placements={levelPlacements}
         onPlayingChange={handleLevelPlayingChange}
       />
+
+      {/* Gaussian Splat landmarks — high-fidelity overlays at specific
+          coords, loaded only when the camera is within their radius. */}
+      <AtlasSplatOverlay viewerRef={viewerRef} />
+      <AtlasSplatUploader viewer={viewerRef.current} />
 
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
           (right-click / double-click → "Play from here"). WASD + mouse,
