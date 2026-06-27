@@ -1659,7 +1659,12 @@ function SpaceshipPage() {
         description: r.name + (r.address ? ` — ${r.address}` : ""),
       });
       businessEntitiesRef.current.push(entity);
-      clampPinToSurface(entity, r.lng, r.lat);
+      // Batch ground-clamp probes: a 500-item burst of
+      // sampleHeightMostDetailed walks the entire 3D-tile tree once per
+      // entity and can OOM mobile. Stagger across ~5s in groups of 16 so
+      // tile streaming stays smooth.
+      const delay = Math.floor(idx / 16) * 80;
+      window.setTimeout(() => clampPinToSurface(entity, r.lng, r.lat), delay);
     });
     viewer.scene.requestRender?.();
   }, []);
