@@ -573,6 +573,63 @@ export type Database = {
         }
         Relationships: []
       }
+      splat_landmarks: {
+        Row: {
+          altitude: number
+          created_at: string
+          description: string | null
+          file_path: string
+          file_size_bytes: number | null
+          heading: number
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          owner_id: string | null
+          pitch: number
+          radius_m: number
+          roll: number
+          scale: number
+          updated_at: string
+        }
+        Insert: {
+          altitude?: number
+          created_at?: string
+          description?: string | null
+          file_path: string
+          file_size_bytes?: number | null
+          heading?: number
+          id?: string
+          latitude: number
+          longitude: number
+          name: string
+          owner_id?: string | null
+          pitch?: number
+          radius_m?: number
+          roll?: number
+          scale?: number
+          updated_at?: string
+        }
+        Update: {
+          altitude?: number
+          created_at?: string
+          description?: string | null
+          file_path?: string
+          file_size_bytes?: number | null
+          heading?: number
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          owner_id?: string | null
+          pitch?: number
+          radius_m?: number
+          roll?: number
+          scale?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
