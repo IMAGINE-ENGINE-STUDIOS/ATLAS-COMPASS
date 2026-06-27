@@ -2417,6 +2417,7 @@ function SpaceshipPage() {
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._googleDirectTileset = tileset;
+        destroyAtlasTileset(viewer, "_realisticTileset");
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
