@@ -107,6 +107,7 @@ import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery"
 import SearchResultsPanel from "@/components/atlas/SearchResultsPanel";
 import GlyphIcon from "@/components/atlas/GlyphIcon";
 import AtlasScreenshotMenu from "@/components/atlas/AtlasScreenshotMenu";
+import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
@@ -2616,6 +2617,10 @@ function SpaceshipPage() {
       handler.destroy();
       if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
       if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
+      // Release the module-level Viewer ref held by the shared scheduler
+      // so its WebGL resources can be GC'd after navigation / HMR.
+      try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
+      try { window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady); } catch {}
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
