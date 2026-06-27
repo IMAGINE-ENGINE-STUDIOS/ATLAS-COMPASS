@@ -2325,64 +2325,57 @@ function SpaceshipPage() {
       }
     });
 
-    // Load Google Photorealistic 3D Tiles as default (asset 2275207)
-    Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
-      if (!viewer.isDestroyed()) {
+    // ── Ion + OSM are now LAZY ─────────────────────────────────
+    // Boot used to instantiate THREE full-detail photoreal tilesets in
+    // parallel (Ion realistic, OSM buildings, Google Direct). Each with a
+    // 1.5 GiB cache + loadSiblings, all saturating the request scheduler
+    // simultaneously — that was the "eternally slow" map load. Only Google
+    // Direct is the visible default, so we defer the other two and only
+    // create them on demand (fallback or user-toggled map type).
+    (viewer as any)._ensureRealisticTileset = () => {
+      if ((viewer as any)._realisticTileset || (viewer as any)._realisticLoading) {
+        return (viewer as any)._realisticTileset ?? null;
+      }
+      (viewer as any)._realisticLoading = true;
+      return Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
+        if (viewer.isDestroyed()) return null;
         viewer.scene.primitives.add(tileset);
         tileset.maximumScreenSpaceError = 8;
-        // Persistent in-memory cache (~1.5 GiB) so tiles the user
-        // already saw stay resident for kilometers around as they
-        // walk back and forth. Cesium evicts least-recently-used
-        // tiles when this is exceeded.
         try {
           (tileset as any).cacheBytes = 1.5 * 1024 * 1024 * 1024;
           (tileset as any).maximumCacheOverflowBytes = 512 * 1024 * 1024;
           (tileset as any).preloadWhenHidden = true;
-          (tileset as any).loadSiblings = true;
+          (tileset as any).foveatedScreenSpaceError = true;
+          (tileset as any).progressiveResolutionHeightFraction = 0.5;
         } catch {}
         (viewer as any)._realisticTileset = tileset;
         viewer.scene.requestRender();
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
+        return tileset;
+      }).finally(() => { (viewer as any)._realisticLoading = false; });
+    };
+    (viewer as any)._ensureOsmTileset = () => {
+      if ((viewer as any)._osmTileset || (viewer as any)._osmLoading) {
+        return (viewer as any)._osmTileset ?? null;
       }
-    }).catch(() => {
-      // Fallback: if realistic tiles fail, show the globe + reveal the OSM
-      // buildings that the block below already (asynchronously) instantiated.
-      // Do NOT create a second OSM tileset here — that doubled GPU memory
-      // and leaked one of the two until viewer destroy.
-      if (!viewer.isDestroyed()) {
-        console.warn("Realistic tiles unavailable, falling back to OSM");
-        viewer.scene.globe.show = true;
-        viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
-        const revealOsm = () => {
-          const ot = (viewer as any)._osmTileset;
-          if (ot) {
-            ot.show = true;
-            viewer.scene.requestRender();
-          } else {
-            // OSM still loading — try again shortly.
-            setTimeout(revealOsm, 250);
-          }
-        };
-        revealOsm();
-      }
-    });
-
-    // Also pre-load OSM buildings (hidden by default)
-    createOsmBuildingsAsync().then((tileset) => {
-      if (!viewer.isDestroyed()) {
+      (viewer as any)._osmLoading = true;
+      return createOsmBuildingsAsync().then((tileset) => {
+        if (viewer.isDestroyed()) return null;
         viewer.scene.primitives.add(tileset);
-        tileset.maximumScreenSpaceError = 4;
+        tileset.maximumScreenSpaceError = 8;
         tileset.show = false;
         try {
-          (tileset as any).cacheBytes = 768 * 1024 * 1024;
-          (tileset as any).maximumCacheOverflowBytes = 256 * 1024 * 1024;
+          (tileset as any).cacheBytes = 512 * 1024 * 1024;
+          (tileset as any).maximumCacheOverflowBytes = 128 * 1024 * 1024;
           (tileset as any).preloadWhenHidden = true;
-          (tileset as any).loadSiblings = true;
+          (tileset as any).foveatedScreenSpaceError = true;
+          (tileset as any).progressiveResolutionHeightFraction = 0.5;
         } catch {}
         (viewer as any)._osmTileset = tileset;
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
-      }
-    });
+        return tileset;
+      }).finally(() => { (viewer as any)._osmLoading = false; });
+    };
 
     // ── Google Photorealistic 3D Tiles (Direct via Map Tiles API) ──
     // Streams the freshest mesh straight from tile.googleapis.com
@@ -2395,12 +2388,32 @@ function SpaceshipPage() {
     } as any).then((tileset) => {
       if (viewer.isDestroyed()) return;
       viewer.scene.primitives.add(tileset);
-      tileset.maximumScreenSpaceError = 8;
+      // Slightly relaxed SSE (16) at boot for FAST first paint — center
+      // of the viewport refines first thanks to foveated loading, then
+      // expands outwards. The play-mode preloader will tighten to 4 once
+      // a character is dropped, which is when sub-meter detail matters.
+      tileset.maximumScreenSpaceError = 16;
       try {
-        (tileset as any).cacheBytes = 1.5 * 1024 * 1024 * 1024;
-        (tileset as any).maximumCacheOverflowBytes = 512 * 1024 * 1024;
+        // Keep tiles resident in memory up to ~23km cam altitude (well
+        // beyond viewport extent at city zoom). 2 GiB covers Manhattan
+        // + most major metros without thrashing.
+        (tileset as any).cacheBytes = 2 * 1024 * 1024 * 1024;
+        (tileset as any).maximumCacheOverflowBytes = 768 * 1024 * 1024;
         (tileset as any).preloadWhenHidden = true;
-        (tileset as any).loadSiblings = true;
+        // foveated = center-of-viewport refines first, edges follow.
+        (tileset as any).foveatedScreenSpaceError = true;
+        (tileset as any).foveatedConeSize = 0.2;
+        // progressive = show a coarse version immediately, then refine.
+        (tileset as any).progressiveResolutionHeightFraction = 0.5;
+        // siblings inflate request volume 4x and aren't needed until the
+        // character actually moves — play mode flips this back on.
+        (tileset as any).loadSiblings = false;
+        // Skip-LOD lets Cesium jump straight to high detail when zooming
+        // in, instead of streaming every intermediate level.
+        (tileset as any).skipLevelOfDetail = true;
+        (tileset as any).baseScreenSpaceError = 1024;
+        (tileset as any).skipScreenSpaceErrorFactor = 16;
+        (tileset as any).skipLevels = 1;
       } catch {}
       (viewer as any)._googleDirectTileset = tileset;
       // New default: hide Ion-routed photoreal in favour of the direct feed.
