@@ -69,6 +69,8 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // One open world: the user can fly/drive/walk/train between placements
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
+import AtlasSplatOverlay from "@/components/atlas/AtlasSplatOverlay";
+import AtlasSplatUploader from "@/components/atlas/AtlasSplatUploader";
 import AtlasFreePlayOverlay, {
   DEFAULT_FREEPLAY_CHARACTER,
   type FreePlaySpawn,
