@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Settings2, X, RotateCcw } from "lucide-react";
+import { applyAtlasVisuals, getAtlasVisualsPreset, setAtlasVisualsPreset, type AtlasVisualsPreset } from "@/lib/atlasVisuals";
 
 interface Props {
   viewer: any | null;
@@ -52,6 +53,7 @@ export default function Google3DController({ viewer, visible }: Props) {
   const [open, setOpen] = useState(false);
   const [s, setS] = useState<Settings>(() => load());
   const popRef = useRef<HTMLDivElement | null>(null);
+  const [visualsPreset, setVisualsPresetState] = useState<AtlasVisualsPreset>(() => getAtlasVisualsPreset());
 
   // Persist
   useEffect(() => {
@@ -143,6 +145,31 @@ export default function Google3DController({ viewer, visible }: Props) {
           </div>
 
           <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div>
+              <div className="text-[10px] text-white/85 mb-1">Visual quality</div>
+              <div className="grid grid-cols-3 gap-1">
+                {(["off","balanced","cinematic"] as AtlasVisualsPreset[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => {
+                      setVisualsPresetState(p);
+                      setAtlasVisualsPreset(p);
+                      try { applyAtlasVisuals(viewer, p); } catch {}
+                    }}
+                    className={`px-1.5 py-1 rounded text-[9px] uppercase tracking-wider font-mono border transition-colors ${
+                      visualsPreset === p
+                        ? "bg-emerald-500/30 border-emerald-400/50 text-emerald-100"
+                        : "bg-white/5 border-white/10 text-white/60 hover:text-white"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[8px] text-white/40 mt-0.5">HDR tonemap + SSAO + sharpening + atmosphere.</p>
+            </div>
+            <div className="h-px bg-white/10 my-1" />
+
             <Slider label="Screen-space error" hint="Lower = sharper, more bandwidth"
               min={1} max={32} step={1} value={s.sse}
               onChange={(v) => set("sse", v)} suffix="px" />

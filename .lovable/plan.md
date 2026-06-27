@@ -1,44 +1,67 @@
 ## Goal
-Make Atlas Intelligence load nearby live cameras without freezing the browser or overloading the computer.
+Two independent wins that ship together:
+1. **Atlas visual polish** — make Google Photoreal tiles look noticeably better while walking, with zero backend cost.
+2. **3DGS landmark overlays** — let users upload pre-trained Gaussian Splat files (`.splat` / `.ksplat` / `.ply`) and pin them to lat/lon coords, then render them on top of the tiles when the character/camera is near.
 
-## What I found
-- The camera database has data and New York queries return cameras.
-- The current panel requests up to 800 cameras per page and can fetch 2 pages for a viewport.
-- Opening Intelligence then renders up to 500 Cesium camera billboards and runs `sampleHeightMostDetailed` for every pin, which can force 3D tile loading and stall the main scene.
-- The list also creates proxied thumbnail image requests for many visible rows, adding extra network/backend load.
-- The database query is much faster when returning a smaller, ordered subset instead of broad pages sorted by id.
+---
 
-## Fix plan
-1. **Make camera fetches lightweight**
-   - Change `traffic-cameras` to return only fields the UI needs.
-   - Hard-cap requested limits server-side to a small safe number.
-   - Order by nearby/map-friendly coordinates instead of broad id sorting.
+## Part 1 — Visual polish pass on Atlas (today)
 
-2. **Render fewer pins immediately**
-   - Reduce the live Intelligence map pin cap from 500 to a small visible batch.
-   - Add the rest progressively only if needed, instead of blocking the first frame.
+Edit `src/pages/SpaceshipPage.tsx` viewer init:
 
-3. **Stop mass high-detail terrain sampling**
-   - Remove `sampleHeightMostDetailed` from Intelligence pins.
-   - Use Cesium height references for camera pins first, with optional cheap sampling only for selected/nearby pins.
+- **HDR + tonemapping**: `viewer.scene.highDynamicRange = true`, set `scene.postProcessStages.tonemapper = Tonemapper.ACES` (ACES filmic). Removes the "washed flat" look of Google tiles.
+- **FXAA back on at low cost** + add `scene.msaaSamples = 4` when device pixel ratio ≤ 1.5 (skip on Retina to save GPU).
+- **Built-in SSAO**: enable `scene.postProcessStages.ambientOcclusion` with tuned `intensity`, `bias`, `lengthCap`, `stepSize`, `frustumLength` — adds contact shading between buildings and ground.
+- **Sun / atmosphere**: tighten `globe.atmosphereLightIntensity`, set `scene.light` to a `DirectionalLight` aligned with sun azimuth, slight `atmosphereHueShift`/`saturationShift` tuned for daylight realism (current values are night-themed).
+- **Contact shadow under character** in `PlayableCharacter.tsx`: small dark radial sprite under feet (cheap, no shadow map).
+- **Sharpen pass**: tiny custom `PostProcessStage` (unsharp-mask GLSL) on top — counters the bilinear blur at `resolutionScale 0.8`.
+- **Quality preset toggle** in `Google3DController.tsx`: Off / Balanced / Cinematic so users can disable on weak GPUs.
 
-4. **Prevent thumbnail overload**
-   - Only show thumbnails for the first small batch in the panel.
-   - Use placeholders for the rest until selected or scrolled into view.
-   - Add safer caching to the proxy so repeated images do not hammer the backend.
+All effects gated behind a single `applyAtlasVisuals(viewer, preset)` helper so it's one call site.
 
-5. **Make sync non-blocking**
-   - Keep Sync manual.
-   - Add stronger UI guards so pressing Sync cannot launch repeated expensive operations.
-   - Keep viewport reload separate from upstream sync.
+---
 
-6. **Validate**
-   - Test the traffic camera function against a New York viewport.
-   - Open Intelligence in Atlas and verify cameras appear without tab freeze.
-   - Check logs/network for repeated camera proxy storms or function errors.
+## Part 2 — 3DGS landmark overlays
 
-## Files likely affected
-- `src/components/atlas/IntelligencePanel.tsx`
-- `src/pages/SpaceshipPage.tsx`
-- `supabase/functions/traffic-cameras/index.ts`
-- `supabase/functions/proxy-camera-image/index.ts`
+### Storage & data
+- New Cloud bucket `splat-landmarks` (public read, authenticated write).
+- New table `splat_landmarks`: `name`, `description`, `lon`, `lat`, `altitude`, `heading`, `pitch`, `roll`, `scale`, `file_path` (bucket path), `radius_m` (visibility radius), `owner_id`.
+- RLS: anyone authenticated can read; only owner can update/delete; service_role full.
+
+### Rendering
+- Add `@mkkellogg/gaussian-splats-3d` (works directly with three.js, supports `.splat`/`.ksplat`/`.ply`, streaming load).
+- New component `AtlasSplatOverlay.tsx`:
+  - Subscribes to `splat_landmarks` rows.
+  - Each frame computes camera→landmark distance; loads splat when within `radius_m * 1.5`, unloads when beyond `radius_m * 3` (LRU, max 3 loaded).
+  - Splats render in a sibling R3F `Canvas` (same overlay pattern as `AtlasLevelsR3FOverlay`), positioned via Cesium ECEF → world matrix already used for levels.
+  - Honors play-mode camera so splats render correctly whether free-flying or walking.
+
+### Authoring UI
+- New `AtlasSplatUploader.tsx` (small dialog opened from Google3D controller dropdown):
+  - Drag-drop `.splat`/`.ksplat`/`.ply` → uploads to bucket, creates row at current camera lat/lon.
+  - Sliders for altitude offset, heading/pitch/roll, scale, visibility radius. Live preview.
+- Existing `EarthContextMenu` gets a "Pin Splat Here" entry that pre-fills the dialog with click coords.
+
+### Performance guardrails
+- Hard cap: max 3 splat models loaded at once.
+- File-size warning over 80 MB.
+- Splat draw uses the same `requestRenderMode` rules as the rest of the overlay.
+
+---
+
+## Technical details (collapse if not relevant)
+
+- Package adds: `@mkkellogg/gaussian-splats-3d` (~MIT, three.js-only).
+- Existing `tuneAtlasTileset` and `applyAtlasMapVisibility` are untouched.
+- The SSAO + tonemap toggles persist in `localStorage` under `atlas.visuals.v1` so user choice survives reloads.
+- Splat positioning reuses the ECEF→world conversion already used by `AtlasLevelsR3FOverlay.tsx` (no new math).
+- Migration includes GRANT block for `authenticated` + `service_role`, and storage policies for the bucket.
+
+---
+
+## Out of scope
+- Training new splats (users bring pre-trained files; tons of free tools like Polycam, Postshot, Luma export `.ply`/`.splat`).
+- Per-splat lighting integration with Cesium sun (splats are baked).
+- Editing splat point clouds in-app.
+
+Approve and I'll ship Part 1 first (visible immediately), then wire Part 2 (migration → bucket → renderer → uploader).
