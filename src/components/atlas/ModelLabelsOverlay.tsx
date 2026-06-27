@@ -51,6 +51,9 @@ interface Cluster {
   key: string;
   category: string;
   members: PlacedModelLike[];
+  anchorLat: number;
+  anchorLng: number;
+  anchorAlt: number;
 }
 
 interface Props {
@@ -79,44 +82,81 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
         setClusters([]);
         return;
       }
-      const screen: ScreenPos[] = [];
+      const canvas = viewer.scene.canvas;
+      const cw = canvas.clientWidth || 0;
+      const ch = canvas.clientHeight || 0;
+      const margin = 220;
+      const screen: (ScreenPos & { cellX: number; cellY: number })[] = [];
       for (const m of models) {
         try {
           const world = Cartesian3.fromDegrees(m.lng, m.lat, (m.alt || 0) + 12);
           const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
-          if (!win) {
-            // still include — will be hidden in postRender if off-screen
-            screen.push({ id: m.id, x: 0, y: 0, model: m });
-            continue;
-          }
-          screen.push({ id: m.id, x: win.x, y: win.y, model: m });
-        } catch {
-          screen.push({ id: m.id, x: 0, y: 0, model: m });
-        }
+          if (!win) continue;
+          if (win.x < -margin || win.y < -margin || win.x > cw + margin || win.y > ch + margin) continue;
+          screen.push({
+            id: m.id,
+            x: win.x,
+            y: win.y,
+            model: m,
+            cellX: Math.floor(win.x / clusterDistancePx),
+            cellY: Math.floor(win.y / clusterDistancePx),
+          });
+        } catch {}
       }
-      const out: Cluster[] = [];
-      const used = new Set<string>();
+      const out: (Cluster & { x: number; y: number })[] = [];
+      const grid = new Map<string, number[]>();
+      const r2 = clusterDistancePx * clusterDistancePx;
       for (const p of screen) {
-        if (used.has(p.id)) continue;
         const cat = p.model.category || "other";
-        const members: PlacedModelLike[] = [p.model];
-        used.add(p.id);
-        for (const q of screen) {
-          if (used.has(q.id)) continue;
-          if ((q.model.category || "other") !== cat) continue;
-          const dx = q.x - p.x, dy = q.y - p.y;
-          if (dx * dx + dy * dy <= clusterDistancePx * clusterDistancePx) {
-            members.push(q.model);
-            used.add(q.id);
+        let hit = -1;
+        for (let dx = -1; dx <= 1 && hit < 0; dx++) {
+          for (let dy = -1; dy <= 1 && hit < 0; dy++) {
+            const ids = grid.get(`${cat}:${p.cellX + dx}:${p.cellY + dy}`);
+            if (!ids) continue;
+            for (const idx of ids) {
+              const c = out[idx];
+              const ddx = c.x - p.x;
+              const ddy = c.y - p.y;
+              if (ddx * ddx + ddy * ddy <= r2) { hit = idx; break; }
+            }
           }
         }
-        out.push({
-          key: members.map(m => m.id).sort().join("|"),
-          category: cat,
-          members,
-        });
+        if (hit >= 0) {
+          const c = out[hit];
+          c.members.push(p.model);
+          const n = c.members.length;
+          c.x += (p.x - c.x) / n;
+          c.y += (p.y - c.y) / n;
+          c.anchorLat += (p.model.lat - c.anchorLat) / n;
+          c.anchorLng += (p.model.lng - c.anchorLng) / n;
+          c.anchorAlt += ((p.model.alt || 0) - c.anchorAlt) / n;
+        } else {
+          const idx = out.length;
+          out.push({
+            key: p.id,
+            category: cat,
+            members: [p.model],
+            anchorLat: p.model.lat,
+            anchorLng: p.model.lng,
+            anchorAlt: p.model.alt || 0,
+            x: p.x,
+            y: p.y,
+          });
+          const gk = `${cat}:${p.cellX}:${p.cellY}`;
+          const arr = grid.get(gk);
+          if (arr) arr.push(idx); else grid.set(gk, [idx]);
+        }
       }
-      setClusters(out);
+      setClusters(out.slice(0, 350).map(c => ({
+        key: c.members.length === 1
+          ? c.members[0].id
+          : `${c.category}:${Math.round(c.anchorLat * 1e5)}:${Math.round(c.anchorLng * 1e5)}:${c.members.length}`,
+        category: c.category,
+        members: c.members,
+        anchorLat: c.anchorLat,
+        anchorLng: c.anchorLng,
+        anchorAlt: c.anchorAlt,
+      })));
     };
   }, [viewer, models, clusterDistancePx]);
 
@@ -141,19 +181,13 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
       for (const cluster of clusters) {
         const node = nodeRefs.current.get(cluster.key);
         if (!node) continue;
-        // Average world position of all members for the anchor.
-        let sx = 0, sy = 0, visible = 0;
-        for (const m of cluster.members) {
-          try {
-            const world = Cartesian3.fromDegrees(m.lng, m.lat, (m.alt || 0) + 12);
-            const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
-            if (!win) continue;
-            sx += win.x; sy += win.y; visible++;
-          } catch { /* ignore */ }
-        }
-        if (!visible) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
-        const x = sx / visible;
-        const y = sy / visible;
+        let x = 0, y = 0;
+        try {
+          const world = Cartesian3.fromDegrees(cluster.anchorLng, cluster.anchorLat, cluster.anchorAlt + 12);
+          const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+          if (!win) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
+          x = win.x; y = win.y;
+        } catch { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
         if (x < -200 || y < -80 || x > cw + 200 || y > ch + 200) {
           node.style.opacity = "0";
           node.style.pointerEvents = "none";

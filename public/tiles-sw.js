@@ -1,17 +1,22 @@
-/* Atlas tile cache — caches 3D tile + imagery responses so revisits are instant.
- * Cache-first with background revalidation. Trims to MAX_ENTRIES (LRU-ish). */
-const CACHE = "atlas-tiles-v1";
-const MAX_ENTRIES = 1500;
+/* Atlas tile cache — session smoother for 3D tiles + imagery.
+ * Important: the network response is never blocked by CacheStorage writes.
+ * Stale tiles are served instantly, fresh tiles stream directly to Cesium, and
+ * cache maintenance is batched so rapid camera movement cannot freeze loading.
+ */
+const CACHE = "atlas-tiles-v2";
+const MAX_ENTRIES = 1800;
+const TRIM_EVERY_PUTS = 25;
+const MAX_CACHEABLE_BYTES = 32 * 1024 * 1024;
 
 const TILE_HOST_RE = /(assets\.ion\.cesium\.com|assets\.cesium\.com|api\.cesium\.com|tile\.googleapis\.com|tile\.openstreetmap\.org|data\.osmbuildings\.org)/i;
 const TILE_PATH_RE = /\/functions\/v1\/google-3d-tiles\//i;
 const TILE_EXT_RE = /\.(glb|b3dm|i3dm|pnts|cmpt|terrain|json|jpg|jpeg|png|webp|ktx2|bin)(\?|$)/i;
 
-self.addEventListener("install", (e) => { self.skipWaiting(); });
-self.addEventListener("activate", (e) => {
-  e.waitUntil((async () => {
+self.addEventListener("install", () => { self.skipWaiting(); });
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -27,11 +32,43 @@ function shouldCache(url) {
   } catch { return false; }
 }
 
+function isCacheableResponse(res) {
+  if (!res || !res.ok) return false;
+  if (!(res.type === "basic" || res.type === "cors" || res.type === "default")) return false;
+  const len = Number(res.headers.get("content-length") || "0");
+  return !len || len <= MAX_CACHEABLE_BYTES;
+}
+
+let putsSinceLastTrim = 0;
+let trimPromise = null;
+let activeCacheWrites = 0;
 async function trim(cache) {
   const keys = await cache.keys();
   if (keys.length <= MAX_ENTRIES) return;
   const toDelete = keys.length - MAX_ENTRIES;
-  for (let i = 0; i < toDelete; i++) await cache.delete(keys[i]);
+  for (let i = 0; i < toDelete; i += 1) {
+    await cache.delete(keys[i]);
+  }
+}
+
+function scheduleTrim(cache) {
+  putsSinceLastTrim += 1;
+  if (putsSinceLastTrim < TRIM_EVERY_PUTS || trimPromise) return trimPromise || Promise.resolve();
+  putsSinceLastTrim = 0;
+  trimPromise = trim(cache).catch(() => {}).finally(() => { trimPromise = null; });
+  return trimPromise;
+}
+
+async function cacheInBackground(req, res) {
+  if (!isCacheableResponse(res)) return;
+  if (activeCacheWrites >= 4) return;
+  activeCacheWrites += 1;
+  try {
+    const cache = await caches.open(CACHE);
+    await cache.put(req, res.clone());
+    await scheduleTrim(cache);
+  } catch {}
+  finally { activeCacheWrites = Math.max(0, activeCacheWrites - 1); }
 }
 
 self.addEventListener("fetch", (event) => {
@@ -42,22 +79,22 @@ self.addEventListener("fetch", (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreVary: true });
-    const network = fetch(req).then(async (res) => {
-      if (res && res.ok && (res.type === "basic" || res.type === "cors" || res.type === "default")) {
-        try {
-          await cache.put(req, res.clone());
-          trim(cache);
-        } catch {}
-      }
+    const networkPromise = fetch(req).then((res) => {
+      // Do not await/cache inside the response path: Cesium must receive the
+      // network stream immediately, otherwise tile loading appears stalled.
+      cacheInBackground(req, res.clone()).catch(() => {});
       return res;
-    }).catch(() => null);
+    });
 
     if (cached) {
-      // Refresh in background, serve cached immediately.
-      event.waitUntil(network);
+      event.waitUntil(networkPromise.catch(() => null));
       return cached;
     }
-    const res = await network;
-    return res || new Response("", { status: 504, statusText: "tile offline" });
+
+    try {
+      return await networkPromise;
+    } catch {
+      return new Response("", { status: 504, statusText: "tile offline" });
+    }
   })());
 });
