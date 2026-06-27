@@ -27,6 +27,8 @@ interface Props {
   getBounds: () => CameraBounds | null;
   onSelectCamera: (camera: TrafficCamera) => void;
   onCamerasLoaded?: (cameras: TrafficCamera[]) => void;
+  /** Increment to force a viewport-bounds refetch (e.g. after camera moveEnd). */
+  boundsVersion?: number;
 }
 
 const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-camera-image`;
@@ -41,7 +43,7 @@ const DEFAULT_CAMERA_HUBS: CameraBounds[] = [
   { north: 26.15, south: 25.45, east: -79.90, west: -80.55 },   // Miami fallback
 ];
 
-export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera, onCamerasLoaded }: Props) {
+export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera, onCamerasLoaded, boundsVersion = 0 }: Props) {
   const [cameras, setCameras] = useState<TrafficCamera[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -195,7 +197,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
     if (!open) return;
     fetchCameras(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, boundsVersion]);
 
   const sources = useMemo(() => {
     const m = new Map<string, number>();
