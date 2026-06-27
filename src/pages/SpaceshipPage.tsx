@@ -826,9 +826,11 @@ function SpaceshipPage() {
   // SSE/cache values back as the "previous" explore-mode baseline).
   const playingLevelIdRef = useRef<string | null>(null);
   const freePlaySpawnRef = useRef<FreePlaySpawn | null>(null);
+  const showBuildingsRef = useRef<boolean>(showBuildings);
   const levelPlacementsRef = useRef<typeof levelPlacements>([]);
   useEffect(() => { playingLevelIdRef.current = playingLevelId; }, [playingLevelId]);
   useEffect(() => { freePlaySpawnRef.current = freePlaySpawn; }, [freePlaySpawn]);
+  useEffect(() => { showBuildingsRef.current = showBuildings; }, [showBuildings]);
   useEffect(() => { levelPlacementsRef.current = levelPlacements; }, [levelPlacements]);
   // ───────────────────────────────────────────────────────────────
   // PLAY-MODE TILE BUDGET
