@@ -2690,6 +2690,8 @@ function SpaceshipPage() {
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
       try { window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady); } catch {}
+      try { delete (window as any).__cesiumViewer; } catch {}
+      if (viewerRef.current === viewer) viewerRef.current = null;
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
