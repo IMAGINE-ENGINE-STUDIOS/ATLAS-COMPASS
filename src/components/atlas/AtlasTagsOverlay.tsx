@@ -48,7 +48,7 @@ interface Props {
  */
 export default function AtlasTagsOverlay({
   viewer, tags, onSelect,
-  clusterDistancePx = 64, minMembers = 2,
+  clusterDistancePx = 64, minMembers = 1,
 }: Props) {
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [, forceRerender] = useState(0);
@@ -100,6 +100,25 @@ export default function AtlasTagsOverlay({
     const remove = viewer.camera.moveEnd.addEventListener(recompute);
     return () => { remove(); };
   }, [viewer, recompute]);
+
+  // Hide the legacy Cesium billboard pins for any tag rendered as a
+  // glass-pill in this overlay so we have a single unified design.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const touched: any[] = [];
+    for (const t of tags) {
+      const ent = viewer.entities.getById(t.id);
+      if (ent && (ent as any).billboard) {
+        (ent as any).billboard.show = false;
+        touched.push(ent);
+      }
+    }
+    return () => {
+      for (const ent of touched) {
+        try { if ((ent as any).billboard) (ent as any).billboard.show = true; } catch {}
+      }
+    };
+  }, [viewer, tags]);
 
   // Imperative DOM positioning each frame.
   useEffect(() => {
@@ -162,8 +181,12 @@ export default function AtlasTagsOverlay({
                   : `0 4px 20px ${cat.hex}33`,
               }}
             >
-              <span className="text-[10px] uppercase tracking-wider font-semibold pr-1" style={{ color: hasGold ? "#FFD700" : cat.hex }}>
-                {cat.label} · {c.members.length}
+              <span
+                className="text-[10px] uppercase tracking-wider font-semibold pr-1 max-w-[160px] truncate"
+                style={{ color: hasGold ? "#FFD700" : cat.hex }}
+                title={c.members.length === 1 ? c.members[0].name : `${cat.label} · ${c.members.length}`}
+              >
+                {c.members.length === 1 ? c.members[0].name : `${cat.label} · ${c.members.length}`}
               </span>
               {sorted.slice(0, 8).map(m => {
                 const sel = isSelected(m.id);
