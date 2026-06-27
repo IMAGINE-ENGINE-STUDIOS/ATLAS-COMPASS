@@ -3844,6 +3844,21 @@ function SpaceshipPage() {
     setShowBuildings(newShow);
   }, [showBuildings, viewMode]);
 
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    if (!wantsPhotorealMode(viewMode)) {
+      destroyAtlasTileset(viewer, "_googleDirectTileset");
+      destroyAtlasTileset(viewer, "_realisticTileset");
+      (viewer as any)._googleDirectLoading = null;
+      (viewer as any)._realisticLoading = null;
+    } else if ((viewer as any)._googleDirectTileset) {
+      destroyAtlasTileset(viewer, "_realisticTileset");
+      (viewer as any)._realisticLoading = null;
+    }
+    applyAtlasMapVisibility(viewer, viewMode, showBuildingsRef.current);
+  }, [viewMode]);
+
   /* ── POI Functions ── */
   const addPOIToGlobe = useCallback((poi: POI) => {
     if (!viewerRef.current) return;
