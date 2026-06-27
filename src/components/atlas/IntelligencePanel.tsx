@@ -190,7 +190,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
             />
           </div>
           <button
-            onClick={() => triggerSync(true)}
+            onClick={() => triggerSync(false)}
             disabled={syncing}
             title="Sync from upstream DOT/ArcGIS sources"
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 transition disabled:opacity-60"
