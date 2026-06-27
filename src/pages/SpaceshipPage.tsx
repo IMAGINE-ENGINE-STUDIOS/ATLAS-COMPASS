@@ -2630,7 +2630,7 @@ function SpaceshipPage() {
     let __lastPerfApply = 0;
     const applyPerfProfile = (profile: typeof __perfProfile) => {
       const now = performance.now();
-      if (profile === __perfProfile && now - __lastPerfApply < 2000) return;
+      if (profile === __perfProfile && now - __lastPerfApply < 4000) return;
       __perfProfile = profile;
       __lastPerfApply = now;
       const sets = [
@@ -2657,7 +2657,7 @@ function SpaceshipPage() {
       else if (dt < 24) { __fastFrames += 1; __slowFrames = 0; }
       else { __slowFrames = 0; __fastFrames = 0; }
       if (__slowFrames >= 5) applyPerfProfile("move");
-      else if (__fastFrames >= 35) applyPerfProfile("idle");
+      else if (__fastFrames >= 70) applyPerfProfile("idle");
     });
 
     setIsLoaded(true);
