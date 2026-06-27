@@ -32,13 +32,13 @@ const DEFAULTS: Settings = {
   dynamicSSE: true,
   dynamicSSEDensity: 0.00278,
   dynamicSSEFactor: 4,
-  skipLOD: true,
+  skipLOD: false,
   immediatelyLoad: false,
   shadows: false,
   showCredits: true,
 };
 
-const LS_KEY = "atlas.google3d.settings.v3";
+const LS_KEY = "atlas.google3d.settings.v4";
 
 function load(): Settings {
   try {

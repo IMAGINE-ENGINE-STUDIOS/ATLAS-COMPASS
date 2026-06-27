@@ -145,11 +145,15 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
     ts.preloadWhenHidden = false;
     ts.preloadFlightDestinations = false;
     ts.loadSiblings = false;
+    // IMPORTANT: keep skipLevelOfDetail OFF for Google Photoreal 3D Tiles.
+    // With skipLOD=true Cesium draws ancestor + descendant tiles together
+    // during refinement, which makes far-side / lower-LOD tiles visibly
+    // bleed through the front of the globe (the "wireframe overlap" bug).
     ts.immediatelyLoadDesiredLevelOfDetail = false;
-    ts.skipLevelOfDetail = true;
+    ts.skipLevelOfDetail = false;
     ts.baseScreenSpaceError = 1024;
-    ts.skipScreenSpaceErrorFactor = isIdle ? 8 : 16;
-    ts.skipLevels = 1;
+    ts.skipScreenSpaceErrorFactor = 1;
+    ts.skipLevels = 0;
     ts.shadows = 0;
   } catch {}
 };
