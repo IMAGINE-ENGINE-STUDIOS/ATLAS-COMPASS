@@ -101,6 +101,25 @@ export default function AtlasTagsOverlay({
     return () => { remove(); };
   }, [viewer, recompute]);
 
+  // Hide the legacy Cesium billboard pins for any tag rendered as a
+  // glass-pill in this overlay so we have a single unified design.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const touched: any[] = [];
+    for (const t of tags) {
+      const ent = viewer.entities.getById(t.id);
+      if (ent && (ent as any).billboard) {
+        (ent as any).billboard.show = false;
+        touched.push(ent);
+      }
+    }
+    return () => {
+      for (const ent of touched) {
+        try { if ((ent as any).billboard) (ent as any).billboard.show = true; } catch {}
+      }
+    };
+  }, [viewer, tags]);
+
   // Imperative DOM positioning each frame.
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
