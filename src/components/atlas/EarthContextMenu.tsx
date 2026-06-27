@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search, PersonStanding, FileUp } from "lucide-react";
+import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search, PersonStanding, FileUp, Sparkles } from "lucide-react";
+import { SPLAT_PIN_EVENT } from "@/components/atlas/AtlasSplatUploader";
 import { toast } from "sonner";
 import { copyToClipboard, getClipboard, type FileClipboardEntry } from "@/lib/fileClipboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -146,6 +147,14 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
             />
           )}
           <MenuItem icon={<MapPin className="w-3.5 h-3.5" />} label="Drop POI here" onClick={() => { onCreatePOI(loc); onClose(); }} />
+          <MenuItem
+            icon={<Sparkles className="w-3.5 h-3.5 text-fuchsia-300" />}
+            label="Pin 3D Splat here…"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent(SPLAT_PIN_EVENT, { detail: { lng: loc.lng, lat: loc.lat, altitude: 0 } }));
+              onClose();
+            }}
+          />
         </div>
       )}
 
