@@ -124,36 +124,22 @@ type AtlasTilesetKey = "_googleDirectTileset" | "_realisticTileset" | "_osmTiles
 
 const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "boot") => {
   if (!ts) return;
-  const isFar = profile === "far";
-  const isIdle = profile === "idle";
-  const sse = profile === "boot" ? 18 : profile === "move" ? 14 : isFar ? 24 : 8;
+  // Minimal, Cesium-default-aligned tuning. The only deltas vs defaults:
+  //  - bigger memory cache so revisits don't re-download
+  //  - shadows off (huge perf hit on photoreal tiles)
+  //  - skipLevelOfDetail OFF (prevents far-side tile bleed-through)
+  //  - dynamicScreenSpaceError ON (street-level recommended setting)
+  // SSE tweaked slightly per profile; everything else stays at Cesium defaults
+  // so we never fight the engine's own refinement scheduler.
+  const sse = profile === "far" ? 24 : profile === "idle" ? 12 : 16;
   try {
     ts.maximumScreenSpaceError = sse;
-    ts.cacheBytes = (profile === "boot" ? 512 : 1024) * TILE_MIB;
-    ts.maximumCacheOverflowBytes = 128 * TILE_MIB;
-    ts.maximumMemoryUsage = profile === "boot" ? 512 : 1024;
-    ts.maximumNumberOfLoadedTiles = isFar ? 384 : 512;
-    ts.cullRequestsWhileMoving = true;
-    ts.cullRequestsWhileMovingMultiplier = 60;
-    ts.foveatedScreenSpaceError = true;
-    ts.foveatedConeSize = isIdle ? 0.55 : 0.28;
-    ts.foveatedMinimumScreenSpaceErrorRelaxation = isIdle ? 0 : 8;
-    ts.progressiveResolutionHeightFraction = 0.5;
-    ts.dynamicScreenSpaceError = !isIdle;
-    ts.dynamicScreenSpaceErrorDensity = isFar ? 0.004 : 0.0022;
-    ts.dynamicScreenSpaceErrorFactor = isFar ? 8 : 4;
-    ts.preloadWhenHidden = false;
-    ts.preloadFlightDestinations = false;
-    ts.loadSiblings = false;
-    // IMPORTANT: keep skipLevelOfDetail OFF for Google Photoreal 3D Tiles.
-    // With skipLOD=true Cesium draws ancestor + descendant tiles together
-    // during refinement, which makes far-side / lower-LOD tiles visibly
-    // bleed through the front of the globe (the "wireframe overlap" bug).
-    ts.immediatelyLoadDesiredLevelOfDetail = false;
+    ts.cacheBytes = 1024 * TILE_MIB;
+    ts.maximumCacheOverflowBytes = 256 * TILE_MIB;
     ts.skipLevelOfDetail = false;
-    ts.baseScreenSpaceError = 1024;
-    ts.skipScreenSpaceErrorFactor = 1;
-    ts.skipLevels = 0;
+    ts.dynamicScreenSpaceError = true;
+    ts.dynamicScreenSpaceErrorDensity = 0.00278;
+    ts.dynamicScreenSpaceErrorFactor = 4;
     ts.shadows = 0;
   } catch {}
 };
@@ -890,47 +876,16 @@ function SpaceshipPage() {
       })),
     };
     if (playing) {
-      tilesets.forEach((ts) => tuneAtlasTileset(ts, "move"));
-      viewer.scene.globe.maximumScreenSpaceError = 4;
+      // Apply once. No 140ms re-tuning loop — that was thrashing the tile
+      // scheduler and the resolutionScale flips were the most visible cause
+      // of "loading worse than Cesium defaults".
+      tilesets.forEach((ts) => tuneAtlasTileset(ts, "boot"));
+      viewer.scene.globe.maximumScreenSpaceError = 2;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = false;
-      try { viewer.scene.globe.tileCacheSize = 1200; } catch {}
+      try { viewer.scene.globe.tileCacheSize = 1000; } catch {}
+      try { viewer.resolutionScale = 1; } catch {}
       viewer.scene.requestRender();
-
-      // ── Dynamic quality: sharper when idle, faster when moving ──
-      // While walking, keep FPS stable and foveated loading centered. Once
-      // the user stops for a moment, refine visible tiles without loading
-      // the entire city at forced top LOD.
-      const cam = viewer.camera;
-      let lastPos = cam.positionWC.clone();
-      let lastDir = cam.directionWC.clone();
-      let lastMoveT = performance.now();
-      let idleMode = false;
-      try { viewer.resolutionScale = 0.78; } catch {}
-      const dynTick = () => {
-        if (viewer.isDestroyed()) return;
-        const moved =
-          Cartesian3.distance(cam.positionWC, lastPos) > 0.05 ||
-          Cartesian3.distance(cam.directionWC, lastDir) > 0.001;
-        if (moved) {
-          lastPos = cam.positionWC.clone();
-          lastDir = cam.directionWC.clone();
-          lastMoveT = performance.now();
-          if (idleMode) {
-            idleMode = false;
-            try { viewer.resolutionScale = 0.78; } catch {}
-            tilesets.forEach((ts) => tuneAtlasTileset(ts, "move"));
-            viewer.scene.requestRender();
-          }
-        } else if (!idleMode && performance.now() - lastMoveT > 450) {
-          idleMode = true;
-          try { viewer.resolutionScale = 0.9; } catch {}
-          tilesets.forEach((ts) => tuneAtlasTileset(ts, "idle"));
-          viewer.scene.requestRender();
-        }
-      };
-      const dynInterval = window.setInterval(dynTick, 140);
-      (viewer as any).__playDynInterval = dynInterval;
     }
     return () => {
       if (viewer.isDestroyed()) return;
@@ -2311,8 +2266,11 @@ function SpaceshipPage() {
       // Too much concurrency overloads the browser's network + GL texture
       // upload queue and makes tiles appear to freeze. This is intentionally
       // above Cesium defaults, but below the previous 128/24 spike.
-      RequestScheduler.maximumRequests = 42;
-      RequestScheduler.maximumRequestsPerServer = 6;
+      // Cesium defaults (50 / 18) actually move tiles fastest on modern
+      // browsers. Throttling here was the main reason loading felt worse
+      // than vanilla Cesium.
+      RequestScheduler.maximumRequests = 50;
+      RequestScheduler.maximumRequestsPerServer = 18;
       RequestScheduler.throttleRequests = true;
     } catch {}
 
