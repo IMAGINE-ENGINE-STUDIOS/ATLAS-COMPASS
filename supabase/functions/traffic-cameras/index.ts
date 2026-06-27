@@ -50,6 +50,8 @@ serve(async (req) => {
       .lte('lat', bounds.north)
       .gte('lng', bounds.west)
       .lte('lng', bounds.east)
+      .neq('lat', 0)
+      .neq('lng', 0)
       .order('lat', { ascending: true })
       .order('lng', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
