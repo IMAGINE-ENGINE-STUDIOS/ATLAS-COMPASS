@@ -48,7 +48,7 @@ interface Props {
  */
 export default function AtlasTagsOverlay({
   viewer, tags, onSelect,
-  clusterDistancePx = 64, minMembers = 2,
+  clusterDistancePx = 64, minMembers = 1,
 }: Props) {
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [, forceRerender] = useState(0);
