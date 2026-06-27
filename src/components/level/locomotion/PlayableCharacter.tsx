@@ -251,6 +251,14 @@ export default function PlayableCharacter({
   const stepUpUntil = useRef(0);
   // Peak height tracker so we know how hard a fall lands.
   const peakY = useRef(0);
+  // Throttle expensive scene-graph scans (interaction markers) — we don't
+  // need them every frame, and walking the whole graph each frame is one
+  // of the biggest play-mode perf hits.
+  const interactScanAt = useRef(0);
+  const lastPrompt = useRef<{ visible: boolean; label: string; kind: "" | "sit" | "use" }>({
+    visible: false, label: "", kind: "",
+  });
+  const lastNearestMarker = useRef<{ dist: number; id: string; kind: "sit" | "use"; pos: THREE.Vector3 } | null>(null);
 
   // Mesh prep
   useEffect(() => {
@@ -714,9 +722,14 @@ export default function PlayableCharacter({
         root.position.y = groundPoint.y;
       }
       // Landing impact squash when we were just airborne.
-      if (!wasGrounded.current && velocityY.current < -2) {
-        const fallDist = Math.max(0, peakY.current - root.position.y);
-        const strength = THREE.MathUtils.clamp(fallDist / 4, 0.15, 0.55);
+      // Landing impact squash — only on REAL falls, not slope micro-bounces.
+      // Walking down a slope tends to leave the ground for a frame and then
+      // re-snap, which used to trigger squash every step and visibly deform
+      // the character. Require both a meaningful airborne arc and a hard
+      // downward velocity before showing the land squash.
+      const fallDist = Math.max(0, peakY.current - root.position.y);
+      if (!wasGrounded.current && velocityY.current < -6 && fallDist > 0.9) {
+        const strength = THREE.MathUtils.clamp(fallDist / 5, 0.15, 0.45);
         squash.current = 1 - strength;
         setState("land", 0.05);
         lockedActionUntil.current = performance.now() + 220;
@@ -799,27 +812,31 @@ export default function PlayableCharacter({
     }
 
     // ---- proximity interactions (sit / use markers) ----
-    let prompt: { visible: boolean; label: string; kind: "" | "sit" | "use" } =
-      { visible: false, label: "", kind: "" };
-    // World-position scan via objectWorldRefs is heavier than needed; instead,
-    // walk the scene graph looking for objects tagged with userData.__interaction.
-    let nearestMarker: { dist: number; id: string; kind: "sit" | "use"; pos: THREE.Vector3 } | null = null;
-    threeScene.traverse((o) => {
-      const k = (o as any).userData?.__interaction;
-      if (k !== "sit" && k !== "use") return;
-      const wp = new THREE.Vector3();
-      o.getWorldPosition(wp);
-      const d = wp.distanceTo(root.position);
-      if (d < 1.6 && (!nearestMarker || d < nearestMarker.dist)) {
-        nearestMarker = { dist: d, id: (o as any).userData.__objId ?? "", kind: k, pos: wp };
-      }
-    });
+    // Walking the entire scene graph every frame is one of the biggest
+    // play-mode perf hits — and interaction markers don't change at 60Hz.
+    // Rescan every 200ms (5Hz) and reuse the cached nearest marker between
+    // scans; that's still well within human reaction time.
+    if (now - interactScanAt.current > 200) {
+      interactScanAt.current = now;
+      let nearestMarker: { dist: number; id: string; kind: "sit" | "use"; pos: THREE.Vector3 } | null = null;
+      threeScene.traverse((o) => {
+        const k = (o as any).userData?.__interaction;
+        if (k !== "sit" && k !== "use") return;
+        const wp = new THREE.Vector3();
+        o.getWorldPosition(wp);
+        const d = wp.distanceTo(root.position);
+        if (d < 1.6 && (!nearestMarker || d < nearestMarker.dist)) {
+          nearestMarker = { dist: d, id: (o as any).userData.__objId ?? "", kind: k, pos: wp };
+        }
+      });
+      lastNearestMarker.current = nearestMarker;
+      lastPrompt.current = nearestMarker
+        ? { visible: true, label: nearestMarker.kind === "sit" ? "Press E to sit" : "Press E to use", kind: nearestMarker.kind }
+        : { visible: false, label: "", kind: "" };
+    }
+    let prompt = lastPrompt.current;
+    const nearestMarker = lastNearestMarker.current;
     if (nearestMarker) {
-      prompt = {
-        visible: true,
-        label: nearestMarker.kind === "sit" ? "Press E to sit" : "Press E to use",
-        kind: nearestMarker.kind,
-      };
       if (inputPulse.interact) {
         if (nearestMarker.kind === "sit") {
           root.position.copy(nearestMarker.pos);

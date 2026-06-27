@@ -25,6 +25,7 @@ import { EMPTY_SCENE, type LevelScene, type CharacterObject } from "@/lib/levelT
 import { LevelSceneContents } from "@/components/level/LevelScene3D";
 import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
+import { clampEyeAboveTerrain } from "@/lib/atlasCameraClamp";
 
 export interface FreePlaySpawn {
   lat: number;
@@ -126,6 +127,7 @@ function FreePlayInstance({
     right: new THREE.Vector3(),
     correctedUp: new THREE.Vector3(),
   }).current;
+  const clampState = useRef({ lastSampleAt: 0, lastSurfaceH: 0, hasH: false });
 
   const handlePlayCameraPose = (pose: PlayCameraPose) => {
     if (!viewer || viewer.isDestroyed()) return;
@@ -137,10 +139,19 @@ function FreePlayInstance({
     if (scratch.right.lengthSq() < 1e-8) return;
     scratch.right.normalize();
     scratch.correctedUp.crossVectors(scratch.right, scratch.dir).normalize();
+    // Sample-clamp the eye above the terrain at ~6Hz so the camera never
+    // dips inside the Earth tiles or buildings. Re-using the last sample
+    // between samples keeps this cheap.
+    let clampedEye = new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z);
+    const now = performance.now();
+    if (now - clampState.current.lastSampleAt > 160) {
+      clampedEye = clampEyeAboveTerrain(viewer, eyeEcef, 0.6);
+      clampState.current.lastSampleAt = now;
+    }
     try {
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
       viewer.camera.setView({
-        destination: new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z),
+        destination: clampedEye,
         orientation: {
           direction: new Cartesian3(scratch.dir.x, scratch.dir.y, scratch.dir.z),
           up: new Cartesian3(scratch.correctedUp.x, scratch.correctedUp.y, scratch.correctedUp.z),

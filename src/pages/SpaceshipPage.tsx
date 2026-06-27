@@ -2176,6 +2176,11 @@ function SpaceshipPage() {
     ssec0.enableTilt = true;
     ssec0.enableZoom = true;
     ssec0.enableTranslate = true;
+    // Keep the free-flight Atlas camera from clipping inside the planet /
+    // 3D Tiles surface, so the user never sees the inside of buildings or
+    // the underside of terrain while orbiting.
+    (ssec0 as any).enableCollisionDetection = true;
+    ssec0.minimumZoomDistance = 1.5;
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
     ssec0.tiltEventTypes = [
       CameraEventType.RIGHT_DRAG,
