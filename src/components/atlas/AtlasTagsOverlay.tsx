@@ -30,6 +30,9 @@ interface Cluster {
   key: string;
   categoryId: string;
   members: AtlasTag[];
+  anchorLat: number;
+  anchorLng: number;
+  anchorAlt: number;
 }
 
 interface Props {
@@ -59,39 +62,88 @@ export default function AtlasTagsOverlay({
 
   const recompute = useMemo(() => () => {
     if (!viewer || viewer.isDestroyed()) { setClusters([]); return; }
-    const screen: { tag: AtlasTag; x: number; y: number }[] = [];
+    const canvas = viewer.scene.canvas;
+    const cw = canvas.clientWidth || 0;
+    const ch = canvas.clientHeight || 0;
+    const margin = 220;
+    const visible: { tag: AtlasTag; x: number; y: number; cellX: number; cellY: number }[] = [];
     for (const t of tags) {
       try {
         const world = Cartesian3.fromDegrees(t.lng, t.lat, (t.alt || 0) + 8);
         const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
-        if (!win) { screen.push({ tag: t, x: -99999, y: -99999 }); continue; }
-        screen.push({ tag: t, x: win.x, y: win.y });
-      } catch { screen.push({ tag: t, x: -99999, y: -99999 }); }
+        if (!win) continue;
+        if (win.x < -margin || win.y < -margin || win.x > cw + margin || win.y > ch + margin) continue;
+        visible.push({
+          tag: t,
+          x: win.x,
+          y: win.y,
+          cellX: Math.floor(win.x / clusterDistancePx),
+          cellY: Math.floor(win.y / clusterDistancePx),
+        });
+      } catch {}
     }
-    const out: Cluster[] = [];
-    const used = new Set<string>();
-    for (const p of screen) {
-      if (used.has(p.tag.id)) continue;
+    // Grid-neighbour clustering is O(n), replacing the previous O(n²) pass
+    // that froze the map when hundreds/thousands of store tags were loaded.
+    const out: (Cluster & { x: number; y: number })[] = [];
+    const grid = new Map<string, number[]>();
+    const r2 = clusterDistancePx * clusterDistancePx;
+    for (const p of visible) {
       const cat = p.tag.categoryId || "other";
-      const members: AtlasTag[] = [p.tag];
-      used.add(p.tag.id);
-      for (const q of screen) {
-        if (used.has(q.tag.id)) continue;
-        if ((q.tag.categoryId || "other") !== cat) continue;
-        const dx = q.x - p.x, dy = q.y - p.y;
-        if (dx * dx + dy * dy <= clusterDistancePx * clusterDistancePx) {
-          members.push(q.tag); used.add(q.tag.id);
+      let hit = -1;
+      for (let dx = -1; dx <= 1 && hit < 0; dx++) {
+        for (let dy = -1; dy <= 1 && hit < 0; dy++) {
+          const ids = grid.get(`${cat}:${p.cellX + dx}:${p.cellY + dy}`);
+          if (!ids) continue;
+          for (const idx of ids) {
+            const c = out[idx];
+            const ddx = c.x - p.x;
+            const ddy = c.y - p.y;
+            if (ddx * ddx + ddy * ddy <= r2) { hit = idx; break; }
+          }
         }
       }
-      if (members.length >= minMembers) {
+      if (hit >= 0) {
+        const c = out[hit];
+        c.members.push(p.tag);
+        const n = c.members.length;
+        c.x += (p.x - c.x) / n;
+        c.y += (p.y - c.y) / n;
+        c.anchorLat += (p.tag.lat - c.anchorLat) / n;
+        c.anchorLng += (p.tag.lng - c.anchorLng) / n;
+        c.anchorAlt += ((p.tag.alt || 0) - c.anchorAlt) / n;
+      } else {
+        const idx = out.length;
         out.push({
-          key: members.map(m => m.id).sort().join("|"),
+          key: p.tag.id,
           categoryId: cat,
-          members,
+          members: [p.tag],
+          anchorLat: p.tag.lat,
+          anchorLng: p.tag.lng,
+          anchorAlt: p.tag.alt || 0,
+          x: p.x,
+          y: p.y,
         });
+        const gk = `${cat}:${p.cellX}:${p.cellY}`;
+        const arr = grid.get(gk);
+        if (arr) arr.push(idx); else grid.set(gk, [idx]);
       }
     }
-    setClusters(out);
+    setClusters(
+      out
+        .filter(c => c.members.length >= minMembers)
+        .sort((a, b) => b.members.length - a.members.length)
+        .slice(0, 300)
+        .map(c => ({
+          key: c.members.length === 1
+            ? c.members[0].id
+            : `${c.categoryId}:${Math.round(c.anchorLat * 1e5)}:${Math.round(c.anchorLng * 1e5)}:${c.members.length}`,
+          categoryId: c.categoryId,
+          members: c.members,
+          anchorLat: c.anchorLat,
+          anchorLng: c.anchorLng,
+          anchorAlt: c.anchorAlt,
+        })),
+    );
   }, [viewer, tags, clusterDistancePx, minMembers]);
 
   useEffect(() => {
@@ -131,17 +183,13 @@ export default function AtlasTagsOverlay({
       for (const c of clusters) {
         const node = nodeRefs.current.get(c.key);
         if (!node) continue;
-        let sx = 0, sy = 0, n = 0;
-        for (const m of c.members) {
-          try {
-            const world = Cartesian3.fromDegrees(m.lng, m.lat, (m.alt || 0) + 8);
-            const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
-            if (!win) continue;
-            sx += win.x; sy += win.y; n++;
-          } catch {}
-        }
-        if (!n) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
-        const x = sx / n, y = sy / n;
+        let x = 0, y = 0;
+        try {
+          const world = Cartesian3.fromDegrees(c.anchorLng, c.anchorLat, c.anchorAlt + 8);
+          const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+          if (!win) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
+          x = win.x; y = win.y;
+        } catch { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
         if (x < -200 || y < -80 || x > cw + 200 || y > ch + 200) {
           node.style.opacity = "0"; node.style.pointerEvents = "none"; continue;
         }

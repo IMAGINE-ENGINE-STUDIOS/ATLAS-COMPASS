@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 // CSS-only animations — no framer-motion in this heavy page
 import {
@@ -111,6 +111,45 @@ import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
+
+/* ── Atlas performance profiles ─────────────────────────────────
+ * Keep photorealistic quality high without freezing the browser:
+ *  - do NOT force top LOD or sibling preloads while moving
+ *  - let foveated loading refine the viewport center first
+ *  - keep memory caches large enough to prevent thrash, but below OOM sizes
+ */
+const TILE_MIB = 1024 * 1024;
+const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "boot") => {
+  if (!ts) return;
+  const isFar = profile === "far";
+  const isIdle = profile === "idle";
+  const sse = profile === "boot" ? 18 : profile === "move" ? 14 : isFar ? 24 : 8;
+  try {
+    ts.maximumScreenSpaceError = sse;
+    ts.cacheBytes = (profile === "boot" ? 512 : 1024) * TILE_MIB;
+    ts.maximumCacheOverflowBytes = 128 * TILE_MIB;
+    ts.maximumMemoryUsage = profile === "boot" ? 512 : 1024;
+    ts.maximumNumberOfLoadedTiles = isFar ? 384 : 512;
+    ts.cullRequestsWhileMoving = true;
+    ts.cullRequestsWhileMovingMultiplier = 60;
+    ts.foveatedScreenSpaceError = true;
+    ts.foveatedConeSize = isIdle ? 0.55 : 0.28;
+    ts.foveatedMinimumScreenSpaceErrorRelaxation = isIdle ? 0 : 8;
+    ts.progressiveResolutionHeightFraction = 0.5;
+    ts.dynamicScreenSpaceError = !isIdle;
+    ts.dynamicScreenSpaceErrorDensity = isFar ? 0.004 : 0.0022;
+    ts.dynamicScreenSpaceErrorFactor = isFar ? 8 : 4;
+    ts.preloadWhenHidden = false;
+    ts.preloadFlightDestinations = false;
+    ts.loadSiblings = false;
+    ts.immediatelyLoadDesiredLevelOfDetail = false;
+    ts.skipLevelOfDetail = true;
+    ts.baseScreenSpaceError = 1024;
+    ts.skipScreenSpaceErrorFactor = isIdle ? 8 : 16;
+    ts.skipLevels = 1;
+    ts.shadows = 0;
+  } catch {}
+};
 
 /* ── Types ── */
 interface SearchResult {
@@ -767,11 +806,12 @@ function SpaceshipPage() {
   useEffect(() => { freePlaySpawnRef.current = freePlaySpawn; }, [freePlaySpawn]);
   useEffect(() => { levelPlacementsRef.current = levelPlacements; }, [levelPlacements]);
   // ───────────────────────────────────────────────────────────────
-  // PLAY-MODE TILE PRELOADER
-  // When the user is playing a level OR free-playing a character on
-  // the Earth, crank Cesium tilesets + globe to top LOD and let them
-  // pre-cache a wide area around the player so buildings never pop
-  // in. Restores the original "explore-mode" thresholds on exit.
+  // PLAY-MODE TILE BUDGET
+  // Previous code tried to pre-render a top-down 6km camera every few
+  // seconds with SSE=1 and sibling loading. That queued thousands of high
+  // resolution Google tiles, stole the user's camera, saturated the request
+  // scheduler and caused the "stops loading / freezes" behavior. This keeps
+  // a realistic hot cache, but never forces off-screen top-LOD bursts.
   // ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const playing = !!playingLevelId || !!freePlaySpawn;
@@ -780,123 +820,46 @@ function SpaceshipPage() {
     const rt = (viewer as any)._realisticTileset as any | undefined;
     const ot = (viewer as any)._osmTileset as any | undefined;
     const gt = (viewer as any)._googleDirectTileset as any | undefined;
+    const tilesets = [rt, ot, gt].filter(Boolean) as any[];
     const prev = {
-      rtSse: rt?.maximumScreenSpaceError,
-      otSse: ot?.maximumScreenSpaceError,
-      gSse: viewer.scene.globe.maximumScreenSpaceError,
-      rtCache: rt?.cacheBytes,
-      otCache: ot?.cacheBytes,
-      rtCull: rt?.cullRequestsWhileMoving,
-      otCull: ot?.cullRequestsWhileMoving,
-      rtFov: rt?.foveatedScreenSpaceError,
-      otFov: ot?.foveatedScreenSpaceError,
-      rtDyn: rt?.dynamicScreenSpaceError,
-      otDyn: ot?.dynamicScreenSpaceError,
-      rtPreloadH: rt?.preloadWhenHidden,
-      otPreloadH: ot?.preloadWhenHidden,
-      rtPreloadF: rt?.preloadFlightDestinations,
-      otPreloadF: ot?.preloadFlightDestinations,
-      preAnc: viewer.scene.globe.preloadAncestors,
-      preSib: viewer.scene.globe.preloadSiblings,
-      rtImm: rt?.immediatelyLoadDesiredLevelOfDetail,
-      otImm: ot?.immediatelyLoadDesiredLevelOfDetail,
-      rtSib: rt?.loadSiblings,
-      otSib: ot?.loadSiblings,
-      gTileCache: viewer.scene.globe.tileCacheSize,
-    };
-    const apply = (ts: any, sse: number, cacheBytes: number) => {
-      if (!ts) return;
-      ts.maximumScreenSpaceError = sse;
-      ts.cacheBytes = cacheBytes;
-      ts.maximumCacheOverflowBytes = cacheBytes;
-      ts.cullRequestsWhileMoving = false;
-      ts.foveatedScreenSpaceError = false;
-      ts.dynamicScreenSpaceError = false;
-      ts.preloadWhenHidden = true;
-      ts.preloadFlightDestinations = true;
-      ts.progressiveResolutionHeightFraction = 0;
-      ts.skipLevelOfDetail = false;
-      // Force top LOD immediately and proactively load neighbouring
-      // tiles so the player never sees a lower-LOD popin while walking
-      // / turning. Combined with the warmup pass below this gives a
-      // ~10mi (16km) hot cache around the character.
-      ts.immediatelyLoadDesiredLevelOfDetail = true;
-      ts.loadSiblings = true;
+      globeSse: viewer.scene.globe.maximumScreenSpaceError,
+      globeAnc: viewer.scene.globe.preloadAncestors,
+      globeSib: viewer.scene.globe.preloadSiblings,
+      globeCache: viewer.scene.globe.tileCacheSize,
+      resScale: viewer.resolutionScale,
+      tiles: tilesets.map((ts) => ({
+        ts,
+        maximumScreenSpaceError: ts.maximumScreenSpaceError,
+        cacheBytes: ts.cacheBytes,
+        maximumCacheOverflowBytes: ts.maximumCacheOverflowBytes,
+        cullRequestsWhileMoving: ts.cullRequestsWhileMoving,
+        foveatedScreenSpaceError: ts.foveatedScreenSpaceError,
+        dynamicScreenSpaceError: ts.dynamicScreenSpaceError,
+        preloadWhenHidden: ts.preloadWhenHidden,
+        preloadFlightDestinations: ts.preloadFlightDestinations,
+        immediatelyLoadDesiredLevelOfDetail: ts.immediatelyLoadDesiredLevelOfDetail,
+        loadSiblings: ts.loadSiblings,
+        skipLevelOfDetail: ts.skipLevelOfDetail,
+      })),
     };
     if (playing) {
-      apply(rt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD photoreal
-      apply(ot, 1, 2 * 1024 * 1024 * 1024); // 2 GiB cache, top LOD OSM
-      apply(gt, 1, 4 * 1024 * 1024 * 1024); // 4 GiB cache, top LOD Google Direct
-      viewer.scene.globe.maximumScreenSpaceError = 1;
+      tilesets.forEach((ts) => tuneAtlasTileset(ts, "move"));
+      viewer.scene.globe.maximumScreenSpaceError = 4;
       viewer.scene.globe.preloadAncestors = true;
-      viewer.scene.globe.preloadSiblings = true;
-      try { viewer.scene.globe.tileCacheSize = 4000; } catch {}
+      viewer.scene.globe.preloadSiblings = false;
+      try { viewer.scene.globe.tileCacheSize = 1200; } catch {}
       viewer.scene.requestRender();
 
-      // ── Warmup prefetch pass ───────────────────────────────────
-      // Briefly point Cesium's camera straight down from ~6km above
-      // the player's spawn so the tilesets queue requests for a wide
-      // (~10mi) ring of tiles, then restore the camera. Repeat at a
-      // slow cadence so the hot ring follows the player as they walk.
-      const getAnchor = (): { lng: number; lat: number } | null => {
-        const sp = freePlaySpawnRef.current;
-        if (sp) return { lng: sp.lng, lat: sp.lat };
-        const pid = playingLevelIdRef.current;
-        const p = levelPlacementsRef.current.find((x) => x.level_id === pid);
-        if (p) return { lng: p.lng, lat: p.lat };
-        return null;
-      };
-      const prefetch = () => {
-        if (viewer.isDestroyed?.()) return;
-        const a = getAnchor();
-        if (!a) return;
-        const cam = viewer.camera;
-        const saved = {
-          pos: cam.positionWC.clone(),
-          dir: cam.directionWC.clone(),
-          up: cam.upWC.clone(),
-          right: cam.rightWC.clone(),
-        };
-        try {
-          try {
-            // Top-down at 6km — frustum covers ~12km / ~7.5mi at 60° FOV,
-            // SSE=1 forces top LOD across that footprint.
-            cam.setView({
-              destination: Cartesian3.fromDegrees(a.lng, a.lat, 6000),
-              orientation: { heading: 0, pitch: -CesiumMath.PI_OVER_TWO, roll: 0 },
-            });
-            viewer.scene.render();
-          } catch {}
-        } finally {
-          // Always restore — if the render call above throws, we still
-          // must not leave the user's camera teleported into the sky.
-          try {
-            cam.position = saved.pos;
-            cam.direction = saved.dir;
-            cam.up = saved.up;
-            cam.right = saved.right;
-            viewer.scene.requestRender();
-          } catch {}
-        }
-      };
-      // Run one immediately and then every 4s while playing.
-      prefetch();
-      const interval = window.setInterval(prefetch, 4000);
-      (viewer as any).__playPrefetchInterval = interval;
-
       // ── Dynamic quality: sharper when idle, faster when moving ──
-      // While the camera/character is moving we relax SSE (more blur,
-      // higher FPS, less tile churn). The moment the user stops, we
-      // crank SSE back to 1 and bump resolutionScale back up so the
-      // standing-still frame is crisp.
+      // While walking, keep FPS stable and foveated loading centered. Once
+      // the user stops for a moment, refine visible tiles without loading
+      // the entire city at forced top LOD.
       const cam = viewer.camera;
       let lastPos = cam.positionWC.clone();
       let lastDir = cam.directionWC.clone();
       let lastMoveT = performance.now();
       let idleMode = false;
-      const prevResScale = viewer.resolutionScale;
-      // Aggressive play-mode baseline (quality floor = max-FPS).
-      try { viewer.resolutionScale = 0.7; } catch {}
+      try { viewer.resolutionScale = 0.78; } catch {}
       const dynTick = () => {
         if (viewer.isDestroyed()) return;
         const moved =
@@ -908,67 +871,38 @@ function SpaceshipPage() {
           lastMoveT = performance.now();
           if (idleMode) {
             idleMode = false;
-            try { viewer.resolutionScale = 0.7; } catch {}
-            if (rt) rt.maximumScreenSpaceError = 4;
-            if (ot) ot.maximumScreenSpaceError = 4;
+            try { viewer.resolutionScale = 0.78; } catch {}
+            tilesets.forEach((ts) => tuneAtlasTileset(ts, "move"));
+            viewer.scene.requestRender();
           }
-        } else if (!idleMode && performance.now() - lastMoveT > 250) {
+        } else if (!idleMode && performance.now() - lastMoveT > 450) {
           idleMode = true;
-          try { viewer.resolutionScale = 1.0; } catch {}
-          if (rt) rt.maximumScreenSpaceError = 1;
-          if (ot) ot.maximumScreenSpaceError = 1;
+          try { viewer.resolutionScale = 0.9; } catch {}
+          tilesets.forEach((ts) => tuneAtlasTileset(ts, "idle"));
           viewer.scene.requestRender();
         }
       };
-      const dynInterval = window.setInterval(dynTick, 100);
+      const dynInterval = window.setInterval(dynTick, 140);
       (viewer as any).__playDynInterval = dynInterval;
-      (viewer as any).__playPrevResScale = prevResScale;
     }
     return () => {
       if (viewer.isDestroyed()) return;
-      const interval = (viewer as any).__playPrefetchInterval;
-      if (interval) {
-        clearInterval(interval);
-        delete (viewer as any).__playPrefetchInterval;
-      }
       const dynInterval = (viewer as any).__playDynInterval;
       if (dynInterval) {
         clearInterval(dynInterval);
         delete (viewer as any).__playDynInterval;
       }
-      const prevRS = (viewer as any).__playPrevResScale;
-      if (typeof prevRS === "number") {
-        try { viewer.resolutionScale = prevRS; } catch {}
-        delete (viewer as any).__playPrevResScale;
-      }
-      if (rt) {
-        if (typeof prev.rtSse === "number") rt.maximumScreenSpaceError = prev.rtSse;
-        if (typeof prev.rtCache === "number") rt.cacheBytes = prev.rtCache;
-        if (typeof prev.rtCull === "boolean") rt.cullRequestsWhileMoving = prev.rtCull;
-        if (typeof prev.rtFov === "boolean") rt.foveatedScreenSpaceError = prev.rtFov;
-        if (typeof prev.rtDyn === "boolean") rt.dynamicScreenSpaceError = prev.rtDyn;
-        if (typeof prev.rtPreloadH === "boolean") rt.preloadWhenHidden = prev.rtPreloadH;
-        if (typeof prev.rtPreloadF === "boolean") rt.preloadFlightDestinations = prev.rtPreloadF;
-        if (typeof prev.rtImm === "boolean") rt.immediatelyLoadDesiredLevelOfDetail = prev.rtImm;
-        if (typeof prev.rtSib === "boolean") rt.loadSiblings = prev.rtSib;
-      }
-      if (ot) {
-        if (typeof prev.otSse === "number") ot.maximumScreenSpaceError = prev.otSse;
-        if (typeof prev.otCache === "number") ot.cacheBytes = prev.otCache;
-        if (typeof prev.otCull === "boolean") ot.cullRequestsWhileMoving = prev.otCull;
-        if (typeof prev.otFov === "boolean") ot.foveatedScreenSpaceError = prev.otFov;
-        if (typeof prev.otDyn === "boolean") ot.dynamicScreenSpaceError = prev.otDyn;
-        if (typeof prev.otPreloadH === "boolean") ot.preloadWhenHidden = prev.otPreloadH;
-        if (typeof prev.otPreloadF === "boolean") ot.preloadFlightDestinations = prev.otPreloadF;
-        if (typeof prev.otImm === "boolean") ot.immediatelyLoadDesiredLevelOfDetail = prev.otImm;
-        if (typeof prev.otSib === "boolean") ot.loadSiblings = prev.otSib;
-      }
-      if (typeof prev.gSse === "number") viewer.scene.globe.maximumScreenSpaceError = prev.gSse;
-      if (typeof prev.preAnc === "boolean") viewer.scene.globe.preloadAncestors = prev.preAnc;
-      if (typeof prev.preSib === "boolean") viewer.scene.globe.preloadSiblings = prev.preSib;
-      if (typeof prev.gTileCache === "number") {
-        try { viewer.scene.globe.tileCacheSize = prev.gTileCache; } catch {}
-      }
+      try { viewer.resolutionScale = prev.resScale; } catch {}
+      prev.tiles.forEach(({ ts, ...p }) => {
+        if (!ts) return;
+        for (const [k, v] of Object.entries(p)) {
+          if (typeof v !== "undefined") try { ts[k] = v; } catch {}
+        }
+      });
+      if (typeof prev.globeSse === "number") viewer.scene.globe.maximumScreenSpaceError = prev.globeSse;
+      if (typeof prev.globeAnc === "boolean") viewer.scene.globe.preloadAncestors = prev.globeAnc;
+      if (typeof prev.globeSib === "boolean") viewer.scene.globe.preloadSiblings = prev.globeSib;
+      if (typeof prev.globeCache === "number") try { viewer.scene.globe.tileCacheSize = prev.globeCache; } catch {}
     };
   }, [playingLevelId, freePlaySpawn, isLoaded]);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
@@ -1274,6 +1208,46 @@ function SpaceshipPage() {
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
   const instantBusinessAbortRef = useRef<AbortController | null>(null);
+  const atlasTags = useMemo<AtlasTag[]>(() => {
+    const allTags: AtlasTag[] = [];
+    businessDataRef.current.forEach((data, id) => {
+      allTags.push({
+        kind: "biz",
+        id,
+        name: data.name,
+        lat: data.lat,
+        lng: data.lng,
+        categoryId: amenityToCategoryId(data.category),
+        emoji: data.emoji,
+        website: data.website,
+      });
+    });
+    pois.forEach(p => {
+      allTags.push({
+        kind: "poi",
+        id: `poi-${p.id}`,
+        name: p.name,
+        lat: p.lat,
+        lng: p.lng,
+        categoryId: "landmark",
+      });
+    });
+    if (showMarketplacePins) {
+      fetchMarketplaceProducts().forEach(p => {
+        allTags.push({
+          kind: "market",
+          id: `marketplace-${p.id}`,
+          name: p.name,
+          lat: p.sellerLat,
+          lng: p.sellerLng,
+          categoryId: "shop",
+          emoji: p.emoji,
+        });
+      });
+    }
+    void tagsVersion;
+    return allTags;
+  }, [pois, showMarketplacePins, tagsVersion]);
 
   // Real-time aircraft & ship tracking
   const [showLiveTraffic, setShowLiveTraffic] = useState<boolean>(savedUI.showLiveTraffic ?? false);
@@ -2238,14 +2212,17 @@ function SpaceshipPage() {
       // Temporarily reduce quality during resize
       const rt = (viewer as any)._realisticTileset;
       const ot = (viewer as any)._osmTileset;
+      const gt = (viewer as any)._googleDirectTileset;
       if (rt) rt.maximumScreenSpaceError = 32;
       if (ot) ot.maximumScreenSpaceError = 32;
+      if (gt) gt.maximumScreenSpaceError = 32;
       viewer.scene.globe.maximumScreenSpaceError = 8;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (viewer.isDestroyed()) return;
-        if (rt) rt.maximumScreenSpaceError = 8;
-        if (ot) ot.maximumScreenSpaceError = 4;
+        if (rt) tuneAtlasTileset(rt, "boot");
+        if (ot) tuneAtlasTileset(ot, "boot");
+        if (gt) tuneAtlasTileset(gt, "boot");
         viewer.scene.globe.maximumScreenSpaceError = 2;
         viewer.scene.requestRender();
       }, 600);
@@ -2284,8 +2261,11 @@ function SpaceshipPage() {
     // on fast connections. Higher concurrency = faster fill, fewer
     // visible popins as the character walks.
     try {
-      RequestScheduler.maximumRequests = 128;
-      RequestScheduler.maximumRequestsPerServer = 24;
+      // Too much concurrency overloads the browser's network + GL texture
+      // upload queue and makes tiles appear to freeze. This is intentionally
+      // above Cesium defaults, but below the previous 128/24 spike.
+      RequestScheduler.maximumRequests = 72;
+      RequestScheduler.maximumRequestsPerServer = 10;
       RequestScheduler.throttleRequests = true;
     } catch {}
 
@@ -2294,12 +2274,12 @@ function SpaceshipPage() {
     // default pool is tiny; raise it to the CPU's logical core count
     // for much faster tile decode + texture upload on modern laptops.
     try {
-      const cores = Math.max(2, Math.min(16, (navigator.hardwareConcurrency || 4)));
-      (TaskProcessor as any).maximumActiveTasks = cores * 4;
+      const cores = Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4)));
+      (TaskProcessor as any).maximumActiveTasks = cores * 2;
       (TaskProcessor as any)._defaultWorkerOptions; // touch to ensure loaded
       // @ts-ignore — Cesium internal
       if (typeof (TaskProcessor as any).setMaximumActiveTasks === "function") {
-        (TaskProcessor as any).setMaximumActiveTasks(cores * 4);
+        (TaskProcessor as any).setMaximumActiveTasks(cores * 2);
       }
     } catch {}
 
@@ -2308,7 +2288,7 @@ function SpaceshipPage() {
     // photoreal tilesets. Restored when the component unmounts.
     try {
       (viewer as any).useBrowserRecommendedResolution = false;
-      viewer.resolutionScale = 0.85;
+        viewer.resolutionScale = 0.8;
       if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = false;
       }
@@ -2340,14 +2320,7 @@ function SpaceshipPage() {
       return Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
         if (viewer.isDestroyed()) return null;
         viewer.scene.primitives.add(tileset);
-        tileset.maximumScreenSpaceError = 8;
-        try {
-          (tileset as any).cacheBytes = 1.5 * 1024 * 1024 * 1024;
-          (tileset as any).maximumCacheOverflowBytes = 512 * 1024 * 1024;
-          (tileset as any).preloadWhenHidden = true;
-          (tileset as any).foveatedScreenSpaceError = true;
-          (tileset as any).progressiveResolutionHeightFraction = 0.5;
-        } catch {}
+        tuneAtlasTileset(tileset, "boot");
         (viewer as any)._realisticTileset = tileset;
         viewer.scene.requestRender();
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
@@ -2362,15 +2335,8 @@ function SpaceshipPage() {
       return createOsmBuildingsAsync().then((tileset) => {
         if (viewer.isDestroyed()) return null;
         viewer.scene.primitives.add(tileset);
-        tileset.maximumScreenSpaceError = 8;
+        tuneAtlasTileset(tileset, "boot");
         tileset.show = false;
-        try {
-          (tileset as any).cacheBytes = 512 * 1024 * 1024;
-          (tileset as any).maximumCacheOverflowBytes = 128 * 1024 * 1024;
-          (tileset as any).preloadWhenHidden = true;
-          (tileset as any).foveatedScreenSpaceError = true;
-          (tileset as any).progressiveResolutionHeightFraction = 0.5;
-        } catch {}
         (viewer as any)._osmTileset = tileset;
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
@@ -2385,36 +2351,12 @@ function SpaceshipPage() {
     const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json`;
     Cesium3DTileset.fromUrl(G3D_URL, {
       showCreditsOnScreen: false,
+      maximumNumberOfLoadedTiles: 512,
     } as any).then((tileset) => {
       if (viewer.isDestroyed()) return;
       viewer.scene.primitives.add(tileset);
-      // Slightly relaxed SSE (16) at boot for FAST first paint — center
-      // of the viewport refines first thanks to foveated loading, then
-      // expands outwards. The play-mode preloader will tighten to 4 once
-      // a character is dropped, which is when sub-meter detail matters.
-      tileset.maximumScreenSpaceError = 16;
-      try {
-        // Keep tiles resident in memory up to ~23km cam altitude (well
-        // beyond viewport extent at city zoom). 2 GiB covers Manhattan
-        // + most major metros without thrashing.
-        (tileset as any).cacheBytes = 2 * 1024 * 1024 * 1024;
-        (tileset as any).maximumCacheOverflowBytes = 768 * 1024 * 1024;
-        (tileset as any).preloadWhenHidden = true;
-        // foveated = center-of-viewport refines first, edges follow.
-        (tileset as any).foveatedScreenSpaceError = true;
-        (tileset as any).foveatedConeSize = 0.2;
-        // progressive = show a coarse version immediately, then refine.
-        (tileset as any).progressiveResolutionHeightFraction = 0.5;
-        // siblings inflate request volume 4x and aren't needed until the
-        // character actually moves — play mode flips this back on.
-        (tileset as any).loadSiblings = false;
-        // Skip-LOD lets Cesium jump straight to high detail when zooming
-        // in, instead of streaming every intermediate level.
-        (tileset as any).skipLevelOfDetail = true;
-        (tileset as any).baseScreenSpaceError = 1024;
-        (tileset as any).skipScreenSpaceErrorFactor = 16;
-        (tileset as any).skipLevels = 1;
-      } catch {}
+      // FAST first paint: center of viewport refines first, then expands.
+      tuneAtlasTileset(tileset, "boot");
       (viewer as any)._googleDirectTileset = tileset;
       // New default: hide Ion-routed photoreal in favour of the direct feed.
       const ion = (viewer as any)._realisticTileset;
@@ -2622,7 +2564,7 @@ function SpaceshipPage() {
     // we don't re-render the whole 6.8k-line page on every Cesium frame.
     let __lastAltEmit = 0;
     let __lastAltVal = NaN;
-    viewer.scene.postRender.addEventListener(() => {
+    const removeAltListener = viewer.scene.postRender.addEventListener(() => {
       if (viewer.isDestroyed()) return;
       const now = performance.now();
       if (now - __lastAltEmit < 250) return;
@@ -2634,12 +2576,55 @@ function SpaceshipPage() {
       setCameraAlt(h);
     });
 
+    // Adaptive quality governor: if frame time spikes while Google/realistic
+    // tiles stream, immediately reduce tile pressure; when the scene is stable,
+    // refine again. This prevents the browser from freezing under texture upload
+    // bursts while keeping still views realistic.
+    let __lastFrameT = performance.now();
+    let __slowFrames = 0;
+    let __fastFrames = 0;
+    let __perfProfile: "boot" | "move" | "idle" | "far" = "boot";
+    let __lastPerfApply = 0;
+    const applyPerfProfile = (profile: typeof __perfProfile) => {
+      const now = performance.now();
+      if (profile === __perfProfile && now - __lastPerfApply < 2000) return;
+      __perfProfile = profile;
+      __lastPerfApply = now;
+      const sets = [
+        (viewer as any)._googleDirectTileset,
+        (viewer as any)._realisticTileset,
+        (viewer as any)._osmTileset,
+      ].filter(Boolean);
+      sets.forEach((ts) => tuneAtlasTileset(ts, profile));
+      try { viewer.resolutionScale = profile === "idle" ? 0.9 : profile === "far" ? 0.68 : 0.78; } catch {}
+      viewer.scene.requestRender();
+    };
+    const removePerfListener = viewer.scene.postRender.addEventListener(() => {
+      if (viewer.isDestroyed()) return;
+      if (playingLevelIdRef.current || freePlaySpawnRef.current) return;
+      const now = performance.now();
+      const dt = now - __lastFrameT;
+      __lastFrameT = now;
+      const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position).height; } catch { return 0; } })();
+      if (alt > 23000) {
+        applyPerfProfile("far");
+        return;
+      }
+      if (dt > 42) { __slowFrames += 1; __fastFrames = 0; }
+      else if (dt < 24) { __fastFrames += 1; __slowFrames = 0; }
+      else { __slowFrames = 0; __fastFrames = 0; }
+      if (__slowFrames >= 5) applyPerfProfile("move");
+      else if (__fastFrames >= 35) applyPerfProfile("idle");
+    });
+
     setIsLoaded(true);
 
     return () => {
       handler.destroy();
       if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
       if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
+      try { removeAltListener?.(); } catch {}
+      try { removePerfListener?.(); } catch {}
       // Release the module-level Viewer ref held by the shared scheduler
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
@@ -4819,7 +4804,7 @@ function SpaceshipPage() {
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
       {/* Placed Model Labels (HTML overlay) */}
-      {isLoaded && (
+      {isLoaded && !freePlaySpawn && !playingLevelId && (
         <ModelLabelsOverlay
           viewer={viewerRef.current}
           models={placedModels}
@@ -4859,61 +4844,26 @@ function SpaceshipPage() {
       )}
 
       {/* Unified Atlas tag clustering overlay */}
-      {isLoaded && (() => {
-        const allTags: AtlasTag[] = [];
-        // Business pins
-        businessDataRef.current.forEach((data, id) => {
-          allTags.push({
-            kind: "biz", id,
-            name: data.name,
-            lat: data.lat, lng: data.lng,
-            categoryId: amenityToCategoryId(data.category),
-            emoji: data.emoji,
-            website: data.website,
-          });
-        });
-        // Saved POIs
-        pois.forEach(p => {
-          allTags.push({
-            kind: "poi", id: `poi-${p.id}`,
-            name: p.name, lat: p.lat, lng: p.lng,
-            categoryId: "landmark",
-          });
-        });
-        // Marketplace
-        if (showMarketplacePins) {
-          fetchMarketplaceProducts().forEach(p => {
-            allTags.push({
-              kind: "market", id: `marketplace-${p.id}`,
-              name: p.name, lat: p.sellerLat, lng: p.sellerLng,
-              categoryId: "shop",
-              emoji: p.emoji,
-            });
-          });
-        }
-        // Reference tagsVersion to keep this block re-running.
-        void tagsVersion;
-        return (
-          <AtlasTagsOverlay
-            viewer={viewerRef.current}
-            tags={allTags}
-            onSelect={(t) => {
-              if (t.kind === "biz") {
-                const data = businessDataRef.current.get(t.id);
-                if (data) setSelectedBusiness(data);
-              } else if (t.kind === "market") {
-                const productId = t.id.replace("marketplace-", "");
-                const prod = fetchMarketplaceProducts().find(p => p.id === productId);
-                if (prod) setSelectedMarketplaceProduct(prod);
-              } else if (t.kind === "poi") {
-                const poiId = t.id.replace("poi-", "");
-                const poi = pois.find(p => p.id === poiId);
-                if (poi) setSelectedPOI(poi);
-              }
-            }}
-          />
-        );
-      })()}
+      {isLoaded && !freePlaySpawn && !playingLevelId && (
+        <AtlasTagsOverlay
+          viewer={viewerRef.current}
+          tags={atlasTags}
+          onSelect={(t) => {
+            if (t.kind === "biz") {
+              const data = businessDataRef.current.get(t.id);
+              if (data) setSelectedBusiness(data);
+            } else if (t.kind === "market") {
+              const productId = t.id.replace("marketplace-", "");
+              const prod = fetchMarketplaceProducts().find(p => p.id === productId);
+              if (prod) setSelectedMarketplaceProduct(prod);
+            } else if (t.kind === "poi") {
+              const poiId = t.id.replace("poi-", "");
+              const poi = pois.find(p => p.id === poiId);
+              if (poi) setSelectedPOI(poi);
+            }
+          }}
+        />
+      )}
 
       {/* Loading Screen */}
       {/* Loading screen removed */}

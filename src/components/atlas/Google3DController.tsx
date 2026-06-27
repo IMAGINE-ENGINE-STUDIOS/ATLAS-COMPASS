@@ -22,21 +22,23 @@ type Settings = {
 };
 
 const DEFAULTS: Settings = {
-  sse: 8,
-  cacheMiB: 1536,
-  preloadWhenHidden: true,
-  loadSiblings: true,
-  preloadFlightDestinations: true,
-  dynamicSSE: false,
+  // Performance-first defaults: foveated + progressive loading keeps the
+  // viewport realistic without flooding the network/GPU with off-screen tiles.
+  sse: 14,
+  cacheMiB: 1024,
+  preloadWhenHidden: false,
+  loadSiblings: false,
+  preloadFlightDestinations: false,
+  dynamicSSE: true,
   dynamicSSEDensity: 0.00278,
   dynamicSSEFactor: 4,
-  skipLOD: false,
+  skipLOD: true,
   immediatelyLoad: false,
   shadows: false,
   showCredits: true,
 };
 
-const LS_KEY = "atlas.google3d.settings.v1";
+const LS_KEY = "atlas.google3d.settings.v3";
 
 function load(): Settings {
   try {
@@ -64,6 +66,8 @@ export default function Google3DController({ viewer, visible }: Props) {
     try {
       ts.maximumScreenSpaceError = Math.max(1, s.sse);
       ts.cacheBytes = Math.max(64, s.cacheMiB) * 1024 * 1024;
+      ts.maximumMemoryUsage = Math.min(1024, Math.max(128, s.cacheMiB));
+      ts.maximumNumberOfLoadedTiles = 512;
       ts.preloadWhenHidden = s.preloadWhenHidden;
       ts.loadSiblings = s.loadSiblings;
       ts.preloadFlightDestinations = s.preloadFlightDestinations;
