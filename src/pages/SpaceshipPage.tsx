@@ -58,6 +58,7 @@ import {
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAtlasKeyboardNav } from "@/components/atlas/useAtlasKeyboardNav";
+import { applyAtlasVisuals } from "@/lib/atlasVisuals";
 import { supabase } from "@/integrations/supabase/client";
 import QuickStoreFilter from "@/components/atlas/QuickStoreFilter";
 import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLayer";
