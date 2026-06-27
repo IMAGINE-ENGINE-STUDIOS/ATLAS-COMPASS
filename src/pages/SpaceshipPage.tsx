@@ -838,8 +838,10 @@ function SpaceshipPage() {
       // (~10mi) ring of tiles, then restore the camera. Repeat at a
       // slow cadence so the hot ring follows the player as they walk.
       const getAnchor = (): { lng: number; lat: number } | null => {
-        if (freePlaySpawn) return { lng: freePlaySpawn.lng, lat: freePlaySpawn.lat };
-        const p = levelPlacements.find((x) => x.level_id === playingLevelId);
+        const sp = freePlaySpawnRef.current;
+        if (sp) return { lng: sp.lng, lat: sp.lat };
+        const pid = playingLevelIdRef.current;
+        const p = levelPlacementsRef.current.find((x) => x.level_id === pid);
         if (p) return { lng: p.lng, lat: p.lat };
         return null;
       };
@@ -855,21 +857,26 @@ function SpaceshipPage() {
           right: cam.rightWC.clone(),
         };
         try {
-          // Top-down at 6km — frustum covers ~12km / ~7.5mi at 60° FOV,
-          // SSE=1 forces top LOD across that footprint.
-          cam.setView({
-            destination: Cartesian3.fromDegrees(a.lng, a.lat, 6000),
-            orientation: { heading: 0, pitch: -CesiumMath.PI_OVER_TWO, roll: 0 },
-          });
-          viewer.scene.render();
-        } catch {}
-        try {
-          cam.position = saved.pos;
-          cam.direction = saved.dir;
-          cam.up = saved.up;
-          cam.right = saved.right;
-          viewer.scene.requestRender();
-        } catch {}
+          try {
+            // Top-down at 6km — frustum covers ~12km / ~7.5mi at 60° FOV,
+            // SSE=1 forces top LOD across that footprint.
+            cam.setView({
+              destination: Cartesian3.fromDegrees(a.lng, a.lat, 6000),
+              orientation: { heading: 0, pitch: -CesiumMath.PI_OVER_TWO, roll: 0 },
+            });
+            viewer.scene.render();
+          } catch {}
+        } finally {
+          // Always restore — if the render call above throws, we still
+          // must not leave the user's camera teleported into the sky.
+          try {
+            cam.position = saved.pos;
+            cam.direction = saved.dir;
+            cam.up = saved.up;
+            cam.right = saved.right;
+            viewer.scene.requestRender();
+          } catch {}
+        }
       };
       // Run one immediately and then every 4s while playing.
       prefetch();
@@ -962,7 +969,7 @@ function SpaceshipPage() {
         try { viewer.scene.globe.tileCacheSize = prev.gTileCache; } catch {}
       }
     };
-  }, [playingLevelId, freePlaySpawn, isLoaded, levelPlacements]);
+  }, [playingLevelId, freePlaySpawn, isLoaded]);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
