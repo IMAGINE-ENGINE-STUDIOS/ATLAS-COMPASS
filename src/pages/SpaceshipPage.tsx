@@ -120,6 +120,7 @@ const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyM
  */
 const TILE_MIB = 1024 * 1024;
 type AtlasViewMode = "google" | "realistic" | "osm";
+type AtlasTilesetKey = "_googleDirectTileset" | "_realisticTileset" | "_osmTileset";
 
 const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "boot") => {
   if (!ts) return;
@@ -173,6 +174,23 @@ const applyAtlasMapVisibility = (
   viewer.scene.globe.show = mode === "osm" || !hasVisiblePhotoreal;
   viewer.scene.requestRender?.();
 };
+
+const destroyAtlasTileset = (viewer: any, key: AtlasTilesetKey) => {
+  const tileset = viewer?.[key] as any;
+  if (!viewer || !tileset) return;
+  viewer[key] = null;
+  try {
+    if (!viewer.isDestroyed?.() && viewer.scene?.primitives?.contains?.(tileset)) {
+      viewer.scene.primitives.remove(tileset);
+    } else if (!tileset.isDestroyed?.()) {
+      tileset.destroy?.();
+    }
+  } catch {
+    try { if (!tileset.isDestroyed?.()) tileset.destroy?.(); } catch {}
+  }
+};
+
+const wantsPhotorealMode = (mode: AtlasViewMode) => mode === "google" || mode === "realistic";
 
 /* ── Types ── */
 interface SearchResult {
