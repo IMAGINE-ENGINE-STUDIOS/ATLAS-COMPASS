@@ -3773,6 +3773,15 @@ function SpaceshipPage() {
     if (!viewerRef.current) return;
     const viewer = viewerRef.current;
     const google = (viewer as any)._googleDirectTileset;
+    // Ion realistic + OSM tilesets are lazy — only instantiated when the
+    // user actually switches to them. Saves a full parallel tileset load
+    // at boot which is what made the map feel "eternally slow" before.
+    if (mode === "realistic" && !(viewer as any)._realisticTileset) {
+      (viewer as any)._ensureRealisticTileset?.();
+    }
+    if (mode === "osm" && !(viewer as any)._osmTileset) {
+      (viewer as any)._ensureOsmTileset?.();
+    }
     const realistic = (viewer as any)._realisticTileset;
     const osm = (viewer as any)._osmTileset;
 
