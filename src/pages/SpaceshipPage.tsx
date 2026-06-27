@@ -119,6 +119,9 @@ const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyM
  *  - keep memory caches large enough to prevent thrash, but below OOM sizes
  */
 const TILE_MIB = 1024 * 1024;
+type AtlasViewMode = "google" | "realistic" | "osm";
+type AtlasTilesetKey = "_googleDirectTileset" | "_realisticTileset" | "_osmTileset";
+
 const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "boot") => {
   if (!ts) return;
   const isFar = profile === "far";
@@ -150,6 +153,44 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
     ts.shadows = 0;
   } catch {}
 };
+
+const applyAtlasMapVisibility = (
+  viewer: any,
+  mode: AtlasViewMode,
+  showBuildings: boolean,
+) => {
+  if (!viewer || viewer.isDestroyed?.()) return;
+  const google = viewer._googleDirectTileset as Cesium3DTileset | undefined;
+  const realistic = viewer._realisticTileset as Cesium3DTileset | undefined;
+  const osm = viewer._osmTileset as Cesium3DTileset | undefined;
+  const wantsPhotoreal = mode === "google" || mode === "realistic";
+  const activePhotoreal = google ?? realistic;
+
+  if (google) google.show = wantsPhotoreal && showBuildings && activePhotoreal === google;
+  if (realistic) realistic.show = wantsPhotoreal && showBuildings && activePhotoreal === realistic;
+  if (osm) osm.show = mode === "osm" && showBuildings;
+
+  const hasVisiblePhotoreal = wantsPhotoreal && showBuildings && !!activePhotoreal;
+  viewer.scene.globe.show = mode === "osm" || !hasVisiblePhotoreal;
+  viewer.scene.requestRender?.();
+};
+
+const destroyAtlasTileset = (viewer: any, key: AtlasTilesetKey) => {
+  const tileset = viewer?.[key] as any;
+  if (!viewer || !tileset) return;
+  viewer[key] = null;
+  try {
+    if (!viewer.isDestroyed?.() && viewer.scene?.primitives?.contains?.(tileset)) {
+      viewer.scene.primitives.remove(tileset);
+    } else if (!tileset.isDestroyed?.()) {
+      tileset.destroy?.();
+    }
+  } catch {
+    try { if (!tileset.isDestroyed?.()) tileset.destroy?.(); } catch {}
+  }
+};
+
+const wantsPhotorealMode = (mode: AtlasViewMode) => mode === "google" || mode === "realistic";
 
 /* ── Types ── */
 interface SearchResult {
@@ -784,7 +825,7 @@ function SpaceshipPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
-  const [viewMode, setViewMode] = useState<"google" | "realistic" | "osm">(savedUI.viewMode ?? "google");
+  const [viewMode, setViewMode] = useState<AtlasViewMode>(savedUI.viewMode ?? "google");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   const [cameraAlt, setCameraAlt] = useState(0);
@@ -801,9 +842,11 @@ function SpaceshipPage() {
   // SSE/cache values back as the "previous" explore-mode baseline).
   const playingLevelIdRef = useRef<string | null>(null);
   const freePlaySpawnRef = useRef<FreePlaySpawn | null>(null);
+  const showBuildingsRef = useRef<boolean>(showBuildings);
   const levelPlacementsRef = useRef<typeof levelPlacements>([]);
   useEffect(() => { playingLevelIdRef.current = playingLevelId; }, [playingLevelId]);
   useEffect(() => { freePlaySpawnRef.current = freePlaySpawn; }, [freePlaySpawn]);
+  useEffect(() => { showBuildingsRef.current = showBuildings; }, [showBuildings]);
   useEffect(() => { levelPlacementsRef.current = levelPlacements; }, [levelPlacements]);
   // ───────────────────────────────────────────────────────────────
   // PLAY-MODE TILE BUDGET
@@ -1091,7 +1134,7 @@ function SpaceshipPage() {
   // 3D Tiles are the only visible surface — Cesium's CLAMP_TO_GROUND falls
   // back to sea level there, dropping pins under buildings. CLAMP_TO_3D_TILE
   // anchors them to the photogrammetry top instead.
-  const viewModeRef = useRef<"google" | "realistic" | "osm">("google");
+  const viewModeRef = useRef<AtlasViewMode>("google");
   const pinHeightRef = useCallback(() => (
     viewModeRef.current === "realistic" || viewModeRef.current === "google"
       ? HeightReference.CLAMP_TO_3D_TILE
@@ -2264,8 +2307,8 @@ function SpaceshipPage() {
       // Too much concurrency overloads the browser's network + GL texture
       // upload queue and makes tiles appear to freeze. This is intentionally
       // above Cesium defaults, but below the previous 128/24 spike.
-      RequestScheduler.maximumRequests = 72;
-      RequestScheduler.maximumRequestsPerServer = 10;
+      RequestScheduler.maximumRequests = 42;
+      RequestScheduler.maximumRequestsPerServer = 6;
       RequestScheduler.throttleRequests = true;
     } catch {}
 
@@ -2313,34 +2356,45 @@ function SpaceshipPage() {
     // Direct is the visible default, so we defer the other two and only
     // create them on demand (fallback or user-toggled map type).
     (viewer as any)._ensureRealisticTileset = () => {
-      if ((viewer as any)._realisticTileset || (viewer as any)._realisticLoading) {
-        return (viewer as any)._realisticTileset ?? null;
+      if ((viewer as any)._realisticTileset) return Promise.resolve((viewer as any)._realisticTileset);
+      if ((viewer as any)._realisticLoading) {
+        return (viewer as any)._realisticLoading;
       }
-      (viewer as any)._realisticLoading = true;
-      return Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
-        if (viewer.isDestroyed()) return null;
+      (viewer as any)._realisticLoading = Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
+        if (viewer.isDestroyed() || !wantsPhotorealMode(viewModeRef.current) || (viewer as any)._googleDirectTileset) {
+          try { tileset.destroy?.(); } catch {}
+          return null;
+        }
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._realisticTileset = tileset;
-        viewer.scene.requestRender();
+        applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
-      }).finally(() => { (viewer as any)._realisticLoading = false; });
+      }).catch((err) => {
+        console.warn("[Atlas realistic] tileset failed", err);
+        return null;
+      }).finally(() => { (viewer as any)._realisticLoading = null; });
+      return (viewer as any)._realisticLoading;
     };
     (viewer as any)._ensureOsmTileset = () => {
-      if ((viewer as any)._osmTileset || (viewer as any)._osmLoading) {
-        return (viewer as any)._osmTileset ?? null;
+      if ((viewer as any)._osmTileset) return Promise.resolve((viewer as any)._osmTileset);
+      if ((viewer as any)._osmLoading) {
+        return (viewer as any)._osmLoading;
       }
-      (viewer as any)._osmLoading = true;
-      return createOsmBuildingsAsync().then((tileset) => {
+      (viewer as any)._osmLoading = createOsmBuildingsAsync().then((tileset) => {
         if (viewer.isDestroyed()) return null;
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
-        tileset.show = false;
         (viewer as any)._osmTileset = tileset;
+        applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
-      }).finally(() => { (viewer as any)._osmLoading = false; });
+      }).catch((err) => {
+        console.warn("[Atlas OSM] tileset failed", err);
+        return null;
+      }).finally(() => { (viewer as any)._osmLoading = null; });
+      return (viewer as any)._osmLoading;
     };
 
     // ── Google Photorealistic 3D Tiles (Direct via Map Tiles API) ──
@@ -2348,33 +2402,47 @@ function SpaceshipPage() {
     // through an edge-function proxy that injects the connector API key
     // server-side. This is the same dataset Google ships to Unity/Unreal
     // "Geospatial Creator" — no separate higher-detail tier exists.
-    const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json?atlas_cache_bust=4`;
-    Cesium3DTileset.fromUrl(G3D_URL, {
-      showCreditsOnScreen: false,
-      maximumNumberOfLoadedTiles: 512,
-    } as any).then((tileset) => {
-      if (viewer.isDestroyed()) return;
-      viewer.scene.primitives.add(tileset);
-      // FAST first paint: center of viewport refines first, then expands.
-      tuneAtlasTileset(tileset, "boot");
-      (viewer as any)._googleDirectTileset = tileset;
-      // New default: hide Ion-routed photoreal in favour of the direct feed.
-      const ion = (viewer as any)._realisticTileset;
-      if (ion) ion.show = false;
-      tileset.show = true;
-      viewer.scene.globe.show = false;
-      viewer.scene.requestRender();
-      window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
-    }).catch((err) => {
-      console.warn("[Google 3D Direct] tileset failed to load — falling back to Ion route", err);
-      // Lazy-load Ion realistic tileset only on Google Direct failure.
-      const ensure = (viewer as any)._ensureRealisticTileset;
-      if (typeof ensure === "function") {
-        Promise.resolve(ensure()).then((ion: any) => { if (ion) ion.show = true; });
-      }
-      viewer.scene.globe.show = true;
-      viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
-    });
+    (viewer as any)._ensureGoogleDirectTileset = () => {
+      if ((viewer as any)._googleDirectTileset) return Promise.resolve((viewer as any)._googleDirectTileset);
+      if ((viewer as any)._googleDirectLoading) return (viewer as any)._googleDirectLoading;
+      const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json?atlas_cache_bust=5`;
+      (viewer as any)._googleDirectLoading = Cesium3DTileset.fromUrl(G3D_URL, {
+        showCreditsOnScreen: false,
+        maximumNumberOfLoadedTiles: 512,
+      } as any).then((tileset) => {
+        if (viewer.isDestroyed() || !wantsPhotorealMode(viewModeRef.current)) {
+          try { tileset.destroy?.(); } catch {}
+          return null;
+        }
+        viewer.scene.primitives.add(tileset);
+        tuneAtlasTileset(tileset, "boot");
+        (viewer as any)._googleDirectTileset = tileset;
+        destroyAtlasTileset(viewer, "_realisticTileset");
+        applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+        window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
+        return tileset;
+      }).catch((err) => {
+        console.warn("[Google 3D Direct] tileset failed to load — falling back to Ion route", err);
+        const ensure = (viewer as any)._ensureRealisticTileset;
+        if (typeof ensure === "function") {
+          Promise.resolve(ensure()).then(() => {
+            if (viewModeRef.current === "google") applyAtlasMapVisibility(viewer, "google", showBuildingsRef.current);
+          });
+        }
+        viewer.scene.globe.show = true;
+        viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
+        return null;
+      }).finally(() => { (viewer as any)._googleDirectLoading = null; });
+      return (viewer as any)._googleDirectLoading;
+    };
+    applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+    if (viewModeRef.current === "google") {
+      (viewer as any)._ensureGoogleDirectTileset();
+    } else if (viewModeRef.current === "realistic") {
+      (viewer as any)._ensureRealisticTileset();
+    } else {
+      (viewer as any)._ensureOsmTileset();
+    }
 
     // Create brush indicator entity (hidden by default)
     const brushEntity = viewer.entities.add({
@@ -2587,7 +2655,7 @@ function SpaceshipPage() {
     let __lastPerfApply = 0;
     const applyPerfProfile = (profile: typeof __perfProfile) => {
       const now = performance.now();
-      if (profile === __perfProfile && now - __lastPerfApply < 2000) return;
+      if (profile === __perfProfile && now - __lastPerfApply < 4000) return;
       __perfProfile = profile;
       __lastPerfApply = now;
       const sets = [
@@ -2614,7 +2682,7 @@ function SpaceshipPage() {
       else if (dt < 24) { __fastFrames += 1; __slowFrames = 0; }
       else { __slowFrames = 0; __fastFrames = 0; }
       if (__slowFrames >= 5) applyPerfProfile("move");
-      else if (__fastFrames >= 35) applyPerfProfile("idle");
+      else if (__fastFrames >= 70) applyPerfProfile("idle");
     });
 
     setIsLoaded(true);
@@ -2629,6 +2697,8 @@ function SpaceshipPage() {
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
       try { window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady); } catch {}
+      try { delete (window as any).__cesiumViewer; } catch {}
+      if (viewerRef.current === viewer) viewerRef.current = null;
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);
@@ -3758,57 +3828,45 @@ function SpaceshipPage() {
     setSearchQuery("");
   }, []);
 
-  const switchViewMode = useCallback((mode: "google" | "realistic" | "osm") => {
+  const switchViewMode = useCallback((mode: AtlasViewMode) => {
     if (!viewerRef.current) return;
     const viewer = viewerRef.current;
-    const google = (viewer as any)._googleDirectTileset;
-    // Ion realistic + OSM tilesets are lazy — only instantiated when the
-    // user actually switches to them. Saves a full parallel tileset load
-    // at boot which is what made the map feel "eternally slow" before.
-    if (mode === "realistic" && !(viewer as any)._realisticTileset) {
-      (viewer as any)._ensureRealisticTileset?.();
-    }
-    if (mode === "osm" && !(viewer as any)._osmTileset) {
+    viewModeRef.current = mode;
+    showBuildingsRef.current = true;
+    if (mode === "google") {
+      (viewer as any)._ensureGoogleDirectTileset?.();
+    } else if (mode === "realistic") {
+      if (!(viewer as any)._googleDirectTileset) (viewer as any)._ensureRealisticTileset?.();
+    } else if (mode === "osm") {
       (viewer as any)._ensureOsmTileset?.();
     }
-    const realistic = (viewer as any)._realisticTileset;
-    const osm = (viewer as any)._osmTileset;
-
-    if (mode === "google") {
-      if (google) { google.show = true; }
-      if (realistic) { realistic.show = false; }
-      if (osm) { osm.show = false; }
-      viewer.scene.globe.show = !google;
-    } else if (mode === "realistic") {
-      if (google) { google.show = false; }
-      if (realistic) { realistic.show = true; }
-      if (osm) { osm.show = false; }
-      viewer.scene.globe.show = !realistic;
-    } else {
-      if (google) { google.show = false; }
-      if (realistic) { realistic.show = false; }
-      if (osm) { osm.show = true; }
-      viewer.scene.globe.show = true;
-    }
+    applyAtlasMapVisibility(viewer, mode, true);
     setViewMode(mode);
     setShowBuildings(true);
   }, []);
 
   const toggleBuildings = useCallback(() => {
     if (!viewerRef.current) return;
-    const google = (viewerRef.current as any)._googleDirectTileset;
-    const realistic = (viewerRef.current as any)._realisticTileset;
-    const osm = (viewerRef.current as any)._osmTileset;
     const newShow = !showBuildings;
-    if (viewMode === "google" && google) {
-      google.show = newShow;
-    } else if (viewMode === "realistic" && realistic) {
-      realistic.show = newShow;
-    } else if (osm) {
-      osm.show = newShow;
-    }
+    showBuildingsRef.current = newShow;
+    applyAtlasMapVisibility(viewerRef.current, viewMode, newShow);
     setShowBuildings(newShow);
   }, [showBuildings, viewMode]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    if (!wantsPhotorealMode(viewMode)) {
+      destroyAtlasTileset(viewer, "_googleDirectTileset");
+      destroyAtlasTileset(viewer, "_realisticTileset");
+      (viewer as any)._googleDirectLoading = null;
+      (viewer as any)._realisticLoading = null;
+    } else if ((viewer as any)._googleDirectTileset) {
+      destroyAtlasTileset(viewer, "_realisticTileset");
+      (viewer as any)._realisticLoading = null;
+    }
+    applyAtlasMapVisibility(viewer, viewMode, showBuildingsRef.current);
+  }, [viewMode]);
 
   /* ── POI Functions ── */
   const addPOIToGlobe = useCallback((poi: POI) => {
