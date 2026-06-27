@@ -2291,8 +2291,8 @@ function SpaceshipPage() {
       // Too much concurrency overloads the browser's network + GL texture
       // upload queue and makes tiles appear to freeze. This is intentionally
       // above Cesium defaults, but below the previous 128/24 spike.
-      RequestScheduler.maximumRequests = 72;
-      RequestScheduler.maximumRequestsPerServer = 10;
+      RequestScheduler.maximumRequests = 42;
+      RequestScheduler.maximumRequestsPerServer = 6;
       RequestScheduler.throttleRequests = true;
     } catch {}
 
@@ -2412,7 +2412,14 @@ function SpaceshipPage() {
       }).finally(() => { (viewer as any)._googleDirectLoading = null; });
       return (viewer as any)._googleDirectLoading;
     };
-    (viewer as any)._ensureGoogleDirectTileset();
+    applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+    if (viewModeRef.current === "google") {
+      (viewer as any)._ensureGoogleDirectTileset();
+    } else if (viewModeRef.current === "realistic") {
+      (viewer as any)._ensureRealisticTileset();
+    } else {
+      (viewer as any)._ensureOsmTileset();
+    }
 
     // Create brush indicator entity (hidden by default)
     const brushEntity = viewer.entities.add({
