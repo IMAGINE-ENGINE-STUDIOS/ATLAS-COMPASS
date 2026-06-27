@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     const json = await upstreamRes.json().catch(() => null);
     if (json) {
       // Proxy root for rewriting absolute-ish paths
-      const proxyRoot = `${url.origin}/functions/v1/google-3d-tiles/`;
+      const proxyRoot = `https://${url.host}/functions/v1/google-3d-tiles/`;
       const rewritten = rewriteUris(json, proxyRoot);
       return new Response(JSON.stringify(rewritten), {
         status: upstreamRes.status,
