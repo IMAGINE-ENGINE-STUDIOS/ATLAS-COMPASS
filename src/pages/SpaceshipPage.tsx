@@ -2554,11 +2554,20 @@ function SpaceshipPage() {
       window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
     }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
-    // Track camera altitude
+    // Track camera altitude — throttled to ~4Hz with a prev-value guard so
+    // we don't re-render the whole 6.8k-line page on every Cesium frame.
+    let __lastAltEmit = 0;
+    let __lastAltVal = NaN;
     viewer.scene.postRender.addEventListener(() => {
       if (viewer.isDestroyed()) return;
+      const now = performance.now();
+      if (now - __lastAltEmit < 250) return;
       const carto = Cartographic.fromCartesian(viewer.camera.position);
-      setCameraAlt(carto.height);
+      const h = carto.height;
+      if (Math.abs(h - __lastAltVal) < 0.5) return;
+      __lastAltEmit = now;
+      __lastAltVal = h;
+      setCameraAlt(h);
     });
 
     setIsLoaded(true);
