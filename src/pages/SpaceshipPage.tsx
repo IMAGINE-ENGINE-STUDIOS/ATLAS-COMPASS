@@ -2361,7 +2361,10 @@ function SpaceshipPage() {
         return (viewer as any)._realisticLoading;
       }
       (viewer as any)._realisticLoading = Cesium3DTileset.fromIonAssetId(2275207).then((tileset) => {
-        if (viewer.isDestroyed()) return null;
+        if (viewer.isDestroyed() || !wantsPhotorealMode(viewModeRef.current) || (viewer as any)._googleDirectTileset) {
+          try { tileset.destroy?.(); } catch {}
+          return null;
+        }
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._realisticTileset = tileset;
@@ -2407,7 +2410,10 @@ function SpaceshipPage() {
         showCreditsOnScreen: false,
         maximumNumberOfLoadedTiles: 512,
       } as any).then((tileset) => {
-        if (viewer.isDestroyed()) return null;
+        if (viewer.isDestroyed() || !wantsPhotorealMode(viewModeRef.current)) {
+          try { tileset.destroy?.(); } catch {}
+          return null;
+        }
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._googleDirectTileset = tileset;
