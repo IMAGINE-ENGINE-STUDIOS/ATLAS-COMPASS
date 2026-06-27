@@ -34,6 +34,13 @@ const VIEWPORT_CAMERA_LIMIT = 120;
 const WORLDWIDE_CAMERA_LIMIT = 120;
 const THUMBNAIL_PREVIEW_LIMIT = 18;
 
+const DEFAULT_CAMERA_HUBS: CameraBounds[] = [
+  { north: 37.90, south: 37.20, east: -121.70, west: -122.65 }, // Bay Area / SF fallback
+  { north: 41.00, south: 40.50, east: -73.70, west: -74.30 },   // NYC fallback
+  { north: 34.35, south: 33.70, east: -117.70, west: -118.70 }, // LA fallback
+  { north: 26.15, south: 25.45, east: -79.90, west: -80.55 },   // Miami fallback
+];
+
 export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera, onCamerasLoaded }: Props) {
   const [cameras, setCameras] = useState<TrafficCamera[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,6 +69,40 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
     };
   };
 
+  const boundsCenter = (b: CameraBounds) => ({
+    lat: (b.north + b.south) / 2,
+    lng: (b.east + b.west) / 2,
+  });
+
+  const distanceKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLng = toRad(bLng - aLng);
+    const lat1 = toRad(aLat);
+    const lat2 = toRad(bLat);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  };
+
+  const sortByDistance = (list: TrafficCamera[], b: CameraBounds) => {
+    const c = boundsCenter(b);
+    return [...list].sort((a, z) => distanceKm(c.lat, c.lng, a.lat, a.lng) - distanceKm(c.lat, c.lng, z.lat, z.lng));
+  };
+
+  const invokeCameraPage = async (bounds: CameraBounds, limit: number, cursor: number | undefined, signal: AbortSignal) => {
+    const { data, error: fnErr } = await supabase.functions.invoke("traffic-cameras", {
+      body: { bounds, cursor, limit },
+    });
+    if (signal.aborted) return { cameras: [] as TrafficCamera[], total: 0, hasMore: false, nextCursor: undefined as number | undefined };
+    if (fnErr) throw fnErr;
+    return {
+      cameras: (data?.cameras ?? []) as TrafficCamera[],
+      total: Number(data?.total ?? 0),
+      hasMore: !!data?.hasMore,
+      nextCursor: data?.nextCursor as number | undefined,
+    };
+  };
+
   const fetchCameras = useCallback(async (worldwide = false) => {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
@@ -77,7 +118,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
         : { north: 90, south: -90, east: 180, west: -180 };
 
     try {
-      const acc: TrafficCamera[] = [];
+      let acc: TrafficCamera[] = [];
       let cursor: number | undefined = 0;
       let hasMore = true;
       let safety = 0;
@@ -86,24 +127,46 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       const maxPages = 1;
       const pageLimit = worldwide ? WORLDWIDE_CAMERA_LIMIT : VIEWPORT_CAMERA_LIMIT;
       while (hasMore && safety < maxPages && !controller.signal.aborted) {
-        const { data, error: fnErr } = await supabase.functions.invoke("traffic-cameras", {
-          body: { bounds, cursor, limit: pageLimit },
-        });
-        if (fnErr) throw fnErr;
-        const page = (data?.cameras ?? []) as TrafficCamera[];
+        const data = await invokeCameraPage(bounds, pageLimit, cursor, controller.signal);
+        const page = data.cameras;
         acc.push(...page);
-        setTotal(data?.total ?? acc.length);
-        hasMore = !!data?.hasMore;
-        cursor = data?.nextCursor;
+        setTotal(data.total || acc.length);
+        hasMore = data.hasMore;
+        cursor = data.nextCursor;
         safety++;
       }
+
+      if (!worldwide && acc.length === 0 && !controller.signal.aborted) {
+        // Relaunch Intelligence with nearby known real camera hubs if the user
+        // is over a place with no cached feeds (or the regional cache is cold).
+        // This prevents the feature from appearing broken while keeping the
+        // map layer capped and fast.
+        const origin = boundsCenter(bounds);
+        const hubs = [...DEFAULT_CAMERA_HUBS].sort((a, b) => {
+          const ca = boundsCenter(a);
+          const cb = boundsCenter(b);
+          return distanceKm(origin.lat, origin.lng, ca.lat, ca.lng) - distanceKm(origin.lat, origin.lng, cb.lat, cb.lng);
+        });
+        for (const hub of hubs) {
+          const data = await invokeCameraPage(hub, pageLimit, 0, controller.signal);
+          if (data.cameras.length > 0) {
+            acc = sortByDistance(data.cameras, bounds).slice(0, pageLimit);
+            setTotal(data.total || acc.length);
+            break;
+          }
+        }
+      }
+
       // Emit ONCE at the end so the Cesium billboard layer is rebuilt a single
       // time instead of after every page.
       if (!controller.signal.aborted) {
         setCameras(acc);
         onCamerasLoaded?.(acc);
       }
-      if (!controller.signal.aborted) setLoading(false);
+      if (!controller.signal.aborted) {
+        if (acc.length === 0) setError("No indexed cameras in this viewport yet. Sync can refresh the live sources.");
+        setLoading(false);
+      }
     } catch (e: any) {
       if (!controller.signal.aborted) {
         setError(e?.message ?? String(e));
