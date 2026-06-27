@@ -78,19 +78,28 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       let cursor: number | undefined = 0;
       let hasMore = true;
       let safety = 0;
-      while (hasMore && safety < 20 && !controller.signal.aborted) {
+      // Cap total pages aggressively. Each setMapCameras downstream rebuilds
+      // up to 2k Cesium billboards (with surface-clamp ray samples), so the
+      // old 20-page loop = 20 full Atlas rebuilds and a frozen tab.
+      const maxPages = worldwide ? 3 : 2;
+      const pageLimit = worldwide ? 1500 : 800;
+      while (hasMore && safety < maxPages && !controller.signal.aborted) {
         const { data, error: fnErr } = await supabase.functions.invoke("traffic-cameras", {
-          body: { bounds, cursor, limit: 1000 },
+          body: { bounds, cursor, limit: pageLimit },
         });
         if (fnErr) throw fnErr;
         const page = (data?.cameras ?? []) as TrafficCamera[];
         acc.push(...page);
-        setCameras([...acc]);
-        onCamerasLoaded?.([...acc]);
         setTotal(data?.total ?? acc.length);
         hasMore = !!data?.hasMore;
         cursor = data?.nextCursor;
         safety++;
+      }
+      // Emit ONCE at the end so the Cesium billboard layer is rebuilt a single
+      // time instead of after every page.
+      if (!controller.signal.aborted) {
+        setCameras(acc);
+        onCamerasLoaded?.(acc);
       }
       if (!controller.signal.aborted) setLoading(false);
     } catch (e: any) {
@@ -113,22 +122,12 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
     setSyncing(false);
   }, [fetchCameras]);
 
-  // Auto-sync + load viewport cameras when opened
+  // On open: just load viewport cameras (cheap). Do NOT auto-trigger the
+  // upstream sync — that hammers the edge function and then forces a second
+  // full reload, freezing Atlas. User can press the Sync button explicitly.
   useEffect(() => {
     if (!open) return;
-    (async () => {
-      // Show viewport cameras immediately (≥900 km² around camera)
-      await fetchCameras(false);
-      // Then sync upstream feeds and refresh viewport
-      setSyncing(true);
-      try {
-        await supabase.functions.invoke("sync-cameras", { body: {} });
-        await fetchCameras(false);
-      } catch (e: any) {
-        setError(e?.message ?? String(e));
-      }
-      setSyncing(false);
-    })();
+    fetchCameras(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -170,7 +169,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
             <p className="text-sm font-bold text-white leading-none">Intelligence</p>
             <p className="text-[10px] text-white/60 mt-0.5">Live traffic cameras · {total.toLocaleString()} indexed</p>
           </div>
-          <button onClick={() => fetchCameras(true)} title="Reload"
+          <button onClick={() => fetchCameras(false)} title="Reload viewport cameras"
             className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/[0.06] transition">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
