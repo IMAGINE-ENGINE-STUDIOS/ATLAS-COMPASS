@@ -3553,9 +3553,10 @@ function SpaceshipPage() {
 
     if (!intelligenceOpen || mapCameras.length === 0) return;
 
-    // Cap at 500 visible pins to keep Cesium's draw loop responsive while
-    // Realistic / Google 3D tiles are streaming.
-    const subset = mapCameras.slice(0, 500);
+    // Keep Intelligence cheap: camera pins compete with Realistic / Google 3D
+    // tiles. Render a small nearby batch and avoid forcing high-detail tile
+    // sampling for every camera.
+    const subset = mapCameras.slice(0, 120);
     const camById = new Map(subset.map(c => [c.id, c] as const));
     subset.forEach(cam => {
       const truncName = cam.name.length > 22 ? cam.name.slice(0, 20) + "…" : cam.name;
@@ -3574,7 +3575,6 @@ function SpaceshipPage() {
         properties: { type: "camera", camId: cam.id } as any,
       });
       cameraEntitiesRef.current.push(entity);
-      clampPinToSurface(entity, cam.lng, cam.lat);
     });
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
