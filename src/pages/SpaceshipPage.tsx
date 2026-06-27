@@ -3591,6 +3591,23 @@ function SpaceshipPage() {
     return () => handler.destroy();
   }, [mapCameras, intelligenceOpen, isLoaded]);
 
+  /* ── Refetch Intelligence cameras when the user pans/zooms the globe ── */
+  useEffect(() => {
+    if (!intelligenceOpen) return;
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    let t: any = null;
+    const bump = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => setIntelBoundsVersion((v) => v + 1), 700);
+    };
+    const remove = viewer.camera.moveEnd.addEventListener(bump);
+    return () => {
+      if (t) clearTimeout(t);
+      remove();
+    };
+  }, [intelligenceOpen, isLoaded]);
+
   /* ── Search-result pins on the globe (every dropdown item = a pin) ── */
   useEffect(() => {
     const viewer = viewerRef.current;
