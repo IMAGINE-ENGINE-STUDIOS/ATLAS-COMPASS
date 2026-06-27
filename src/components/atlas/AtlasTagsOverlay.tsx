@@ -181,8 +181,12 @@ export default function AtlasTagsOverlay({
                   : `0 4px 20px ${cat.hex}33`,
               }}
             >
-              <span className="text-[10px] uppercase tracking-wider font-semibold pr-1" style={{ color: hasGold ? "#FFD700" : cat.hex }}>
-                {cat.label} · {c.members.length}
+              <span
+                className="text-[10px] uppercase tracking-wider font-semibold pr-1 max-w-[160px] truncate"
+                style={{ color: hasGold ? "#FFD700" : cat.hex }}
+                title={c.members.length === 1 ? c.members[0].name : `${cat.label} · ${c.members.length}`}
+              >
+                {c.members.length === 1 ? c.members[0].name : `${cat.label} · ${c.members.length}`}
               </span>
               {sorted.slice(0, 8).map(m => {
                 const sel = isSelected(m.id);
