@@ -6415,6 +6415,7 @@ function SpaceshipPage() {
             open={intelligenceOpen}
             onClose={() => setIntelligenceOpen(false)}
             onCamerasLoaded={setMapCameras}
+            boundsVersion={intelBoundsVersion}
             getBounds={() => {
               const viewer = viewerRef.current;
               if (!viewer || viewer.isDestroyed()) return null;
@@ -6423,8 +6424,8 @@ function SpaceshipPage() {
                 const cam = viewer.camera.positionCartographic;
                 const lat = CesiumMath.toDegrees(cam.latitude);
                 const lng = CesiumMath.toDegrees(cam.longitude);
-                const halfLat = 0.18;
-                const halfLng = 0.18 / Math.max(0.1, Math.cos(cam.latitude));
+                const halfLat = 0.45;
+                const halfLng = 0.45 / Math.max(0.1, Math.cos(cam.latitude));
                 return {
                   north: Math.min(90, lat + halfLat),
                   south: Math.max(-90, lat - halfLat),
@@ -6440,8 +6441,8 @@ function SpaceshipPage() {
               const east = CesiumMath.toDegrees(rect.east);
               const west = CesiumMath.toDegrees(rect.west);
               if ((north - south) > 2 || (east - west) > 2) {
-                const halfLat = 0.18;
-                const halfLng = 0.18 / Math.max(0.1, Math.cos(cam.latitude));
+                const halfLat = 0.45;
+                const halfLng = 0.45 / Math.max(0.1, Math.cos(cam.latitude));
                 return {
                   north: Math.min(90, camLat + halfLat),
                   south: Math.max(-90, camLat - halfLat),
