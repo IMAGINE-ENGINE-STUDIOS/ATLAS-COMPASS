@@ -1,6 +1,7 @@
 // Proxies Google Map Tiles API (Photorealistic 3D Tiles)
 const GOOGLE_BASE = "https://tile.googleapis.com/v1/3dtiles";
 const FN_PREFIX_RE = /^(?:\/functions\/v1)?\/google-3d-tiles\/?/;
+const DATASET_FILES_RE = /^datasets\/([^/]+)\/files\//;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,6 +63,23 @@ function rewriteUris(json: any, proxyRoot: string): any {
   return json;
 }
 
+function normalizeGoogle3DTilePath(path: string): string {
+  let normalized = path.replace(/^\/+/, "");
+  // Repair URLs produced by previously cached/re-resolved manifests, e.g.
+  // datasets/A/files/datasets/A/files/tile.glb -> datasets/A/files/tile.glb
+  // Google rejects the duplicated form with 400, which makes Cesium stall.
+  for (let i = 0; i < 4; i += 1) {
+    const match = normalized.match(DATASET_FILES_RE);
+    if (!match) break;
+    const prefix = match[0];
+    const duplicate = `datasets/${match[1]}/files/`;
+    const rest = normalized.slice(prefix.length);
+    if (!rest.startsWith(duplicate)) break;
+    normalized = prefix + rest.slice(duplicate.length);
+  }
+  return normalized;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "GET") {
@@ -85,7 +103,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const sub = url.pathname.replace(FN_PREFIX_RE, "");
-  const upstreamPath = sub.length === 0 ? "root.json" : sub;
+  const upstreamPath = sub.length === 0 ? "root.json" : normalizeGoogle3DTilePath(sub);
 
   const upstream = new URL(`${GOOGLE_BASE}/${upstreamPath}`);
   for (const [k, v] of url.searchParams.entries()) {
@@ -130,7 +148,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (ct.includes("application/json")) {
+  if (ct.includes("application/json") || upstreamPath.endsWith(".json")) {
     const json = await upstreamRes.json().catch(() => null);
     if (json) {
       // Proxy root for rewriting absolute-ish paths
