@@ -42,6 +42,12 @@ function isCacheableResponse(res) {
 let putsSinceLastTrim = 0;
 let trimPromise = null;
 let activeCacheWrites = 0;
+let cachePromise = null;
+
+function getCache() {
+  if (!cachePromise) cachePromise = caches.open(CACHE);
+  return cachePromise;
+}
 async function trim(cache) {
   const keys = await cache.keys();
   if (keys.length <= MAX_ENTRIES) return;
@@ -64,7 +70,7 @@ async function cacheInBackground(req, res) {
   if (activeCacheWrites >= 4) return;
   activeCacheWrites += 1;
   try {
-    const cache = await caches.open(CACHE);
+    const cache = await getCache();
     await cache.put(req, res.clone());
     await scheduleTrim(cache);
   } catch {}
@@ -77,7 +83,7 @@ self.addEventListener("fetch", (event) => {
   if (!shouldCache(req.url)) return;
 
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE);
+    const cache = await getCache();
     const cached = await cache.match(req, { ignoreVary: true });
     const networkPromise = fetch(req).then((res) => {
       // Do not await/cache inside the response path: Cesium must receive the
