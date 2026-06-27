@@ -2232,9 +2232,21 @@ function SpaceshipPage() {
     // Hide globe immediately — photorealistic tiles will be the only visible layer
     viewer.scene.globe.show = false;
 
-    // Force continuous rendering so the globe appears immediately
+    // Force continuous rendering so the globe appears immediately.
+    // Switched back to on-demand once the first tileset loads (see below)
+    // so we don't burn GPU/battery rendering identical frames while idle.
     viewer.scene.requestRenderMode = false;
     viewer.scene.maximumRenderTimeChange = Infinity;
+    const __onFirstTilesetReady = () => {
+      if (viewer.isDestroyed()) return;
+      try {
+        viewer.scene.requestRenderMode = true;
+        viewer.scene.maximumRenderTimeChange = Infinity;
+        viewer.scene.requestRender();
+      } catch {}
+      window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady);
+    };
+    window.addEventListener("cesium-tileset-ready", __onFirstTilesetReady);
 
     // ── Tile loading speed ──────────────────────────────────────
     // Raise Cesium's global request scheduler limits so many more
