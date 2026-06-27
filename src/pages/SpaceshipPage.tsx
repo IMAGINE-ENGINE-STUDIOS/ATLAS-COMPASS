@@ -2300,6 +2300,9 @@ function SpaceshipPage() {
       }
     } catch {}
 
+    // Visual polish: HDR + ACES tonemap, SSAO, FXAA/MSAA, unsharp, daylight atmosphere
+    try { applyAtlasVisuals(viewer); } catch (err) { console.warn("[atlas-visuals] failed", err); }
+
     // Add world terrain
     createWorldTerrainAsync({
       requestWaterMask: false,
