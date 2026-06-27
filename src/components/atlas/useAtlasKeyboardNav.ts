@@ -54,43 +54,20 @@ export function useAtlasKeyboardNav(
   useEffect(() => {
     if (!enabled) return;
     const pressed = pressedRef.current;
-
-    const onDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTypingTarget(e.target)) return;
-      if (typeof window !== "undefined" && window.__atlasLevelPlaying) return;
-      if (e.shiftKey) boostRef.current = true;
-      const action = KEY_MAP[e.code];
-      if (!action) return;
-      pressed.add(action);
-      // Prevent the page from scrolling with arrow keys while flying.
-      if (e.code.startsWith("Arrow")) e.preventDefault();
-    };
-    const onUp = (e: KeyboardEvent) => {
-      if (!e.shiftKey) boostRef.current = false;
-      const action = KEY_MAP[e.code];
-      if (action) pressed.delete(action);
-    };
-    const onBlur = () => {
-      pressed.clear();
-      boostRef.current = false;
-    };
-
-    window.addEventListener("keydown", onDown);
-    window.addEventListener("keyup", onUp);
-    window.addEventListener("blur", onBlur);
-
     let raf = 0;
     let last = performance.now();
+
     const tick = (now: number) => {
-      raf = requestAnimationFrame(tick);
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      if (pressed.size === 0) return;
+      if (pressed.size === 0) {
+        // Park the loop — no keys held, no need to wake the CPU at 60Hz.
+        raf = 0;
+        return;
+      }
+      raf = requestAnimationFrame(tick);
       const viewer = viewerRef.current;
       if (!viewer || viewer.isDestroyed()) return;
-      // Speed: meters per second scaled by camera altitude so high-altitude
-      // panning isn't molasses and low-altitude walking isn't a teleport.
       let alt = 100;
       try {
         const carto = Cartographic.fromCartesian(viewer.camera.positionWC);
@@ -109,10 +86,41 @@ export function useAtlasKeyboardNav(
         viewer.scene.requestRender?.();
       } catch {}
     };
-    raf = requestAnimationFrame(tick);
+
+    const startLoop = () => {
+      if (raf) return;
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+
+    const onDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isTypingTarget(e.target)) return;
+      if (typeof window !== "undefined" && window.__atlasLevelPlaying) return;
+      if (e.shiftKey) boostRef.current = true;
+      const action = KEY_MAP[e.code];
+      if (!action) return;
+      pressed.add(action);
+      startLoop();
+      // Prevent the page from scrolling with arrow keys while flying.
+      if (e.code.startsWith("Arrow")) e.preventDefault();
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (!e.shiftKey) boostRef.current = false;
+      const action = KEY_MAP[e.code];
+      if (action) pressed.delete(action);
+    };
+    const onBlur = () => {
+      pressed.clear();
+      boostRef.current = false;
+    };
+
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
 
     return () => {
-      cancelAnimationFrame(raf);
+      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
       window.removeEventListener("blur", onBlur);

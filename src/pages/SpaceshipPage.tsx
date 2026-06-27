@@ -107,6 +107,7 @@ import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery"
 import SearchResultsPanel from "@/components/atlas/SearchResultsPanel";
 import GlyphIcon from "@/components/atlas/GlyphIcon";
 import AtlasScreenshotMenu from "@/components/atlas/AtlasScreenshotMenu";
+import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
@@ -755,6 +756,16 @@ function SpaceshipPage() {
   // Active free-play spawn: when set, a playable character (default Soldier)
   // is dropped at the given lat/lng and the user controls it via WASD + mouse.
   const [freePlaySpawn, setFreePlaySpawn] = useState<FreePlaySpawn | null>(null);
+  // Refs mirror the play-mode anchors so the boost-effect below can read
+  // them without `levelPlacements` sitting in its deps array (which would
+  // re-run the effect on every placement-list change and leak the boosted
+  // SSE/cache values back as the "previous" explore-mode baseline).
+  const playingLevelIdRef = useRef<string | null>(null);
+  const freePlaySpawnRef = useRef<FreePlaySpawn | null>(null);
+  const levelPlacementsRef = useRef<typeof levelPlacements>([]);
+  useEffect(() => { playingLevelIdRef.current = playingLevelId; }, [playingLevelId]);
+  useEffect(() => { freePlaySpawnRef.current = freePlaySpawn; }, [freePlaySpawn]);
+  useEffect(() => { levelPlacementsRef.current = levelPlacements; }, [levelPlacements]);
   // ───────────────────────────────────────────────────────────────
   // PLAY-MODE TILE PRELOADER
   // When the user is playing a level OR free-playing a character on
@@ -828,8 +839,10 @@ function SpaceshipPage() {
       // (~10mi) ring of tiles, then restore the camera. Repeat at a
       // slow cadence so the hot ring follows the player as they walk.
       const getAnchor = (): { lng: number; lat: number } | null => {
-        if (freePlaySpawn) return { lng: freePlaySpawn.lng, lat: freePlaySpawn.lat };
-        const p = levelPlacements.find((x) => x.level_id === playingLevelId);
+        const sp = freePlaySpawnRef.current;
+        if (sp) return { lng: sp.lng, lat: sp.lat };
+        const pid = playingLevelIdRef.current;
+        const p = levelPlacementsRef.current.find((x) => x.level_id === pid);
         if (p) return { lng: p.lng, lat: p.lat };
         return null;
       };
@@ -845,21 +858,26 @@ function SpaceshipPage() {
           right: cam.rightWC.clone(),
         };
         try {
-          // Top-down at 6km — frustum covers ~12km / ~7.5mi at 60° FOV,
-          // SSE=1 forces top LOD across that footprint.
-          cam.setView({
-            destination: Cartesian3.fromDegrees(a.lng, a.lat, 6000),
-            orientation: { heading: 0, pitch: -CesiumMath.PI_OVER_TWO, roll: 0 },
-          });
-          viewer.scene.render();
-        } catch {}
-        try {
-          cam.position = saved.pos;
-          cam.direction = saved.dir;
-          cam.up = saved.up;
-          cam.right = saved.right;
-          viewer.scene.requestRender();
-        } catch {}
+          try {
+            // Top-down at 6km — frustum covers ~12km / ~7.5mi at 60° FOV,
+            // SSE=1 forces top LOD across that footprint.
+            cam.setView({
+              destination: Cartesian3.fromDegrees(a.lng, a.lat, 6000),
+              orientation: { heading: 0, pitch: -CesiumMath.PI_OVER_TWO, roll: 0 },
+            });
+            viewer.scene.render();
+          } catch {}
+        } finally {
+          // Always restore — if the render call above throws, we still
+          // must not leave the user's camera teleported into the sky.
+          try {
+            cam.position = saved.pos;
+            cam.direction = saved.dir;
+            cam.up = saved.up;
+            cam.right = saved.right;
+            viewer.scene.requestRender();
+          } catch {}
+        }
       };
       // Run one immediately and then every 4s while playing.
       prefetch();
@@ -952,7 +970,7 @@ function SpaceshipPage() {
         try { viewer.scene.globe.tileCacheSize = prev.gTileCache; } catch {}
       }
     };
-  }, [playingLevelId, freePlaySpawn, isLoaded, levelPlacements]);
+  }, [playingLevelId, freePlaySpawn, isLoaded]);
   // When set, the user is previewing a level placement; double-clicks move the ghost cube.
   const [pendingLevelPlacement, setPendingLevelPlacement] = useState<{
     levelId: string;
@@ -1642,7 +1660,12 @@ function SpaceshipPage() {
         description: r.name + (r.address ? ` — ${r.address}` : ""),
       });
       businessEntitiesRef.current.push(entity);
-      clampPinToSurface(entity, r.lng, r.lat);
+      // Batch ground-clamp probes: a 500-item burst of
+      // sampleHeightMostDetailed walks the entire 3D-tile tree once per
+      // entity and can OOM mobile. Stagger across ~5s in groups of 16 so
+      // tile streaming stays smooth.
+      const delay = Math.floor(idx / 16) * 80;
+      window.setTimeout(() => clampPinToSurface(entity, r.lng, r.lat), delay);
     });
     viewer.scene.requestRender?.();
   }, []);
@@ -2232,9 +2255,21 @@ function SpaceshipPage() {
     // Hide globe immediately — photorealistic tiles will be the only visible layer
     viewer.scene.globe.show = false;
 
-    // Force continuous rendering so the globe appears immediately
+    // Force continuous rendering so the globe appears immediately.
+    // Switched back to on-demand once the first tileset loads (see below)
+    // so we don't burn GPU/battery rendering identical frames while idle.
     viewer.scene.requestRenderMode = false;
     viewer.scene.maximumRenderTimeChange = Infinity;
+    const __onFirstTilesetReady = () => {
+      if (viewer.isDestroyed()) return;
+      try {
+        viewer.scene.requestRenderMode = true;
+        viewer.scene.maximumRenderTimeChange = Infinity;
+        viewer.scene.requestRender();
+      } catch {}
+      window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady);
+    };
+    window.addEventListener("cesium-tileset-ready", __onFirstTilesetReady);
 
     // ── Tile loading speed ──────────────────────────────────────
     // Raise Cesium's global request scheduler limits so many more
@@ -2304,19 +2339,25 @@ function SpaceshipPage() {
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
     }).catch(() => {
-      // Fallback: if realistic tiles fail, show globe + OSM buildings
+      // Fallback: if realistic tiles fail, show the globe + reveal the OSM
+      // buildings that the block below already (asynchronously) instantiated.
+      // Do NOT create a second OSM tileset here — that doubled GPU memory
+      // and leaked one of the two until viewer destroy.
       if (!viewer.isDestroyed()) {
         console.warn("Realistic tiles unavailable, falling back to OSM");
         viewer.scene.globe.show = true;
         viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
-        createOsmBuildingsAsync().then((tileset) => {
-          if (!viewer.isDestroyed()) {
-            viewer.scene.primitives.add(tileset);
-            tileset.maximumScreenSpaceError = 4;
-            (viewer as any)._osmTileset = tileset;
-            window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
+        const revealOsm = () => {
+          const ot = (viewer as any)._osmTileset;
+          if (ot) {
+            ot.show = true;
+            viewer.scene.requestRender();
+          } else {
+            // OSM still loading — try again shortly.
+            setTimeout(revealOsm, 250);
           }
-        });
+        };
+        revealOsm();
       }
     });
 
@@ -2554,11 +2595,20 @@ function SpaceshipPage() {
       window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
     }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
-    // Track camera altitude
+    // Track camera altitude — throttled to ~4Hz with a prev-value guard so
+    // we don't re-render the whole 6.8k-line page on every Cesium frame.
+    let __lastAltEmit = 0;
+    let __lastAltVal = NaN;
     viewer.scene.postRender.addEventListener(() => {
       if (viewer.isDestroyed()) return;
+      const now = performance.now();
+      if (now - __lastAltEmit < 250) return;
       const carto = Cartographic.fromCartesian(viewer.camera.position);
-      setCameraAlt(carto.height);
+      const h = carto.height;
+      if (Math.abs(h - __lastAltVal) < 0.5) return;
+      __lastAltEmit = now;
+      __lastAltVal = h;
+      setCameraAlt(h);
     });
 
     setIsLoaded(true);
@@ -2567,6 +2617,10 @@ function SpaceshipPage() {
       handler.destroy();
       if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
       if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
+      // Release the module-level Viewer ref held by the shared scheduler
+      // so its WebGL resources can be GC'd after navigation / HMR.
+      try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
+      try { window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady); } catch {}
       if (!viewer.isDestroyed()) viewer.destroy();
     };
   }, []);

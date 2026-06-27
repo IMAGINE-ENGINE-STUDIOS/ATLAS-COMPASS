@@ -16,22 +16,26 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 
-function rewriteUris(json: any): any {
+function rewriteUris(json: any, proxyBase: string): any {
   if (json == null) return json;
-  if (Array.isArray(json)) return json.map(rewriteUris);
+  if (Array.isArray(json)) return json.map((x) => rewriteUris(x, proxyBase));
   if (typeof json === "object") {
     const out: any = {};
     for (const [k, v] of Object.entries(json)) {
       if (k === "uri" && typeof v === "string") {
         // Google returns absolute paths like "/v1/3dtiles/datasets/.../X.glb?session=..."
-        // Rewrite to relative URI so Cesium resolves back through this function.
+        // Emit ABSOLUTE proxy URLs so Cesium never resolves them relative to
+        // the parent JSON's base directory (which caused duplicated
+        // ".../datasets/.../files/datasets/.../files/..." 400 errors at deeper
+        // nesting levels).
         let u = v;
         if (u.startsWith("/v1/3dtiles/")) u = u.slice("/v1/3dtiles/".length);
         else if (u.startsWith("https://tile.googleapis.com/v1/3dtiles/"))
           u = u.slice("https://tile.googleapis.com/v1/3dtiles/".length);
-        out[k] = u;
+        // Preserve any query (e.g. ?session=...) that Google included.
+        out[k] = proxyBase + u.replace(/^\//, "");
       } else {
-        out[k] = rewriteUris(v);
+        out[k] = rewriteUris(v, proxyBase);
       }
     }
     return out;
@@ -109,7 +113,10 @@ Deno.serve(async (req) => {
   if (ct.includes("application/json") && upstreamRes.ok) {
     const json = await upstreamRes.json().catch(() => null);
     if (json) {
-      const rewritten = rewriteUris(json);
+      // Absolute proxy base — use the function's externally-visible URL so
+      // children resolve back through us regardless of nesting depth.
+      const proxyBase = `${url.origin}/functions/v1/google-3d-tiles/`;
+      const rewritten = rewriteUris(json, proxyBase);
       return new Response(JSON.stringify(rewritten), {
         status: upstreamRes.status,
         headers: passHeaders,

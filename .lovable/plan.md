@@ -1,95 +1,40 @@
+# Atlas Performance & Reliability Fix Plan
 
-## Goal
+Deep audit complete. Found one **critical proxy bug** causing the 400 errors you're seeing now, plus a stack of high-impact perf issues. Proposed plan focuses on the highest-leverage fixes only — no churn for its own sake.
 
-Add a third map type **"Google 3D (Direct)"** next to *Realistic* and *OSM* in the bottom-right HUD switcher, sourcing tiles **directly from Google's Map Tiles API** instead of through Cesium Ion. Make it the new default load.
+## The error you're seeing right now
 
-## Why this is the "ultra-realistic" feed
+URLs like `…/google-3d-tiles/datasets/CgIYAQ/files/datasets/CgIYAQ/files/<tile>.glb` → **HTTP 400**.
 
-Google publishes one Photorealistic 3D Tiles dataset — the same mesh that powers Google Earth, AR experiences, and the Unity/Unreal "Geospatial Creator" plugins. There is no hidden higher-detail tier. The win over what you have today is the **delivery path**:
+Cause: `supabase/functions/google-3d-tiles/index.ts` rewrites child URIs as **relative** paths (`datasets/CgIYAQ/files/…`). Cesium resolves them against the parent JSON's base directory, which is already `…/google-3d-tiles/datasets/CgIYAQ/files/`, so the segment gets duplicated at every nesting level. Tiles fail, missing geometry, retries spike network.
 
-| | Current (Ion) | New (Direct) |
-|---|---|---|
-| Host | `assets.ion.cesium.com` | `tile.googleapis.com/v1/3dtiles` |
-| Freshness | Re-hosted; lags Google by days/weeks | Live mesh as Google publishes |
-| Quota | Subject to Ion's bandwidth cap | Subject to Google's connector quota |
-| Attribution | Cesium credit | Google logo + dynamic per-tile copyright string (ToS-required) |
+## Plan (10 fixes, prioritized)
 
-## Plan
+### Critical
+1. **Fix the proxy path rewrite** (`supabase/functions/google-3d-tiles/index.ts`) — emit absolute proxy URLs (`${origin}/functions/v1/google-3d-tiles/…`) instead of relative ones. Stops every nested-tileset 400. *S*
+2. **Throttle the per-frame React state update** in `SpaceshipPage.tsx` (`viewer.scene.postRender` → `setCameraAlt`). Currently re-renders the 6.8k-line page at 60Hz. Cap to ~4Hz + prev-value guard. Biggest single FPS win. *S*
 
-### 1. Edge-function tile proxy
+### High
+3. **Re-enable `requestRenderMode` after first tileset loads** in `SpaceshipPage.tsx:2236`. Right now Cesium renders continuously forever, even when idle — huge GPU/battery drain. *S*
+4. **Fix play-mode stale-closure effect** (`SpaceshipPage.tsx:765–955`): remove `levelPlacements` from deps, read via ref. Today, placing a level while playing permanently locks Explore mode at boosted SSE/cache values. *S*
+5. **Stop double OSM tileset instantiation** (`SpaceshipPage.tsx:2288–2338`). On Ion failure, two OSM building tilesets get added; one leaks until viewer destroy. Gate with `_osmTileset` check. *S*
+6. **Batch `clampPinToSurface`** in groups of 10–20 instead of firing 500 concurrent `sampleHeightMostDetailed` walks of the tile tree. Eliminates the IntelligencePanel/marketplace spike. *M*
+7. **Null out `viewerRef` in `atlasWorldScheduler` on unmount** + cancel rAF. Module-level ref currently pins the Cesium Viewer (hundreds of MB of WebGL) after navigation/HMR. *S*
+8. **Make virtual-camera prefetch safe** (`SpaceshipPage.tsx:847–863`): wrap setView/render/restore in `try/finally`; prefer `tileset.preloadWhenHidden` + `requestRender` over hijacking the user's camera every 4s. *M*
 
-`tile.googleapis.com` is **not** on the connector gateway's host allowlist, and the managed Google Maps browser key is not authorized for Map Tiles. So tiles have to go through an edge function that injects the connector key server-side.
+### Medium (cheap wins)
+9. **Optimize `AtlasTagsOverlay` per-frame work** — skip `worldToWindowCoordinates` for clusters that didn't move or are off-screen; debounce the O(n²) cluster recompute (already on `moveEnd`, add a spatial bucket). *M*
+10. **Pause `useAtlasKeyboardNav` rAF loop when no keys are held** — currently wakes the CPU 60×/sec permanently. *S*
 
-Create `supabase/functions/google-3d-tiles/index.ts`:
-- Accepts `GET /functions/v1/google-3d-tiles/{...path}?session=...`
-- Forwards to `https://tile.googleapis.com/v1/3dtiles/{path}` adding `key=GOOGLE_MAPS_API_KEY`
-- Streams the response back with `Cache-Control: public, max-age=86400` and CORS headers
-- Rewrites JSON tile manifests so child URIs point back to the function (so Cesium follows them through the proxy, not direct to Google)
-- Rate-limits to one outgoing request per (path+session) at a time with a small in-memory dedupe map
+## Out of scope for this pass (documented, not done)
+- Redundancies: triplicated haversine, dual escape-key listeners, ModelLabelsOverlay vs AtlasTagsOverlay overlap, unbounded `pinCanvasCache` / `goldenPinCache` (LRU later).
+- `openLevelPackage` sync unzip on main thread (move to worker once package usage grows).
+- `IntelligencePanel.fetchCameras` missing dep (low-risk today, but worth a follow-up).
 
-### 2. Load the tileset in `SpaceshipPage.tsx`
+## Expected outcome
+- Google 3D mode stops 400-spamming and actually streams nested tiles.
+- Idle FPS / battery: massive improvement (fixes #2, #3, #10).
+- No more permanent SSE lock after playing (#4) and no leaked viewer between page nav (#7).
+- Smoother behavior with many pins / intelligence syncs (#6, #9).
 
-Inside the existing Cesium init block (after the current Ion `fromIonAssetId(2275207)` call):
-
-```ts
-const FN = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles`;
-Cesium3DTileset.fromUrl(`${FN}/root.json`, {
-  showCreditsOnScreen: false,  // we render our own pill
-}).then(ts => {
-  (viewer as any)._googleDirectTileset = ts;
-  ts.show = true;  // becomes the default visible layer
-  // hide the Ion-routed one
-  const ion = (viewer as any)._realisticTileset; if (ion) ion.show = false;
-  viewer.scene.primitives.add(ts);
-  // wire the same play-mode SSE/cache settings the other tilesets get
-});
-```
-
-Apply the same play-mode tuning (`cacheBytes 4GiB`, `immediatelyLoadDesiredLevelOfDetail`, `loadSiblings`, `preloadAncestors/Siblings`) that's already applied to `_realisticTileset`.
-
-### 3. HUD switcher
-
-Extend the `switchViewMode` callback and the button row at line ~6444:
-
-```text
-[ Google 3D ]  [ Realistic ]  [ OSM ]
-   green          cyan          orange
-```
-
-- `viewMode` union becomes `"google" | "realistic" | "osm"`.
-- Default `useState<"google">("google")`.
-- New green-tinted button with a `Globe` lucide icon, sits to the left of Realistic.
-- `switchViewMode("google")` shows `_googleDirectTileset`, hides Ion + OSM, hides globe.
-
-### 4. Custom attribution pill
-
-Mount a `<GoogleAttributionPill />` absolute-positioned just above the GlassPanel that holds the mode buttons (bottom-right). It renders:
-
-- The official Google logo PNG (white-on-transparent, downloaded once into `src/assets/`).
-- A dynamic copyright string read every ~500ms from `tileset.credits` (Cesium's credit collection) — Google ships per-region attribution (e.g. *"©2025 Google, Airbus, Maxar Technologies"*) and ToS requires it to be visible.
-- Only shows when `viewMode === "google"`.
-
-### 5. Cleanup on unmount / mode switch
-
-Add `_googleDirectTileset` to the existing `useEffect` cleanup arrays at lines 3806-3807 and 765-770 so its caches/timers participate in the same play-mode lifecycle.
-
-## Technical notes (file-by-file)
-
-| File | Change |
-|---|---|
-| `supabase/functions/google-3d-tiles/index.ts` | NEW. Proxies Map Tiles API using `GOOGLE_MAPS_API_KEY`. Streams + rewrites manifest child URIs. |
-| `supabase/config.toml` | Add `[functions.google-3d-tiles] verify_jwt = false` so Cesium can fetch tiles without a user JWT. |
-| `src/pages/SpaceshipPage.tsx` | Add Google-direct tileset load; expand `viewMode` union to include `"google"` (default); extend `switchViewMode`; add the new HUD button. |
-| `src/components/atlas/GoogleAttributionPill.tsx` | NEW. Logo + dynamic credit text, shown only in Google mode. |
-| `src/assets/google-on-non-white.png` | NEW. Official Google logo for attribution. |
-
-## Out of scope
-
-- No DB migration.
-- No change to OSM or Ion routes — they stay as fallbacks.
-- No Street View integration (that's a separate API and doesn't return 3D mesh; can be added later).
-
-## Risks / open questions
-
-- The Google Maps connector key must have the **Map Tiles API** enabled in the underlying Google Cloud project. If the Lovable-managed connection doesn't include it, the first proxied call will return `REQUEST_DENIED` and we'll fall back to the Ion route automatically. I'll add a one-shot health probe on load and surface a console warning so we know.
-- Per Google ToS, no tile bytes may be cached on disk beyond 30 days. Our in-memory + browser HTTP cache stays well under that; we won't add a persistent IDB cache for these tiles.
+Approve to switch to build mode and I'll ship fixes 1–10 in that order, verifying #1 in the console after deploy.
