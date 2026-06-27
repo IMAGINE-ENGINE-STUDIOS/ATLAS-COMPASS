@@ -39,6 +39,7 @@ import {
   type LevelPlacement,
 } from "@/lib/useAtlasLevelLayer";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
+import { clampEyeAboveTerrain } from "@/lib/atlasCameraClamp";
 
 function CameraSync({ viewer, enabled }: { viewer: Viewer; enabled: boolean }) {
   const { camera, size } = useThree();
@@ -180,6 +181,7 @@ function PlacedLevel({
     right: new THREE.Vector3(),
     correctedUp: new THREE.Vector3(),
   }).current;
+  const clampState = useRef({ lastSampleAt: 0 });
 
   const handlePlayCameraPose = (pose: PlayCameraPose) => {
     if (!playing || !viewer || viewer.isDestroyed()) return;
@@ -191,10 +193,16 @@ function PlacedLevel({
     if (scratch.right.lengthSq() < 1e-8) return;
     scratch.right.normalize();
     scratch.correctedUp.crossVectors(scratch.right, scratch.dir).normalize();
+    let clampedEye = new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z);
+    const now = performance.now();
+    if (now - clampState.current.lastSampleAt > 160) {
+      clampedEye = clampEyeAboveTerrain(viewer, eyeEcef, 0.6);
+      clampState.current.lastSampleAt = now;
+    }
     try {
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
       viewer.camera.setView({
-        destination: new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z),
+        destination: clampedEye,
         orientation: {
           direction: new Cartesian3(scratch.dir.x, scratch.dir.y, scratch.dir.z),
           up: new Cartesian3(scratch.correctedUp.x, scratch.correctedUp.y, scratch.correctedUp.z),
