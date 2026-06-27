@@ -876,47 +876,16 @@ function SpaceshipPage() {
       })),
     };
     if (playing) {
-      tilesets.forEach((ts) => tuneAtlasTileset(ts, "move"));
-      viewer.scene.globe.maximumScreenSpaceError = 4;
+      // Apply once. No 140ms re-tuning loop — that was thrashing the tile
+      // scheduler and the resolutionScale flips were the most visible cause
+      // of "loading worse than Cesium defaults".
+      tilesets.forEach((ts) => tuneAtlasTileset(ts, "boot"));
+      viewer.scene.globe.maximumScreenSpaceError = 2;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = false;
-      try { viewer.scene.globe.tileCacheSize = 1200; } catch {}
+      try { viewer.scene.globe.tileCacheSize = 1000; } catch {}
+      try { viewer.resolutionScale = 1; } catch {}
       viewer.scene.requestRender();
-
-      // ── Dynamic quality: sharper when idle, faster when moving ──
-      // While walking, keep FPS stable and foveated loading centered. Once
-      // the user stops for a moment, refine visible tiles without loading
-      // the entire city at forced top LOD.
-      const cam = viewer.camera;
-      let lastPos = cam.positionWC.clone();
-      let lastDir = cam.directionWC.clone();
-      let lastMoveT = performance.now();
-      let idleMode = false;
-      try { viewer.resolutionScale = 0.78; } catch {}
-      const dynTick = () => {
-        if (viewer.isDestroyed()) return;
-        const moved =
-          Cartesian3.distance(cam.positionWC, lastPos) > 0.05 ||
-          Cartesian3.distance(cam.directionWC, lastDir) > 0.001;
-        if (moved) {
-          lastPos = cam.positionWC.clone();
-          lastDir = cam.directionWC.clone();
-          lastMoveT = performance.now();
-          if (idleMode) {
-            idleMode = false;
-            try { viewer.resolutionScale = 0.78; } catch {}
-            tilesets.forEach((ts) => tuneAtlasTileset(ts, "move"));
-            viewer.scene.requestRender();
-          }
-        } else if (!idleMode && performance.now() - lastMoveT > 450) {
-          idleMode = true;
-          try { viewer.resolutionScale = 0.9; } catch {}
-          tilesets.forEach((ts) => tuneAtlasTileset(ts, "idle"));
-          viewer.scene.requestRender();
-        }
-      };
-      const dynInterval = window.setInterval(dynTick, 140);
-      (viewer as any).__playDynInterval = dynInterval;
     }
     return () => {
       if (viewer.isDestroyed()) return;
