@@ -30,6 +30,9 @@ interface Props {
 }
 
 const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-camera-image`;
+const VIEWPORT_CAMERA_LIMIT = 120;
+const WORLDWIDE_CAMERA_LIMIT = 120;
+const THUMBNAIL_PREVIEW_LIMIT = 18;
 
 export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera, onCamerasLoaded }: Props) {
   const [cameras, setCameras] = useState<TrafficCamera[]>([]);
@@ -78,11 +81,10 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       let cursor: number | undefined = 0;
       let hasMore = true;
       let safety = 0;
-      // Cap total pages aggressively. Each setMapCameras downstream rebuilds
-      // up to 2k Cesium billboards (with surface-clamp ray samples), so the
-      // old 20-page loop = 20 full Atlas rebuilds and a frozen tab.
-      const maxPages = worldwide ? 3 : 2;
-      const pageLimit = worldwide ? 1500 : 800;
+      // Single lightweight page only. The map layer renders these as Cesium
+      // entities, so loading hundreds/thousands at once overwhelms tiles + UI.
+      const maxPages = 1;
+      const pageLimit = worldwide ? WORLDWIDE_CAMERA_LIMIT : VIEWPORT_CAMERA_LIMIT;
       while (hasMore && safety < maxPages && !controller.signal.aborted) {
         const { data, error: fnErr } = await supabase.functions.invoke("traffic-cameras", {
           body: { bounds, cursor, limit: pageLimit },
@@ -111,6 +113,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
   }, [getBounds]);
 
   const triggerSync = useCallback(async (worldwide = true) => {
+    if (syncing || loading) return;
     setSyncing(true);
     setError(null);
     try {
@@ -120,7 +123,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       setError(e?.message ?? String(e));
     }
     setSyncing(false);
-  }, [fetchCameras]);
+  }, [fetchCameras, loading, syncing]);
 
   // On open: just load viewport cameras (cheap). Do NOT auto-trigger the
   // upstream sync — that hammers the edge function and then forces a second
@@ -235,20 +238,25 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
               <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" /> Loading cameras…
             </div>
           )}
-          {filtered.map(cam => (
+          {filtered.map((cam, index) => (
             <button
               key={cam.id}
               onClick={() => onSelectCamera(cam)}
               className="w-full text-left flex items-center gap-1.5 p-1.5 rounded-lg bg-black/40 hover:bg-white/[0.06] border border-white/[0.04] hover:border-red-500/20 transition group"
             >
               <div className="w-12 h-9 rounded-md overflow-hidden bg-black/70 border border-white/[0.06] shrink-0 relative">
-                <img
-                  src={`${PROXY_URL}?url=${encodeURIComponent(cam.imageUrl)}`}
-                  alt={cam.name}
-                  loading="lazy"
-                  className="w-full h-full object-cover"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                />
+                {index < THUMBNAIL_PREVIEW_LIMIT ? (
+                  <img
+                    src={`${PROXY_URL}?url=${encodeURIComponent(cam.imageUrl)}`}
+                    alt={cam.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <Cctv className="absolute left-1/2 top-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 text-red-300/70" />
+                )}
                 <span className="absolute top-0.5 left-0.5 w-1 h-1 rounded-full bg-red-500 animate-pulse" />
               </div>
               <div className="flex-1 min-w-0">

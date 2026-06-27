@@ -1,40 +1,44 @@
-# Atlas Performance & Reliability Fix Plan
+## Goal
+Make Atlas Intelligence load nearby live cameras without freezing the browser or overloading the computer.
 
-Deep audit complete. Found one **critical proxy bug** causing the 400 errors you're seeing now, plus a stack of high-impact perf issues. Proposed plan focuses on the highest-leverage fixes only — no churn for its own sake.
+## What I found
+- The camera database has data and New York queries return cameras.
+- The current panel requests up to 800 cameras per page and can fetch 2 pages for a viewport.
+- Opening Intelligence then renders up to 500 Cesium camera billboards and runs `sampleHeightMostDetailed` for every pin, which can force 3D tile loading and stall the main scene.
+- The list also creates proxied thumbnail image requests for many visible rows, adding extra network/backend load.
+- The database query is much faster when returning a smaller, ordered subset instead of broad pages sorted by id.
 
-## The error you're seeing right now
+## Fix plan
+1. **Make camera fetches lightweight**
+   - Change `traffic-cameras` to return only fields the UI needs.
+   - Hard-cap requested limits server-side to a small safe number.
+   - Order by nearby/map-friendly coordinates instead of broad id sorting.
 
-URLs like `…/google-3d-tiles/datasets/CgIYAQ/files/datasets/CgIYAQ/files/<tile>.glb` → **HTTP 400**.
+2. **Render fewer pins immediately**
+   - Reduce the live Intelligence map pin cap from 500 to a small visible batch.
+   - Add the rest progressively only if needed, instead of blocking the first frame.
 
-Cause: `supabase/functions/google-3d-tiles/index.ts` rewrites child URIs as **relative** paths (`datasets/CgIYAQ/files/…`). Cesium resolves them against the parent JSON's base directory, which is already `…/google-3d-tiles/datasets/CgIYAQ/files/`, so the segment gets duplicated at every nesting level. Tiles fail, missing geometry, retries spike network.
+3. **Stop mass high-detail terrain sampling**
+   - Remove `sampleHeightMostDetailed` from Intelligence pins.
+   - Use Cesium height references for camera pins first, with optional cheap sampling only for selected/nearby pins.
 
-## Plan (10 fixes, prioritized)
+4. **Prevent thumbnail overload**
+   - Only show thumbnails for the first small batch in the panel.
+   - Use placeholders for the rest until selected or scrolled into view.
+   - Add safer caching to the proxy so repeated images do not hammer the backend.
 
-### Critical
-1. **Fix the proxy path rewrite** (`supabase/functions/google-3d-tiles/index.ts`) — emit absolute proxy URLs (`${origin}/functions/v1/google-3d-tiles/…`) instead of relative ones. Stops every nested-tileset 400. *S*
-2. **Throttle the per-frame React state update** in `SpaceshipPage.tsx` (`viewer.scene.postRender` → `setCameraAlt`). Currently re-renders the 6.8k-line page at 60Hz. Cap to ~4Hz + prev-value guard. Biggest single FPS win. *S*
+5. **Make sync non-blocking**
+   - Keep Sync manual.
+   - Add stronger UI guards so pressing Sync cannot launch repeated expensive operations.
+   - Keep viewport reload separate from upstream sync.
 
-### High
-3. **Re-enable `requestRenderMode` after first tileset loads** in `SpaceshipPage.tsx:2236`. Right now Cesium renders continuously forever, even when idle — huge GPU/battery drain. *S*
-4. **Fix play-mode stale-closure effect** (`SpaceshipPage.tsx:765–955`): remove `levelPlacements` from deps, read via ref. Today, placing a level while playing permanently locks Explore mode at boosted SSE/cache values. *S*
-5. **Stop double OSM tileset instantiation** (`SpaceshipPage.tsx:2288–2338`). On Ion failure, two OSM building tilesets get added; one leaks until viewer destroy. Gate with `_osmTileset` check. *S*
-6. **Batch `clampPinToSurface`** in groups of 10–20 instead of firing 500 concurrent `sampleHeightMostDetailed` walks of the tile tree. Eliminates the IntelligencePanel/marketplace spike. *M*
-7. **Null out `viewerRef` in `atlasWorldScheduler` on unmount** + cancel rAF. Module-level ref currently pins the Cesium Viewer (hundreds of MB of WebGL) after navigation/HMR. *S*
-8. **Make virtual-camera prefetch safe** (`SpaceshipPage.tsx:847–863`): wrap setView/render/restore in `try/finally`; prefer `tileset.preloadWhenHidden` + `requestRender` over hijacking the user's camera every 4s. *M*
+6. **Validate**
+   - Test the traffic camera function against a New York viewport.
+   - Open Intelligence in Atlas and verify cameras appear without tab freeze.
+   - Check logs/network for repeated camera proxy storms or function errors.
 
-### Medium (cheap wins)
-9. **Optimize `AtlasTagsOverlay` per-frame work** — skip `worldToWindowCoordinates` for clusters that didn't move or are off-screen; debounce the O(n²) cluster recompute (already on `moveEnd`, add a spatial bucket). *M*
-10. **Pause `useAtlasKeyboardNav` rAF loop when no keys are held** — currently wakes the CPU 60×/sec permanently. *S*
-
-## Out of scope for this pass (documented, not done)
-- Redundancies: triplicated haversine, dual escape-key listeners, ModelLabelsOverlay vs AtlasTagsOverlay overlap, unbounded `pinCanvasCache` / `goldenPinCache` (LRU later).
-- `openLevelPackage` sync unzip on main thread (move to worker once package usage grows).
-- `IntelligencePanel.fetchCameras` missing dep (low-risk today, but worth a follow-up).
-
-## Expected outcome
-- Google 3D mode stops 400-spamming and actually streams nested tiles.
-- Idle FPS / battery: massive improvement (fixes #2, #3, #10).
-- No more permanent SSE lock after playing (#4) and no leaked viewer between page nav (#7).
-- Smoother behavior with many pins / intelligence syncs (#6, #9).
-
-Approve to switch to build mode and I'll ship fixes 1–10 in that order, verifying #1 in the console after deploy.
+## Files likely affected
+- `src/components/atlas/IntelligencePanel.tsx`
+- `src/pages/SpaceshipPage.tsx`
+- `supabase/functions/traffic-cameras/index.ts`
+- `supabase/functions/proxy-camera-image/index.ts`

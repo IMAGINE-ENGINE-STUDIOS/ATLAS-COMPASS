@@ -55,11 +55,10 @@ serve(async (req) => {
       });
     }
 
-    // Add cache-busting timestamp to upstream URL to bypass server-side caching
-    // This is critical for FL511 and similar DOT endpoints that cache aggressively
-    const bustParam = `_nocache=${Date.now()}`;
-    const separator = urlObj.search ? '&' : '?';
-    const fetchUrl = `${imageUrl}${separator}${bustParam}`;
+    // Let the edge/browser cache camera thumbnails briefly. Adding a unique
+    // cache-buster to every thumbnail request created proxy storms when the
+    // Intelligence list opened.
+    const fetchUrl = imageUrl;
 
     const imgResp = await fetch(fetchUrl, {
       signal: AbortSignal.timeout(12000),
@@ -67,8 +66,7 @@ serve(async (req) => {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Referer': urlObj.origin + '/',
-        'Cache-Control': 'no-cache, no-store',
-        'Pragma': 'no-cache',
+        'Cache-Control': 'max-age=30',
       },
     });
 
@@ -86,9 +84,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': contentType,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
+        'Cache-Control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=120',
       },
     });
   } catch (err) {

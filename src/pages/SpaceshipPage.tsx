@@ -3553,9 +3553,10 @@ function SpaceshipPage() {
 
     if (!intelligenceOpen || mapCameras.length === 0) return;
 
-    // Cap at 500 visible pins to keep Cesium's draw loop responsive while
-    // Realistic / Google 3D tiles are streaming.
-    const subset = mapCameras.slice(0, 500);
+    // Keep Intelligence cheap: camera pins compete with Realistic / Google 3D
+    // tiles. Render a small nearby batch and avoid forcing high-detail tile
+    // sampling for every camera.
+    const subset = mapCameras.slice(0, 120);
     const camById = new Map(subset.map(c => [c.id, c] as const));
     subset.forEach(cam => {
       const truncName = cam.name.length > 22 ? cam.name.slice(0, 20) + "…" : cam.name;
@@ -3574,7 +3575,6 @@ function SpaceshipPage() {
         properties: { type: "camera", camId: cam.id } as any,
       });
       cameraEntitiesRef.current.push(entity);
-      clampPinToSurface(entity, cam.lng, cam.lat);
     });
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -6419,12 +6419,41 @@ function SpaceshipPage() {
               const viewer = viewerRef.current;
               if (!viewer || viewer.isDestroyed()) return null;
               const rect = viewer.camera.computeViewRectangle();
-              if (!rect) return null;
+              if (!rect) {
+                const cam = viewer.camera.positionCartographic;
+                const lat = CesiumMath.toDegrees(cam.latitude);
+                const lng = CesiumMath.toDegrees(cam.longitude);
+                const halfLat = 0.18;
+                const halfLng = 0.18 / Math.max(0.1, Math.cos(cam.latitude));
+                return {
+                  north: Math.min(90, lat + halfLat),
+                  south: Math.max(-90, lat - halfLat),
+                  east: Math.min(180, lng + halfLng),
+                  west: Math.max(-180, lng - halfLng),
+                } as CameraBounds;
+              }
+              const cam = viewer.camera.positionCartographic;
+              const camLat = CesiumMath.toDegrees(cam.latitude);
+              const camLng = CesiumMath.toDegrees(cam.longitude);
+              const north = CesiumMath.toDegrees(rect.north);
+              const south = CesiumMath.toDegrees(rect.south);
+              const east = CesiumMath.toDegrees(rect.east);
+              const west = CesiumMath.toDegrees(rect.west);
+              if ((north - south) > 2 || (east - west) > 2) {
+                const halfLat = 0.18;
+                const halfLng = 0.18 / Math.max(0.1, Math.cos(cam.latitude));
+                return {
+                  north: Math.min(90, camLat + halfLat),
+                  south: Math.max(-90, camLat - halfLat),
+                  east: Math.min(180, camLng + halfLng),
+                  west: Math.max(-180, camLng - halfLng),
+                } as CameraBounds;
+              }
               return {
-                north: CesiumMath.toDegrees(rect.north),
-                south: CesiumMath.toDegrees(rect.south),
-                east: CesiumMath.toDegrees(rect.east),
-                west: CesiumMath.toDegrees(rect.west),
+                north,
+                south,
+                east,
+                west,
               } as CameraBounds;
             }}
             onSelectCamera={(cam) => {
