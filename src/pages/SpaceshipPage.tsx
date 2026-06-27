@@ -3499,8 +3499,11 @@ function SpaceshipPage() {
 
     if (!intelligenceOpen || mapCameras.length === 0) return;
 
-    const camById = new Map(mapCameras.map(c => [c.id, c] as const));
-    mapCameras.slice(0, 2000).forEach(cam => {
+    // Cap at 500 visible pins to keep Cesium's draw loop responsive while
+    // Realistic / Google 3D tiles are streaming.
+    const subset = mapCameras.slice(0, 500);
+    const camById = new Map(subset.map(c => [c.id, c] as const));
+    subset.forEach(cam => {
       const truncName = cam.name.length > 22 ? cam.name.slice(0, 20) + "…" : cam.name;
       const entity = viewer.entities.add({
         id: `camera-${cam.id}`,
