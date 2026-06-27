@@ -4849,6 +4849,11 @@ function SpaceshipPage() {
         onPlayingChange={handleLevelPlayingChange}
       />
 
+      {/* Gaussian Splat landmarks — high-fidelity overlays at specific
+          coords, loaded only when the camera is within their radius. */}
+      <AtlasSplatOverlay viewerRef={viewerRef} />
+      <AtlasSplatUploader viewer={viewerRef.current} />
+
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
           (right-click / double-click → "Play from here"). WASD + mouse,
           Shift to run, Space to jump, Esc to exit. */}
