@@ -17,6 +17,11 @@ import {
   Matrix4 as CesiumMatrix4,
   Transforms,
   type Viewer,
+  Color as CesiumColor,
+  VerticalOrigin,
+  HeightReference,
+  LabelStyle,
+  Cartesian2,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 // @ts-ignore – no bundled types
@@ -198,6 +203,50 @@ export default function AtlasSplatOverlay({
       supabase.removeChannel(ch);
     };
   }, []);
+
+  // Cesium pin markers for every landmark (visible even before splat loads)
+  useEffect(() => {
+    if (!ready) return;
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const entities = landmarks.map((lm) =>
+      viewer.entities.add({
+        id: `splat-pin-${lm.id}`,
+        position: Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0),
+        point: {
+          pixelSize: 12,
+          color: CesiumColor.fromCssColorString("#34d399"),
+          outlineColor: CesiumColor.WHITE,
+          outlineWidth: 2,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: lm.name,
+          font: "600 12px Inter, system-ui, sans-serif",
+          fillColor: CesiumColor.WHITE,
+          outlineColor: CesiumColor.fromCssColorString("#064e3b"),
+          outlineWidth: 3,
+          style: LabelStyle.FILL_AND_OUTLINE,
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          pixelOffset: new Cartesian2(0, -14),
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          showBackground: true,
+          backgroundColor: CesiumColor.fromCssColorString("rgba(6,78,59,0.75)"),
+          backgroundPadding: new Cartesian2(6, 4),
+        },
+      })
+    );
+    viewer.scene.requestRender?.();
+    return () => {
+      if (viewer.isDestroyed()) return;
+      for (const e of entities) {
+        try { viewer.entities.remove(e); } catch {}
+      }
+      viewer.scene.requestRender?.();
+    };
+  }, [ready, landmarks, viewerRef]);
 
   // Wait for viewer
   useEffect(() => {
