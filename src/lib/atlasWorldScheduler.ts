@@ -82,4 +82,17 @@ export const atlasWorldScheduler = {
       }
     };
   },
+  /**
+   * Release the held Viewer reference. Call this from SpaceshipPage's
+   * unmount cleanup so the WebGL resources (~hundreds of MB) can be GC'd
+   * after navigation / HMR — otherwise this module-level ref pins them.
+   */
+  releaseViewer(v?: Viewer | null) {
+    if (v && v !== viewerRef) return; // only release the one we hold
+    viewerRef = null;
+    if (raf) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+  },
 };
