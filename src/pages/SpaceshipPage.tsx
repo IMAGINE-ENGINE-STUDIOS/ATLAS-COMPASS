@@ -2425,9 +2425,13 @@ function SpaceshipPage() {
       window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
     }).catch((err) => {
       console.warn("[Google 3D Direct] tileset failed to load — falling back to Ion route", err);
-      // Re-show the Ion realistic tileset on failure.
-      const ion = (viewer as any)._realisticTileset;
-      if (ion) ion.show = true;
+      // Lazy-load Ion realistic tileset only on Google Direct failure.
+      const ensure = (viewer as any)._ensureRealisticTileset;
+      if (typeof ensure === "function") {
+        Promise.resolve(ensure()).then((ion: any) => { if (ion) ion.show = true; });
+      }
+      viewer.scene.globe.show = true;
+      viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
     });
 
     // Create brush indicator entity (hidden by default)
