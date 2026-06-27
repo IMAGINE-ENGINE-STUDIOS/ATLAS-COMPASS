@@ -2316,19 +2316,25 @@ function SpaceshipPage() {
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
       }
     }).catch(() => {
-      // Fallback: if realistic tiles fail, show globe + OSM buildings
+      // Fallback: if realistic tiles fail, show the globe + reveal the OSM
+      // buildings that the block below already (asynchronously) instantiated.
+      // Do NOT create a second OSM tileset here — that doubled GPU memory
+      // and leaked one of the two until viewer destroy.
       if (!viewer.isDestroyed()) {
         console.warn("Realistic tiles unavailable, falling back to OSM");
         viewer.scene.globe.show = true;
         viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
-        createOsmBuildingsAsync().then((tileset) => {
-          if (!viewer.isDestroyed()) {
-            viewer.scene.primitives.add(tileset);
-            tileset.maximumScreenSpaceError = 4;
-            (viewer as any)._osmTileset = tileset;
-            window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
+        const revealOsm = () => {
+          const ot = (viewer as any)._osmTileset;
+          if (ot) {
+            ot.show = true;
+            viewer.scene.requestRender();
+          } else {
+            // OSM still loading — try again shortly.
+            setTimeout(revealOsm, 250);
           }
-        });
+        };
+        revealOsm();
       }
     });
 
