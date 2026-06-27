@@ -36,19 +36,22 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Cap page size at 1000 to stay within Supabase default row limit
-    const PAGE_SIZE = Math.min(reqLimit || 1000, 1000);
+    // Keep Intelligence responsive: Atlas renders these as live 3D pins, so a
+    // single request must stay small even if a huge/worldwide bounds is sent.
+    const PAGE_SIZE = Math.min(Math.max(reqLimit || 120, 1), 120);
     const offset = cursor || 0;
 
-    // Query camera_catalog by bounds
+    // Query only the fields used by the UI. Selecting the full row plus sorting
+    // by id caused slow broad-viewport scans and browser freezes downstream.
     const { data, error, count } = await supabase
       .from('camera_catalog')
-      .select('*', { count: 'exact' })
+      .select('id,name,lat,lng,image_url,source,stream_url,refresh_rate,feed_status', { count: 'estimated' })
       .gte('lat', bounds.south)
       .lte('lat', bounds.north)
       .gte('lng', bounds.west)
       .lte('lng', bounds.east)
-      .order('id')
+      .order('lat', { ascending: true })
+      .order('lng', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
 
     if (error) {
