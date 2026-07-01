@@ -103,19 +103,11 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const url = buildEarthLayerUrl(def);
     const provider = new UrlTemplateImageryProvider({
       url,
-      // Allow Cesium to request one level deeper than the native max so that
-      // in the viewport the imagery renders sharper via GPU upsampling of the
-      // finest served tile (Cesium clamps requests to `maximumLevel` and
-      // stretches). This visibly improves apparent resolution when zoomed in.
-      maximumLevel: (def.maxZoom ?? 9) + 2,
-      tileWidth: 512,
-      tileHeight: 512,
+      maximumLevel: def.maxZoom ?? 9,
       credit: def.attribution,
     });
     const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
     layer.alpha = 0.92;
-    layer.minificationFilter = 9729; // LINEAR
-    layer.magnificationFilter = 9729; // LINEAR
     layerRefs.current[def.id] = layer;
   }, [viewerRef]);
 
