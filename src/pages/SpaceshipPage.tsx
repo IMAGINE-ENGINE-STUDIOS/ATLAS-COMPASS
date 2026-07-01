@@ -232,6 +232,9 @@ const applyAtlasMapVisibility = (
   if (realistic) realistic.show = mode === "realistic" && showBuildings;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
+  // Mapbox / Light: swap the globe's imagery for a lightweight raster basemap.
+  applyMapboxImageryLayer(viewer, mode === "mapbox");
+
   // Only show the Cesium base globe (terrain + imagery) when it is actually
   // the active surface (OSM buildings sit on top of it, or buildings are
   // turned off entirely). In google / realistic photoreal modes the globe
@@ -241,6 +244,43 @@ const applyAtlasMapVisibility = (
   viewer.scene.globe.show = !photoreal;
   // Skybox / atmosphere still render; only the globe surface is suppressed.
   viewer.scene.requestRender?.();
+};
+
+/**
+ * Add / remove the "Light" Mapbox imagery layer. Uses VITE_MAPBOX_TOKEN if
+ * provided, else falls back to CartoDB Positron (free, no token). This is the
+ * lightweight / low-connectivity basemap — no 3D tilesets stream in this mode.
+ */
+const applyMapboxImageryLayer = (viewer: any, enabled: boolean) => {
+  if (!viewer || viewer.isDestroyed?.()) return;
+  const layers = viewer.scene?.imageryLayers;
+  if (!layers) return;
+  const existing: ImageryLayer | undefined = viewer._mapboxImageryLayer;
+  if (!enabled) {
+    if (existing) {
+      try { layers.remove(existing, true); } catch {}
+      viewer._mapboxImageryLayer = null;
+    }
+    return;
+  }
+  if (existing) return;
+  const token = (import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined;
+  const provider = token
+    ? new UrlTemplateImageryProvider({
+        url: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}?access_token=${token}`,
+        tileWidth: 512,
+        tileHeight: 512,
+        maximumLevel: 19,
+        credit: "© Mapbox © OpenStreetMap",
+      })
+    : new UrlTemplateImageryProvider({
+        url: "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        maximumLevel: 19,
+        credit: "© OpenStreetMap © CARTO",
+      });
+  const layer = new ImageryLayer(provider, {});
+  layers.add(layer);
+  viewer._mapboxImageryLayer = layer;
 };
 
 const destroyAtlasTileset = (viewer: any, key: AtlasTilesetKey) => {
