@@ -48,16 +48,39 @@ const CATEGORY_COLOR: Record<EarthLayerCategory, string> = {
 };
 
 /**
- * Build a "global view" thumbnail URL for a layer by substituting z/x/y = 0.
- * At zoom 0 the tile covers the whole world for both GIBS GoogleMapsCompatible
- * matrices and standard XYZ providers (Terrarium, OSM hillshade, EOX).
+ * Build a "global view" thumbnail URL for a layer.
+ *
+ * For GIBS layers we bypass the WMTS z=0 256x256 tile (which is what made
+ * thumbnails look pixelated) and hit the GIBS WMS endpoint at 512x256, which
+ * returns a full-earth image at ~2x the effective resolution. Other providers
+ * fall back to substituting z/x/y = 0 in their tile template.
  */
 function thumbUrl(def: EarthLayerDef): string {
   const raw = buildEarthLayerUrl(def);
-  return raw
-    .replace("{z}", "0")
-    .replace("{y}", "0")
-    .replace("{x}", "0");
+  // Try to detect a GIBS WMTS URL and rewrite to a higher-res WMS GetMap.
+  const gibsMatch = raw.match(
+    /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/([^/]+)\/default\/([^/]+)\//,
+  );
+  if (gibsMatch) {
+    const layerId = gibsMatch[1];
+    const time = gibsMatch[2]; // "default" or YYYY-MM-DD
+    const fmt = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
+    const params = new URLSearchParams({
+      SERVICE: "WMS",
+      REQUEST: "GetMap",
+      VERSION: "1.3.0",
+      LAYERS: layerId,
+      CRS: "EPSG:4326",
+      BBOX: "-90,-180,90,180",
+      WIDTH: "1024",
+      HEIGHT: "512",
+      FORMAT: fmt,
+      TRANSPARENT: fmt === "image/png" ? "true" : "false",
+      TIME: time,
+    });
+    return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
+  }
+  return raw.replace("{z}", "0").replace("{y}", "0").replace("{x}", "0");
 }
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
@@ -80,11 +103,19 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const url = buildEarthLayerUrl(def);
     const provider = new UrlTemplateImageryProvider({
       url,
-      maximumLevel: def.maxZoom ?? 9,
+      // Allow Cesium to request one level deeper than the native max so that
+      // in the viewport the imagery renders sharper via GPU upsampling of the
+      // finest served tile (Cesium clamps requests to `maximumLevel` and
+      // stretches). This visibly improves apparent resolution when zoomed in.
+      maximumLevel: (def.maxZoom ?? 9) + 2,
+      tileWidth: 512,
+      tileHeight: 512,
       credit: def.attribution,
     });
     const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
-    layer.alpha = 0.85;
+    layer.alpha = 0.92;
+    layer.minificationFilter = 9729; // LINEAR
+    layer.magnificationFilter = 9729; // LINEAR
     layerRefs.current[def.id] = layer;
   }, [viewerRef]);
 
