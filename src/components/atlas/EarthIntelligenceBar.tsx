@@ -12,8 +12,7 @@ import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
-  SingleTileImageryProvider,
-  Rectangle,
+  GeographicTilingScheme,
   ImageryLayer,
 } from "cesium";
 import {
@@ -22,10 +21,6 @@ import {
   type EarthLayerCategory,
   type EarthLayerDef,
 } from "@/hooks/useEarthIntelligence";
-
-// Sentinel used in `layerRefs` while an async SingleTileImageryProvider is
-// still resolving. Lets `removeLayer` cancel a pending add.
-const PENDING = { __pending: true } as const;
 
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
