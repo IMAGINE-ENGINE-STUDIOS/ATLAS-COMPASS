@@ -177,6 +177,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
   const activeDefs = useRef<Record<string, EarthLayerDef>>({});
   const scrollerRef = useRef<HTMLDivElement>(null);
   const opSerial = useRef(0);
+  const layerTokens = useRef<Record<string, number>>({});
 
   const syncOverlayFlag = useCallback(() => {
     const viewer = viewerRef.current;
@@ -198,19 +199,21 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       });
     }
     delete layerRefs.current[id];
-    if (forget) delete activeDefs.current[id];
+    if (forget) {
+      delete activeDefs.current[id];
+      delete layerTokens.current[id];
+    }
     syncOverlayFlag();
   }, [viewerRef, syncOverlayFlag]);
 
-  const addLayer = useCallback(async (def: EarthLayerDef) => {
+  const addLayer = useCallback(async (def: EarthLayerDef, replaceOthers = false) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
     const serial = ++opSerial.current;
+    layerTokens.current[def.id] = serial;
     setLoading((prev) => ({ ...prev, [def.id]: true }));
     setFailed((prev) => ({ ...prev, [def.id]: false }));
-
-    const { collection, onTileset } = targetLayers(viewer);
 
     // If we are re-targeting after a map-mode change, remove the old layer
     // first but keep the dataset marked active.
@@ -218,6 +221,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
 
     try {
       const provider = await createEarthImageryProvider(def);
+      if (layerTokens.current[def.id] !== serial) return;
       const latestViewer = viewerRef.current;
       if (!latestViewer || latestViewer.isDestroyed()) return;
       const latestTarget = targetLayers(latestViewer);
@@ -225,20 +229,22 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       layer.alpha = 0.92;
       layerRefs.current[def.id] = layer;
       activeDefs.current[def.id] = def;
-      void onTileset; // (info only — behavior identical either way)
+      if (replaceOthers) {
+        Object.keys(activeDefs.current)
+          .filter((id) => id !== def.id)
+          .forEach((id) => removeLayer(id));
+      }
       syncOverlayFlag();
     } catch (err) {
       console.warn(`[Earth Intelligence] failed to load ${def.id}`, err);
-      delete activeDefs.current[def.id];
       setActive((prev) => {
-        const next = { ...prev };
-        delete next[def.id];
+        const next = Object.fromEntries(Object.keys(activeDefs.current).map((id) => [id, true]));
         return next;
       });
       setFailed((prev) => ({ ...prev, [def.id]: true }));
       syncOverlayFlag();
     } finally {
-      if (serial === opSerial.current || loading[def.id]) {
+      if (layerTokens.current[def.id] === serial) {
         setLoading((prev) => {
           const next = { ...prev };
           delete next[def.id];
@@ -259,11 +265,11 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       return;
     }
 
-    // Keep GPU/network pressure predictable: one raster dataset at a time.
-    Object.keys(activeDefs.current).forEach((id) => removeLayer(id));
+    // Keep GPU/network pressure predictable: one raster dataset at a time,
+    // but keep the previous overlay visible until the new one is ready.
     setActive({ [def.id]: true });
-    void addLayer(def);
-  }, [addLayer, removeLayer]);
+    void addLayer(def, true);
+  }, [active, addLayer, removeLayer]);
 
   // Clear all on unmount
   useEffect(() => {
