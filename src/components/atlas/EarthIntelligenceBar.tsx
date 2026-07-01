@@ -12,10 +12,10 @@ import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
-  SingleTileImageryProvider,
+  GeographicTilingScheme,
   ImageryLayer,
   ImageryLayerCollection,
-  Rectangle,
+  Cartographic,
   type ImageryProvider,
 } from "cesium";
 import {
@@ -145,18 +145,80 @@ function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string |
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }
 
+function gibsWmsTileTemplate(def: EarthLayerDef): string | null {
+  const gibs = parseGibsLayer(def);
+  if (!gibs) return null;
+  // Use an explicit tiled WMS template instead of one huge SingleTile image.
+  // The single-image path was wrapping over the 180° meridian on photoreal
+  // tilesets, producing the jagged Pacific seam seen in the screenshot. These
+  // geographic tiles never cross the dateline and Cesium can load the visible
+  // viewport tiles immediately while the selected Atlas map remains visible.
+  const qs = [
+    "SERVICE=WMS",
+    "REQUEST=GetMap",
+    "VERSION=1.3.0",
+    `LAYERS=${encodeURIComponent(gibs.layerId)}`,
+    "CRS=EPSG%3A4326",
+    // WMS 1.3.0 + EPSG:4326 uses latitude,longitude axis order.
+    "BBOX={southDegrees},{westDegrees},{northDegrees},{eastDegrees}",
+    "WIDTH=512",
+    "HEIGHT=512",
+    `FORMAT=${encodeURIComponent(gibs.format)}`,
+    `TRANSPARENT=${gibs.format === "image/png" ? "true" : "false"}`,
+    `TIME=${encodeURIComponent(gibs.time)}`,
+  ];
+  return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${qs.join("&")}`;
+}
+
+function warmViewportCenter(provider: ImageryProvider, viewer: Viewer, maxLevel: number) {
+  // Small, non-blocking cache warm: request the tile under the camera first,
+  // then the nearest neighbors. Cesium still controls actual rendering, but
+  // this nudges browser/network cache to fill from the viewport center out.
+  const tilingScheme = (provider as any).tilingScheme;
+  if (!tilingScheme?.positionToTileXY || !provider.requestImage) return;
+  const cartographic = Cartographic.fromCartesian(viewer.camera.positionWC);
+  if (!cartographic) return;
+  const height = Math.max(0, cartographic.height || 0);
+  const warmLevel = Math.max(
+    0,
+    Math.min(
+      maxLevel,
+      height > 18_000_000 ? 2 : height > 7_000_000 ? 3 : height > 2_000_000 ? 4 : height > 600_000 ? 5 : 6,
+    ),
+  );
+  const center = tilingScheme.positionToTileXY(cartographic, warmLevel);
+  if (!center) return;
+  const xCount = tilingScheme.getNumberOfXTilesAtLevel(warmLevel);
+  const yCount = tilingScheme.getNumberOfYTilesAtLevel(warmLevel);
+  const offsets = [
+    [0, 0],
+    [-1, 0], [1, 0], [0, -1], [0, 1],
+    [-1, -1], [1, -1], [-1, 1], [1, 1],
+  ];
+  offsets.forEach(([dx, dy], i) => {
+    window.setTimeout(() => {
+      try {
+        const x = ((center.x + dx) % xCount + xCount) % xCount;
+        const y = center.y + dy;
+        if (y < 0 || y >= yCount) return;
+        void provider.requestImage?.(x, y, warmLevel);
+      } catch { /* cache warm only */ }
+    }, i * 45);
+  });
+}
+
 async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryProvider> {
   const gibs = parseGibsLayer(def);
   if (gibs) {
-    // NASA GIBS WMS tiles were visibly shearing/repeating at the Pacific
-    // dateline when Cesium tiled them over photoreal 3D tiles. A single
-    // full-world equirectangular image maps once to the explicit world
-    // rectangle, eliminating the seam/wrapper break while keeping the active
-    // Atlas mode visible during load.
-    const url = gibsWmsUrl(def, 4096, 2048);
+    const url = gibsWmsTileTemplate(def);
     if (!url) throw new Error(`No GIBS WMS URL for ${def.label}`);
-    return SingleTileImageryProvider.fromUrl(url, {
-      rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+    return new UrlTemplateImageryProvider({
+      url,
+      tilingScheme: new GeographicTilingScheme(),
+      tileWidth: 512,
+      tileHeight: 512,
+      minimumLevel: 0,
+      maximumLevel: Math.min(Math.max(def.maxZoom ?? 7, 4), 8),
       credit: def.attribution,
     });
   }
@@ -239,6 +301,9 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       layer.alpha = 0.92;
       layerRefs.current[def.id] = layer;
       activeDefs.current[def.id] = def;
+      if (parseGibsLayer(def)) {
+        warmViewportCenter(provider, latestViewer, Math.min(Math.max(def.maxZoom ?? 7, 4), 8));
+      }
       if (replaceOthers) {
         Object.keys(activeDefs.current)
           .filter((id) => id !== def.id)
