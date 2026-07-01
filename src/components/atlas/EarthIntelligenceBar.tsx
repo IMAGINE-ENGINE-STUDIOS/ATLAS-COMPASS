@@ -23,6 +23,10 @@ import {
   type EarthLayerDef,
 } from "@/hooks/useEarthIntelligence";
 
+// Sentinel used in `layerRefs` while an async SingleTileImageryProvider is
+// still resolving. Lets `removeLayer` cancel a pending add.
+const PENDING = { __pending: true } as const;
+
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
   onClose: () => void;
