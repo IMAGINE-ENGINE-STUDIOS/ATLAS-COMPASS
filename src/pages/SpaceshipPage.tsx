@@ -5044,8 +5044,8 @@ function SpaceshipPage() {
         )}
       
 
-      {/* ── HUD Overlay ── */}
-      {isLoaded && hudVisible && (
+      {/* ── HUD Overlay ── (hidden entirely during character play) */}
+      {isLoaded && hudVisible && !freePlaySpawn && !playingLevelId && (
         <>
           {/* Top Bar */}
           <div
@@ -6734,7 +6734,7 @@ function SpaceshipPage() {
         </>
       )}
 
-      {isLoaded && !hudVisible && (
+      {isLoaded && !hudVisible && !freePlaySpawn && !playingLevelId && (
         <button
           onClick={() => setHudVisible(true)}
           className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-black/75 backdrop-blur-xl border border-white/[0.08] rounded-full px-3 py-1.5 text-white/75 hover:text-white transition-colors text-xs font-mono"
