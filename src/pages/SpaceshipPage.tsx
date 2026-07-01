@@ -2315,7 +2315,7 @@ function SpaceshipPage() {
     // photoreal tilesets. Restored when the component unmounts.
     try {
       (viewer as any).useBrowserRecommendedResolution = false;
-        viewer.resolutionScale = 0.8;
+        viewer.resolutionScale = 1;
       if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = false;
       }
@@ -2654,7 +2654,9 @@ function SpaceshipPage() {
         (viewer as any)._osmTileset,
       ].filter(Boolean);
       sets.forEach((ts) => tuneAtlasTileset(ts, profile));
-      try { viewer.resolutionScale = profile === "idle" ? 0.9 : profile === "far" ? 0.68 : 0.78; } catch {}
+      // Never lower render resolution in Atlas: it makes the city look like a
+      // blurred backdrop. Tile pressure is handled through SSE/culling instead.
+      try { viewer.resolutionScale = 1; } catch {}
       viewer.scene.requestRender();
     };
     const removePerfListener = viewer.scene.postRender.addEventListener(() => {
