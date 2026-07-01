@@ -6766,7 +6766,7 @@ function SpaceshipPage() {
                   <img src={eyePng} alt="Eye" width={16} height={16} className="w-3 h-3 sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
-                    <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">{formatAlt(cameraAlt)}</p>
+                    <CameraAltReadout />
                   </div>
                   <div className="w-px h-5 sm:h-7 bg-white/10" />
                   <div>
