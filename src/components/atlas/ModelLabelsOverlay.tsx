@@ -11,7 +11,7 @@ function isWorldPointInFrontViewport(viewer: Viewer, world: Cartesian3, margin =
   const camera = viewer.camera;
   const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
   if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) return null;
-  if (Cartesian3.dot(world, camera.positionWC) < EARTH_RADIUS_M * EARTH_RADIUS_M * 0.98) return null;
+  if (Cartesian3.dot(world, camera.positionWC) < EARTH_RADIUS_M * EARTH_RADIUS_M) return null;
   const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
   if (!win) return null;
   const canvas = viewer.scene.canvas;
