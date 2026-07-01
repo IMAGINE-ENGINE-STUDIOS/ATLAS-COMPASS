@@ -2734,7 +2734,7 @@ function SpaceshipPage() {
       if (Math.abs(h - __lastAltVal) < 0.5) return;
       __lastAltEmit = now;
       __lastAltVal = h;
-      setCameraAlt(h);
+      setAtlasCameraAltitude(h);
     });
 
     // Adaptive quality governor: if frame time spikes while Google/realistic
