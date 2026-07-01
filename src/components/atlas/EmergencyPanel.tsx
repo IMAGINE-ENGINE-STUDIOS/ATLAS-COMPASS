@@ -81,7 +81,7 @@ export default function EmergencyPanel({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="absolute top-16 right-3 sm:right-4 z-40 w-[calc(100vw-1.5rem)] max-w-sm">
+    <div className="absolute top-20 right-4 z-40 w-[calc(100vw-2rem)] max-w-80 animate-fade-in">
       <div className="p-3 rounded-xl border border-red-500/40 bg-red-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(239,68,68,0.35)]">
         <div className="flex items-center gap-2 mb-2">
           <AlertTriangle className="w-4 h-4 text-red-400 animate-pulse" />
