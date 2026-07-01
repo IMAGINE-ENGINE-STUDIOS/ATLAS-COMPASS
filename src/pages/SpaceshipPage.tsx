@@ -256,12 +256,7 @@ const applyAtlasMapVisibility = (
   // translucent atmospheric/weather rasters, so leaving the globe visible
   // under photoreal photoreal is acceptable — the overlay reads on top of
   // open ground while buildings still occlude where they exist.
-  const overlaysActive = !!viewer._earthIntelActive;
-  viewer.scene.globe.show = overlaysActive ? true : !photoreal;
-  if (overlaysActive && photoreal) {
-    // Hide the raw Cesium terrain color so only the overlay imagery reads.
-    viewer.scene.globe.baseColor = Color.TRANSPARENT;
-  }
+  viewer.scene.globe.show = !photoreal;
   // Skybox / atmosphere still render; only the globe surface is suppressed.
   viewer.scene.requestRender?.();
 };
