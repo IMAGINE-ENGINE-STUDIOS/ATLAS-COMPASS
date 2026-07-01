@@ -2292,9 +2292,9 @@ function SpaceshipPage() {
     };
     viewer.scene.globe.maximumScreenSpaceError = 8;
     viewer.scene.globe.depthTestAgainstTerrain = true;
-    // Keep the globe visible as the fast first paint while photoreal tiles refine.
-    // Atlas must start loading immediately, without waiting for the user to move.
-    viewer.scene.globe.show = true;
+    // Do not draw Cesium terrain/imagery behind photoreal modes. Google 3D
+    // must be standalone so seams cannot reveal a second map underneath.
+    viewer.scene.globe.show = viewModeRef.current === "osm" || !showBuildingsRef.current;
     keepAtlasRenderingDuringBoot(viewer, 15000);
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
@@ -2461,12 +2461,11 @@ function SpaceshipPage() {
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
-        console.warn("[Google 3D Direct] tileset failed to load — falling back to Ion route", err);
-        // Do not silently load the Realistic tileset under Google mode: mixing
-        // providers is exactly what creates overlapping maps. Leave only the
-        // base globe visible if Google cannot stream.
-        viewer.scene.globe.show = true;
-        viewer.scene.globe.baseColor = Color.fromCssColorString("#0a1628");
+        console.warn("[Google 3D Direct] tileset failed to load", err);
+        // Never reveal Cesium imagery/terrain under Google 3D; that creates
+        // the dark, stacked-map look through tile gaps and seams.
+        viewer.scene.globe.show = false;
+        viewer.scene.globe.baseColor = Color.TRANSPARENT;
         return null;
       }).finally(() => {
         if ((viewer as any)._googleDirectLoadingSerial === requestedSerial) {
