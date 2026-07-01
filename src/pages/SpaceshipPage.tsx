@@ -179,11 +179,11 @@ const applyAtlasMapVisibility = (
   const google = viewer._googleDirectTileset as Cesium3DTileset | undefined;
   const realistic = viewer._realisticTileset as Cesium3DTileset | undefined;
   const osm = viewer._osmTileset as Cesium3DTileset | undefined;
-  const wantsPhotoreal = mode === "google" || mode === "realistic";
-  const activePhotoreal = google ?? realistic;
-
-  if (google) google.show = wantsPhotoreal && showBuildings && activePhotoreal === google;
-  if (realistic) realistic.show = wantsPhotoreal && showBuildings && activePhotoreal === realistic;
+  // Strict single-active-tileset. The active one is chosen by mode only,
+  // never by "whichever happens to exist" — that caused overlaps where two
+  // photoreal layers streamed and rendered simultaneously.
+  if (google) google.show = mode === "google" && showBuildings;
+  if (realistic) realistic.show = mode === "realistic" && showBuildings;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
   // Keep the terrain/imagery globe visible as an immediate fallback under
@@ -3833,7 +3833,7 @@ function SpaceshipPage() {
     if (mode === "google") {
       (viewer as any)._ensureGoogleDirectTileset?.();
     } else if (mode === "realistic") {
-      if (!(viewer as any)._googleDirectTileset) (viewer as any)._ensureRealisticTileset?.();
+      (viewer as any)._ensureRealisticTileset?.();
     } else if (mode === "osm") {
       (viewer as any)._ensureOsmTileset?.();
     }
@@ -3854,14 +3854,18 @@ function SpaceshipPage() {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    if (!wantsPhotorealMode(viewMode)) {
+    // Purge every tileset that isn't the active mode so only ONE layer streams.
+    if (viewMode !== "google") {
       destroyAtlasTileset(viewer, "_googleDirectTileset");
-      destroyAtlasTileset(viewer, "_realisticTileset");
       (viewer as any)._googleDirectLoading = null;
-      (viewer as any)._realisticLoading = null;
-    } else if ((viewer as any)._googleDirectTileset) {
+    }
+    if (viewMode !== "realistic") {
       destroyAtlasTileset(viewer, "_realisticTileset");
       (viewer as any)._realisticLoading = null;
+    }
+    if (viewMode !== "osm") {
+      destroyAtlasTileset(viewer, "_osmTileset");
+      (viewer as any)._osmLoading = null;
     }
     applyAtlasMapVisibility(viewer, viewMode, showBuildingsRef.current);
   }, [viewMode]);
