@@ -22,6 +22,7 @@ import {
   HeightReference,
   LabelStyle,
   Cartesian2,
+  CallbackProperty,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 // @ts-ignore – no bundled types
@@ -29,6 +30,7 @@ import * as GaussianSplats3D from "@mkkellogg/gaussian-splats-3d";
 
 const MAX_LOADED = 3;
 const BUCKET = "splat-landmarks";
+const EARTH_RADIUS_M = 6371000;
 
 export type SplatLandmark = {
   id: string;
@@ -43,6 +45,13 @@ export type SplatLandmark = {
   radius_m: number;
   file_path: string;
 };
+
+function isWorldPointInFront(viewer: Viewer, world: Cartesian3) {
+  const camera = viewer.camera;
+  const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
+  if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) return false;
+  return Cartesian3.dot(world, camera.positionWC) >= EARTH_RADIUS_M * EARTH_RADIUS_M * 0.98;
+}
 
 const THREE_TO_ENU = (() => {
   const m = new THREE.Matrix4();
@@ -209,11 +218,17 @@ export default function AtlasSplatOverlay({
     if (!ready) return;
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    const entities = landmarks.map((lm) =>
-      viewer.entities.add({
+    const entities = landmarks.map((lm) => {
+      const pinWorld = Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0);
+      const inFront = new CallbackProperty(() => {
+        if (viewer.isDestroyed()) return false;
+        return isWorldPointInFront(viewer, pinWorld);
+      }, false);
+      return viewer.entities.add({
         id: `splat-pin-${lm.id}`,
-        position: Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0),
+        position: pinWorld,
         point: {
+          show: inFront,
           pixelSize: 12,
           color: CesiumColor.fromCssColorString("#34d399"),
           outlineColor: CesiumColor.WHITE,
@@ -222,6 +237,7 @@ export default function AtlasSplatOverlay({
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
+          show: inFront,
           text: lm.name,
           font: "600 12px Inter, system-ui, sans-serif",
           fillColor: CesiumColor.WHITE,
@@ -236,8 +252,8 @@ export default function AtlasSplatOverlay({
           backgroundColor: CesiumColor.fromCssColorString("rgba(6,78,59,0.75)"),
           backgroundPadding: new Cartesian2(6, 4),
         },
-      })
-    );
+      });
+    });
     viewer.scene.requestRender?.();
     return () => {
       if (viewer.isDestroyed()) return;
