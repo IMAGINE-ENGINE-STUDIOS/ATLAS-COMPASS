@@ -5248,6 +5248,27 @@ function SpaceshipPage() {
                     {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                   </button>
                   <AtlasScreenshotMenu viewerRef={viewerRef} />
+                  {/* SOS — Emergency Mode toggle */}
+                  <button
+                    onClick={() => {
+                      const next = !emergencyMode;
+                      setEmergencyMode(next);
+                      (window as any).__atlasEmergencyMode = next;
+                      window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: next }));
+                      if (next) toast.error("EMERGENCY MODE ACTIVE", { description: "Atlas is broadcasting emergency layer." });
+                      else toast.success("Emergency mode off");
+                    }}
+                    aria-pressed={emergencyMode}
+                    title={emergencyMode ? "Emergency mode ACTIVE" : "Activate emergency mode"}
+                    className={`shrink-0 h-7 px-2 rounded-md flex items-center justify-center border text-white font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      emergencyMode
+                        ? "bg-red-600 border-red-300 shadow-[0_0_18px_rgba(239,68,68,0.85)]"
+                        : "bg-red-600/90 border-red-400/70 hover:bg-red-500"
+                    }`}
+                    style={{ animation: "atlasEmergencyPulse 1.1s ease-in-out infinite" }}
+                  >
+                    SOS
+                  </button>
                 </GlassPanel>
             </div>
           </div>
