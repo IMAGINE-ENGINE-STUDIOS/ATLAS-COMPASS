@@ -4063,6 +4063,19 @@ function SpaceshipPage() {
     setShowBuildings(newShow);
   }, [showBuildings, viewMode]);
 
+  // Re-apply map visibility whenever an Earth Intelligence overlay is toggled
+  // so that realistic / google 3D / osm modes unhide the globe (which is what
+  // ImageryLayers render on top of).
+  useEffect(() => {
+    const handler = () => {
+      const v = viewerRef.current;
+      if (!v || v.isDestroyed()) return;
+      applyAtlasMapVisibility(v, viewModeRef.current, showBuildingsRef.current);
+    };
+    window.addEventListener("atlas:earth-intel-changed", handler);
+    return () => window.removeEventListener("atlas:earth-intel-changed", handler);
+  }, []);
+
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
