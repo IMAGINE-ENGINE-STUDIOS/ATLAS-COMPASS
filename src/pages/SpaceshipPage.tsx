@@ -1259,6 +1259,10 @@ function SpaceshipPage() {
   const [showBusinessIcons, setShowBusinessIcons] = useState<boolean>(savedUI.showBusinessIcons ?? false);
   const [isLoadingBusinesses, setIsLoadingBusinesses] = useState(false);
   const businessEntitiesRef = useRef<any[]>([]);
+  // Monotonic token for batched biz-pin height sampling — see
+  // addBusinessPinsFromResults. Guards against stale sample results
+  // mutating entities that a later batch has already removed.
+  const businessBatchTokenRef = useRef(0);
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
