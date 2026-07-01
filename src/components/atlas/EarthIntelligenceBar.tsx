@@ -12,7 +12,8 @@ import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
-  SingleTileImageryProvider,
+  WebMapServiceImageryProvider,
+  GeographicTilingScheme,
   ImageryLayer,
   ImageryLayerCollection,
 } from "cesium";
@@ -143,34 +144,40 @@ function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string |
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }
 
-/**
- * Build the imagery provider for a dataset.
- *
- * GIBS layers use a *single-tile* WMS request that returns one 4096×2048
- * equirectangular JPEG/PNG covering the whole planet. Reasons:
- *   1. GIBS WMTS EPSG:3857 stops at ±85° → visible polar caps.
- *   2. GIBS WMS 1.1.1 tiled via GeographicTilingScheme produced a visible
- *      seam through the Pacific (BBOX/wrap edge did not stitch cleanly).
- *   3. Single-tile wrap = no seams, no polar gap, no per-tile fetch storm,
- *      and drapes cleanly on 3D Tilesets.
- * Non-GIBS providers (Sentinel-2, OSM hillshade, Terrarium DEM) use their
- * native XYZ tile scheme.
- */
-function createEarthImageryProviderAsync(def: EarthLayerDef): Promise<any> {
-  const wms = gibsWmsUrl(def, 4096, 2048);
-  if (wms) {
-    return SingleTileImageryProvider.fromUrl(wms, {
+function createEarthImageryProvider(def: EarthLayerDef) {
+  const gibs = parseGibsLayer(def);
+  if (gibs) {
+    // Use tiled EPSG:4326 WMS for the real overlay. It covers the full globe
+    // (no WebMercator polar gaps), has explicit tile dimensions (no
+    // SingleTile tileWidth errors), and drapes correctly on 3D Tilesets.
+    return new WebMapServiceImageryProvider({
+      url: "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
+      layers: gibs.layerId,
+      tilingScheme: new GeographicTilingScheme(),
+      tileWidth: 512,
+      tileHeight: 512,
+      maximumLevel: def.maxZoom ?? 9,
       credit: def.attribution,
+      enablePickFeatures: false,
+      parameters: {
+        service: "WMS",
+        version: "1.1.1",
+        request: "GetMap",
+        styles: "",
+        format: gibs.format,
+        transparent: gibs.format === "image/png" ? "true" : "false",
+        time: gibs.time,
+        exceptions: "application/vnd.ogc.se_inimage",
+      },
     });
   }
-  return Promise.resolve(
-    new UrlTemplateImageryProvider({
-      url: buildEarthLayerUrl(def),
-      maximumLevel: def.maxZoom ?? 9,
-      minimumLevel: def.id === "hillshade" ? 1 : 0,
-      credit: def.attribution,
-    }),
-  );
+
+  return new UrlTemplateImageryProvider({
+    url: buildEarthLayerUrl(def),
+    maximumLevel: def.maxZoom ?? 9,
+    minimumLevel: def.id === "hillshade" ? 1 : 0,
+    credit: def.attribution,
+  });
 }
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
@@ -213,12 +220,12 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     // first but keep the dataset marked active.
     if (layerRefs.current[def.id]) removeLayer(def.id, false);
 
-    activeDefs.current[def.id] = def;
-    const layer = ImageryLayer.fromProviderAsync(createEarthImageryProviderAsync(def), {});
-    layer.alpha = 0.85;
-    collection.add(layer);
+    const provider = createEarthImageryProvider(def);
+    const layer = collection.addImageryProvider(provider);
+    layer.alpha = 0.92;
     layerRefs.current[def.id] = layer;
-    void onTileset;
+    activeDefs.current[def.id] = def;
+    void onTileset; // (info only — behavior identical either way)
     syncOverlayFlag();
   }, [viewerRef, removeLayer, syncOverlayFlag]);
 
