@@ -6879,6 +6879,11 @@ function SpaceshipPage() {
                         className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Building2 className="w-2.5 h-2.5" /> OSM</span>
                       </button>
+                      <button onClick={() => switchViewMode("mapbox")}
+                        title="Light basemap (Mapbox) — fastest for slow connections"
+                        className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "mapbox" ? "bg-amber-400/20 text-amber-300 border border-amber-400/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
+                        <span className="flex items-center gap-1"><Sun className="w-2.5 h-2.5" /> Light</span>
+                      </button>
                     </div>
                   </div>
                 </div>
