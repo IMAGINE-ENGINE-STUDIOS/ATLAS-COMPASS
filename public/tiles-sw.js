@@ -3,10 +3,13 @@
  * Stale tiles are served instantly, fresh tiles stream directly to Cesium, and
  * cache maintenance is batched so rapid camera movement cannot freeze loading.
  */
-const CACHE = "atlas-tiles-v5";
-const MAX_ENTRIES = 1800;
-const TRIM_EVERY_PUTS = 25;
-const MAX_CACHEABLE_BYTES = 32 * 1024 * 1024;
+// v6 — larger persistent tile cache on the user's disk so revisits and
+// higher-LOD walks are instant. CacheStorage is durable across reloads and
+// tabs; Chrome will only evict under global storage pressure.
+const CACHE = "atlas-tiles-v6";
+const MAX_ENTRIES = 8000;
+const TRIM_EVERY_PUTS = 100;
+const MAX_CACHEABLE_BYTES = 96 * 1024 * 1024;
 
 const TILE_HOST_RE = /(assets\.ion\.cesium\.com|assets\.cesium\.com|api\.cesium\.com|tile\.googleapis\.com|tile\.openstreetmap\.org|data\.osmbuildings\.org)/i;
 const TILE_PATH_RE = /\/functions\/v1\/google-3d-tiles\//i;

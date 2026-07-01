@@ -12,5 +12,13 @@ if ("serviceWorker" in navigator && window.isSecureContext) {
     navigator.serviceWorker
       .register("/tiles-sw.js", { scope: "/" })
       .catch((err) => console.warn("[tiles-sw] registration failed", err));
+    // Ask the browser to make our CacheStorage persistent so 3D tiles and
+    // imagery survive across reloads and don't get evicted under memory
+    // pressure. Grants silently on installed PWAs / engaged sites.
+    if (navigator.storage?.persist) {
+      navigator.storage.persist().then((granted) => {
+        if (granted) console.info("[tiles-sw] persistent storage granted");
+      }).catch(() => {});
+    }
   });
 }
