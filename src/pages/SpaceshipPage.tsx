@@ -134,7 +134,7 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
   //  - dynamicScreenSpaceError ON (street-level recommended setting)
   // SSE tweaked slightly per profile; everything else stays at Cesium defaults
   // so we never fight the engine's own refinement scheduler.
-  const sse = profile === "far" ? 24 : profile === "idle" ? 12 : 16;
+  const sse = profile === "far" ? 24 : profile === "move" ? 16 : 12;
   try {
     ts.maximumScreenSpaceError = sse;
     ts.cacheBytes = 1024 * TILE_MIB;
@@ -143,7 +143,30 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
     ts.dynamicScreenSpaceError = true;
     ts.dynamicScreenSpaceErrorDensity = 0.00278;
     ts.dynamicScreenSpaceErrorFactor = 4;
+    ts.cullRequestsWhileMoving = true;
+    ts.preloadWhenHidden = false;
+    ts.preloadFlightDestinations = false;
+    ts.immediatelyLoadDesiredLevelOfDetail = false;
+    ts.loadSiblings = false;
+    ts.foveatedScreenSpaceError = true;
     ts.shadows = 0;
+  } catch {}
+};
+
+const keepAtlasRenderingDuringBoot = (viewer: any, durationMs = 10000) => {
+  if (!viewer || viewer.isDestroyed?.()) return;
+  try {
+    viewer.scene.requestRenderMode = false;
+    viewer.scene.maximumRenderTimeChange = Infinity;
+    if (viewer.__atlasBootRenderTimer) clearTimeout(viewer.__atlasBootRenderTimer);
+    viewer.__atlasBootRenderTimer = setTimeout(() => {
+      if (viewer.isDestroyed?.()) return;
+      try {
+        viewer.scene.requestRenderMode = true;
+        viewer.scene.requestRender?.();
+      } catch {}
+      viewer.__atlasBootRenderTimer = null;
+    }, durationMs);
   } catch {}
 };
 
@@ -163,8 +186,10 @@ const applyAtlasMapVisibility = (
   if (realistic) realistic.show = wantsPhotoreal && showBuildings && activePhotoreal === realistic;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
-  const hasVisiblePhotoreal = wantsPhotoreal && showBuildings && !!activePhotoreal;
-  viewer.scene.globe.show = mode === "osm" || !hasVisiblePhotoreal;
+  // Keep the terrain/imagery globe visible as an immediate fallback under
+  // photoreal tiles. Hiding it made Atlas look like it loaded in black/chunky
+  // parts until every nearby 3D tile finished streaming.
+  viewer.scene.globe.show = true;
   viewer.scene.requestRender?.();
 };
 
@@ -1630,7 +1655,9 @@ function SpaceshipPage() {
           image: createPinCanvas(icon, truncName, colorByType[r.type] || "rgba(0,212,255,0.75)"),
           verticalOrigin: 1,
           pixelOffset: new Cartesian2(0, 0),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          // Keep pins depth-tested so nothing from the far side of Earth bleeds
+          // through the globe while rotating the Atlas camera.
+          disableDepthTestDistance: 0,
           scaleByDistance: { near: 200, nearValue: 0.85, far: 30000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 45000, farValue: 0.15 } as any,
           heightReference: pinHeightRef(),
@@ -2240,20 +2267,14 @@ function SpaceshipPage() {
     };
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
-    // Hide globe immediately — photorealistic tiles will be the only visible layer
-    viewer.scene.globe.show = false;
-
-    // Force continuous rendering so the globe appears immediately.
-    // Switched back to on-demand once the first tileset loads (see below)
-    // so we don't burn GPU/battery rendering identical frames while idle.
-    viewer.scene.requestRenderMode = false;
-    viewer.scene.maximumRenderTimeChange = Infinity;
+    // Keep the globe visible as the fast first paint while photoreal tiles refine.
+    // Atlas must start loading immediately, without waiting for the user to move.
+    viewer.scene.globe.show = true;
+    keepAtlasRenderingDuringBoot(viewer, 15000);
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
       try {
-        viewer.scene.requestRenderMode = true;
-        viewer.scene.maximumRenderTimeChange = Infinity;
-        viewer.scene.requestRender();
+        keepAtlasRenderingDuringBoot(viewer, 10000);
       } catch {}
       window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady);
     };
@@ -2296,7 +2317,7 @@ function SpaceshipPage() {
     // photoreal tilesets. Restored when the component unmounts.
     try {
       (viewer as any).useBrowserRecommendedResolution = false;
-        viewer.resolutionScale = 0.8;
+        viewer.resolutionScale = 1;
       if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = false;
       }
@@ -2337,6 +2358,7 @@ function SpaceshipPage() {
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._realisticTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -2356,6 +2378,7 @@ function SpaceshipPage() {
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -2387,6 +2410,7 @@ function SpaceshipPage() {
         (viewer as any)._googleDirectTileset = tileset;
         destroyAtlasTileset(viewer, "_realisticTileset");
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -2632,7 +2656,9 @@ function SpaceshipPage() {
         (viewer as any)._osmTileset,
       ].filter(Boolean);
       sets.forEach((ts) => tuneAtlasTileset(ts, profile));
-      try { viewer.resolutionScale = profile === "idle" ? 0.9 : profile === "far" ? 0.68 : 0.78; } catch {}
+      // Never lower render resolution in Atlas: it makes the city look like a
+      // blurred backdrop. Tile pressure is handled through SSE/culling instead.
+      try { viewer.resolutionScale = 1; } catch {}
       viewer.scene.requestRender();
     };
     const removePerfListener = viewer.scene.postRender.addEventListener(() => {
@@ -2665,6 +2691,7 @@ function SpaceshipPage() {
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
       try { window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady); } catch {}
+      try { if ((viewer as any).__atlasBootRenderTimer) clearTimeout((viewer as any).__atlasBootRenderTimer); } catch {}
       try { delete (window as any).__cesiumViewer; } catch {}
       if (viewerRef.current === viewer) viewerRef.current = null;
       if (!viewer.isDestroyed()) viewer.destroy();
@@ -2929,7 +2956,9 @@ function SpaceshipPage() {
                 : createPinCanvas(icon, truncName, bgColor, favicon),
               verticalOrigin: 1, // BOTTOM
               pixelOffset: new Cartesian2(0, 0),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              // Depth-test POI pins; otherwise far-side tags can render through
+              // the planet and overlap the current viewport.
+              disableDepthTestDistance: 0,
               scaleByDistance: { near: 200, nearValue: selectedNow ? 1.0 : 0.8, far: 15000, farValue: selectedNow ? 0.35 : 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
               heightReference: pinHeightRef(),
@@ -3564,7 +3593,7 @@ function SpaceshipPage() {
           scale: 0.5,
           scaleByDistance: { near: 100, nearValue: 1.0, far: 50000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 0, nearValue: 1.0, far: 80000, farValue: 0.4 } as any,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 0,
           heightReference: pinHeightRef(),
         },
         properties: { type: "marketplace", productId: p.id } as any,
@@ -3615,7 +3644,7 @@ function SpaceshipPage() {
           scale: 0.55,
           scaleByDistance: { near: 200, nearValue: 1.0, far: 60000, farValue: 0.25 } as any,
           translucencyByDistance: { near: 0, nearValue: 1.0, far: 90000, farValue: 0.3 } as any,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 0,
           heightReference: pinHeightRef(),
         },
         properties: { type: "camera", camId: cam.id } as any,
@@ -3702,7 +3731,7 @@ function SpaceshipPage() {
           scale: hoveredResultIdx === idx ? 1.25 : 1.0,
           scaleByDistance: { near: 200, nearValue: 1.0, far: 25000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 30000, farValue: 0.0 } as any,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 0,
           heightReference: pinHeightRef(),
         },
         properties: { type: "search-result", idx } as any,
@@ -3786,7 +3815,7 @@ function SpaceshipPage() {
         text: `📍 ${result.name}`, font: "bold 14px 'Inter', system-ui, sans-serif",
         fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
         pixelOffset: new Cartesian2(0, -8),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: 0,
         showBackground: true,
         backgroundColor: Color.fromCssColorString("#00d4ff").withAlpha(0.55),
         backgroundPadding: new Cartesian2(10, 6),
@@ -3809,6 +3838,7 @@ function SpaceshipPage() {
       (viewer as any)._ensureOsmTileset?.();
     }
     applyAtlasMapVisibility(viewer, mode, true);
+    keepAtlasRenderingDuringBoot(viewer, 10000);
     setViewMode(mode);
     setShowBuildings(true);
   }, []);
@@ -3848,12 +3878,12 @@ function SpaceshipPage() {
         fillColor: Color.fromCssColorString("#ffd700"),
         outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
         pixelOffset: new Cartesian2(0, -24),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: 0,
       },
       point: {
         pixelSize: 12, color: Color.fromCssColorString("#ffd700"),
         outlineColor: Color.WHITE, outlineWidth: 2,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: 0,
       },
     });
   }, []);

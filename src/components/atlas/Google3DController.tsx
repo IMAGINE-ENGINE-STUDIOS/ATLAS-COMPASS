@@ -39,7 +39,7 @@ const DEFAULTS: Settings = {
   showCredits: true,
 };
 
-const LS_KEY = "atlas.google3d.settings.v4";
+const LS_KEY = "atlas.google3d.settings.v5";
 
 function load(): Settings {
   try {
@@ -73,6 +73,8 @@ export default function Google3DController({ viewer, visible }: Props) {
       ts.preloadWhenHidden = s.preloadWhenHidden;
       ts.loadSiblings = s.loadSiblings;
       ts.preloadFlightDestinations = s.preloadFlightDestinations;
+      ts.cullRequestsWhileMoving = true;
+      ts.foveatedScreenSpaceError = true;
       ts.dynamicScreenSpaceError = s.dynamicSSE;
       ts.dynamicScreenSpaceErrorDensity = s.dynamicSSEDensity;
       ts.dynamicScreenSpaceErrorFactor = s.dynamicSSEFactor;
