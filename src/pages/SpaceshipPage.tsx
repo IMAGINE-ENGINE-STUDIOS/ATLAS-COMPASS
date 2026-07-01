@@ -9,7 +9,7 @@ import {
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
-  Sun
+  Sun, Brain
 } from "lucide-react";
 import { Layers } from "lucide-react";
 import {
@@ -30,6 +30,7 @@ import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLa
 import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
 import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import Google3DController from "@/components/atlas/Google3DController";
+import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
 import {
   amenityToCategoryId,
   clearSelected,
@@ -901,6 +902,7 @@ function SpaceshipPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
+  const [earthIntelOpen, setEarthIntelOpen] = useState(false);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
@@ -5202,7 +5204,7 @@ function SpaceshipPage() {
                 </div>
               </div>
 
-              <GlassPanel className="flex items-center flex-nowrap gap-1 p-1 overflow-x-auto max-w-[calc(100vw-5rem)] sm:max-w-none sm:flex-wrap sm:overflow-visible">
+              <GlassPanel className="flex items-center flex-nowrap gap-1.5 p-1.5 sm:p-2 overflow-x-auto max-w-[calc(100vw-5rem)] sm:max-w-none sm:flex-wrap sm:overflow-visible">
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
@@ -5292,6 +5294,20 @@ function SpaceshipPage() {
                     {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                   </button>
                   <AtlasScreenshotMenu viewerRef={viewerRef} />
+                  {/* Earth Intelligence — dataset overlays */}
+                  <button
+                    onClick={() => setEarthIntelOpen((v) => !v)}
+                    aria-pressed={earthIntelOpen}
+                    title="Earth Intelligence — satellite & sensor overlays"
+                    className={`shrink-0 h-7 px-2 rounded-md flex items-center gap-1 border font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      earthIntelOpen
+                        ? "bg-cyan-500/25 border-cyan-300 text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.55)]"
+                        : "bg-white/[0.04] border-white/20 text-white/80 hover:text-white hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <Brain className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Intel</span>
+                  </button>
                   {/* SOS — Emergency Mode toggle */}
                   <button
                     onClick={() => {
@@ -5304,7 +5320,7 @@ function SpaceshipPage() {
                     }}
                     aria-pressed={emergencyMode}
                     title={emergencyMode ? "Emergency mode ACTIVE" : "Activate emergency mode"}
-                    className={`shrink-0 h-7 px-2 rounded-md flex items-center justify-center border text-white font-bold text-[10px] tracking-widest uppercase transition-all ${
+                    className={`shrink-0 h-7 px-2.5 rounded-md flex items-center justify-center border text-white font-bold text-[10px] tracking-widest uppercase transition-all ${
                       emergencyMode
                         ? "bg-red-600 border-red-300 shadow-[0_0_18px_rgba(239,68,68,0.85)]"
                         : "bg-red-600/90 border-red-400/70 hover:bg-red-500"
@@ -5316,6 +5332,10 @@ function SpaceshipPage() {
                 </GlassPanel>
             </div>
           </div>
+
+          {earthIntelOpen && (
+            <EarthIntelligenceBar viewerRef={viewerRef} onClose={() => setEarthIntelOpen(false)} />
+          )}
 
 
 
