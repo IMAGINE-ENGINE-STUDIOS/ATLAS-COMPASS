@@ -202,6 +202,16 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     if (forget) {
       delete activeDefs.current[id];
       delete layerTokens.current[id];
+      setLoading((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setFailed((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
     syncOverlayFlag();
   }, [viewerRef, syncOverlayFlag]);
