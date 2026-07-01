@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
@@ -40,54 +40,14 @@ import {
 } from "@/lib/useAtlasLevelLayer";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 import { clampEyeAboveTerrain } from "@/lib/atlasCameraClamp";
+import { CameraSync, THREE_TO_ENU } from "@/lib/atlasR3F";
 
-function CameraSync({ viewer, enabled }: { viewer: Viewer; enabled: boolean }) {
-  const { camera, size } = useThree();
-  useFrame(() => {
-    if (!enabled) return;
-    if (!viewer || viewer.isDestroyed()) return;
-    const cam = viewer.camera;
-    const persp = camera as THREE.PerspectiveCamera;
-    const fr: any = cam.frustum;
-    const fovy = fr?.fovy ?? fr?.fov ?? Math.PI / 3;
-    persp.fov = THREE.MathUtils.radToDeg(fovy);
-    persp.aspect = size.width / Math.max(1, size.height);
-    persp.near = Math.max(0.1, fr?.near ?? 1);
-    persp.far = fr?.far ?? 1e10;
-    persp.updateProjectionMatrix();
-
-    // We render every placement in a frame whose origin is the Cesium
-    // camera position (in ECEF). So the THREE camera sits at (0,0,0) and
-    // simply needs to share Cesium's orientation.
-    persp.position.set(0, 0, 0);
-    persp.up.set(cam.up.x, cam.up.y, cam.up.z);
-    persp.lookAt(cam.direction.x, cam.direction.y, cam.direction.z);
-    persp.updateMatrixWorld(true);
-  });
-  return null;
-}
-
+// CameraSync + THREE_TO_ENU now imported from @/lib/atlasR3F (shared).
 // (Removed LocalPlayFallbackCamera — the level is always rendered as an
 //  in-world instance anchored to its ECEF position; Atlas's own first-person
 //  camera drives the view both before and during Play. No separate THREE
 //  camera frame is needed, which is what caused the "level spinning while
 //  earth stays static" effect.)
-
-// THREE local (+X right, +Y up, +Z toward viewer) → ENU (+X east, +Y north,
-// +Z up). Mapping: X→X, Y→Z, Z→Y. Both bases right-handed.
-const THREE_TO_ENU = (() => {
-  const m = new THREE.Matrix4();
-  // column-major set: column 1 = THREE.X → ENU(1,0,0)
-  //                   column 2 = THREE.Y → ENU(0,0,1)
-  //                   column 3 = THREE.Z → ENU(0,1,0)
-  m.set(
-    1, 0, 0, 0,
-    0, 0, 1, 0,
-    0, 1, 0, 0,
-    0, 0, 0, 1,
-  );
-  return m;
-})();
 
 function PlacedLevel({
   viewer,
@@ -461,7 +421,7 @@ export default function AtlasLevelsR3FOverlay({
         style={{ pointerEvents: playingId ? "auto" : "none" }}
       >
         <Canvas
-          gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
+          gl={{ alpha: true, antialias: false, logarithmicDepthBuffer: true }}
           camera={{ position: [0, 0, 0], fov: 60, near: 1, far: 1e10 }}
           style={{
             background: "transparent",
