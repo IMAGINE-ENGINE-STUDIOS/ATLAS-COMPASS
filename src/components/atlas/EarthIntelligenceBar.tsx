@@ -126,44 +126,36 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     // GoogleMapsCompatible sub-hemisphere gaps that made overlays look
     // "smaller than the globe".
     const wms = gibsWmsUrl(def, 4096, 2048);
-    let layer: ImageryLayer;
     if (wms) {
-      // SingleTileImageryProvider now requires async construction via
-      // `.fromUrl()` (Cesium ≥ 1.104). Add a placeholder layer immediately
-      // so toggle state stays consistent, then swap the provider in once it
-      // resolves.
-      const pending = SingleTileImageryProvider.fromUrl(wms, {
+      // SingleTileImageryProvider requires async construction (Cesium ≥ 1.104).
+      SingleTileImageryProvider.fromUrl(wms, {
         rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
         credit: def.attribution,
-      });
-      layer = new ImageryLayer(
-        new UrlTemplateImageryProvider({
-          url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-          tilingScheme: undefined as any,
-        }),
-      );
-      viewer.scene.imageryLayers.add(layer);
-      pending
+      })
         .then((provider) => {
           if (!viewer || viewer.isDestroyed()) return;
-          // Swap: remove placeholder and add real, preserving index.
-          const idx = viewer.scene.imageryLayers.indexOf(layer);
-          viewer.scene.imageryLayers.remove(layer, true);
-          const real = viewer.scene.imageryLayers.addImageryProvider(provider, idx);
+          // Bail if the user toggled the layer off before the image resolved.
+          if (layerRefs.current[def.id] !== PENDING) return;
+          const real = viewer.scene.imageryLayers.addImageryProvider(provider);
           real.alpha = 0.92;
           layerRefs.current[def.id] = real;
         })
-        .catch((e) => console.warn("[earth-intel] GIBS WMS load failed", def.id, e));
+        .catch((e) => {
+          console.warn("[earth-intel] GIBS WMS load failed", def.id, e);
+          delete layerRefs.current[def.id];
+        });
+      // Marker so removeLayer/toggle can see the request is in flight.
+      layerRefs.current[def.id] = PENDING as unknown as ImageryLayer;
     } else {
       const provider = new UrlTemplateImageryProvider({
         url: buildEarthLayerUrl(def),
         maximumLevel: def.maxZoom ?? 9,
         credit: def.attribution,
       });
-      layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      layer.alpha = 0.92;
+      layerRefs.current[def.id] = layer;
     }
-    layer.alpha = 0.92;
-    layerRefs.current[def.id] = layer;
   }, [viewerRef]);
 
   const toggle = useCallback((def: EarthLayerDef) => {
