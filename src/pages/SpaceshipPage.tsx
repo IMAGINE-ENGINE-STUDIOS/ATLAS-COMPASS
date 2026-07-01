@@ -269,16 +269,16 @@ const applyMapboxImageryLayer = (viewer: any, enabled: boolean) => {
     "pk.eyJ1IjoiaW1hZ2luZWVuZ2luZSIsImEiOiJjbWhlYWo5bTgwYzkyMmpxMno3ODdoZGt6In0.B66urpifKwsS7bltMqzaBQ";
   const provider = token
     ? new UrlTemplateImageryProvider({
-        url: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}?access_token=${token}`,
+        url: `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/512/{z}/{x}/{y}?access_token=${token}`,
         tileWidth: 512,
         tileHeight: 512,
         maximumLevel: 19,
-        credit: "© Mapbox © OpenStreetMap",
+        credit: "© Mapbox © Maxar",
       })
     : new UrlTemplateImageryProvider({
-        url: "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         maximumLevel: 19,
-        credit: "© OpenStreetMap © CARTO",
+        credit: "Esri, Maxar, Earthstar Geographics",
       });
   const layer = new ImageryLayer(provider, {});
   layers.add(layer);
