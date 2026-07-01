@@ -10,7 +10,7 @@
  * is pointer-events:none so Cesium continues to own input.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
@@ -25,8 +25,18 @@ import {
   CallbackProperty,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
-// @ts-ignore – no bundled types
-import * as GaussianSplats3D from "@mkkellogg/gaussian-splats-3d";
+import { CameraSync, THREE_TO_ENU } from "@/lib/atlasR3F";
+// Splat runtime is heavy (~MB of WASM/GLSL) and only used when a landmark
+// enters range — dynamic import inside the SplatNode effect below.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let GaussianSplats3DPromise: Promise<any> | null = null;
+function loadGaussianSplats3D() {
+  if (!GaussianSplats3DPromise) {
+    // @ts-ignore – no bundled types
+    GaussianSplats3DPromise = import("@mkkellogg/gaussian-splats-3d");
+  }
+  return GaussianSplats3DPromise;
+}
 
 const MAX_LOADED = 3;
 const BUCKET = "splat-landmarks";
@@ -51,33 +61,6 @@ function isWorldPointInFront(viewer: Viewer, world: Cartesian3) {
   const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
   if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) return false;
   return Cartesian3.dot(world, camera.positionWC) >= EARTH_RADIUS_M * EARTH_RADIUS_M;
-}
-
-const THREE_TO_ENU = (() => {
-  const m = new THREE.Matrix4();
-  m.set(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1);
-  return m;
-})();
-
-function CameraSync({ viewer }: { viewer: Viewer }) {
-  const { camera, size } = useThree();
-  useFrame(() => {
-    if (!viewer || viewer.isDestroyed()) return;
-    const cam = viewer.camera;
-    const persp = camera as THREE.PerspectiveCamera;
-    const fr: any = cam.frustum;
-    const fovy = fr?.fovy ?? fr?.fov ?? Math.PI / 3;
-    persp.fov = THREE.MathUtils.radToDeg(fovy);
-    persp.aspect = size.width / Math.max(1, size.height);
-    persp.near = Math.max(0.1, fr?.near ?? 1);
-    persp.far = fr?.far ?? 1e10;
-    persp.updateProjectionMatrix();
-    persp.position.set(0, 0, 0);
-    persp.up.set(cam.up.x, cam.up.y, cam.up.z);
-    persp.lookAt(cam.direction.x, cam.direction.y, cam.direction.z);
-    persp.updateMatrixWorld(true);
-  });
-  return null;
 }
 
 function SplatNode({
@@ -115,36 +98,37 @@ function SplatNode({
   useEffect(() => {
     if (!groupRef.current) return;
     let cancelled = false;
-    const dropIn = new GaussianSplats3D.DropInViewer({
-      gpuAcceleratedSort: true,
-      sharedMemoryForWorkers: false,
-      // Don't take over scene/camera — we host it inside our R3F canvas
-      selfDrivenMode: false,
-      useBuiltInControls: false,
-    });
-    dropInRef.current = dropIn;
-    groupRef.current.add(dropIn);
-
-    dropIn
-      .addSplatScene(signedUrl, {
-        showLoadingUI: false,
-        splatAlphaRemovalThreshold: 5,
-        progressiveLoad: true,
-      })
-      .then(() => {
-        if (cancelled) return;
-        viewer.scene.requestRender?.();
-      })
-      .catch((err: any) => {
-        console.warn("[splat] load failed", landmark.name, err);
+    let dropIn: any = null;
+    loadGaussianSplats3D().then((mod: any) => {
+      if (cancelled || !groupRef.current) return;
+      const NS = mod.default ?? mod;
+      dropIn = new NS.DropInViewer({
+        gpuAcceleratedSort: true,
+        sharedMemoryForWorkers: false,
+        selfDrivenMode: false,
+        useBuiltInControls: false,
       });
+      dropInRef.current = dropIn;
+      groupRef.current.add(dropIn);
+      dropIn
+        .addSplatScene(signedUrl, {
+          showLoadingUI: false,
+          splatAlphaRemovalThreshold: 5,
+          progressiveLoad: true,
+        })
+        .then(() => {
+          if (cancelled) return;
+          viewer.scene.requestRender?.();
+        })
+        .catch((err: any) => {
+          console.warn("[splat] load failed", landmark.name, err);
+        });
+    });
 
     return () => {
       cancelled = true;
-      try {
-        dropIn.dispose?.();
-      } catch {}
-      if (groupRef.current && dropIn.parent === groupRef.current) {
+      try { dropIn?.dispose?.(); } catch {}
+      if (groupRef.current && dropIn && dropIn.parent === groupRef.current) {
         groupRef.current.remove(dropIn);
       }
       dropInRef.current = null;
@@ -264,13 +248,24 @@ export default function AtlasSplatOverlay({
     };
   }, [ready, landmarks, viewerRef]);
 
-  // Wait for viewer
+  // Wait for viewer — B1: guard the recursive setTimeout with cleanup so an
+  // unmount mid-wait can't fire setReady on an unmounted component.
   useEffect(() => {
+    let cancelled = false;
+    let handle: ReturnType<typeof setTimeout> | null = null;
     const tick = () => {
-      if (viewerRef.current && !viewerRef.current.isDestroyed?.()) setReady(true);
-      else setTimeout(tick, 300);
+      if (cancelled) return;
+      if (viewerRef.current && !viewerRef.current.isDestroyed?.()) {
+        setReady(true);
+      } else {
+        handle = setTimeout(tick, 300);
+      }
     };
     tick();
+    return () => {
+      cancelled = true;
+      if (handle) clearTimeout(handle);
+    };
   }, [viewerRef]);
 
   // Proximity loop: pick nearest splats in radius, manage LRU
@@ -323,22 +318,32 @@ export default function AtlasSplatOverlay({
     return () => cancelAnimationFrame(raf);
   }, [ready, landmarks, viewerRef]);
 
-  // Resolve signed URLs for loaded splats
+  // Resolve signed URLs for loaded splats — fetch in parallel (P17) instead
+  // of blocking each request on the previous.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const out: Record<string, string> = { ...signedUrls };
-      for (const id of loadedIds) {
-        if (out[id]) continue;
-        const lm = landmarks.find((l) => l.id === id);
-        if (!lm) continue;
-        const { data } = await supabase.storage
-          .from(BUCKET)
-          .createSignedUrl(lm.file_path, 60 * 60);
-        if (cancelled) return;
-        if (data?.signedUrl) out[id] = data.signedUrl;
-      }
-      if (!cancelled) setSignedUrls(out);
+      const missing = loadedIds
+        .filter((id) => !signedUrls[id])
+        .map((id) => ({ id, lm: landmarks.find((l) => l.id === id) }))
+        .filter((x): x is { id: string; lm: SplatLandmark } => !!x.lm);
+      if (missing.length === 0) return;
+      const results = await Promise.all(
+        missing.map(async ({ id, lm }) => {
+          const { data } = await supabase.storage
+            .from(BUCKET)
+            .createSignedUrl(lm.file_path, 60 * 60);
+          return { id, url: data?.signedUrl };
+        }),
+      );
+      if (cancelled) return;
+      setSignedUrls((prev) => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r.url) next[r.id] = r.url;
+        }
+        return next;
+      });
     })();
     return () => {
       cancelled = true;
@@ -354,7 +359,7 @@ export default function AtlasSplatOverlay({
   return (
     <div className="fixed inset-0 z-[39] pointer-events-none">
       <Canvas
-        gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true, premultipliedAlpha: false }}
+        gl={{ alpha: true, antialias: false, logarithmicDepthBuffer: true, premultipliedAlpha: false }}
         camera={{ position: [0, 0, 0], fov: 60, near: 1, far: 1e10 }}
         style={{ background: "transparent", pointerEvents: "none" }}
       >

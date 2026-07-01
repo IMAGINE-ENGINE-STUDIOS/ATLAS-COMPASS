@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 // CSS-only animations — no framer-motion in this heavy page
 import {
@@ -77,6 +77,10 @@ import AtlasFreePlayOverlay, {
 } from "@/components/atlas/AtlasFreePlayOverlay";
 import { importMapToAtlas, pickMapFile } from "@/lib/atlasMapImport";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
+import {
+  setAtlasCameraAltitude,
+  useAtlasCameraAltitude,
+} from "@/lib/atlasCameraAltitude";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
@@ -88,6 +92,24 @@ import filterGroceryPng from "@/assets/icons/filter-grocery.png";
 import filterShopsPng   from "@/assets/icons/filter-shops.png";
 import filterHotelsPng  from "@/assets/icons/filter-hotels.png";
 import filterFuelPng    from "@/assets/icons/filter-fuel.png";
+
+// Memoized altitude readout — subscribes to the atlas-camera-altitude store
+// so the parent SpaceshipPage doesn't re-render every 250ms while the user
+// pans the Cesium camera. (P1)
+const CameraAltReadout = memo(function CameraAltReadout() {
+  const meters = useAtlasCameraAltitude();
+  const text =
+    meters > 100000
+      ? `${(meters / 1000).toFixed(0)} km`
+      : meters > 1000
+        ? `${(meters / 1000).toFixed(1)} km`
+        : `${meters.toFixed(0)} m`;
+  return (
+    <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">
+      {text}
+    </p>
+  );
+});
 import filterHealthPng  from "@/assets/icons/filter-health.png";
 import targetPng        from "@/assets/icons/target.png";
 import eyePng           from "@/assets/icons/eye.png";
@@ -871,7 +893,10 @@ function SpaceshipPage() {
   const [viewMode, setViewMode] = useState<AtlasViewMode>(savedUI.viewMode ?? "google");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
-  const [cameraAlt, setCameraAlt] = useState(0);
+  // Altitude readout lives in a module-level pub-sub store (see
+  // atlasCameraAltitude). This keeps the 4Hz postRender writer from
+  // re-rendering the entire 7k-line SpaceshipPage on every camera move —
+  // only the memoized <CameraAltHUD/> subscribes.
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
@@ -1259,6 +1284,10 @@ function SpaceshipPage() {
   const [showBusinessIcons, setShowBusinessIcons] = useState<boolean>(savedUI.showBusinessIcons ?? false);
   const [isLoadingBusinesses, setIsLoadingBusinesses] = useState(false);
   const businessEntitiesRef = useRef<any[]>([]);
+  // Monotonic token for batched biz-pin height sampling — see
+  // addBusinessPinsFromResults. Guards against stale sample results
+  // mutating entities that a later batch has already removed.
+  const businessBatchTokenRef = useRef(0);
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
@@ -1654,6 +1683,13 @@ function SpaceshipPage() {
       Education: "rgba(99,102,241,0.75)", Office: "rgba(148,163,184,0.75)",
     };
 
+    // Batch (P5): collect every entity + its (lng,lat) up front so we can
+    // fire ONE sampleHeightMostDetailed call for the whole batch instead of
+    // 500 individual walks of the 3D-tile tree. Also (B2): capture a
+    // per-batch `cancelled` flag so stale height results can't mutate
+    // entities the next batch already removed.
+    const batch: { entity: any; carto: any }[] = [];
+    const batchToken = ++businessBatchTokenRef.current;
     results.slice(0, 500).forEach((r, idx) => {
       const entityId = `biz-live-${idx}-${r.lat.toFixed(6)}-${r.lng.toFixed(6)}`;
       const icon = iconByType[r.type] || "📍";
@@ -1692,13 +1728,52 @@ function SpaceshipPage() {
         description: r.name + (r.address ? ` — ${r.address}` : ""),
       });
       businessEntitiesRef.current.push(entity);
-      // Batch ground-clamp probes: a 500-item burst of
-      // sampleHeightMostDetailed walks the entire 3D-tile tree once per
-      // entity and can OOM mobile. Stagger across ~5s in groups of 16 so
-      // tile streaming stays smooth.
-      const delay = Math.floor(idx / 16) * 80;
-      window.setTimeout(() => clampPinToSurface(entity, r.lng, r.lat), delay);
+      entity.show = false;
+      batch.push({ entity, carto: Cartographic.fromDegrees(r.lng, r.lat) });
     });
+
+    // Single most-detailed sample for the whole batch. Cesium walks the tile
+    // tree once and returns one Cartographic per input — orders of magnitude
+    // cheaper than 500 sequential calls.
+    const scene: any = viewer.scene;
+    const finish = (heights: (number | null)[]) => {
+      if (batchToken !== businessBatchTokenRef.current) return; // superseded
+      if (viewer.isDestroyed()) return;
+      batch.forEach((b, i) => {
+        const h = heights[i];
+        if (typeof h === "number" && isFinite(h)) {
+          b.entity.position = Cartesian3.fromDegrees(
+            (b.carto.longitude * 180) / Math.PI,
+            (b.carto.latitude * 180) / Math.PI,
+            h + 0.5,
+          );
+        }
+        b.entity.show = true;
+      });
+      viewer.scene.requestRender?.();
+    };
+    try {
+      const cartos = batch.map((b) => b.carto);
+      const p = scene.sampleHeightMostDetailed?.(cartos);
+      if (p && typeof p.then === "function") {
+        p.then((arr: any[]) => {
+          finish(arr.map((c) => (c && typeof c.height === "number" ? c.height : null)));
+        }).catch(() => {
+          // Fallback to synchronous per-pin sampleHeight against loaded tiles.
+          finish(batch.map((b) => {
+            const h = scene.sampleHeight?.(b.carto);
+            return typeof h === "number" ? h : null;
+          }));
+        });
+      } else {
+        finish(batch.map((b) => {
+          const h = scene.sampleHeight?.(b.carto);
+          return typeof h === "number" ? h : null;
+        }));
+      }
+    } catch {
+      finish(batch.map(() => null));
+    }
     viewer.scene.requestRender?.();
   }, []);
 
@@ -2681,7 +2756,7 @@ function SpaceshipPage() {
       if (Math.abs(h - __lastAltVal) < 0.5) return;
       __lastAltEmit = now;
       __lastAltVal = h;
-      setCameraAlt(h);
+      setAtlasCameraAltitude(h);
     });
 
     // Adaptive quality governor: if frame time spikes while Google/realistic
@@ -3085,9 +3160,18 @@ function SpaceshipPage() {
     if (!showLiveTraffic) { setLiveTrafficStats({ planes: 0, ships: 0 }); return; }
 
     /* ── Aircraft from OpenSky ── */
+    // B3: A slow network could otherwise let a 2nd interval tick fire while
+    // the first request is still in-flight, doubling entity churn. Abort the
+    // previous fetch at the start of every tick.
+    let aircraftAbort: AbortController | null = null;
     const fetchAircraft = async () => {
+      aircraftAbort?.abort();
+      aircraftAbort = new AbortController();
       try {
-        const resp = await fetch("https://opensky-network.org/api/states/all");
+        const resp = await fetch(
+          "https://opensky-network.org/api/states/all",
+          { signal: aircraftAbort.signal },
+        );
         const data = await resp.json();
         if (!data.states) return [];
         return data.states
@@ -3296,6 +3380,7 @@ function SpaceshipPage() {
     return () => {
       if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
       if (aisWebSocketRef.current) { aisWebSocketRef.current.close(); aisWebSocketRef.current = null; }
+      aircraftAbort?.abort();
     };
   }, [showLiveTraffic]);
 
@@ -6699,7 +6784,7 @@ function SpaceshipPage() {
                   <img src={eyePng} alt="Eye" width={16} height={16} className="w-3 h-3 sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider">Alt</p>
-                    <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">{formatAlt(cameraAlt)}</p>
+                    <CameraAltReadout />
                   </div>
                   <div className="w-px h-5 sm:h-7 bg-white/10" />
                   <div>

@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,7 +16,10 @@ import PaymentsPage from "@/pages/PaymentsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import DeliveryPage from "@/pages/DeliveryPage";
-import SpaceshipPage from "@/pages/SpaceshipPage";
+// Lazy-load the Atlas/Spaceship page — it pulls in Cesium (~4MB), Three.js,
+// and R3F, which we don't want blocking the initial paint of lighter routes
+// like /landing, /files, or the admin dashboard. (P15)
+const SpaceshipPage = lazy(() => import("@/pages/SpaceshipPage"));
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";
@@ -31,6 +35,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <ErrorBoundary>
+        <Suspense fallback={<div className="w-full h-screen bg-[#0a0a1a]" />}>
         <Routes>
           {/* Public Website */}
           <Route path="/" element={<SpaceshipPage />} />
@@ -62,6 +67,7 @@ const App = () => (
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
