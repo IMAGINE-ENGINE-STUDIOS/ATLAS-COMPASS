@@ -3135,9 +3135,18 @@ function SpaceshipPage() {
     if (!showLiveTraffic) { setLiveTrafficStats({ planes: 0, ships: 0 }); return; }
 
     /* ── Aircraft from OpenSky ── */
+    // B3: A slow network could otherwise let a 2nd interval tick fire while
+    // the first request is still in-flight, doubling entity churn. Abort the
+    // previous fetch at the start of every tick.
+    let aircraftAbort: AbortController | null = null;
     const fetchAircraft = async () => {
+      aircraftAbort?.abort();
+      aircraftAbort = new AbortController();
       try {
-        const resp = await fetch("https://opensky-network.org/api/states/all");
+        const resp = await fetch(
+          "https://opensky-network.org/api/states/all",
+          { signal: aircraftAbort.signal },
+        );
         const data = await resp.json();
         if (!data.states) return [];
         return data.states
@@ -3346,6 +3355,7 @@ function SpaceshipPage() {
     return () => {
       if (liveTrafficTimerRef.current) { clearInterval(liveTrafficTimerRef.current); liveTrafficTimerRef.current = null; }
       if (aisWebSocketRef.current) { aisWebSocketRef.current.close(); aisWebSocketRef.current = null; }
+      aircraftAbort?.abort();
     };
   }, [showLiveTraffic]);
 
