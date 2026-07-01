@@ -243,6 +243,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
         Object.keys(activeDefs.current)
           .filter((id) => id !== def.id)
           .forEach((id) => removeLayer(id));
+        setActive({ [def.id]: true });
       }
       syncOverlayFlag();
     } catch (err) {
@@ -277,7 +278,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
 
     // Keep GPU/network pressure predictable: one raster dataset at a time,
     // but keep the previous overlay visible until the new one is ready.
-    setActive({ [def.id]: true });
+    setActive((prev) => ({ ...prev, [def.id]: true }));
     void addLayer(def, true);
   }, [active, addLayer, removeLayer]);
 
