@@ -902,6 +902,7 @@ function SpaceshipPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
+  const [earthIntelOpen, setEarthIntelOpen] = useState(false);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
