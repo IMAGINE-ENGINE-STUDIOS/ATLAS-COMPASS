@@ -507,6 +507,54 @@ export type Database = {
         }
         Relationships: []
       }
+      resources: {
+        Row: {
+          author_id: string | null
+          category: string | null
+          confirmations_count: number
+          content: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_emergency: boolean
+          is_featured: boolean
+          is_verified: boolean
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          category?: string | null
+          confirmations_count?: number
+          content?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_emergency?: boolean
+          is_featured?: boolean
+          is_verified?: boolean
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          category?: string | null
+          confirmations_count?: number
+          content?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_emergency?: boolean
+          is_featured?: boolean
+          is_verified?: boolean
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rig_saves: {
         Row: {
           active_clip: string | null
@@ -635,6 +683,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_emergency_resource: {
+        Args: { _resource_id: string }
+        Returns: number
+      }
       lookup_user_by_username: {
         Args: { _q: string }
         Returns: {
