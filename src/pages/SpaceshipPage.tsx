@@ -132,6 +132,7 @@ import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery"
 import SearchResultsPanel from "@/components/atlas/SearchResultsPanel";
 import GlyphIcon from "@/components/atlas/GlyphIcon";
 import AtlasScreenshotMenu from "@/components/atlas/AtlasScreenshotMenu";
+import EmergencyPanel from "@/components/atlas/EmergencyPanel";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 /* ── Cesium Token (publishable key) ── */
