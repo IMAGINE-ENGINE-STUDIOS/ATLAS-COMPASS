@@ -92,6 +92,24 @@ import filterGroceryPng from "@/assets/icons/filter-grocery.png";
 import filterShopsPng   from "@/assets/icons/filter-shops.png";
 import filterHotelsPng  from "@/assets/icons/filter-hotels.png";
 import filterFuelPng    from "@/assets/icons/filter-fuel.png";
+
+// Memoized altitude readout — subscribes to the atlas-camera-altitude store
+// so the parent SpaceshipPage doesn't re-render every 250ms while the user
+// pans the Cesium camera. (P1)
+const CameraAltReadout = memo(function CameraAltReadout() {
+  const meters = useAtlasCameraAltitude();
+  const text =
+    meters > 100000
+      ? `${(meters / 1000).toFixed(0)} km`
+      : meters > 1000
+        ? `${(meters / 1000).toFixed(1)} km`
+        : `${meters.toFixed(0)} m`;
+  return (
+    <p className="text-xs sm:text-sm text-white tabular-nums tracking-tight">
+      {text}
+    </p>
+  );
+});
 import filterHealthPng  from "@/assets/icons/filter-health.png";
 import targetPng        from "@/assets/icons/target.png";
 import eyePng           from "@/assets/icons/eye.png";
