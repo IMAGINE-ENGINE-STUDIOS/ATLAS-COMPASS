@@ -264,7 +264,9 @@ const applyMapboxImageryLayer = (viewer: any, enabled: boolean) => {
     return;
   }
   if (existing) return;
-  const token = (import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined;
+  const token =
+    ((import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined) ||
+    "pk.eyJ1IjoiaW1hZ2luZWVuZ2luZSIsImEiOiJjbWhlYWo5bTgwYzkyMmpxMno3ODdoZGt6In0.B66urpifKwsS7bltMqzaBQ";
   const provider = token
     ? new UrlTemplateImageryProvider({
         url: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}?access_token=${token}`,
