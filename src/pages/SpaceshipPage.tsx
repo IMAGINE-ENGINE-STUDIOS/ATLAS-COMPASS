@@ -8,7 +8,8 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
+  Sun
 } from "lucide-react";
 import { Layers } from "lucide-react";
 import {
@@ -54,6 +55,7 @@ import {
   CallbackProperty, ColorMaterialProperty, LabelStyle, HorizontalOrigin, VerticalOrigin,
   HeightReference,
   CameraEventType, KeyboardEventModifier,
+  UrlTemplateImageryProvider, ImageryLayer,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -145,7 +147,7 @@ const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyM
  *  - keep memory caches large enough to prevent thrash, but below OOM sizes
  */
 const TILE_MIB = 1024 * 1024;
-type AtlasViewMode = "google" | "realistic" | "osm";
+type AtlasViewMode = "google" | "realistic" | "osm" | "mapbox";
 type AtlasTilesetKey = "_googleDirectTileset" | "_realisticTileset" | "_osmTileset";
 
 const atlasTilesetKeyForMode = (mode: AtlasViewMode): AtlasTilesetKey => {
