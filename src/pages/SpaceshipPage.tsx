@@ -1654,6 +1654,13 @@ function SpaceshipPage() {
       Education: "rgba(99,102,241,0.75)", Office: "rgba(148,163,184,0.75)",
     };
 
+    // Batch (P5): collect every entity + its (lng,lat) up front so we can
+    // fire ONE sampleHeightMostDetailed call for the whole batch instead of
+    // 500 individual walks of the 3D-tile tree. Also (B2): capture a
+    // per-batch `cancelled` flag so stale height results can't mutate
+    // entities the next batch already removed.
+    const batch: { entity: any; carto: any }[] = [];
+    const batchToken = ++businessBatchTokenRef.current;
     results.slice(0, 500).forEach((r, idx) => {
       const entityId = `biz-live-${idx}-${r.lat.toFixed(6)}-${r.lng.toFixed(6)}`;
       const icon = iconByType[r.type] || "📍";
@@ -1692,13 +1699,52 @@ function SpaceshipPage() {
         description: r.name + (r.address ? ` — ${r.address}` : ""),
       });
       businessEntitiesRef.current.push(entity);
-      // Batch ground-clamp probes: a 500-item burst of
-      // sampleHeightMostDetailed walks the entire 3D-tile tree once per
-      // entity and can OOM mobile. Stagger across ~5s in groups of 16 so
-      // tile streaming stays smooth.
-      const delay = Math.floor(idx / 16) * 80;
-      window.setTimeout(() => clampPinToSurface(entity, r.lng, r.lat), delay);
+      entity.show = false;
+      batch.push({ entity, carto: Cartographic.fromDegrees(r.lng, r.lat) });
     });
+
+    // Single most-detailed sample for the whole batch. Cesium walks the tile
+    // tree once and returns one Cartographic per input — orders of magnitude
+    // cheaper than 500 sequential calls.
+    const scene: any = viewer.scene;
+    const finish = (heights: (number | null)[]) => {
+      if (batchToken !== businessBatchTokenRef.current) return; // superseded
+      if (viewer.isDestroyed()) return;
+      batch.forEach((b, i) => {
+        const h = heights[i];
+        if (typeof h === "number" && isFinite(h)) {
+          b.entity.position = Cartesian3.fromDegrees(
+            (b.carto.longitude * 180) / Math.PI,
+            (b.carto.latitude * 180) / Math.PI,
+            h + 0.5,
+          );
+        }
+        b.entity.show = true;
+      });
+      viewer.scene.requestRender?.();
+    };
+    try {
+      const cartos = batch.map((b) => b.carto);
+      const p = scene.sampleHeightMostDetailed?.(cartos);
+      if (p && typeof p.then === "function") {
+        p.then((arr: any[]) => {
+          finish(arr.map((c) => (c && typeof c.height === "number" ? c.height : null)));
+        }).catch(() => {
+          // Fallback to synchronous per-pin sampleHeight against loaded tiles.
+          finish(batch.map((b) => {
+            const h = scene.sampleHeight?.(b.carto);
+            return typeof h === "number" ? h : null;
+          }));
+        });
+      } else {
+        finish(batch.map((b) => {
+          const h = scene.sampleHeight?.(b.carto);
+          return typeof h === "number" ? h : null;
+        }));
+      }
+    } catch {
+      finish(batch.map(() => null));
+    }
     viewer.scene.requestRender?.();
   }, []);
 
