@@ -12,7 +12,8 @@ import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
-  GeographicTilingScheme,
+  SingleTileImageryProvider,
+  Rectangle,
   ImageryLayer,
 } from "cesium";
 import {
@@ -21,6 +22,10 @@ import {
   type EarthLayerCategory,
   type EarthLayerDef,
 } from "@/hooks/useEarthIntelligence";
+
+// Sentinel used in `layerRefs` while an async SingleTileImageryProvider is
+// still resolving. Lets `removeLayer` cancel a pending add.
+const PENDING = { __pending: true } as const;
 
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
@@ -61,22 +66,8 @@ const CATEGORY_COLOR: Record<EarthLayerCategory, string> = {
  */
 function thumbUrl(def: EarthLayerDef): string {
   const raw = buildEarthLayerUrl(def);
-  // GIBS thumbnails: hit the WMS endpoint at 1024x512 for a crisp full-globe
-  // preview (bypasses the pixelated z=0 WMTS tile).
-  const m = raw.match(
-    /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/([^/]+)\/default\/([^/]+)\//,
-  );
-  if (m) {
-    const [, layerId, time] = m;
-    const fmt = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
-    const params = new URLSearchParams({
-      SERVICE: "WMS", REQUEST: "GetMap", VERSION: "1.3.0",
-      LAYERS: layerId, CRS: "EPSG:4326", BBOX: "-90,-180,90,180",
-      WIDTH: "1024", HEIGHT: "512", FORMAT: fmt,
-      TRANSPARENT: fmt === "image/png" ? "true" : "false", TIME: time,
-    });
-    return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
-  }
+  const wms = gibsWmsUrl(def, 1024, 512);
+  if (wms) return wms;
   return raw.replace("{z}", "0").replace("{y}", "0").replace("{x}", "0");
 }
 
@@ -91,34 +82,29 @@ function thumbUrl(def: EarthLayerDef): string {
  * partial-hemisphere sources like GOES/Himawari, misaligns with the sphere
  * so the user sees "circumference mismatch" gaps.
  */
-/**
- * Convert a GIBS EPSG:3857 WMTS URL into an EPSG:4326 (GeographicTilingScheme)
- * WMTS URL. EPSG:4326 uses 2 root tiles and covers the full ±90° sphere, so
- * we keep per-zoom LOD (unlike a single flat WMS image) while eliminating
- * the polar-cap gap that EPSG:3857 leaves at ±85°.
- *
- * Returns { url, matrix, maxLevel } or null when the URL isn't a GIBS layer.
- */
-function gibsGeographic(def: EarthLayerDef): { url: string; maxLevel: number } | null {
+function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string | null {
   const raw = buildEarthLayerUrl(def);
   const m = raw.match(
-    /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/([^/]+)\/default\/([^/]+)\/GoogleMapsCompatible_Level(\d+)\/\{z\}\/\{y\}\/\{x\}\.(\w+)/,
+    /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/([^/]+)\/default\/([^/]+)\//,
   );
   if (!m) return null;
-  const [, layerId, time, levelStr, ext] = m;
-  const level3857 = Number(levelStr);
-  // GoogleMapsCompatible_LevelN → EPSG:4326 TileMatrixSet mapping. EPSG:4326
-  // pyramids have one fewer max-level than their 3857 counterparts because
-  // the geographic pyramid starts with two root tiles instead of one.
-  const matrixByLevel: Record<number, { matrix: string; maxLevel: number }> = {
-    9: { matrix: "250m", maxLevel: 8 },
-    8: { matrix: "500m", maxLevel: 7 },
-    7: { matrix: "1km",  maxLevel: 6 },
-    6: { matrix: "2km",  maxLevel: 5 },
-  };
-  const mapped = matrixByLevel[level3857] ?? { matrix: "2km", maxLevel: 5 };
-  const url = `https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/${layerId}/default/${time}/${mapped.matrix}/{z}/{y}/{x}.${ext}`;
-  return { url, maxLevel: mapped.maxLevel };
+  const layerId = m[1];
+  const time = m[2]; // "default" or YYYY-MM-DD
+  const fmt = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
+  const params = new URLSearchParams({
+    SERVICE: "WMS",
+    REQUEST: "GetMap",
+    VERSION: "1.3.0",
+    LAYERS: layerId,
+    CRS: "EPSG:4326",
+    BBOX: "-90,-180,90,180",
+    WIDTH: String(width),
+    HEIGHT: String(height),
+    FORMAT: fmt,
+    TRANSPARENT: fmt === "image/png" ? "true" : "false",
+    TIME: time,
+  });
+  return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
@@ -139,26 +125,41 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // GIBS layers: use EPSG:4326 tiled endpoint (full-sphere coverage AND
-    // real per-zoom LOD). Non-GIBS layers keep their native URL template.
-    const geo = gibsGeographic(def);
-    const provider = geo
-      ? new UrlTemplateImageryProvider({
-          url: geo.url,
-          maximumLevel: geo.maxLevel,
-          tilingScheme: new GeographicTilingScheme(),
-          tileWidth: 512,
-          tileHeight: 512,
-          credit: def.attribution,
+    // Prefer GIBS WMS at high resolution — it covers the full sphere in
+    // EPSG:4326, so we no longer get the ±85° polar caps or the
+    // GoogleMapsCompatible sub-hemisphere gaps that made overlays look
+    // "smaller than the globe".
+    const wms = gibsWmsUrl(def, 4096, 2048);
+    if (wms) {
+      // SingleTileImageryProvider requires async construction (Cesium ≥ 1.104).
+      SingleTileImageryProvider.fromUrl(wms, {
+        rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+        credit: def.attribution,
+      })
+        .then((provider) => {
+          if (!viewer || viewer.isDestroyed()) return;
+          // Bail if the user toggled the layer off before the image resolved.
+          if ((layerRefs.current[def.id] as unknown) !== PENDING) return;
+          const real = viewer.scene.imageryLayers.addImageryProvider(provider);
+          real.alpha = 0.92;
+          layerRefs.current[def.id] = real;
         })
-      : new UrlTemplateImageryProvider({
-          url: buildEarthLayerUrl(def),
-          maximumLevel: def.maxZoom ?? 9,
-          credit: def.attribution,
+        .catch((e) => {
+          console.warn("[earth-intel] GIBS WMS load failed", def.id, e);
+          delete layerRefs.current[def.id];
         });
-    const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
-    layer.alpha = 0.92;
-    layerRefs.current[def.id] = layer;
+      // Marker so removeLayer/toggle can see the request is in flight.
+      layerRefs.current[def.id] = PENDING as unknown as ImageryLayer;
+    } else {
+      const provider = new UrlTemplateImageryProvider({
+        url: buildEarthLayerUrl(def),
+        maximumLevel: def.maxZoom ?? 9,
+        credit: def.attribution,
+      });
+      const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      layer.alpha = 0.92;
+      layerRefs.current[def.id] = layer;
+    }
   }, [viewerRef]);
 
   const toggle = useCallback((def: EarthLayerDef) => {
