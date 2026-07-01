@@ -179,11 +179,11 @@ const applyAtlasMapVisibility = (
   const google = viewer._googleDirectTileset as Cesium3DTileset | undefined;
   const realistic = viewer._realisticTileset as Cesium3DTileset | undefined;
   const osm = viewer._osmTileset as Cesium3DTileset | undefined;
-  const wantsPhotoreal = mode === "google" || mode === "realistic";
-  const activePhotoreal = google ?? realistic;
-
-  if (google) google.show = wantsPhotoreal && showBuildings && activePhotoreal === google;
-  if (realistic) realistic.show = wantsPhotoreal && showBuildings && activePhotoreal === realistic;
+  // Strict single-active-tileset. The active one is chosen by mode only,
+  // never by "whichever happens to exist" — that caused overlaps where two
+  // photoreal layers streamed and rendered simultaneously.
+  if (google) google.show = mode === "google" && showBuildings;
+  if (realistic) realistic.show = mode === "realistic" && showBuildings;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
   // Keep the terrain/imagery globe visible as an immediate fallback under
