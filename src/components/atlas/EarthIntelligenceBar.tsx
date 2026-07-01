@@ -119,6 +119,18 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       try { viewer.scene.imageryLayers.remove(layer, true); } catch { /* noop */ }
     }
     delete layerRefs.current[id];
+    syncOverlayFlag();
+  }, [viewerRef]);
+
+  // Flip a viewer-level flag so applyAtlasMapVisibility keeps the globe
+  // visible whenever at least one Earth Intelligence overlay is active.
+  // This is what makes overlays render on realistic / google 3D / osm modes.
+  const syncOverlayFlag = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const anyActive = Object.keys(layerRefs.current).length > 0;
+    (viewer as any)._earthIntelActive = anyActive;
+    window.dispatchEvent(new CustomEvent("atlas:earth-intel-changed", { detail: { active: anyActive } }));
   }, [viewerRef]);
 
   const addLayer = useCallback((def: EarthLayerDef) => {
@@ -160,6 +172,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       layer.alpha = 0.92;
       layerRefs.current[def.id] = layer;
     }
+    syncOverlayFlag();
   }, [viewerRef]);
 
   const toggle = useCallback((def: EarthLayerDef) => {
