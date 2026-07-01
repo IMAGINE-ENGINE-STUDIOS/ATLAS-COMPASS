@@ -79,10 +79,17 @@ function FreePlayInstance({
   scene: LevelScene;
 }) {
   const groupRef = useRef<THREE.Group>(null);
-  const [groundLift, setGroundLift] = useState(0);
+  // Ground lift is held in a ref (not state) so height refinements from
+  // the scheduler never trigger React re-renders / worldMatrix churn —
+  // that was the source of the "idle shake" and mouse-look bounce. The
+  // useFrame loop below lerps the actual applied lift toward the target
+  // so any transition is smooth and imperceptible.
+  const groundLiftTargetRef = useRef(0);
+  const groundLiftAppliedRef = useRef(0);
 
   useEffect(() => {
-    setGroundLift(0);
+    groundLiftTargetRef.current = 0;
+    groundLiftAppliedRef.current = 0;
   }, [spawn.lat, spawn.lng, spawn.alt]);
 
   // Share the global ground-sampling budget so free-play doesn't compete
@@ -93,44 +100,67 @@ function FreePlayInstance({
       getLngLat: () => ({ lng: spawn.lng, lat: spawn.lat }),
       onHeight: (h) => {
         const needed = Math.max(0, h - (spawn.alt ?? 0) + 0.05);
-        setGroundLift((prev) => (Math.abs(needed - prev) > 0.05 ? needed : prev));
+        // Wide deadband + ref-only update: prevents micro-oscillations
+        // (±10 cm sample noise as tiles refine) from moving the world.
+        if (Math.abs(needed - groundLiftTargetRef.current) > 0.6) {
+          groundLiftTargetRef.current = needed;
+        }
       },
     });
   }, [viewer, spawn.lat, spawn.lng, spawn.alt]);
 
-  const { ecef, enuRot } = useMemo(() => {
-    const baseAlt = (spawn.alt ?? 0) + groundLift;
+  // Origin frame is computed ONCE per spawn — never recomputed for
+  // ground-height refinements. The per-frame lift is folded into the
+  // ENU translation below.
+  const { ecefBase, enuRot, up } = useMemo(() => {
+    const baseAlt = spawn.alt ?? 0;
     const origin = Cartesian3.fromDegrees(spawn.lng, spawn.lat, baseAlt);
     const m = Transforms.eastNorthUpToFixedFrame(origin);
     const arr = CesiumMatrix4.toArray(m, []) as number[];
     const rot = new THREE.Matrix4().fromArray(arr);
+    // Extract the ENU "up" axis (column 2 in the 4x4) so we can offset
+    // the origin along the local vertical by the ground-lift amount.
+    const upVec = new THREE.Vector3(arr[8], arr[9], arr[10]).normalize();
     rot.setPosition(0, 0, 0);
     return {
-      ecef: new THREE.Vector3(origin.x, origin.y, origin.z),
+      ecefBase: new THREE.Vector3(origin.x, origin.y, origin.z),
       enuRot: rot,
+      up: upVec,
     };
-  }, [spawn.lat, spawn.lng, spawn.alt, groundLift]);
-
-  const worldMatrix = useMemo(() => {
-    return new THREE.Matrix4()
-      .makeTranslation(ecef.x, ecef.y, ecef.z)
-      .multiply(enuRot)
-      .multiply(THREE_TO_ENU);
-  }, [ecef, enuRot]);
+  }, [spawn.lat, spawn.lng, spawn.alt]);
 
   const scratch = useRef({
     out: new THREE.Matrix4(),
+    worldMatrix: new THREE.Matrix4(),
+    ecef: new THREE.Vector3(),
     eye: new THREE.Vector3(),
     target: new THREE.Vector3(),
     dir: new THREE.Vector3(),
     up: new THREE.Vector3(),
     right: new THREE.Vector3(),
     correctedUp: new THREE.Vector3(),
+    smoothEye: new THREE.Vector3(),
   }).current;
-  const clampState = useRef({ lastSampleAt: 0, lastSurfaceH: 0, hasH: false });
+  const clampState = useRef({ lastSampleAt: 0, hasSmoothEye: false });
+
+  // Recompute the (live) world matrix each frame from ecefBase + smoothed lift.
+  const computeWorldMatrix = () => {
+    const lift = groundLiftAppliedRef.current;
+    scratch.ecef.set(
+      ecefBase.x + up.x * lift,
+      ecefBase.y + up.y * lift,
+      ecefBase.z + up.z * lift,
+    );
+    scratch.worldMatrix
+      .makeTranslation(scratch.ecef.x, scratch.ecef.y, scratch.ecef.z)
+      .multiply(enuRot)
+      .multiply(THREE_TO_ENU);
+    return scratch.worldMatrix;
+  };
 
   const handlePlayCameraPose = (pose: PlayCameraPose) => {
     if (!viewer || viewer.isDestroyed()) return;
+    const worldMatrix = computeWorldMatrix();
     const eyeEcef = scratch.eye.fromArray(pose.eye).applyMatrix4(worldMatrix);
     const targetEcef = scratch.target.fromArray(pose.target).applyMatrix4(worldMatrix);
     scratch.dir.subVectors(targetEcef, eyeEcef).normalize();
@@ -139,19 +169,30 @@ function FreePlayInstance({
     if (scratch.right.lengthSq() < 1e-8) return;
     scratch.right.normalize();
     scratch.correctedUp.crossVectors(scratch.right, scratch.dir).normalize();
-    // Sample-clamp the eye above the terrain at ~6Hz so the camera never
-    // dips inside the Earth tiles or buildings. Re-using the last sample
-    // between samples keeps this cheap.
-    let clampedEye = new Cartesian3(eyeEcef.x, eyeEcef.y, eyeEcef.z);
+    // Sample-clamp the eye above the terrain at ~4Hz. Between samples,
+    // and even at the sample instant, lerp the applied eye toward the
+    // clamped target so height jitter from tile refinement can't pop
+    // the camera. The horizontal (x,y in ECEF ~) is dominated by the
+    // pose so lerping the whole vector is fine and much smoother than
+    // snapping directly.
+    let targetEye = eyeEcef;
     const now = performance.now();
-    if (now - clampState.current.lastSampleAt > 160) {
-      clampedEye = clampEyeAboveTerrain(viewer, eyeEcef, 0.6);
+    if (now - clampState.current.lastSampleAt > 240) {
+      const clamped = clampEyeAboveTerrain(viewer, eyeEcef, 0.6);
+      targetEye = scratch.eye.set(clamped.x, clamped.y, clamped.z);
       clampState.current.lastSampleAt = now;
     }
+    if (!clampState.current.hasSmoothEye) {
+      scratch.smoothEye.copy(targetEye);
+      clampState.current.hasSmoothEye = true;
+    } else {
+      scratch.smoothEye.lerp(targetEye, 0.35);
+    }
+    const outEye = new Cartesian3(scratch.smoothEye.x, scratch.smoothEye.y, scratch.smoothEye.z);
     try {
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
       viewer.camera.setView({
-        destination: clampedEye,
+        destination: outEye,
         orientation: {
           direction: new Cartesian3(scratch.dir.x, scratch.dir.y, scratch.dir.z),
           up: new Cartesian3(scratch.correctedUp.x, scratch.correctedUp.y, scratch.correctedUp.z),
@@ -160,17 +201,28 @@ function FreePlayInstance({
     } catch {}
   };
 
-  useFrame(() => {
+  useFrame((_state, delta) => {
     if (!groupRef.current || !viewer || viewer.isDestroyed()) return;
-    // Ground-clamp handled by atlasWorldScheduler.
+    // Smoothly ease the applied ground lift toward its target — critical
+    // in idle, where the scheduler may only nudge by a fraction of a
+    // meter. Half-life ~200ms.
+    const k = 1 - Math.exp(-(delta || 1 / 60) / 0.2);
+    groundLiftAppliedRef.current +=
+      (groundLiftTargetRef.current - groundLiftAppliedRef.current) * k;
+    const worldMatrix = computeWorldMatrix();
     const camPos = viewer.camera.positionWC;
     scratch.out
-      .makeTranslation(ecef.x - camPos.x, ecef.y - camPos.y, ecef.z - camPos.z)
+      .makeTranslation(
+        scratch.ecef.x - camPos.x,
+        scratch.ecef.y - camPos.y,
+        scratch.ecef.z - camPos.z,
+      )
       .multiply(enuRot)
       .multiply(THREE_TO_ENU);
     groupRef.current.matrixAutoUpdate = false;
     groupRef.current.matrix.copy(scratch.out);
     groupRef.current.matrixWorldNeedsUpdate = true;
+    void worldMatrix; // ensure ecef is refreshed each frame
   });
 
   return (
