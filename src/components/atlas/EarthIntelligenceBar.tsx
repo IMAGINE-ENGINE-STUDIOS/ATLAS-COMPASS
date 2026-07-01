@@ -167,7 +167,7 @@ function createEarthImageryProvider(def: EarthLayerDef) {
         format: gibs.format,
         transparent: gibs.format === "image/png" ? "true" : "false",
         time: gibs.time,
-        exceptions: "application/vnd.ogc.se_xml",
+        exceptions: "application/vnd.ogc.se_inimage",
       },
     });
   }
