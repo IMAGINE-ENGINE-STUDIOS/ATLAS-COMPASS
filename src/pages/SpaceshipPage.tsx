@@ -1655,7 +1655,9 @@ function SpaceshipPage() {
           image: createPinCanvas(icon, truncName, colorByType[r.type] || "rgba(0,212,255,0.75)"),
           verticalOrigin: 1,
           pixelOffset: new Cartesian2(0, 0),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          // Keep pins depth-tested so nothing from the far side of Earth bleeds
+          // through the globe while rotating the Atlas camera.
+          disableDepthTestDistance: 0,
           scaleByDistance: { near: 200, nearValue: 0.85, far: 30000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 45000, farValue: 0.15 } as any,
           heightReference: pinHeightRef(),
@@ -2954,7 +2956,9 @@ function SpaceshipPage() {
                 : createPinCanvas(icon, truncName, bgColor, favicon),
               verticalOrigin: 1, // BOTTOM
               pixelOffset: new Cartesian2(0, 0),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              // Depth-test POI pins; otherwise far-side tags can render through
+              // the planet and overlap the current viewport.
+              disableDepthTestDistance: 0,
               scaleByDistance: { near: 200, nearValue: selectedNow ? 1.0 : 0.8, far: 15000, farValue: selectedNow ? 0.35 : 0.25 } as any,
               translucencyByDistance: { near: 100, nearValue: 1.0, far: 18000, farValue: 0.0 } as any,
               heightReference: pinHeightRef(),
