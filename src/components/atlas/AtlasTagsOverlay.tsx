@@ -190,7 +190,6 @@ export default function AtlasTagsOverlay({
     if (!viewer || viewer.isDestroyed()) return;
     const sync = () => {
       if (!viewer || viewer.isDestroyed()) return;
-      const canvas = viewer.scene.canvas;
       for (const c of clusters) {
         const node = nodeRefs.current.get(c.key);
         if (!node) continue;
