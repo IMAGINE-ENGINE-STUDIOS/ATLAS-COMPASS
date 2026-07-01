@@ -61,8 +61,22 @@ const CATEGORY_COLOR: Record<EarthLayerCategory, string> = {
  */
 function thumbUrl(def: EarthLayerDef): string {
   const raw = buildEarthLayerUrl(def);
-  const wms = gibsWmsUrl(def, 1024, 512);
-  if (wms) return wms;
+  // GIBS thumbnails: hit the WMS endpoint at 1024x512 for a crisp full-globe
+  // preview (bypasses the pixelated z=0 WMTS tile).
+  const m = raw.match(
+    /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/([^/]+)\/default\/([^/]+)\//,
+  );
+  if (m) {
+    const [, layerId, time] = m;
+    const fmt = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
+    const params = new URLSearchParams({
+      SERVICE: "WMS", REQUEST: "GetMap", VERSION: "1.3.0",
+      LAYERS: layerId, CRS: "EPSG:4326", BBOX: "-90,-180,90,180",
+      WIDTH: "1024", HEIGHT: "512", FORMAT: fmt,
+      TRANSPARENT: fmt === "image/png" ? "true" : "false", TIME: time,
+    });
+    return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
+  }
   return raw.replace("{z}", "0").replace("{y}", "0").replace("{x}", "0");
 }
 
