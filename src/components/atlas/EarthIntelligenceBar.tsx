@@ -128,12 +128,32 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const wms = gibsWmsUrl(def, 4096, 2048);
     let layer: ImageryLayer;
     if (wms) {
-      const provider = new SingleTileImageryProvider({
-        url: wms,
+      // SingleTileImageryProvider now requires async construction via
+      // `.fromUrl()` (Cesium ≥ 1.104). Add a placeholder layer immediately
+      // so toggle state stays consistent, then swap the provider in once it
+      // resolves.
+      const pending = SingleTileImageryProvider.fromUrl(wms, {
         rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
         credit: def.attribution,
       });
-      layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      layer = new ImageryLayer(
+        new UrlTemplateImageryProvider({
+          url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+          tilingScheme: undefined as any,
+        }),
+      );
+      viewer.scene.imageryLayers.add(layer);
+      pending
+        .then((provider) => {
+          if (!viewer || viewer.isDestroyed()) return;
+          // Swap: remove placeholder and add real, preserving index.
+          const idx = viewer.scene.imageryLayers.indexOf(layer);
+          viewer.scene.imageryLayers.remove(layer, true);
+          const real = viewer.scene.imageryLayers.addImageryProvider(provider, idx);
+          real.alpha = 0.92;
+          layerRefs.current[def.id] = real;
+        })
+        .catch((e) => console.warn("[earth-intel] GIBS WMS load failed", def.id, e));
     } else {
       const provider = new UrlTemplateImageryProvider({
         url: buildEarthLayerUrl(def),
