@@ -382,10 +382,14 @@ export const EARTH_LAYERS: readonly EarthLayerDef[] = [
   },
 ] as const;
 
-/** Substitute `{date}` in a GIBS template with a YYYY-MM-DD string. */
+/** Substitute `{date}` in a GIBS template. */
 export function buildEarthLayerUrl(layer: EarthLayerDef, date?: Date | string): string {
   if (!layer.temporal) return layer.urlTemplate;
-  const d = typeof date === "string" ? date : formatIsoDate(date ?? mostRecentGibsDate());
+  // Atlas can run with future/system dates in preview. NASA GIBS temporal
+  // layers then return valid-but-empty images for many datasets. Use GIBS'
+  // `default` sentinel unless a caller explicitly asks for a date, so every
+  // Earth Intelligence layer resolves to the latest available frame.
+  const d = date ? (typeof date === "string" ? date : formatIsoDate(date)) : "default";
   return layer.urlTemplate.replace("{date}", d);
 }
 
