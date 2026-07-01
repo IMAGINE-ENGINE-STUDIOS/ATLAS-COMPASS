@@ -2270,11 +2270,11 @@ function SpaceshipPage() {
     // Keep the globe visible as the fast first paint while photoreal tiles refine.
     // Atlas must start loading immediately, without waiting for the user to move.
     viewer.scene.globe.show = true;
-    keepAtlasRenderingDuringBoot(viewer, 10000);
+    keepAtlasRenderingDuringBoot(viewer, 15000);
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
       try {
-        keepAtlasRenderingDuringBoot(viewer, 7000);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
       } catch {}
       window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady);
     };
@@ -2358,7 +2358,7 @@ function SpaceshipPage() {
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._realisticTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
-        keepAtlasRenderingDuringBoot(viewer, 7000);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -2378,7 +2378,7 @@ function SpaceshipPage() {
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
-        keepAtlasRenderingDuringBoot(viewer, 7000);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -2410,7 +2410,7 @@ function SpaceshipPage() {
         (viewer as any)._googleDirectTileset = tileset;
         destroyAtlasTileset(viewer, "_realisticTileset");
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
-        keepAtlasRenderingDuringBoot(viewer, 7000);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -3838,7 +3838,7 @@ function SpaceshipPage() {
       (viewer as any)._ensureOsmTileset?.();
     }
     applyAtlasMapVisibility(viewer, mode, true);
-    keepAtlasRenderingDuringBoot(viewer, 8000);
+    keepAtlasRenderingDuringBoot(viewer, 10000);
     setViewMode(mode);
     setShowBuildings(true);
   }, []);
