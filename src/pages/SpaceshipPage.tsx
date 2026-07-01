@@ -9,7 +9,7 @@ import {
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
-  Sun
+  Sun, Brain
 } from "lucide-react";
 import { Layers } from "lucide-react";
 import {
