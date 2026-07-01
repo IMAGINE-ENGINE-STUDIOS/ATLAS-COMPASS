@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 // CSS-only animations — no framer-motion in this heavy page
 import {
