@@ -168,7 +168,7 @@ export default function Google3DController({ viewer, visible }: Props) {
                   </button>
                 ))}
               </div>
-              <p className="text-[8px] text-white/40 mt-0.5">HDR tonemap + SSAO + sharpening + atmosphere.</p>
+              <p className="text-[8px] text-white/40 mt-0.5">Neutral fast rendering; no SSAO, sharpen, or HDR shader overlay.</p>
             </div>
             <div className="h-px bg-white/10 my-1" />
 
