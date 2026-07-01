@@ -3731,7 +3731,7 @@ function SpaceshipPage() {
           scale: hoveredResultIdx === idx ? 1.25 : 1.0,
           scaleByDistance: { near: 200, nearValue: 1.0, far: 25000, farValue: 0.3 } as any,
           translucencyByDistance: { near: 100, nearValue: 1.0, far: 30000, farValue: 0.0 } as any,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: 0,
           heightReference: pinHeightRef(),
         },
         properties: { type: "search-result", idx } as any,
