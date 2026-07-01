@@ -2413,7 +2413,7 @@ function SpaceshipPage() {
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Do not draw Cesium terrain/imagery behind photoreal modes. Google 3D
     // must be standalone so seams cannot reveal a second map underneath.
-    viewer.scene.globe.show = viewModeRef.current === "osm" || !showBuildingsRef.current;
+    viewer.scene.globe.show = viewModeRef.current === "osm" || viewModeRef.current === "mapbox" || !showBuildingsRef.current;
     keepAtlasRenderingDuringBoot(viewer, 15000);
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
