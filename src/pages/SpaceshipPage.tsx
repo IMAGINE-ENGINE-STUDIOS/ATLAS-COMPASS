@@ -8,7 +8,8 @@ import {
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
-  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film
+  GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
+  Sun
 } from "lucide-react";
 import { Layers } from "lucide-react";
 import {
@@ -54,6 +55,7 @@ import {
   CallbackProperty, ColorMaterialProperty, LabelStyle, HorizontalOrigin, VerticalOrigin,
   HeightReference,
   CameraEventType, KeyboardEventModifier,
+  UrlTemplateImageryProvider, ImageryLayer,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -145,7 +147,7 @@ const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyM
  *  - keep memory caches large enough to prevent thrash, but below OOM sizes
  */
 const TILE_MIB = 1024 * 1024;
-type AtlasViewMode = "google" | "realistic" | "osm";
+type AtlasViewMode = "google" | "realistic" | "osm" | "mapbox";
 type AtlasTilesetKey = "_googleDirectTileset" | "_realisticTileset" | "_osmTileset";
 
 const atlasTilesetKeyForMode = (mode: AtlasViewMode): AtlasTilesetKey => {
@@ -230,6 +232,9 @@ const applyAtlasMapVisibility = (
   if (realistic) realistic.show = mode === "realistic" && showBuildings;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
+  // Mapbox / Light: swap the globe's imagery for a lightweight raster basemap.
+  applyMapboxImageryLayer(viewer, mode === "mapbox");
+
   // Only show the Cesium base globe (terrain + imagery) when it is actually
   // the active surface (OSM buildings sit on top of it, or buildings are
   // turned off entirely). In google / realistic photoreal modes the globe
@@ -239,6 +244,43 @@ const applyAtlasMapVisibility = (
   viewer.scene.globe.show = !photoreal;
   // Skybox / atmosphere still render; only the globe surface is suppressed.
   viewer.scene.requestRender?.();
+};
+
+/**
+ * Add / remove the "Light" Mapbox imagery layer. Uses VITE_MAPBOX_TOKEN if
+ * provided, else falls back to CartoDB Positron (free, no token). This is the
+ * lightweight / low-connectivity basemap — no 3D tilesets stream in this mode.
+ */
+const applyMapboxImageryLayer = (viewer: any, enabled: boolean) => {
+  if (!viewer || viewer.isDestroyed?.()) return;
+  const layers = viewer.scene?.imageryLayers;
+  if (!layers) return;
+  const existing: ImageryLayer | undefined = viewer._mapboxImageryLayer;
+  if (!enabled) {
+    if (existing) {
+      try { layers.remove(existing, true); } catch {}
+      viewer._mapboxImageryLayer = null;
+    }
+    return;
+  }
+  if (existing) return;
+  const token = (import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined;
+  const provider = token
+    ? new UrlTemplateImageryProvider({
+        url: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}?access_token=${token}`,
+        tileWidth: 512,
+        tileHeight: 512,
+        maximumLevel: 19,
+        credit: "© Mapbox © OpenStreetMap",
+      })
+    : new UrlTemplateImageryProvider({
+        url: "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        maximumLevel: 19,
+        credit: "© OpenStreetMap © CARTO",
+      });
+  const layer = new ImageryLayer(provider, {});
+  layers.add(layer);
+  viewer._mapboxImageryLayer = layer;
 };
 
 const destroyAtlasTileset = (viewer: any, key: AtlasTilesetKey) => {
@@ -2371,7 +2413,7 @@ function SpaceshipPage() {
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Do not draw Cesium terrain/imagery behind photoreal modes. Google 3D
     // must be standalone so seams cannot reveal a second map underneath.
-    viewer.scene.globe.show = viewModeRef.current === "osm" || !showBuildingsRef.current;
+    viewer.scene.globe.show = viewModeRef.current === "osm" || viewModeRef.current === "mapbox" || !showBuildingsRef.current;
     keepAtlasRenderingDuringBoot(viewer, 15000);
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
@@ -6836,6 +6878,11 @@ function SpaceshipPage() {
                       <button onClick={() => switchViewMode("osm")}
                         className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "osm" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
                         <span className="flex items-center gap-1"><Building2 className="w-2.5 h-2.5" /> OSM</span>
+                      </button>
+                      <button onClick={() => switchViewMode("mapbox")}
+                        title="Light basemap (Mapbox) — fastest for slow connections"
+                        className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "mapbox" ? "bg-amber-400/20 text-amber-300 border border-amber-400/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
+                        <span className="flex items-center gap-1"><Sun className="w-2.5 h-2.5" /> Light</span>
                       </button>
                     </div>
                   </div>
