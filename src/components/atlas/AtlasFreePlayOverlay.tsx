@@ -11,8 +11,8 @@
  * activate Play mode; the parent should also flip Cesium's input handlers
  * for free-play, the same way it does for levels.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
@@ -26,6 +26,7 @@ import { LevelSceneContents } from "@/components/level/LevelScene3D";
 import type { PlayCameraPose } from "@/components/level/locomotion/PlayableCharacter";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 import { clampEyeAboveTerrain } from "@/lib/atlasCameraClamp";
+import { CameraSync, THREE_TO_ENU } from "@/lib/atlasR3F";
 
 export interface FreePlaySpawn {
   lat: number;
@@ -41,34 +42,7 @@ export const DEFAULT_FREEPLAY_CHARACTER: Pick<FreePlaySpawn, "characterUrl" | "c
   characterName: "Soldier",
 };
 
-function CameraSync({ viewer }: { viewer: Viewer }) {
-  const { camera, size } = useThree();
-  useFrame(() => {
-    if (!viewer || viewer.isDestroyed()) return;
-    const cam = viewer.camera;
-    const persp = camera as THREE.PerspectiveCamera;
-    const fr: any = cam.frustum;
-    const fovy = fr?.fovy ?? fr?.fov ?? Math.PI / 3;
-    persp.fov = THREE.MathUtils.radToDeg(fovy);
-    persp.aspect = size.width / Math.max(1, size.height);
-    persp.near = Math.max(0.1, fr?.near ?? 1);
-    persp.far = fr?.far ?? 1e10;
-    persp.updateProjectionMatrix();
-    persp.position.set(0, 0, 0);
-    persp.up.set(cam.up.x, cam.up.y, cam.up.z);
-    persp.lookAt(cam.direction.x, cam.direction.y, cam.direction.z);
-    persp.updateMatrixWorld(true);
-  });
-  return null;
-}
-
-// THREE local (+X right,+Y up,+Z toward viewer) → ENU (+X east,+Y north,+Z up)
-const THREE_TO_ENU = (() => {
-  const m = new THREE.Matrix4();
-  m.set(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1);
-  return m;
-})();
-
+// CameraSync + THREE_TO_ENU now imported from @/lib/atlasR3F (shared).
 function FreePlayInstance({
   viewer,
   spawn,
@@ -346,7 +320,7 @@ export default function AtlasFreePlayOverlay({
     <>
       <div className="fixed inset-0 z-[42]" style={{ pointerEvents: "auto" }}>
         <Canvas
-          gl={{ alpha: true, antialias: true, logarithmicDepthBuffer: true }}
+          gl={{ alpha: true, antialias: false, logarithmicDepthBuffer: true }}
           camera={{ position: [0, 0, 0], fov: 60, near: 1, far: 1e10 }}
           style={{ background: "transparent", pointerEvents: "auto" }}
         >
