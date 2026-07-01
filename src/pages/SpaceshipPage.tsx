@@ -2265,20 +2265,14 @@ function SpaceshipPage() {
     };
     viewer.scene.globe.maximumScreenSpaceError = 2;
     viewer.scene.globe.depthTestAgainstTerrain = true;
-    // Hide globe immediately — photorealistic tiles will be the only visible layer
-    viewer.scene.globe.show = false;
-
-    // Force continuous rendering so the globe appears immediately.
-    // Switched back to on-demand once the first tileset loads (see below)
-    // so we don't burn GPU/battery rendering identical frames while idle.
-    viewer.scene.requestRenderMode = false;
-    viewer.scene.maximumRenderTimeChange = Infinity;
+    // Keep the globe visible as the fast first paint while photoreal tiles refine.
+    // Atlas must start loading immediately, without waiting for the user to move.
+    viewer.scene.globe.show = true;
+    keepAtlasRenderingDuringBoot(viewer, 10000);
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
       try {
-        viewer.scene.requestRenderMode = true;
-        viewer.scene.maximumRenderTimeChange = Infinity;
-        viewer.scene.requestRender();
+        keepAtlasRenderingDuringBoot(viewer, 7000);
       } catch {}
       window.removeEventListener("cesium-tileset-ready", __onFirstTilesetReady);
     };
@@ -2362,6 +2356,7 @@ function SpaceshipPage() {
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._realisticTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+        keepAtlasRenderingDuringBoot(viewer, 7000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -2381,6 +2376,7 @@ function SpaceshipPage() {
         tuneAtlasTileset(tileset, "boot");
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+        keepAtlasRenderingDuringBoot(viewer, 7000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -2412,6 +2408,7 @@ function SpaceshipPage() {
         (viewer as any)._googleDirectTileset = tileset;
         destroyAtlasTileset(viewer, "_realisticTileset");
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+        keepAtlasRenderingDuringBoot(viewer, 7000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
