@@ -12,10 +12,11 @@ import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
-  WebMapServiceImageryProvider,
-  GeographicTilingScheme,
+  SingleTileImageryProvider,
   ImageryLayer,
   ImageryLayerCollection,
+  Rectangle,
+  type ImageryProvider,
 } from "cesium";
 import {
   EARTH_LAYERS,
@@ -144,31 +145,19 @@ function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string |
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }
 
-function createEarthImageryProvider(def: EarthLayerDef) {
+async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryProvider> {
   const gibs = parseGibsLayer(def);
   if (gibs) {
-    // Use tiled EPSG:4326 WMS for the real overlay. It covers the full globe
-    // (no WebMercator polar gaps), has explicit tile dimensions (no
-    // SingleTile tileWidth errors), and drapes correctly on 3D Tilesets.
-    return new WebMapServiceImageryProvider({
-      url: "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
-      layers: gibs.layerId,
-      tilingScheme: new GeographicTilingScheme(),
-      tileWidth: 512,
-      tileHeight: 512,
-      maximumLevel: def.maxZoom ?? 9,
+    // NASA GIBS WMS tiles were visibly shearing/repeating at the Pacific
+    // dateline when Cesium tiled them over photoreal 3D tiles. A single
+    // full-world equirectangular image maps once to the explicit world
+    // rectangle, eliminating the seam/wrapper break while keeping the active
+    // Atlas mode visible during load.
+    const url = gibsWmsUrl(def, 4096, 2048);
+    if (!url) throw new Error(`No GIBS WMS URL for ${def.label}`);
+    return SingleTileImageryProvider.fromUrl(url, {
+      rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
       credit: def.attribution,
-      enablePickFeatures: false,
-      parameters: {
-        service: "WMS",
-        version: "1.1.1",
-        request: "GetMap",
-        styles: "",
-        format: gibs.format,
-        transparent: gibs.format === "image/png" ? "true" : "false",
-        time: gibs.time,
-        exceptions: "application/vnd.ogc.se_inimage",
-      },
     });
   }
 
@@ -182,9 +171,12 @@ function createEarthImageryProvider(def: EarthLayerDef) {
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
   const [active, setActive] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
   const layerRefs = useRef<Record<string, ImageryLayer>>({});
   const activeDefs = useRef<Record<string, EarthLayerDef>>({});
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const opSerial = useRef(0);
 
   const syncOverlayFlag = useCallback(() => {
     const viewer = viewerRef.current;
@@ -210,9 +202,13 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     syncOverlayFlag();
   }, [viewerRef, syncOverlayFlag]);
 
-  const addLayer = useCallback((def: EarthLayerDef) => {
+  const addLayer = useCallback(async (def: EarthLayerDef) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+
+    const serial = ++opSerial.current;
+    setLoading((prev) => ({ ...prev, [def.id]: true }));
+    setFailed((prev) => ({ ...prev, [def.id]: false }));
 
     const { collection, onTileset } = targetLayers(viewer);
 
@@ -220,27 +216,53 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     // first but keep the dataset marked active.
     if (layerRefs.current[def.id]) removeLayer(def.id, false);
 
-    const provider = createEarthImageryProvider(def);
-    const layer = collection.addImageryProvider(provider);
-    layer.alpha = 0.92;
-    layerRefs.current[def.id] = layer;
-    activeDefs.current[def.id] = def;
-    void onTileset; // (info only — behavior identical either way)
-    syncOverlayFlag();
+    try {
+      const provider = await createEarthImageryProvider(def);
+      const latestViewer = viewerRef.current;
+      if (!latestViewer || latestViewer.isDestroyed()) return;
+      const latestTarget = targetLayers(latestViewer);
+      const layer = latestTarget.collection.addImageryProvider(provider);
+      layer.alpha = 0.92;
+      layerRefs.current[def.id] = layer;
+      activeDefs.current[def.id] = def;
+      void onTileset; // (info only — behavior identical either way)
+      syncOverlayFlag();
+    } catch (err) {
+      console.warn(`[Earth Intelligence] failed to load ${def.id}`, err);
+      delete activeDefs.current[def.id];
+      setActive((prev) => {
+        const next = { ...prev };
+        delete next[def.id];
+        return next;
+      });
+      setFailed((prev) => ({ ...prev, [def.id]: true }));
+      syncOverlayFlag();
+    } finally {
+      if (serial === opSerial.current || loading[def.id]) {
+        setLoading((prev) => {
+          const next = { ...prev };
+          delete next[def.id];
+          return next;
+        });
+      }
+    }
   }, [viewerRef, removeLayer, syncOverlayFlag]);
 
   const toggle = useCallback((def: EarthLayerDef) => {
-    setActive((prev) => {
-      const next = { ...prev };
-      if (next[def.id]) {
-        removeLayer(def.id);
+    if (active[def.id]) {
+      removeLayer(def.id);
+      setActive((prev) => {
+        const next = { ...prev };
         delete next[def.id];
-      } else {
-        addLayer(def);
-        next[def.id] = true;
-      }
-      return next;
-    });
+        return next;
+      });
+      return;
+    }
+
+    // Keep GPU/network pressure predictable: one raster dataset at a time.
+    Object.keys(activeDefs.current).forEach((id) => removeLayer(id));
+    setActive({ [def.id]: true });
+    void addLayer(def);
   }, [addLayer, removeLayer]);
 
   // Clear all on unmount
@@ -258,7 +280,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const retarget = () => {
       const defs = Object.values(activeDefs.current);
       if (!defs.length) return;
-      defs.forEach((def) => addLayer(def));
+      defs.forEach((def) => void addLayer(def));
     };
     window.addEventListener("cesium-tileset-ready", retarget);
     window.addEventListener("atlas:earth-intel-retarget", retarget);
@@ -308,6 +330,8 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
           >
             {items.map((def) => {
               const isOn = !!active[def.id];
+              const isLoading = !!loading[def.id];
+              const didFail = !!failed[def.id];
               const color = CATEGORY_COLOR[def.category];
               return (
                 <button
@@ -338,7 +362,16 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
                     </div>
                     {isOn && (
                       <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-cyan-400 text-black flex items-center justify-center">
-                        <Check className="w-3 h-3" strokeWidth={3} />
+                        {isLoading ? (
+                          <span className="w-3 h-3 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                        ) : (
+                          <Check className="w-3 h-3" strokeWidth={3} />
+                        )}
+                      </div>
+                    )}
+                    {didFail && !isOn && (
+                      <div className="absolute bottom-1 right-1 px-1.5 py-[1px] rounded bg-red-500/80 text-[9px] font-semibold text-white">
+                        Failed
                       </div>
                     )}
                   </div>
