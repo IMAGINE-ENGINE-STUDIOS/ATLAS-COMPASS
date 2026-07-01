@@ -68,11 +68,13 @@ export function applyAtlasVisuals(
       ao.enabled = preset !== "off";
       const u = ao.uniforms;
       if (u) {
-        u.intensity = preset === "cinematic" ? 3.0 : 2.0;
-        u.bias = 0.1;
-        u.lengthCap = 0.4;
-        u.stepSize = preset === "cinematic" ? 1.0 : 1.5;
-        u.frustumLength = 1000.0;
+        // Softer AO — high intensity + short lengthCap caused dark outlines
+        // along photoreal tile seams when the camera was close to buildings.
+        u.intensity = preset === "cinematic" ? 1.6 : 1.1;
+        u.bias = 0.25;
+        u.lengthCap = 0.26;
+        u.stepSize = preset === "cinematic" ? 2.0 : 2.5;
+        u.frustumLength = 500.0;
         u.ambientOcclusionOnly = false;
       }
     }
@@ -84,7 +86,9 @@ export function applyAtlasVisuals(
     if (preset === "off") {
       if (existing) stages.remove(existing);
     } else {
-      const amount = preset === "cinematic" ? 0.55 : 0.35;
+      // Much lower sharpen — anything above ~0.2 produces visible halo/ring
+      // artifacts on the seams between Google 3D tiles at close range.
+      const amount = preset === "cinematic" ? 0.18 : 0.1;
       if (existing) {
         existing.uniforms.u_amount = amount;
         existing.enabled = true;
