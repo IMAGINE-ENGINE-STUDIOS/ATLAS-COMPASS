@@ -6647,6 +6647,13 @@ function SpaceshipPage() {
             </div>
           )}
 
+          {/* Emergency Mode Panel — resources + AI tips */}
+          <EmergencyPanel open={emergencyMode} onClose={() => {
+            setEmergencyMode(false);
+            (window as any).__atlasEmergencyMode = false;
+            window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: false }));
+          }} />
+
           {/* Intelligence — Live Traffic Cameras Panel */}
           <IntelligencePanel
             open={intelligenceOpen}
