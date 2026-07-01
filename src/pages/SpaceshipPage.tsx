@@ -269,16 +269,16 @@ const applyMapboxImageryLayer = (viewer: any, enabled: boolean) => {
     "pk.eyJ1IjoiaW1hZ2luZWVuZ2luZSIsImEiOiJjbWhlYWo5bTgwYzkyMmpxMno3ODdoZGt6In0.B66urpifKwsS7bltMqzaBQ";
   const provider = token
     ? new UrlTemplateImageryProvider({
-        url: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}?access_token=${token}`,
+        url: `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/512/{z}/{x}/{y}?access_token=${token}`,
         tileWidth: 512,
         tileHeight: 512,
         maximumLevel: 19,
-        credit: "© Mapbox © OpenStreetMap",
+        credit: "© Mapbox © Maxar",
       })
     : new UrlTemplateImageryProvider({
-        url: "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         maximumLevel: 19,
-        credit: "© OpenStreetMap © CARTO",
+        credit: "Esri, Maxar, Earthstar Geographics",
       });
   const layer = new ImageryLayer(provider, {});
   layers.add(layer);
@@ -6882,9 +6882,9 @@ function SpaceshipPage() {
                         <span className="flex items-center gap-1"><Building2 className="w-2.5 h-2.5" /> OSM</span>
                       </button>
                       <button onClick={() => switchViewMode("mapbox")}
-                        title="Light basemap (Mapbox) — fastest for slow connections"
+                        title="Mapbox Satellite imagery"
                         className={`px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-medium tracking-wide transition-all ${viewMode === "mapbox" ? "bg-amber-400/20 text-amber-300 border border-amber-400/30" : "text-white/70 hover:text-white/85 border border-transparent"}`}>
-                        <span className="flex items-center gap-1"><Sun className="w-2.5 h-2.5" /> Light</span>
+                        <span className="flex items-center gap-1"><Sun className="w-2.5 h-2.5" /> Satellite</span>
                       </button>
                     </div>
                   </div>
