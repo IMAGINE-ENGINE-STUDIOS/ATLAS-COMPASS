@@ -143,7 +143,30 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
     ts.dynamicScreenSpaceError = true;
     ts.dynamicScreenSpaceErrorDensity = 0.00278;
     ts.dynamicScreenSpaceErrorFactor = 4;
+    ts.cullRequestsWhileMoving = true;
+    ts.preloadWhenHidden = false;
+    ts.preloadFlightDestinations = false;
+    ts.immediatelyLoadDesiredLevelOfDetail = false;
+    ts.loadSiblings = false;
+    ts.foveatedScreenSpaceError = true;
     ts.shadows = 0;
+  } catch {}
+};
+
+const keepAtlasRenderingDuringBoot = (viewer: any, durationMs = 10000) => {
+  if (!viewer || viewer.isDestroyed?.()) return;
+  try {
+    viewer.scene.requestRenderMode = false;
+    viewer.scene.maximumRenderTimeChange = Infinity;
+    if (viewer.__atlasBootRenderTimer) clearTimeout(viewer.__atlasBootRenderTimer);
+    viewer.__atlasBootRenderTimer = setTimeout(() => {
+      if (viewer.isDestroyed?.()) return;
+      try {
+        viewer.scene.requestRenderMode = true;
+        viewer.scene.requestRender?.();
+      } catch {}
+      viewer.__atlasBootRenderTimer = null;
+    }, durationMs);
   } catch {}
 };
 
@@ -163,8 +186,10 @@ const applyAtlasMapVisibility = (
   if (realistic) realistic.show = wantsPhotoreal && showBuildings && activePhotoreal === realistic;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
-  const hasVisiblePhotoreal = wantsPhotoreal && showBuildings && !!activePhotoreal;
-  viewer.scene.globe.show = mode === "osm" || !hasVisiblePhotoreal;
+  // Keep the terrain/imagery globe visible as an immediate fallback under
+  // photoreal tiles. Hiding it made Atlas look like it loaded in black/chunky
+  // parts until every nearby 3D tile finished streaming.
+  viewer.scene.globe.show = true;
   viewer.scene.requestRender?.();
 };
 
