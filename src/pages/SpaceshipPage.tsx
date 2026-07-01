@@ -3815,7 +3815,7 @@ function SpaceshipPage() {
         text: `📍 ${result.name}`, font: "bold 14px 'Inter', system-ui, sans-serif",
         fillColor: Color.WHITE, outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
         pixelOffset: new Cartesian2(0, -8),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: 0,
         showBackground: true,
         backgroundColor: Color.fromCssColorString("#00d4ff").withAlpha(0.55),
         backgroundPadding: new Cartesian2(10, 6),
@@ -3877,12 +3877,12 @@ function SpaceshipPage() {
         fillColor: Color.fromCssColorString("#ffd700"),
         outlineColor: Color.BLACK, outlineWidth: 2, style: 2,
         pixelOffset: new Cartesian2(0, -24),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: 0,
       },
       point: {
         pixelSize: 12, color: Color.fromCssColorString("#ffd700"),
         outlineColor: Color.WHITE, outlineWidth: 2,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: 0,
       },
     });
   }, []);
