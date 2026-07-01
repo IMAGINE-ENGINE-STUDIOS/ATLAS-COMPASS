@@ -15,6 +15,7 @@ import {
   SingleTileImageryProvider,
   Rectangle,
   ImageryLayer,
+  ImageryLayerCollection,
 } from "cesium";
 import {
   EARTH_LAYERS,
@@ -26,6 +27,24 @@ import {
 // Sentinel used in `layerRefs` while an async SingleTileImageryProvider is
 // still resolving. Lets `removeLayer` cancel a pending add.
 const PENDING = { __pending: true } as const;
+
+/**
+ * Return the ImageryLayerCollection the overlay should be added to.
+ * When a photoreal 3D Tileset is active (Google 3D / Realistic / OSM
+ * Buildings) we drape imagery directly on that tileset instead of the
+ * globe — avoids the "two earths stacked" look the user reported.
+ * Falls back to the globe's imagery layers otherwise.
+ */
+function targetLayers(viewer: any): { collection: ImageryLayerCollection; onTileset: boolean } {
+  const tileset =
+    viewer._googleDirectTileset ||
+    viewer._realisticTileset ||
+    viewer._osmTileset;
+  if (tileset && tileset.imageryLayers) {
+    return { collection: tileset.imageryLayers as ImageryLayerCollection, onTileset: true };
+  }
+  return { collection: viewer.scene.imageryLayers as ImageryLayerCollection, onTileset: false };
+}
 
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
@@ -116,7 +135,10 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const viewer = viewerRef.current;
     const layer = layerRefs.current[id];
     if (viewer && layer && !viewer.isDestroyed()) {
+      // Try both collections since the tileset may have been destroyed / swapped.
       try { viewer.scene.imageryLayers.remove(layer, true); } catch { /* noop */ }
+      const ts = viewer._googleDirectTileset || viewer._realisticTileset || viewer._osmTileset;
+      try { ts?.imageryLayers?.remove(layer, true); } catch { /* noop */ }
     }
     delete layerRefs.current[id];
     syncOverlayFlag();
@@ -137,6 +159,8 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
+    const { collection, onTileset } = targetLayers(viewer);
+
     // Prefer GIBS WMS at high resolution — it covers the full sphere in
     // EPSG:4326, so we no longer get the ±85° polar caps or the
     // GoogleMapsCompatible sub-hemisphere gaps that made overlays look
@@ -152,7 +176,8 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
           if (!viewer || viewer.isDestroyed()) return;
           // Bail if the user toggled the layer off before the image resolved.
           if ((layerRefs.current[def.id] as unknown) !== PENDING) return;
-          const real = viewer.scene.imageryLayers.addImageryProvider(provider);
+          const dest = targetLayers(viewer);
+          const real = dest.collection.addImageryProvider(provider);
           real.alpha = 0.92;
           layerRefs.current[def.id] = real;
         })
@@ -168,10 +193,11 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
         maximumLevel: def.maxZoom ?? 9,
         credit: def.attribution,
       });
-      const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      const layer = collection.addImageryProvider(provider);
       layer.alpha = 0.92;
       layerRefs.current[def.id] = layer;
     }
+    void onTileset; // (info only — behavior identical either way)
     syncOverlayFlag();
   }, [viewerRef]);
 
