@@ -871,7 +871,10 @@ function SpaceshipPage() {
   const [viewMode, setViewMode] = useState<AtlasViewMode>(savedUI.viewMode ?? "google");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
-  const [cameraAlt, setCameraAlt] = useState(0);
+  // Altitude readout lives in a module-level pub-sub store (see
+  // atlasCameraAltitude). This keeps the 4Hz postRender writer from
+  // re-rendering the entire 7k-line SpaceshipPage on every camera move —
+  // only the memoized <CameraAltHUD/> subscribes.
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pois, setPois] = useState<POI[]>(loadPOIs);
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
