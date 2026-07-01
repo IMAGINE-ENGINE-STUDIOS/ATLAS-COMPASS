@@ -3854,14 +3854,18 @@ function SpaceshipPage() {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    if (!wantsPhotorealMode(viewMode)) {
+    // Purge every tileset that isn't the active mode so only ONE layer streams.
+    if (viewMode !== "google") {
       destroyAtlasTileset(viewer, "_googleDirectTileset");
-      destroyAtlasTileset(viewer, "_realisticTileset");
       (viewer as any)._googleDirectLoading = null;
-      (viewer as any)._realisticLoading = null;
-    } else if ((viewer as any)._googleDirectTileset) {
+    }
+    if (viewMode !== "realistic") {
       destroyAtlasTileset(viewer, "_realisticTileset");
       (viewer as any)._realisticLoading = null;
+    }
+    if (viewMode !== "osm") {
+      destroyAtlasTileset(viewer, "_osmTileset");
+      (viewer as any)._osmLoading = null;
     }
     applyAtlasMapVisibility(viewer, viewMode, showBuildingsRef.current);
   }, [viewMode]);
