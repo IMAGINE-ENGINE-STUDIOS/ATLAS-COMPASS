@@ -132,6 +132,7 @@ import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery"
 import SearchResultsPanel from "@/components/atlas/SearchResultsPanel";
 import GlyphIcon from "@/components/atlas/GlyphIcon";
 import AtlasScreenshotMenu from "@/components/atlas/AtlasScreenshotMenu";
+import EmergencyPanel from "@/components/atlas/EmergencyPanel";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 /* ── Cesium Token (publishable key) ── */
@@ -5009,29 +5010,6 @@ function SpaceshipPage() {
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
-      {/* Emergency Mode Toggle — red pulsing beacon */}
-      <button
-        type="button"
-        onClick={() => {
-          const next = !emergencyMode;
-          setEmergencyMode(next);
-          (window as any).__atlasEmergencyMode = next;
-          window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: next }));
-          if (next) toast.error("EMERGENCY MODE ACTIVE", { description: "Atlas is broadcasting emergency layer." });
-          else toast.success("Emergency mode off");
-        }}
-        aria-pressed={emergencyMode}
-        aria-label={emergencyMode ? "Deactivate emergency mode" : "Activate emergency mode"}
-        title={emergencyMode ? "Emergency mode ACTIVE" : "Activate emergency mode"}
-        className={`absolute top-3 right-3 sm:top-4 sm:right-4 z-40 h-11 w-11 sm:h-12 sm:w-12 rounded-full flex items-center justify-center border text-white font-bold text-[10px] tracking-widest uppercase transition-all ${
-          emergencyMode
-            ? "bg-red-600 border-red-300 shadow-[0_0_28px_rgba(239,68,68,0.9)]"
-            : "bg-red-600/90 border-red-400/70 shadow-[0_0_18px_rgba(239,68,68,0.55)] hover:bg-red-500"
-        }`}
-        style={{ animation: "atlasEmergencyPulse 1.1s ease-in-out infinite" }}
-      >
-        <span aria-hidden="true">SOS</span>
-      </button>
       <style>{`@keyframes atlasEmergencyPulse {
         0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.75), 0 0 18px rgba(239,68,68,0.55); transform: scale(1); }
         50%     { box-shadow: 0 0 0 14px rgba(239,68,68,0), 0 0 28px rgba(239,68,68,0.9); transform: scale(1.06); }
@@ -5270,6 +5248,27 @@ function SpaceshipPage() {
                     {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                   </button>
                   <AtlasScreenshotMenu viewerRef={viewerRef} />
+                  {/* SOS — Emergency Mode toggle */}
+                  <button
+                    onClick={() => {
+                      const next = !emergencyMode;
+                      setEmergencyMode(next);
+                      (window as any).__atlasEmergencyMode = next;
+                      window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: next }));
+                      if (next) toast.error("EMERGENCY MODE ACTIVE", { description: "Atlas is broadcasting emergency layer." });
+                      else toast.success("Emergency mode off");
+                    }}
+                    aria-pressed={emergencyMode}
+                    title={emergencyMode ? "Emergency mode ACTIVE" : "Activate emergency mode"}
+                    className={`shrink-0 h-7 px-2 rounded-md flex items-center justify-center border text-white font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      emergencyMode
+                        ? "bg-red-600 border-red-300 shadow-[0_0_18px_rgba(239,68,68,0.85)]"
+                        : "bg-red-600/90 border-red-400/70 hover:bg-red-500"
+                    }`}
+                    style={{ animation: "atlasEmergencyPulse 1.1s ease-in-out infinite" }}
+                  >
+                    SOS
+                  </button>
                 </GlassPanel>
             </div>
           </div>
@@ -6647,6 +6646,13 @@ function SpaceshipPage() {
               </button>
             </div>
           )}
+
+          {/* Emergency Mode Panel — resources + AI tips */}
+          <EmergencyPanel open={emergencyMode} onClose={() => {
+            setEmergencyMode(false);
+            (window as any).__atlasEmergencyMode = false;
+            window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: false }));
+          }} />
 
           {/* Intelligence — Live Traffic Cameras Panel */}
           <IntelligencePanel
