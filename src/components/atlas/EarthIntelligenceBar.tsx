@@ -10,7 +10,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
-import { UrlTemplateImageryProvider, ImageryLayer } from "cesium";
+import {
+  UrlTemplateImageryProvider,
+  SingleTileImageryProvider,
+  Rectangle,
+  ImageryLayer,
+} from "cesium";
 import {
   EARTH_LAYERS,
   buildEarthLayerUrl,
@@ -57,30 +62,45 @@ const CATEGORY_COLOR: Record<EarthLayerCategory, string> = {
  */
 function thumbUrl(def: EarthLayerDef): string {
   const raw = buildEarthLayerUrl(def);
-  // Try to detect a GIBS WMTS URL and rewrite to a higher-res WMS GetMap.
-  const gibsMatch = raw.match(
+  const wms = gibsWmsUrl(def, 1024, 512);
+  if (wms) return wms;
+  return raw.replace("{z}", "0").replace("{y}", "0").replace("{x}", "0");
+}
+
+/**
+ * Build a GIBS WMS GetMap URL that returns a single equirectangular image
+ * covering the *entire* globe (-90..90 lat, -180..180 lon). Returns null
+ * for non-GIBS layers.
+ *
+ * We use this both for card thumbnails AND for the actual Cesium overlay,
+ * because the WMTS tile pyramid (EPSG:3857 GoogleMapsCompatible) only covers
+ * ±85° — anything applied through it leaves an empty polar cap and, for
+ * partial-hemisphere sources like GOES/Himawari, misaligns with the sphere
+ * so the user sees "circumference mismatch" gaps.
+ */
+function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string | null {
+  const raw = buildEarthLayerUrl(def);
+  const m = raw.match(
     /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/([^/]+)\/default\/([^/]+)\//,
   );
-  if (gibsMatch) {
-    const layerId = gibsMatch[1];
-    const time = gibsMatch[2]; // "default" or YYYY-MM-DD
-    const fmt = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
-    const params = new URLSearchParams({
-      SERVICE: "WMS",
-      REQUEST: "GetMap",
-      VERSION: "1.3.0",
-      LAYERS: layerId,
-      CRS: "EPSG:4326",
-      BBOX: "-90,-180,90,180",
-      WIDTH: "1024",
-      HEIGHT: "512",
-      FORMAT: fmt,
-      TRANSPARENT: fmt === "image/png" ? "true" : "false",
-      TIME: time,
-    });
-    return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
-  }
-  return raw.replace("{z}", "0").replace("{y}", "0").replace("{x}", "0");
+  if (!m) return null;
+  const layerId = m[1];
+  const time = m[2]; // "default" or YYYY-MM-DD
+  const fmt = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
+  const params = new URLSearchParams({
+    SERVICE: "WMS",
+    REQUEST: "GetMap",
+    VERSION: "1.3.0",
+    LAYERS: layerId,
+    CRS: "EPSG:4326",
+    BBOX: "-90,-180,90,180",
+    WIDTH: String(width),
+    HEIGHT: String(height),
+    FORMAT: fmt,
+    TRANSPARENT: fmt === "image/png" ? "true" : "false",
+    TIME: time,
+  });
+  return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
@@ -100,13 +120,28 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
   const addLayer = useCallback((def: EarthLayerDef) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    const url = buildEarthLayerUrl(def);
-    const provider = new UrlTemplateImageryProvider({
-      url,
-      maximumLevel: def.maxZoom ?? 9,
-      credit: def.attribution,
-    });
-    const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+
+    // Prefer GIBS WMS at high resolution — it covers the full sphere in
+    // EPSG:4326, so we no longer get the ±85° polar caps or the
+    // GoogleMapsCompatible sub-hemisphere gaps that made overlays look
+    // "smaller than the globe".
+    const wms = gibsWmsUrl(def, 4096, 2048);
+    let layer: ImageryLayer;
+    if (wms) {
+      const provider = new SingleTileImageryProvider({
+        url: wms,
+        rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+        credit: def.attribution,
+      });
+      layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+    } else {
+      const provider = new UrlTemplateImageryProvider({
+        url: buildEarthLayerUrl(def),
+        maximumLevel: def.maxZoom ?? 9,
+        credit: def.attribution,
+      });
+      layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+    }
     layer.alpha = 0.92;
     layerRefs.current[def.id] = layer;
   }, [viewerRef]);
