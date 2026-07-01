@@ -3833,7 +3833,7 @@ function SpaceshipPage() {
     if (mode === "google") {
       (viewer as any)._ensureGoogleDirectTileset?.();
     } else if (mode === "realistic") {
-      if (!(viewer as any)._googleDirectTileset) (viewer as any)._ensureRealisticTileset?.();
+      (viewer as any)._ensureRealisticTileset?.();
     } else if (mode === "osm") {
       (viewer as any)._ensureOsmTileset?.();
     }
