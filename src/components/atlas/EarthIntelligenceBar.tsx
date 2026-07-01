@@ -139,7 +139,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
         .then((provider) => {
           if (!viewer || viewer.isDestroyed()) return;
           // Bail if the user toggled the layer off before the image resolved.
-          if (layerRefs.current[def.id] !== PENDING) return;
+          if ((layerRefs.current[def.id] as unknown) !== PENDING) return;
           const real = viewer.scene.imageryLayers.addImageryProvider(provider);
           real.alpha = 0.92;
           layerRefs.current[def.id] = real;
