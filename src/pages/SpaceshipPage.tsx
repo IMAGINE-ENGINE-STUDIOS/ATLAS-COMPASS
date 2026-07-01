@@ -148,8 +148,8 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
   const sse = profile === "far" ? 24 : profile === "move" ? 16 : 12;
   try {
     ts.maximumScreenSpaceError = sse;
-    ts.cacheBytes = 1024 * TILE_MIB;
-    ts.maximumCacheOverflowBytes = 256 * TILE_MIB;
+    ts.cacheBytes = 512 * TILE_MIB;
+    ts.maximumCacheOverflowBytes = 128 * TILE_MIB;
     ts.skipLevelOfDetail = false;
     ts.dynamicScreenSpaceError = true;
     ts.dynamicScreenSpaceErrorDensity = 0.00278;
@@ -933,7 +933,7 @@ function SpaceshipPage() {
       // scheduler and the resolutionScale flips were the most visible cause
       // of "loading worse than Cesium defaults".
       tilesets.forEach((ts) => tuneAtlasTileset(ts, "boot"));
-      viewer.scene.globe.maximumScreenSpaceError = 2;
+      viewer.scene.globe.maximumScreenSpaceError = 8;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = false;
       try { viewer.scene.globe.tileCacheSize = 1000; } catch {}
@@ -2243,7 +2243,7 @@ function SpaceshipPage() {
     window.addEventListener("keydown", onEscFps);
     (viewer as any)._fpsCleanup = () => window.removeEventListener("keydown", onEscFps);
 
-    viewer.scene.globe.enableLighting = true;
+    viewer.scene.globe.enableLighting = false;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
     viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
@@ -2280,7 +2280,7 @@ function SpaceshipPage() {
         if (rt) tuneAtlasTileset(rt, "boot");
         if (ot) tuneAtlasTileset(ot, "boot");
         if (gt) tuneAtlasTileset(gt, "boot");
-        viewer.scene.globe.maximumScreenSpaceError = 2;
+        viewer.scene.globe.maximumScreenSpaceError = 8;
         viewer.scene.requestRender();
       }, 600);
     };
@@ -2290,7 +2290,7 @@ function SpaceshipPage() {
       window.removeEventListener("resize", onResize);
       document.removeEventListener("fullscreenchange", onResize);
     };
-    viewer.scene.globe.maximumScreenSpaceError = 2;
+    viewer.scene.globe.maximumScreenSpaceError = 8;
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Keep the globe visible as the fast first paint while photoreal tiles refine.
     // Atlas must start loading immediately, without waiting for the user to move.
@@ -2348,13 +2348,13 @@ function SpaceshipPage() {
       }
     } catch {}
 
-    // Visual polish: HDR + ACES tonemap, SSAO, FXAA/MSAA, unsharp, daylight atmosphere
+    // Visuals are intentionally neutral/fast: no HDR, SSAO, sharpen, or shader overlays.
     try { applyAtlasVisuals(viewer); } catch (err) { console.warn("[atlas-visuals] failed", err); }
 
     // Add world terrain
     createWorldTerrainAsync({
       requestWaterMask: false,
-      requestVertexNormals: true,
+      requestVertexNormals: false,
     }).then((terrain) => {
       if (!viewer.isDestroyed()) {
         viewer.terrainProvider = terrain;
@@ -2446,7 +2446,7 @@ function SpaceshipPage() {
       const G3D_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-3d-tiles/root.json?atlas_cache_bust=5`;
       (viewer as any)._googleDirectLoading = Cesium3DTileset.fromUrl(G3D_URL, {
         showCreditsOnScreen: false,
-        maximumNumberOfLoadedTiles: 512,
+        maximumNumberOfLoadedTiles: 256,
       } as any).then((tileset) => {
         if (viewer.isDestroyed() || !showBuildingsRef.current || requestedMode !== "google" || viewModeRef.current !== "google" || requestedSerial !== ((viewer as any).__atlasMapSerial || 0)) {
           try { tileset.destroy?.(); } catch {}
