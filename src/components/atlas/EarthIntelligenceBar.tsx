@@ -23,6 +23,10 @@ import {
   type EarthLayerDef,
 } from "@/hooks/useEarthIntelligence";
 
+// Sentinel used in `layerRefs` while an async SingleTileImageryProvider is
+// still resolving. Lets `removeLayer` cancel a pending add.
+const PENDING = { __pending: true } as const;
+
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
   onClose: () => void;
@@ -126,24 +130,36 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     // GoogleMapsCompatible sub-hemisphere gaps that made overlays look
     // "smaller than the globe".
     const wms = gibsWmsUrl(def, 4096, 2048);
-    let layer: ImageryLayer;
     if (wms) {
-      const provider = new SingleTileImageryProvider({
-        url: wms,
+      // SingleTileImageryProvider requires async construction (Cesium ≥ 1.104).
+      SingleTileImageryProvider.fromUrl(wms, {
         rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
         credit: def.attribution,
-      });
-      layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      })
+        .then((provider) => {
+          if (!viewer || viewer.isDestroyed()) return;
+          // Bail if the user toggled the layer off before the image resolved.
+          if ((layerRefs.current[def.id] as unknown) !== PENDING) return;
+          const real = viewer.scene.imageryLayers.addImageryProvider(provider);
+          real.alpha = 0.92;
+          layerRefs.current[def.id] = real;
+        })
+        .catch((e) => {
+          console.warn("[earth-intel] GIBS WMS load failed", def.id, e);
+          delete layerRefs.current[def.id];
+        });
+      // Marker so removeLayer/toggle can see the request is in flight.
+      layerRefs.current[def.id] = PENDING as unknown as ImageryLayer;
     } else {
       const provider = new UrlTemplateImageryProvider({
         url: buildEarthLayerUrl(def),
         maximumLevel: def.maxZoom ?? 9,
         credit: def.attribution,
       });
-      layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      const layer = viewer.scene.imageryLayers.addImageryProvider(provider);
+      layer.alpha = 0.92;
+      layerRefs.current[def.id] = layer;
     }
-    layer.alpha = 0.92;
-    layerRefs.current[def.id] = layer;
   }, [viewerRef]);
 
   const toggle = useCallback((def: EarthLayerDef) => {
