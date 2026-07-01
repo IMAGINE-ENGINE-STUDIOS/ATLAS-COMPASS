@@ -3,7 +3,7 @@
  * Stale tiles are served instantly, fresh tiles stream directly to Cesium, and
  * cache maintenance is batched so rapid camera movement cannot freeze loading.
  */
-const CACHE = "atlas-tiles-v4";
+const CACHE = "atlas-tiles-v5";
 const MAX_ENTRIES = 1800;
 const TRIM_EVERY_PUTS = 25;
 const MAX_CACHEABLE_BYTES = 32 * 1024 * 1024;
@@ -11,6 +11,10 @@ const MAX_CACHEABLE_BYTES = 32 * 1024 * 1024;
 const TILE_HOST_RE = /(assets\.ion\.cesium\.com|assets\.cesium\.com|api\.cesium\.com|tile\.googleapis\.com|tile\.openstreetmap\.org|data\.osmbuildings\.org)/i;
 const TILE_PATH_RE = /\/functions\/v1\/google-3d-tiles\//i;
 const TILE_EXT_RE = /\.(glb|b3dm|i3dm|pnts|cmpt|terrain|json|jpg|jpeg|png|webp|ktx2|bin)(\?|$)/i;
+// Tileset manifest / root docs: these carry session tokens & child-tile URLs
+// that MUST be fresh. Serving a stale one from cache causes 404 cascades on
+// every child tile until the background revalidation completes.
+const MANIFEST_RE = /\.json(\?|$)/i;
 
 self.addEventListener("install", () => { self.skipWaiting(); });
 self.addEventListener("activate", (event) => {
@@ -52,9 +56,9 @@ async function trim(cache) {
   const keys = await cache.keys();
   if (keys.length <= MAX_ENTRIES) return;
   const toDelete = keys.length - MAX_ENTRIES;
-  for (let i = 0; i < toDelete; i += 1) {
-    await cache.delete(keys[i]);
-  }
+  // Parallelize deletes — a serial loop at 1800 entries could stall the SW
+  // event loop for hundreds of ms and starve concurrent tile fetches.
+  await Promise.all(keys.slice(0, toDelete).map((k) => cache.delete(k)));
 }
 
 function scheduleTrim(cache) {
@@ -82,9 +86,15 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   if (!shouldCache(req.url)) return;
 
+  const isManifest = MANIFEST_RE.test(new URL(req.url).pathname);
+
   event.respondWith((async () => {
     const cache = await getCache();
-    const cached = await cache.match(req, { ignoreVary: true });
+    // For manifests: skip the cache entirely on the read path. Manifests are
+    // small (a few KB) and always network-first so Cesium can never receive a
+    // stale session token or a stale child-tile URL. The response is still
+    // cached in the background as an offline fallback (see below).
+    const cached = isManifest ? null : await cache.match(req, { ignoreVary: true });
     const networkPromise = fetch(req).then((res) => {
       // Do not await/cache inside the response path: Cesium must receive the
       // network stream immediately, otherwise tile loading appears stalled.
@@ -100,6 +110,12 @@ self.addEventListener("fetch", (event) => {
     try {
       return await networkPromise;
     } catch {
+      // Only manifests reach here after network failure — fall back to any
+      // stale cached copy as a last resort so the app doesn't crash offline.
+      if (isManifest) {
+        const stale = await cache.match(req, { ignoreVary: true });
+        if (stale) return stale;
+      }
       return new Response("", { status: 504, statusText: "tile offline" });
     }
   })());
