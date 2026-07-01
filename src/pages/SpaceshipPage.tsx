@@ -251,11 +251,8 @@ const applyAtlasMapVisibility = (
   // must NOT render underneath — the user explicitly does not want a Cesium
   // layer behind Google 3D Tiles.
   const photoreal = (mode === "google" || mode === "realistic") && showBuildings;
-  // If any Earth Intelligence overlay is active we MUST keep the globe visible
-  // (imagery layers only render on the globe surface). Overlays are mostly
-  // translucent atmospheric/weather rasters, so leaving the globe visible
-  // under photoreal photoreal is acceptable — the overlay reads on top of
-  // open ground while buildings still occlude where they exist.
+  // Earth Intelligence overlays are attached directly to the active 3D tileset
+  // by EarthIntelligenceBar in photoreal modes, so do not show a second globe.
   viewer.scene.globe.show = !photoreal;
   // Skybox / atmosphere still render; only the globe surface is suppressed.
   viewer.scene.requestRender?.();
@@ -4034,6 +4031,7 @@ function SpaceshipPage() {
       (viewer as any)._ensureOsmTileset?.();
     }
     applyAtlasMapVisibility(viewer, mode, true);
+    window.dispatchEvent(new CustomEvent("atlas:earth-intel-retarget"));
     keepAtlasRenderingDuringBoot(viewer, 10000);
     setViewMode(mode);
     setShowBuildings(true);
@@ -4055,12 +4053,13 @@ function SpaceshipPage() {
       }
     }
     applyAtlasMapVisibility(viewer, viewMode, newShow);
+    window.dispatchEvent(new CustomEvent("atlas:earth-intel-retarget"));
     setShowBuildings(newShow);
   }, [showBuildings, viewMode]);
 
-  // Re-apply map visibility whenever an Earth Intelligence overlay is toggled
-  // so that realistic / google 3D / osm modes unhide the globe (which is what
-  // ImageryLayers render on top of).
+  // Re-apply map visibility whenever an Earth Intelligence overlay is toggled.
+  // The overlays are re-targeted by EarthIntelligenceBar itself; this keeps the
+  // one-active-map-mode rules in sync without re-showing a second globe.
   useEffect(() => {
     const handler = () => {
       const v = viewerRef.current;

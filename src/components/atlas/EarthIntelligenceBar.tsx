@@ -12,8 +12,8 @@ import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
-  SingleTileImageryProvider,
-  Rectangle,
+  WebMapServiceImageryProvider,
+  GeographicTilingScheme,
   ImageryLayer,
   ImageryLayerCollection,
 } from "cesium";
@@ -24,10 +24,6 @@ import {
   type EarthLayerDef,
 } from "@/hooks/useEarthIntelligence";
 
-// Sentinel used in `layerRefs` while an async SingleTileImageryProvider is
-// still resolving. Lets `removeLayer` cancel a pending add.
-const PENDING = { __pending: true } as const;
-
 /**
  * Return the ImageryLayerCollection the overlay should be added to.
  * When a photoreal 3D Tileset is active (Google 3D / Realistic / OSM
@@ -37,7 +33,11 @@ const PENDING = { __pending: true } as const;
  */
 function targetLayers(viewer: any): { collection: ImageryLayerCollection; onTileset: boolean } {
   const v = viewer as any;
-  const tileset = v._googleDirectTileset || v._realisticTileset || v._osmTileset;
+  // Photoreal modes hide the Cesium globe, so imagery must be draped on the
+  // photoreal tileset. OSM mode keeps the globe visible under OSM buildings,
+  // so use the normal scene imagery collection there.
+  const tileset = [v._googleDirectTileset, v._realisticTileset]
+    .find((ts) => ts?.imageryLayers && ts.show !== false);
   if (tileset && tileset.imageryLayers) {
     return { collection: tileset.imageryLayers as ImageryLayerCollection, onTileset: true };
   }
@@ -85,7 +85,33 @@ function thumbUrl(def: EarthLayerDef): string {
   const raw = buildEarthLayerUrl(def);
   const wms = gibsWmsUrl(def, 1024, 512);
   if (wms) return wms;
+  if (def.id === "hillshade") {
+    // OSM US hillshade starts at z=1; z=0 returns 404.
+    return raw.replace("{z}", "1").replace("{y}", "0").replace("{x}", "0");
+  }
   return raw.replace("{z}", "0").replace("{y}", "0").replace("{x}", "0");
+}
+
+function parseGibsLayer(def: EarthLayerDef): { layerId: string; time: string; format: string } | null {
+  const raw = buildEarthLayerUrl(def);
+  const marker = "/wmts/epsg3857/best/";
+  const markerIndex = raw.indexOf(marker);
+  if (markerIndex < 0) return null;
+
+  const parts = raw.slice(markerIndex + marker.length).split("/");
+  const layerId = parts[0];
+  if (!layerId || parts[1] !== "default") return null;
+
+  // GIBS WMTS paths are either:
+  //   layer/default/{date-or-default}/GoogleMapsCompatible.../{z}/{y}/{x}.png
+  // or for non-temporal layers:
+  //   layer/default/GoogleMapsCompatible.../{z}/{y}/{x}.png
+  // The previous regex treated the tile matrix set as TIME for non-temporal
+  // layers (e.g. Black Marble), causing WMS failures. Detect it explicitly.
+  const maybeTime = parts[2];
+  const time = maybeTime && !maybeTime.startsWith("GoogleMapsCompatible") ? maybeTime : "default";
+  const format = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
+  return { layerId, time, format };
 }
 
 /**
@@ -100,59 +126,89 @@ function thumbUrl(def: EarthLayerDef): string {
  * so the user sees "circumference mismatch" gaps.
  */
 function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string | null {
-  const raw = buildEarthLayerUrl(def);
-  const m = raw.match(
-    /gibs\.earthdata\.nasa\.gov\/wmts\/epsg3857\/best\/([^/]+)\/default\/([^/]+)\//,
-  );
-  if (!m) return null;
-  const layerId = m[1];
-  const time = m[2]; // "default" or YYYY-MM-DD
-  const fmt = def.format === "jpg" || def.format === "jpeg" ? "image/jpeg" : "image/png";
+  const gibs = parseGibsLayer(def);
+  if (!gibs) return null;
   const params = new URLSearchParams({
     SERVICE: "WMS",
     REQUEST: "GetMap",
     VERSION: "1.3.0",
-    LAYERS: layerId,
+    LAYERS: gibs.layerId,
     CRS: "EPSG:4326",
     BBOX: "-90,-180,90,180",
     WIDTH: String(width),
     HEIGHT: String(height),
-    FORMAT: fmt,
-    TRANSPARENT: fmt === "image/png" ? "true" : "false",
-    TIME: time,
+    FORMAT: gibs.format,
+    TRANSPARENT: gibs.format === "image/png" ? "true" : "false",
+    TIME: gibs.time,
   });
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
+}
+
+function createEarthImageryProvider(def: EarthLayerDef) {
+  const gibs = parseGibsLayer(def);
+  if (gibs) {
+    // Use tiled EPSG:4326 WMS for the real overlay. It covers the full globe
+    // (no WebMercator polar gaps), has explicit tile dimensions (no
+    // SingleTile tileWidth errors), and drapes correctly on 3D Tilesets.
+    return new WebMapServiceImageryProvider({
+      url: "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
+      layers: gibs.layerId,
+      tilingScheme: new GeographicTilingScheme(),
+      tileWidth: 512,
+      tileHeight: 512,
+      maximumLevel: def.maxZoom ?? 9,
+      credit: def.attribution,
+      enablePickFeatures: false,
+      parameters: {
+        service: "WMS",
+        version: "1.1.1",
+        request: "GetMap",
+        styles: "",
+        format: gibs.format,
+        transparent: gibs.format === "image/png" ? "true" : "false",
+        time: gibs.time,
+        exceptions: "application/vnd.ogc.se_inimage",
+      },
+    });
+  }
+
+  return new UrlTemplateImageryProvider({
+    url: buildEarthLayerUrl(def),
+    maximumLevel: def.maxZoom ?? 9,
+    minimumLevel: def.id === "hillshade" ? 1 : 0,
+    credit: def.attribution,
+  });
 }
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
   const [active, setActive] = useState<Record<string, boolean>>({});
   const layerRefs = useRef<Record<string, ImageryLayer>>({});
+  const activeDefs = useRef<Record<string, EarthLayerDef>>({});
   const scrollerRef = useRef<HTMLDivElement>(null);
 
-  const removeLayer = useCallback((id: string) => {
+  const syncOverlayFlag = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const anyActive = Object.keys(activeDefs.current).length > 0;
+    (viewer as any)._earthIntelActive = anyActive;
+    window.dispatchEvent(new CustomEvent("atlas:earth-intel-changed", { detail: { active: anyActive } }));
+  }, [viewerRef]);
+
+  const removeLayer = useCallback((id: string, forget = true) => {
     const viewer = viewerRef.current;
     const layer = layerRefs.current[id];
     if (viewer && layer && !viewer.isDestroyed()) {
       // Try both collections since the tileset may have been destroyed / swapped.
       try { viewer.scene.imageryLayers.remove(layer, true); } catch { /* noop */ }
       const v = viewer as any;
-      const ts = v._googleDirectTileset || v._realisticTileset || v._osmTileset;
-      try { ts?.imageryLayers?.remove(layer, true); } catch { /* noop */ }
+      [v._googleDirectTileset, v._realisticTileset, v._osmTileset].forEach((ts) => {
+        try { ts?.imageryLayers?.remove(layer, true); } catch { /* noop */ }
+      });
     }
     delete layerRefs.current[id];
+    if (forget) delete activeDefs.current[id];
     syncOverlayFlag();
-  }, [viewerRef]);
-
-  // Flip a viewer-level flag so applyAtlasMapVisibility keeps the globe
-  // visible whenever at least one Earth Intelligence overlay is active.
-  // This is what makes overlays render on realistic / google 3D / osm modes.
-  const syncOverlayFlag = useCallback(() => {
-    const viewer = viewerRef.current;
-    if (!viewer || viewer.isDestroyed()) return;
-    const anyActive = Object.keys(layerRefs.current).length > 0;
-    (viewer as any)._earthIntelActive = anyActive;
-    window.dispatchEvent(new CustomEvent("atlas:earth-intel-changed", { detail: { active: anyActive } }));
-  }, [viewerRef]);
+  }, [viewerRef, syncOverlayFlag]);
 
   const addLayer = useCallback((def: EarthLayerDef) => {
     const viewer = viewerRef.current;
@@ -160,45 +216,18 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
 
     const { collection, onTileset } = targetLayers(viewer);
 
-    // Prefer GIBS WMS at high resolution — it covers the full sphere in
-    // EPSG:4326, so we no longer get the ±85° polar caps or the
-    // GoogleMapsCompatible sub-hemisphere gaps that made overlays look
-    // "smaller than the globe".
-    const wms = gibsWmsUrl(def, 4096, 2048);
-    if (wms) {
-      // SingleTileImageryProvider requires async construction (Cesium ≥ 1.104).
-      SingleTileImageryProvider.fromUrl(wms, {
-        rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
-        credit: def.attribution,
-      })
-        .then((provider) => {
-          if (!viewer || viewer.isDestroyed()) return;
-          // Bail if the user toggled the layer off before the image resolved.
-          if ((layerRefs.current[def.id] as unknown) !== PENDING) return;
-          const dest = targetLayers(viewer);
-          const real = dest.collection.addImageryProvider(provider);
-          real.alpha = 0.92;
-          layerRefs.current[def.id] = real;
-        })
-        .catch((e) => {
-          console.warn("[earth-intel] GIBS WMS load failed", def.id, e);
-          delete layerRefs.current[def.id];
-        });
-      // Marker so removeLayer/toggle can see the request is in flight.
-      layerRefs.current[def.id] = PENDING as unknown as ImageryLayer;
-    } else {
-      const provider = new UrlTemplateImageryProvider({
-        url: buildEarthLayerUrl(def),
-        maximumLevel: def.maxZoom ?? 9,
-        credit: def.attribution,
-      });
-      const layer = collection.addImageryProvider(provider);
-      layer.alpha = 0.92;
-      layerRefs.current[def.id] = layer;
-    }
+    // If we are re-targeting after a map-mode change, remove the old layer
+    // first but keep the dataset marked active.
+    if (layerRefs.current[def.id]) removeLayer(def.id, false);
+
+    const provider = createEarthImageryProvider(def);
+    const layer = collection.addImageryProvider(provider);
+    layer.alpha = 0.92;
+    layerRefs.current[def.id] = layer;
+    activeDefs.current[def.id] = def;
     void onTileset; // (info only — behavior identical either way)
     syncOverlayFlag();
-  }, [viewerRef]);
+  }, [viewerRef, removeLayer, syncOverlayFlag]);
 
   const toggle = useCallback((def: EarthLayerDef) => {
     setActive((prev) => {
@@ -217,9 +246,27 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
   // Clear all on unmount
   useEffect(() => {
     return () => {
-      Object.keys(layerRefs.current).forEach(removeLayer);
+      Object.keys(layerRefs.current).forEach((id) => removeLayer(id));
     };
   }, [removeLayer]);
+
+  // If Google/realistic/OSM finishes loading after the user toggled a dataset,
+  // or the user switches map modes, re-add active overlays to the current
+  // target collection. Otherwise they can remain attached to the hidden globe
+  // and appear to be "not loading" in photoreal modes.
+  useEffect(() => {
+    const retarget = () => {
+      const defs = Object.values(activeDefs.current);
+      if (!defs.length) return;
+      defs.forEach((def) => addLayer(def));
+    };
+    window.addEventListener("cesium-tileset-ready", retarget);
+    window.addEventListener("atlas:earth-intel-retarget", retarget);
+    return () => {
+      window.removeEventListener("cesium-tileset-ready", retarget);
+      window.removeEventListener("atlas:earth-intel-retarget", retarget);
+    };
+  }, [addLayer]);
 
   const items = useMemo(() => EARTH_LAYERS.slice(), []);
 
