@@ -134,7 +134,7 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
   //  - dynamicScreenSpaceError ON (street-level recommended setting)
   // SSE tweaked slightly per profile; everything else stays at Cesium defaults
   // so we never fight the engine's own refinement scheduler.
-  const sse = profile === "far" ? 24 : profile === "idle" ? 12 : 16;
+  const sse = profile === "far" ? 24 : profile === "move" ? 16 : 12;
   try {
     ts.maximumScreenSpaceError = sse;
     ts.cacheBytes = 1024 * TILE_MIB;
