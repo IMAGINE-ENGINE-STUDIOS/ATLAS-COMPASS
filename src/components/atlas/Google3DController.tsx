@@ -25,8 +25,8 @@ type Settings = {
 const DEFAULTS: Settings = {
   // Performance-first defaults: foveated + progressive loading keeps the
   // viewport realistic without flooding the network/GPU with off-screen tiles.
-  sse: 14,
-  cacheMiB: 1024,
+  sse: 16,
+  cacheMiB: 512,
   preloadWhenHidden: false,
   loadSiblings: false,
   preloadFlightDestinations: false,
@@ -39,7 +39,7 @@ const DEFAULTS: Settings = {
   showCredits: true,
 };
 
-const LS_KEY = "atlas.google3d.settings.v5";
+const LS_KEY = "atlas.google3d.settings.v6";
 
 function load(): Settings {
   try {
@@ -69,7 +69,7 @@ export default function Google3DController({ viewer, visible }: Props) {
       ts.maximumScreenSpaceError = Math.max(1, s.sse);
       ts.cacheBytes = Math.max(64, s.cacheMiB) * 1024 * 1024;
       ts.maximumMemoryUsage = Math.min(1024, Math.max(128, s.cacheMiB));
-      ts.maximumNumberOfLoadedTiles = 512;
+      ts.maximumNumberOfLoadedTiles = 256;
       ts.preloadWhenHidden = s.preloadWhenHidden;
       ts.loadSiblings = s.loadSiblings;
       ts.preloadFlightDestinations = s.preloadFlightDestinations;
@@ -168,7 +168,7 @@ export default function Google3DController({ viewer, visible }: Props) {
                   </button>
                 ))}
               </div>
-              <p className="text-[8px] text-white/40 mt-0.5">HDR tonemap + SSAO + sharpening + atmosphere.</p>
+              <p className="text-[8px] text-white/40 mt-0.5">Neutral fast rendering; no SSAO, sharpen, or HDR shader overlay.</p>
             </div>
             <div className="h-px bg-white/10 my-1" />
 
