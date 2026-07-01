@@ -4,6 +4,24 @@ import { Star } from "lucide-react";
 import { MODEL_CATEGORIES, getCategory } from "./ModelLabelsOverlay";
 import { isSelected, subscribeSelection } from "@/lib/atlasSelection";
 
+const EARTH_RADIUS_M = 6371000;
+
+function isWorldPointInFrontViewport(viewer: Viewer, world: Cartesian3, margin = 24) {
+  const camera = viewer.camera;
+  const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
+  if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) return null;
+  // Reject anchors hidden by the far side of the planet. Without this, Cesium's
+  // window projection can place labels for points behind the globe over the view.
+  if (Cartesian3.dot(world, camera.positionWC) < EARTH_RADIUS_M * EARTH_RADIUS_M * 0.98) return null;
+  const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+  if (!win) return null;
+  const canvas = viewer.scene.canvas;
+  const cw = canvas.clientWidth || 0;
+  const ch = canvas.clientHeight || 0;
+  if (win.x < -margin || win.y < -margin || win.x > cw + margin || win.y > ch + margin) return null;
+  return win;
+}
+
 function faviconFor(website?: string): string | null {
   if (!website) return null;
   try {
@@ -62,17 +80,12 @@ export default function AtlasTagsOverlay({
 
   const recompute = useMemo(() => () => {
     if (!viewer || viewer.isDestroyed()) { setClusters([]); return; }
-    const canvas = viewer.scene.canvas;
-    const cw = canvas.clientWidth || 0;
-    const ch = canvas.clientHeight || 0;
-    const margin = 220;
     const visible: { tag: AtlasTag; x: number; y: number; cellX: number; cellY: number }[] = [];
     for (const t of tags) {
       try {
         const world = Cartesian3.fromDegrees(t.lng, t.lat, (t.alt || 0) + 8);
-        const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+        const win = isWorldPointInFrontViewport(viewer, world);
         if (!win) continue;
-        if (win.x < -margin || win.y < -margin || win.x > cw + margin || win.y > ch + margin) continue;
         visible.push({
           tag: t,
           x: win.x,
@@ -132,7 +145,7 @@ export default function AtlasTagsOverlay({
       out
         .filter(c => c.members.length >= minMembers)
         .sort((a, b) => b.members.length - a.members.length)
-        .slice(0, 300)
+        .slice(0, 160)
         .map(c => ({
           key: c.members.length === 1
             ? c.members[0].id
@@ -178,21 +191,16 @@ export default function AtlasTagsOverlay({
     const sync = () => {
       if (!viewer || viewer.isDestroyed()) return;
       const canvas = viewer.scene.canvas;
-      const cw = canvas.clientWidth;
-      const ch = canvas.clientHeight;
       for (const c of clusters) {
         const node = nodeRefs.current.get(c.key);
         if (!node) continue;
         let x = 0, y = 0;
         try {
           const world = Cartesian3.fromDegrees(c.anchorLng, c.anchorLat, c.anchorAlt + 8);
-          const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+          const win = isWorldPointInFrontViewport(viewer, world, 32);
           if (!win) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
           x = win.x; y = win.y;
         } catch { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
-        if (x < -200 || y < -80 || x > cw + 200 || y > ch + 200) {
-          node.style.opacity = "0"; node.style.pointerEvents = "none"; continue;
-        }
         node.style.opacity = "1";
         node.style.pointerEvents = "auto";
         node.style.transform = `translate3d(${x}px, ${y - 14}px, 0) translate(-50%, -100%)`;
