@@ -207,10 +207,14 @@ const applyAtlasMapVisibility = (
   if (realistic) realistic.show = mode === "realistic" && showBuildings;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
-  // Keep the terrain/imagery globe visible as an immediate fallback under
-  // photoreal tiles. Hiding it made Atlas look like it loaded in black/chunky
-  // parts until every nearby 3D tile finished streaming.
-  viewer.scene.globe.show = true;
+  // Only show the Cesium base globe (terrain + imagery) when it is actually
+  // the active surface (OSM buildings sit on top of it, or buildings are
+  // turned off entirely). In google / realistic photoreal modes the globe
+  // must NOT render underneath — the user explicitly does not want a Cesium
+  // layer behind Google 3D Tiles.
+  const photoreal = (mode === "google" || mode === "realistic") && showBuildings;
+  viewer.scene.globe.show = !photoreal;
+  // Skybox / atmosphere still render; only the globe surface is suppressed.
   viewer.scene.requestRender?.();
 };
 
