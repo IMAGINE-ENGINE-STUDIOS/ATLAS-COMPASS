@@ -3838,6 +3838,7 @@ function SpaceshipPage() {
       (viewer as any)._ensureOsmTileset?.();
     }
     applyAtlasMapVisibility(viewer, mode, true);
+    keepAtlasRenderingDuringBoot(viewer, 8000);
     setViewMode(mode);
     setShowBuildings(true);
   }, []);
