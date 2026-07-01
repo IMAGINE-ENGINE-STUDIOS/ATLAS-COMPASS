@@ -171,20 +171,29 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
   //  - dynamicScreenSpaceError ON (street-level recommended setting)
   // SSE tweaked slightly per profile; everything else stays at Cesium defaults
   // so we never fight the engine's own refinement scheduler.
-  const sse = profile === "far" ? 24 : profile === "move" ? 16 : 12;
+  // Push more detail across the board. Lower SSE = higher LOD = sharper tiles.
+  // The `move` profile stays a hair looser to avoid stutters while panning.
+  const sse = profile === "far" ? 20 : profile === "move" ? 12 : 8;
   try {
     ts.maximumScreenSpaceError = sse;
-    ts.cacheBytes = 512 * TILE_MIB;
-    ts.maximumCacheOverflowBytes = 128 * TILE_MIB;
+    // Aggressive in-memory cache: keep a *much* larger set of already-loaded
+    // tiles pinned so revisits (walking back around a corner, orbiting, or
+    // toggling map modes) never re-download. Combined with the browser disk
+    // cache in `tiles-sw.js`, this virtually eliminates re-fetches for tiles
+    // the user has already seen this session.
+    ts.cacheBytes = 2048 * TILE_MIB;               // 2 GiB in RAM
+    ts.maximumCacheOverflowBytes = 512 * TILE_MIB; // + 512 MiB slack
     ts.skipLevelOfDetail = false;
     ts.dynamicScreenSpaceError = true;
     ts.dynamicScreenSpaceErrorDensity = 0.00278;
     ts.dynamicScreenSpaceErrorFactor = 4;
     ts.cullRequestsWhileMoving = true;
-    ts.preloadWhenHidden = false;
-    ts.preloadFlightDestinations = false;
+    // Preload tiles that will be visible after camera flights and keep hidden
+    // tiles warm so returning to a view is instant.
+    ts.preloadWhenHidden = true;
+    ts.preloadFlightDestinations = true;
     ts.immediatelyLoadDesiredLevelOfDetail = false;
-    ts.loadSiblings = false;
+    ts.loadSiblings = true;
     ts.foveatedScreenSpaceError = true;
     ts.shadows = 0;
   } catch {}
