@@ -77,6 +77,10 @@ import AtlasFreePlayOverlay, {
 } from "@/components/atlas/AtlasFreePlayOverlay";
 import { importMapToAtlas, pickMapFile } from "@/lib/atlasMapImport";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
+import {
+  setAtlasCameraAltitude,
+  useAtlasCameraAltitude,
+} from "@/lib/atlasCameraAltitude";
 import EarthContextMenu, { type EarthLoc } from "@/components/atlas/EarthContextMenu";
 import type { FileClipboardEntry } from "@/lib/fileClipboard";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "@/lib/atlasLevelGeo";
