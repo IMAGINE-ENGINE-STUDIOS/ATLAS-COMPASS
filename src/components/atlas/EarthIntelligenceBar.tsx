@@ -13,7 +13,6 @@ import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
   SingleTileImageryProvider,
-  GeographicTilingScheme,
   ImageryLayer,
   ImageryLayerCollection,
 } from "cesium";
