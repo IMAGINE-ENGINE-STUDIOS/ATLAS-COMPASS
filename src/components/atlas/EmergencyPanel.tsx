@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, X, Sparkles, ShieldCheck, RefreshCw, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import GlassPanel from "@/components/ui/GlassPanel";
 import { toast } from "sonner";
 
 type ResourceRow = {
@@ -83,7 +82,7 @@ export default function EmergencyPanel({ open, onClose }: Props) {
 
   return (
     <div className="absolute top-16 right-3 sm:right-4 z-40 w-[calc(100vw-1.5rem)] max-w-sm">
-      <GlassPanel className="p-3 border-red-500/40 bg-red-950/30">
+      <div className="p-3 rounded-xl border border-red-500/40 bg-red-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(239,68,68,0.35)]">
         <div className="flex items-center gap-2 mb-2">
           <AlertTriangle className="w-4 h-4 text-red-400 animate-pulse" />
           <span className="text-sm font-bold text-red-200 tracking-wide">EMERGENCY MODE</span>
@@ -164,7 +163,7 @@ export default function EmergencyPanel({ open, onClose }: Props) {
             </div>
           ))}
         </div>
-      </GlassPanel>
+      </div>
     </div>
   );
 }
