@@ -50,7 +50,7 @@ function isWorldPointInFront(viewer: Viewer, world: Cartesian3) {
   const camera = viewer.camera;
   const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
   if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) return false;
-  return Cartesian3.dot(world, camera.positionWC) >= EARTH_RADIUS_M * EARTH_RADIUS_M * 0.98;
+  return Cartesian3.dot(world, camera.positionWC) >= EARTH_RADIUS_M * EARTH_RADIUS_M;
 }
 
 const THREE_TO_ENU = (() => {
