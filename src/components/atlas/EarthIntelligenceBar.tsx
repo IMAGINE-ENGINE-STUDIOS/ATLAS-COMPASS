@@ -36,10 +36,8 @@ const PENDING = { __pending: true } as const;
  * Falls back to the globe's imagery layers otherwise.
  */
 function targetLayers(viewer: any): { collection: ImageryLayerCollection; onTileset: boolean } {
-  const tileset =
-    viewer._googleDirectTileset ||
-    viewer._realisticTileset ||
-    viewer._osmTileset;
+  const v = viewer as any;
+  const tileset = v._googleDirectTileset || v._realisticTileset || v._osmTileset;
   if (tileset && tileset.imageryLayers) {
     return { collection: tileset.imageryLayers as ImageryLayerCollection, onTileset: true };
   }
@@ -137,7 +135,8 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     if (viewer && layer && !viewer.isDestroyed()) {
       // Try both collections since the tileset may have been destroyed / swapped.
       try { viewer.scene.imageryLayers.remove(layer, true); } catch { /* noop */ }
-      const ts = viewer._googleDirectTileset || viewer._realisticTileset || viewer._osmTileset;
+      const v = viewer as any;
+      const ts = v._googleDirectTileset || v._realisticTileset || v._osmTileset;
       try { ts?.imageryLayers?.remove(layer, true); } catch { /* noop */ }
     }
     delete layerRefs.current[id];
