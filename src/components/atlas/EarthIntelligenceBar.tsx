@@ -13,7 +13,7 @@ import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
   WebMapServiceImageryProvider,
-  Rectangle,
+  GeographicTilingScheme,
   ImageryLayer,
   ImageryLayerCollection,
 } from "cesium";
@@ -153,7 +153,7 @@ function createEarthImageryProvider(def: EarthLayerDef) {
     return new WebMapServiceImageryProvider({
       url: "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
       layers: gibs.layerId,
-      rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+      tilingScheme: new GeographicTilingScheme(),
       tileWidth: 512,
       tileHeight: 512,
       maximumLevel: def.maxZoom ?? 9,
