@@ -30,6 +30,7 @@ import ModelLabelsOverlay, { MODEL_CATEGORIES } from "@/components/atlas/ModelLa
 import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
 import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import Google3DController from "@/components/atlas/Google3DController";
+import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
 import {
   amenityToCategoryId,
   clearSelected,
