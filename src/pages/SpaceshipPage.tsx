@@ -5376,6 +5376,21 @@ function SpaceshipPage() {
                     <Layers className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Geo</span>
                   </button>
+                  {/* Tile Intelligence — rules, actions, datasets, AI insights */}
+                  <button
+                    onClick={() => { setTileIntelGeofenceId(null); setTileIntelOpen((v) => !v); }}
+                    aria-pressed={tileIntelOpen}
+                    title="Tile Intelligence — rules, actions, datasets, AI"
+                    className={`shrink-0 h-7 px-2 rounded-md flex items-center gap-1 border font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      tileIntelOpen
+                        ? "bg-fuchsia-500/25 border-fuchsia-300 text-fuchsia-100 shadow-[0_0_14px_rgba(217,70,239,0.55)]"
+                        : "bg-white/[0.04] border-white/20 text-white/80 hover:text-white hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <Brain className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">TI</span>
+                  </button>
+                  <NotificationsBell />
                   {/* SOS — Emergency Mode toggle */}
                   <button
                     onClick={() => {
