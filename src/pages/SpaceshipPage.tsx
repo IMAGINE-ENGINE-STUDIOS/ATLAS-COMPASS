@@ -32,6 +32,8 @@ import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import Google3DController from "@/components/atlas/Google3DController";
 import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
 import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
+import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligencePanel";
+import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import {
   amenityToCategoryId,
   clearSelected,
