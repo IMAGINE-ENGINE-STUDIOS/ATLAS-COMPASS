@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search, PersonStanding, FileUp, Sparkles } from "lucide-react";
+import { Copy, ClipboardPaste, Share2, MapPin, Layers, Loader2, Search, PersonStanding, FileUp, Sparkles, Brain } from "lucide-react";
 import { SPLAT_PIN_EVENT } from "@/components/atlas/AtlasSplatUploader";
 import { toast } from "sonner";
 import { copyToClipboard, getClipboard, type FileClipboardEntry } from "@/lib/fileClipboard";
 import { supabase } from "@/integrations/supabase/client";
+import { createGeofence } from "@/lib/tileIntel/geofences";
+import { lngLatToTile } from "@/components/atlas/geofence/tileMath";
 
 export interface EarthLoc { lat: number; lng: number; alt: number }
 
@@ -147,6 +149,24 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
             />
           )}
           <MenuItem icon={<MapPin className="w-3.5 h-3.5" />} label="Drop POI here" onClick={() => { onCreatePOI(loc); onClose(); }} />
+          <MenuItem
+            icon={<Brain className="w-3.5 h-3.5 text-fuchsia-300" />}
+            label="Make Intelligent (Tile Intel)"
+            onClick={async () => {
+              try {
+                const z = 18;
+                const t = lngLatToTile(loc.lng, loc.lat, z);
+                const gf = await createGeofence({
+                  name: `Point ${loc.lat.toFixed(3)}, ${loc.lng.toFixed(3)}`,
+                  color: "#d946ef", zoom: z,
+                  tile_set: [t], polygon: null,
+                });
+                window.dispatchEvent(new CustomEvent("atlas:open-tile-intel", { detail: { geofenceId: gf.id } }));
+                toast.success("Geofence created — attach rules");
+              } catch (e) { toast.error(String((e as any)?.message ?? e)); }
+              onClose();
+            }}
+          />
           <MenuItem
             icon={<Sparkles className="w-3.5 h-3.5 text-fuchsia-300" />}
             label="Pin 3D Splat here…"
