@@ -518,6 +518,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          ai_preferences: Json
           avatar_url: string | null
           created_at: string
           display_name: string | null
@@ -526,6 +527,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          ai_preferences?: Json
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -534,6 +536,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          ai_preferences?: Json
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -710,6 +713,306 @@ export type Database = {
           radius_m?: number
           roll?: number
           scale?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tile_intel_actions: {
+        Row: {
+          config: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          kind: string
+          name: string
+          owner_id: string
+          secret: string | null
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind: string
+          name: string
+          owner_id: string
+          secret?: string | null
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind?: string
+          name?: string
+          owner_id?: string
+          secret?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tile_intel_event_deliveries: {
+        Row: {
+          action_id: string
+          attempts: number
+          created_at: string
+          event_id: string
+          id: string
+          last_error: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_id: string
+          attempts?: number
+          created_at?: string
+          event_id: string
+          id?: string
+          last_error?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_id?: string
+          attempts?: number
+          created_at?: string
+          event_id?: string
+          id?: string
+          last_error?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tile_intel_event_deliveries_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "tile_intel_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tile_intel_event_deliveries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "tile_intel_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tile_intel_events: {
+        Row: {
+          ai_confidence: number | null
+          fired_at: string
+          id: string
+          owner_id: string
+          read_at: string | null
+          rule_id: string
+          sample: Json
+        }
+        Insert: {
+          ai_confidence?: number | null
+          fired_at?: string
+          id?: string
+          owner_id: string
+          read_at?: string | null
+          rule_id: string
+          sample?: Json
+        }
+        Update: {
+          ai_confidence?: number | null
+          fired_at?: string
+          id?: string
+          owner_id?: string
+          read_at?: string | null
+          rule_id?: string
+          sample?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tile_intel_events_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "tile_intel_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tile_intel_forecasts: {
+        Row: {
+          created_at: string
+          horizon_s: number
+          id: string
+          model: string
+          owner_id: string
+          prediction: Json
+          rule_id: string
+        }
+        Insert: {
+          created_at?: string
+          horizon_s: number
+          id?: string
+          model: string
+          owner_id: string
+          prediction?: Json
+          rule_id: string
+        }
+        Update: {
+          created_at?: string
+          horizon_s?: number
+          id?: string
+          model?: string
+          owner_id?: string
+          prediction?: Json
+          rule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tile_intel_forecasts_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "tile_intel_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tile_intel_rule_actions: {
+        Row: {
+          action_id: string
+          rule_id: string
+        }
+        Insert: {
+          action_id: string
+          rule_id: string
+        }
+        Update: {
+          action_id?: string
+          rule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tile_intel_rule_actions_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "tile_intel_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tile_intel_rule_actions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "tile_intel_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tile_intel_rules: {
+        Row: {
+          ai_assist: boolean
+          ai_model: string | null
+          condition: string
+          cooldown_s: number
+          created_at: string
+          enabled: boolean
+          firehose: boolean
+          geofence_id: string | null
+          id: string
+          last_fired_at: string | null
+          name: string
+          owner_id: string
+          source_kind: string
+          source_ref: Json
+          threshold: Json
+          updated_at: string
+        }
+        Insert: {
+          ai_assist?: boolean
+          ai_model?: string | null
+          condition: string
+          cooldown_s?: number
+          created_at?: string
+          enabled?: boolean
+          firehose?: boolean
+          geofence_id?: string | null
+          id?: string
+          last_fired_at?: string | null
+          name: string
+          owner_id: string
+          source_kind: string
+          source_ref?: Json
+          threshold?: Json
+          updated_at?: string
+        }
+        Update: {
+          ai_assist?: boolean
+          ai_model?: string | null
+          condition?: string
+          cooldown_s?: number
+          created_at?: string
+          enabled?: boolean
+          firehose?: boolean
+          geofence_id?: string | null
+          id?: string
+          last_fired_at?: string | null
+          name?: string
+          owner_id?: string
+          source_kind?: string
+          source_ref?: Json
+          threshold?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tile_intel_rules_geofence_id_fkey"
+            columns: ["geofence_id"]
+            isOneToOne: false
+            referencedRelation: "geofences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_datasets: {
+        Row: {
+          bbox: Json | null
+          created_at: string
+          id: string
+          ingest_token: string
+          kind: string
+          name: string
+          owner_id: string
+          sample_count: number
+          stats: Json
+          storage_path: string | null
+          units: string | null
+          updated_at: string
+        }
+        Insert: {
+          bbox?: Json | null
+          created_at?: string
+          id?: string
+          ingest_token?: string
+          kind: string
+          name: string
+          owner_id: string
+          sample_count?: number
+          stats?: Json
+          storage_path?: string | null
+          units?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bbox?: Json | null
+          created_at?: string
+          id?: string
+          ingest_token?: string
+          kind?: string
+          name?: string
+          owner_id?: string
+          sample_count?: number
+          stats?: Json
+          storage_path?: string | null
+          units?: string | null
           updated_at?: string
         }
         Relationships: []
