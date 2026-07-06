@@ -272,6 +272,21 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     window.dispatchEvent(new CustomEvent("atlas:earth-intel-changed", { detail: { active: anyActive } }));
   }, [viewerRef]);
 
+  // Multi-dataset overlay: reduce per-layer alpha as more datasets stack so
+ // the ones underneath remain visible. Single overlay stays near opaque.
+  const rebalanceAlpha = useCallback(() => {
+    const ids = Object.keys(layerRefs.current);
+    const n = ids.length;
+    if (!n) return;
+    const alpha = n === 1 ? 0.92 : n === 2 ? 0.7 : n === 3 ? 0.55 : Math.max(0.35, 1 / (n + 0.2));
+    ids.forEach((id) => {
+      const l = layerRefs.current[id];
+      if (l) l.alpha = alpha;
+    });
+    const viewer = viewerRef.current;
+    if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender?.();
+  }, [viewerRef]);
+
   const removeLayer = useCallback((id: string, forget = true) => {
     const viewer = viewerRef.current;
     const layer = layerRefs.current[id];
