@@ -749,7 +749,7 @@ const ACTION_KINDS: { k: ActionKind; label: string; icon: JSX.Element; hint: str
   { k: "pipeline", label: "Pipeline",     icon: <Waves className="w-3.5 h-3.5" />, hint: "Push into an internal pipeline queue (name it however you like).", fields: [{ key: "queue", label: "Queue name", placeholder: "my-queue" }] },
 ];
 
-function ActionsTab({ actions, onChange }: { actions: TileAction[]; onChange: () => Promise<void> }) {
+function ActionsTab({ actions, onChange, model }: { actions: TileAction[]; onChange: () => Promise<void>; model: string }) {
   const [kind, setKind] = useState<ActionKind>("in_app");
   const [name, setName] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
@@ -763,7 +763,11 @@ function ActionsTab({ actions, onChange }: { actions: TileAction[]; onChange: ()
     if (!created) return toast.error("Sign in to create actions");
     setName(""); setValues({});
     await onChange();
-    toast.success("Action added");
+    const plan = await runPipeline("action", created as unknown as Record<string, unknown>, { ai: true, model });
+    toast.success(plan ? `Pipeline · ${plan.steps.length} steps` : "Action added", {
+      description: plan?.ai ?? plan?.steps.map((s) => s.label).join(" → "),
+      duration: 6000,
+    });
   };
 
   return (
