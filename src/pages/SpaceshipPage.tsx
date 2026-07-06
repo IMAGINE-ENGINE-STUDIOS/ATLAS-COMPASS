@@ -935,6 +935,11 @@ function SpaceshipPage() {
   const [geofenceOpen, setGeofenceOpen] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").geofenceOpen === true; } catch { return false; }
   });
+  // Tile Intelligence panel (rules, actions, datasets, AI insights)
+  const [tileIntelOpen, setTileIntelOpen] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").tileIntelOpen === true; } catch { return false; }
+  });
+  const [tileIntelGeofenceId, setTileIntelGeofenceId] = useState<string | null>(null);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
