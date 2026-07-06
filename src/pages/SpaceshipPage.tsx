@@ -940,6 +940,16 @@ function SpaceshipPage() {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").tileIntelOpen === true; } catch { return false; }
   });
   const [tileIntelGeofenceId, setTileIntelGeofenceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent).detail?.geofenceId ?? null;
+      setTileIntelGeofenceId(id);
+      setTileIntelOpen(true);
+    };
+    window.addEventListener("atlas:open-tile-intel", onOpen as EventListener);
+    return () => window.removeEventListener("atlas:open-tile-intel", onOpen as EventListener);
+  }, []);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
