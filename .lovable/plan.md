@@ -1,24 +1,163 @@
-## Plan
 
-1. **Fix the Pacific/dateline wrapping bug**
-   - Stop using tiled EPSG:4326 WMS for NASA GIBS overlays where Cesium is clearly creating bad dateline seams.
-   - Replace it with a safer `SingleTileImageryProvider.fromUrl()` path using a full-world WMS image in correct WMS 1.3.0 axis order.
-   - Explicitly set the world rectangle so the image maps once across `-180..180 / -90..90` and does not repeat or shear at the Pacific.
+# Tile Intelligence + Geofencing
 
-2. **Do not hide the selected Earth mode while datasets load**
-   - Keep the active mode visible during dataset provider creation and tile/image loading.
-   - In Google 3D / Realistic modes, if draping onto the 3D tileset is unavailable or unstable, fall back to applying datasets on the hidden globe only when needed without destroying the active photoreal tileset.
-   - Ensure map-mode visibility code does not re-destroy/re-target the active map every time a dataset toggles.
+Adds a new Atlas subsystem that lets users anchor **alarms** to tiles / geofenced areas, watch live datasets, and trigger **actions** (in-app, webhook, email, SMS, action pipeline) when a rule fires. Users can also **upload their own datasets** (GIS of any type) and render them as heatmaps.
 
-3. **Make dataset loading feel faster and safer**
-   - Add per-dataset loading state in the Earth Intelligence carousel card so users see when a dataset is still preparing.
-   - Keep the old active overlay visible until the new provider succeeds; on failure, show the error state and avoid leaving half-applied/broken layers.
-   - Limit active raster datasets to one at a time by default to avoid multiple 4096px global overlays fighting GPU/network memory.
+Delivered in 4 phases so early phases are usable on their own.
 
-4. **Viewport-center-first loading where Cesium allows it**
-   - For normal tiled providers (Sentinel, Terrarium, Hillshade), keep Cesium’s native center/foveated request ordering.
-   - For NASA GIBS global WMS, use one full-world image so there is no tile-order ambiguity or missing quadrant seam; this prioritizes correctness and avoids the Pacific fracture.
+---
 
-5. **Validate**
-   - Test toggling Sea Surface Temperature, Land Surface Temp, AIRS, NDVI, SMAP, Sentinel-2, Terrarium, and Hillshade across Realistic, Google 3D, OSM, and Satellite modes.
-   - Check console/network for tile/provider errors and visually confirm there is no Pacific seam/wrapper break and the base Earth remains visible while overlays load.
+## 1. Geofence Tool (top-right Atlas widget)
+
+New button in the Atlas upper-right icon column (next to Brain / screenshot). Opens the **Geofence Tool** panel.
+
+Modes:
+- **Tile paint** — click a tile in the current view to toggle it; selected tiles render as a semi-transparent **blue** overlay with a crisp border. Shift-click to erase.
+- **Polygon draw** — click to add vertices, double-click / Enter to close. Polygon fill uses the same blue token.
+- **Rectangle** — drag corner-to-corner (utility shortcut on top of polygon).
+
+Tile grid: **Web Mercator XYZ**. Default zoom `z=16` (~600 m at equator); slider 10–20. When a polygon is drawn we compute the covered `(z,x,y)` tile set and store *both* the polygon geometry and the tile list, so rules can key on either.
+
+Saved as a **geofence**: name, color, tile set, polygon, z, owner, created_at.
+
+## 2. Tile Intelligence Rules
+
+New "Tile Intelligence" panel (opens from a brain-plus button on the geofence tool, or from the geofence's row menu).
+
+Each **rule** binds:
+1. **Target** — one geofence (tile set / polygon).
+2. **Data source** — one of:
+   - An Earth Intelligence layer already in `EARTH_LAYERS` (temperature, precipitation, lightning composite, wind, etc.) — sampled at tile centroid via existing GIBS WMS endpoints.
+   - A live event feed (`lightning-data`, `earthquake-data` edge functions, plus a new `storm-data` wrapper over NOAA NWS alerts) — fires when an event's coordinate falls inside the geofence.
+   - A **user dataset** (see §4) — sampled the same way as Earth Intelligence.
+3. **Condition** — comparator + threshold (`>`, `<`, `between`, `enters`, `exits`, `any`). Example: `MODIS_LST_Day > 38°C`.
+4. **Actions** — one or more (see §3).
+5. **Schedule / cooldown** — how often to sample (1 min – 24 h) and a per-rule cooldown so alarms don't spam.
+
+Evaluation runs in a new edge function `tile-intel-tick` triggered by `pg_cron` every minute. It:
+- Loads active rules.
+- Batches by data source, samples once per source per tick.
+- For each rule, computes fire/clear state, writes to `tile_intel_events`, and dispatches actions.
+
+## 3. Actions
+
+An **action** is a reusable, named target owned by a user. Rules reference actions by id, so one webhook / phone number can serve many rules.
+
+Supported action types in v1:
+- **In-app notification** — toast + entry in a new Notifications inbox (bell icon in top bar). Realtime via existing supabase realtime pattern.
+- **Atlas pin** — drops a pulsing pin on the fired tile until acknowledged.
+- **Webhook** — HTTP POST to a user URL with signed payload (`X-TileIntel-Signature` HMAC using a per-action secret generated by `generate_secret`). This is what wires to sprinkler controllers, PLCs, etc.
+- **Email** — via the existing Lovable email infrastructure (uses `email_domain--setup_email_infra` if not already set up; scaffolds `send-transactional-email`).
+- **SMS** — via the **GatewayAPI** connector (`standard_connectors--connect`), routed through the connector gateway. On first use, the flow prompts the user to link GatewayAPI.
+- **Action pipeline** — an ordered list of the above actions run sequentially with a short delay, so a rule can e.g. notify in-app → SMS on-call → POST to sprinkler webhook.
+
+## 4. User Datasets (uploads + heatmaps)
+
+New "Datasets" tab in the Earth Intelligence bar. Users can:
+- Upload files: **GeoJSON, KML/KMZ, Shapefile (.zip), CSV with lat/lon, GeoTIFF, NetCDF, PNG/JPG with world-file, JSON**. Client detects type; unknown types fall back to raw storage.
+- For point/line/polygon vector data → rendered as vector overlay + optional **heatmap** (kernel density) with adjustable radius, opacity, palette. Cesium `PointPrimitiveCollection` + a canvas heatmap imagery provider.
+- For raster (GeoTIFF/NetCDF) → converted server-side (edge function `dataset-convert`) into tiled PNGs stored in a new private `user-datasets` bucket, then draped like GIBS layers.
+- Each uploaded dataset becomes selectable as a **Tile Intelligence data source** (§2), so users can build rules on their own data.
+- Metadata: name, description, band/attribute to sample, units, min/max, color ramp.
+
+Storage: private bucket `user-datasets`, signed URLs on read, RLS scoped to owner + explicit share list (reuses `file_shares` pattern).
+
+## 5. UI surfaces
+
+- **Top-right Atlas icon widget**: new **Geofence** icon (existing GlyphIcon style).
+- **Geofence Tool panel** (right side, glass card): mode switcher, active tool controls, list of user's geofences with color chip + rule count, "New Geofence" button.
+- **Tile Intelligence panel**: opened per-geofence. Rule cards showing state (green idle / red firing / amber cooldown), last sample value, next check ETA. "New Rule" wizard: source → condition → actions → schedule.
+- **Actions Library** (Settings-style modal from panel): CRUD for webhooks / emails / SMS / pipelines. Test button that fires a synthetic event.
+- **Notifications inbox**: bell icon in Atlas top bar, dropdown list with ack/clear.
+- **Datasets tab** in Earth Intelligence bar with upload dropzone and per-dataset toggle + heatmap controls.
+
+Styling stays inside the existing Atlas dark-glass system (per project memory). Selected tiles use a token that maps to hsl(200 90% 55% / 0.35) fill + hsl(200 100% 70%) border.
+
+---
+
+## Technical details
+
+### Data model (new tables, all `public` with GRANTs + RLS)
+
+- `geofences (id, owner_id, name, color, zoom, tile_set jsonb, polygon jsonb, created_at, updated_at)`
+- `tile_intel_datasets (id, owner_id, name, kind, source_ref, storage_path, meta jsonb, created_at)` — `kind` in `earth_layer | event_feed | user_vector | user_raster`.
+- `tile_intel_actions (id, owner_id, name, type, config jsonb, secret_ref, created_at)` — `type` in `in_app | atlas_pin | webhook | email | sms | pipeline`.
+- `tile_intel_rules (id, owner_id, geofence_id, dataset_id, condition jsonb, action_ids uuid[], schedule_seconds int, cooldown_seconds int, enabled bool, last_state text, last_checked_at, last_fired_at)`
+- `tile_intel_events (id, rule_id, fired_at, state, sample_value jsonb, geometry jsonb, acked_at)` — realtime-enabled.
+- `notifications (id, user_id, kind, payload jsonb, read_at, created_at)` — realtime-enabled.
+
+All tables:
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.<t> TO authenticated;
+GRANT ALL ON public.<t> TO service_role;
+```
+RLS restricts rows to `owner_id = auth.uid()` (events / notifications: `user_id = auth.uid()`).
+
+### Edge functions
+
+- `tile-intel-tick` — cron every minute, samples & dispatches. Uses service role.
+- `tile-intel-webhook-dispatch` — signs and POSTs to user webhooks with retries.
+- `dataset-convert` — accepts uploaded GeoTIFF/NetCDF, converts to XYZ PNG tiles into `user-datasets/<dataset_id>/{z}/{x}/{y}.png`.
+- `storm-data` — thin proxy over NOAA NWS active-alerts GeoJSON.
+- Reuses existing `earthquake-data`, `lightning-data`.
+
+### Cron (via `supabase--insert`, not migration, since it contains project URL):
+```sql
+select cron.schedule('tile-intel-tick', '* * * * *',
+  $$ select net.http_post(url:='<functions-url>/tile-intel-tick', ...) $$);
+```
+
+### Connectors & secrets
+
+- GatewayAPI connector for SMS (`standard_connectors--connect`), asked-for only when a user first creates an SMS action.
+- Email through existing Lovable email infra (`email_domain--setup_email_infra` if needed).
+- Per-webhook signing secret via `generate_secret` at action-creation time.
+
+### Realtime
+
+`ALTER PUBLICATION supabase_realtime ADD TABLE public.tile_intel_events, public.notifications;`
+Frontend subscribes inside `useEffect` and tears down on unmount.
+
+### File paths (new)
+
+```
+src/components/atlas/
+  GeofenceToolButton.tsx
+  GeofenceToolPanel.tsx
+  TileIntelligencePanel.tsx
+  ActionsLibraryDialog.tsx
+  NotificationsBell.tsx
+src/components/atlas/geofence/
+  TilePaintLayer.tsx     // Cesium primitives for blue tile overlay
+  PolygonDrawLayer.tsx
+  tileMath.ts            // lat/lon <-> z/x/y, polygon → tile set
+src/components/atlas/datasets/
+  DatasetsTab.tsx
+  DatasetUploader.tsx
+  HeatmapLayer.tsx
+src/lib/tileIntel/
+  rules.ts               // client CRUD helpers
+  datasets.ts
+  actions.ts
+supabase/functions/
+  tile-intel-tick/index.ts
+  tile-intel-webhook-dispatch/index.ts
+  dataset-convert/index.ts
+  storm-data/index.ts
+```
+`EarthIntelligenceBar.tsx` gets a small addition to expose sampled values to rules (no visual change).
+
+---
+
+## Phasing (each phase ships independently)
+
+1. **Phase 1 — Geofence tool**: icon, panel, tile-paint + polygon draw, persistence, blue overlay.
+2. **Phase 2 — Rules on Earth Intelligence + event feeds**: rules table, `tile-intel-tick`, in-app notifications + Atlas pin actions, notifications bell.
+3. **Phase 3 — Extended actions**: webhook (with signing), email, SMS via GatewayAPI, action pipelines, Actions Library UI.
+4. **Phase 4 — User datasets**: uploads (vector + raster), heatmap rendering, dataset-backed rules.
+
+## Out of scope for v1
+
+- Sharing rules/geofences with other users (uses existing sharing infra later).
+- Complex boolean rule composition (`A AND B`) — v1 is one source per rule.
+- Historical playback of events (data is stored, UI comes later).
