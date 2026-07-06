@@ -414,6 +414,38 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     };
   }, [addLayer]);
 
+  // Session persistence: remember which datasets are active across reloads
+  // and remounts (opening/closing the toolbar). Uses sessionStorage so it
+  // clears when the browser tab is closed.
+  const SESSION_KEY = "atlas.earth-intel.active.v1";
+  const restoredRef = useRef(false);
+
+  // Restore on mount — replay saved dataset IDs once the viewer is available.
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem(SESSION_KEY); } catch { /* noop */ }
+    if (!raw) return;
+    let ids: string[] = [];
+    try { ids = JSON.parse(raw); } catch { return; }
+    if (!Array.isArray(ids) || !ids.length) return;
+    const defs = ids
+      .map((id) => EARTH_LAYERS.find((d) => d.id === id))
+      .filter((d): d is EarthLayerDef => !!d);
+    if (!defs.length) return;
+    setActive(Object.fromEntries(defs.map((d) => [d.id, true])));
+    defs.forEach((def) => void addLayer(def, false));
+  }, [addLayer]);
+
+  // Persist whenever the active set changes.
+  useEffect(() => {
+    try {
+      const ids = Object.keys(active).filter((id) => active[id]);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(ids));
+    } catch { /* noop */ }
+  }, [active]);
+
   const items = useMemo(() => EARTH_LAYERS.slice(), []);
 
   const scrollBy = (dx: number) => {
