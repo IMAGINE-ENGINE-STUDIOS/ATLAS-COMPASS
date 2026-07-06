@@ -174,6 +174,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       if (!controller.signal.aborted) {
         setCameras(acc);
         onCamerasLoaded?.(acc);
+        intelSessionCache.current = { cameras: acc, total: (acc.length ? (total || acc.length) : 0), fetchedAt: Date.now() };
       }
       if (!controller.signal.aborted) {
         if (acc.length === 0) setError("No indexed cameras in this viewport yet. Sync can refresh the live sources.");
