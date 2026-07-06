@@ -302,11 +302,13 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const viewer = viewerRef.current;
     const layer = layerRefs.current[id];
     if (viewer && layer && !viewer.isDestroyed()) {
-      // Try both collections since the tileset may have been destroyed / swapped.
-      try { viewer.scene.imageryLayers.remove(layer, true); } catch { /* noop */ }
+      // Pass destroy=false so the underlying provider is kept alive in the
+      // session cache and can be re-attached instantly if the user toggles
+      // the dataset back on.
+      try { viewer.scene.imageryLayers.remove(layer, false); } catch { /* noop */ }
       const v = viewer as any;
       [v._googleDirectTileset, v._realisticTileset, v._osmTileset].forEach((ts) => {
-        try { ts?.imageryLayers?.remove(layer, true); } catch { /* noop */ }
+        try { ts?.imageryLayers?.remove(layer, false); } catch { /* noop */ }
       });
     }
     delete layerRefs.current[id];
@@ -352,8 +354,9 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       // (nothing flashes / disappears) while the dataset streams into the
       // browser cache. When we finally add the provider, Cesium can paint
       // from cache and the overlay appears instantly.
-      if (!parseGibsLayer(def)) {
+      if (!parseGibsLayer(def) && !preloadedTiles.has(def.id)) {
         await preloadViewportTiles(provider, latestViewer, def);
+        preloadedTiles.add(def.id);
         if (layerTokens.current[def.id] !== serial) return;
       }
 
