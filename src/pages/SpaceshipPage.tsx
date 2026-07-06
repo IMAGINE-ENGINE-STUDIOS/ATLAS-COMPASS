@@ -5394,6 +5394,10 @@ function SpaceshipPage() {
             <EarthIntelligenceBar viewerRef={viewerRef} onClose={() => setEarthIntelOpen(false)} />
           )}
 
+          {geofenceOpen && (
+            <GeofenceToolPanel viewerRef={viewerRef} onClose={() => setGeofenceOpen(false)} />
+          )}
+
 
 
 
