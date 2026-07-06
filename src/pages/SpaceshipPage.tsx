@@ -5351,6 +5351,20 @@ function SpaceshipPage() {
                     <Brain className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Intel</span>
                   </button>
+                  {/* Geofence / Tile Intelligence tool */}
+                  <button
+                    onClick={() => setGeofenceOpen((v) => !v)}
+                    aria-pressed={geofenceOpen}
+                    title="Geofence — select tiles or draw an area"
+                    className={`shrink-0 h-7 px-2 rounded-md flex items-center gap-1 border font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      geofenceOpen
+                        ? "bg-sky-500/25 border-sky-300 text-sky-100 shadow-[0_0_14px_rgba(56,189,248,0.55)]"
+                        : "bg-white/[0.04] border-white/20 text-white/80 hover:text-white hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Geo</span>
+                  </button>
                   {/* SOS — Emergency Mode toggle */}
                   <button
                     onClick={() => {
