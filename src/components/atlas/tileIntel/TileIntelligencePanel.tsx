@@ -200,9 +200,9 @@ const EMPTY_DRAFT: RuleDraft = {
   aiHelper: false, firehose: false, actionIds: [],
 };
 
-function RulesTab({ geofences, actions, rules, defaultGeofenceId, datasets, onChange }: {
+function RulesTab({ geofences, actions, rules, defaultGeofenceId, datasets, onChange, model }: {
   geofences: Geofence[]; actions: TileAction[]; rules: Rule[];
-  defaultGeofenceId: string | null; datasets: UserDataset[]; onChange: () => Promise<void>;
+  defaultGeofenceId: string | null; datasets: UserDataset[]; onChange: () => Promise<void>; model: string;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showBuilder, setShowBuilder] = useState(rules.length === 0);
@@ -270,8 +270,14 @@ function RulesTab({ geofences, actions, rules, defaultGeofenceId, datasets, onCh
       });
       if (!rule) return toast.error("Sign in to save rules");
       if (draft.actionIds.length) await setRuleActions(rule.id, draft.actionIds);
+      const plan = await runPipeline("rule", rule as unknown as Record<string, unknown>, { ai: draft.aiHelper, model });
+      if (plan) {
+        toast.success(`Pipeline · ${plan.steps.length} steps`, {
+          description: plan.ai ?? plan.steps.map((s) => s.label).join(" → "),
+          duration: 6000,
+        });
+      }
     }
-    toast.success(editingId ? "Rule updated" : `${draft.geofenceIds.length} rule(s) created`);
     reset(); setShowBuilder(false);
     await onChange();
   };
