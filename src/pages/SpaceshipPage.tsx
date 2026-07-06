@@ -1447,7 +1447,7 @@ function SpaceshipPage() {
         tilesTool, tileZoom,
         showBusinessIcons, showLiveTraffic, geoCategory,
         showMarketplacePins,
-        intelligenceOpen, recordingsOpen, geofenceOpen,
+        intelligenceOpen, recordingsOpen, geofenceOpen, tileIntelOpen,
       }));
     } catch {}
   }, [
@@ -1456,7 +1456,7 @@ function SpaceshipPage() {
     tilesTool, tileZoom,
     showBusinessIcons, showLiveTraffic, geoCategory,
     showMarketplacePins,
-    intelligenceOpen, recordingsOpen, geofenceOpen,
+    intelligenceOpen, recordingsOpen, geofenceOpen, tileIntelOpen,
   ]);
 
   const GEO_CATEGORIES = [
