@@ -134,6 +134,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       let cursor: number | undefined = 0;
       let hasMore = true;
       let safety = 0;
+      let lastTotal = 0;
       // Single lightweight page only. The map layer renders these as Cesium
       // entities, so loading hundreds/thousands at once overwhelms tiles + UI.
       const maxPages = 1;
@@ -142,7 +143,8 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
         const data = await invokeCameraPage(bounds, pageLimit, cursor, controller.signal);
         const page = data.cameras;
         acc.push(...page);
-        setTotal(data.total || acc.length);
+        lastTotal = data.total || acc.length;
+        setTotal(lastTotal);
         hasMore = data.hasMore;
         cursor = data.nextCursor;
         safety++;
@@ -163,7 +165,8 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
           const data = await invokeCameraPage(hub, pageLimit, 0, controller.signal);
           if (data.cameras.length > 0) {
             acc = sortByDistance(data.cameras, bounds).slice(0, pageLimit);
-            setTotal(data.total || acc.length);
+            lastTotal = data.total || acc.length;
+            setTotal(lastTotal);
             break;
           }
         }
@@ -174,7 +177,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       if (!controller.signal.aborted) {
         setCameras(acc);
         onCamerasLoaded?.(acc);
-        intelSessionCache.current = { cameras: acc, total: (acc.length ? (total || acc.length) : 0), fetchedAt: Date.now() };
+        intelSessionCache.current = { cameras: acc, total: lastTotal || acc.length, fetchedAt: Date.now() };
       }
       if (!controller.signal.aborted) {
         if (acc.length === 0) setError("No indexed cameras in this viewport yet. Sync can refresh the live sources.");
