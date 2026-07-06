@@ -230,8 +230,17 @@ async function preloadViewportTiles(
   await Promise.all(promises);
 }
 
+// Session cache: keep provider instances alive after they're removed from
+// the scene so re-toggling a dataset in the same session is instant (no
+// re-fetch, no re-preload).
+const providerCache = new Map<string, ImageryProvider>();
+const preloadedTiles = new Set<string>();
+
 async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryProvider> {
+  const cached = providerCache.get(def.id);
+  if (cached) return cached;
   const gibs = parseGibsLayer(def);
+  let provider: ImageryProvider;
   if (gibs) {
     // Use ONE full-world equirectangular image instead of a tile pyramid.
     // Prevents the Pacific/dateline seam that shows with WMTS or WMS-tiled
@@ -240,18 +249,20 @@ async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryPr
     const url = gibsWmsUrl(def, 4096, 2048);
     if (!url) throw new Error(`No GIBS WMS URL for ${def.label}`);
     await preloadImage(url);
-    return await (SingleTileImageryProvider as any).fromUrl(url, {
+    provider = await (SingleTileImageryProvider as any).fromUrl(url, {
       rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
       credit: def.attribution,
     });
+  } else {
+    provider = new UrlTemplateImageryProvider({
+      url: buildEarthLayerUrl(def),
+      maximumLevel: def.maxZoom ?? 9,
+      minimumLevel: def.id === "hillshade" ? 1 : 0,
+      credit: def.attribution,
+    });
   }
-
-  return new UrlTemplateImageryProvider({
-    url: buildEarthLayerUrl(def),
-    maximumLevel: def.maxZoom ?? 9,
-    minimumLevel: def.id === "hillshade" ? 1 : 0,
-    credit: def.attribution,
-  });
+  providerCache.set(def.id, provider);
+  return provider;
 }
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
