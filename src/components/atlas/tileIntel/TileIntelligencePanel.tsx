@@ -896,8 +896,8 @@ function DatasetsTab({ datasets, onChange, onHeatmapCreated }: {
 
 /* ═══════════════════════════════ INSIGHTS ═══════════════════════════════ */
 
-function InsightsTab({ model, onModelChange, geofences, rules, datasets }: {
-  model: string; onModelChange: (m: string) => void;
+function InsightsTab({ model, geofences, rules, datasets }: {
+  model: string;
   geofences: Geofence[]; rules: Rule[]; datasets: UserDataset[];
 }) {
   const [prompt, setPrompt] = useState("");
@@ -946,15 +946,12 @@ function InsightsTab({ model, onModelChange, geofences, rules, datasets }: {
 
   return (
     <div className="space-y-3">
-      <div className={`${glass} p-3`}>
-        <div className="text-[10px] uppercase tracking-widest text-cyan-100/70 mb-1.5 flex items-center gap-1"><Bot className="w-3 h-3" /> Preferred AI model</div>
-        <select value={model} onChange={(e) => onModelChange(e.target.value)}
-          className="w-full bg-black/40 rounded-md px-2 py-1.5 border border-white/10 text-[11px]">
-          {AI_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
-        <div className="mt-1.5 text-[10px] text-white/45 leading-snug">
-          AI never runs in the background. It only runs when you ask a question here, run a forecast, or check
-          <b> “AI helper on each fire”</b> on a rule.
+      <div className={`${glass} p-2.5 flex items-start gap-2 text-[10px] text-white/55 leading-snug`}>
+        <Info className="w-3 h-3 mt-0.5 text-cyan-200 shrink-0" />
+        <div>
+          Model <span className="text-cyan-100 font-medium">{AI_MODELS.find((m) => m.id === model)?.label ?? model}</span> —
+          switch it any time from the dropdown in the panel header. AI only runs when you Ask, Forecast, opt-in on a rule,
+          or when the pipeline narrator is enabled on save.
         </div>
       </div>
       <div className={`${glass} p-3 space-y-2`}>
