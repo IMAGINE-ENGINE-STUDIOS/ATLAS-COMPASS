@@ -324,28 +324,22 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       if (layerTokens.current[def.id] !== serial) return;
       const latestViewer = viewerRef.current;
       if (!latestViewer || latestViewer.isDestroyed()) return;
-      const latestTarget = targetLayers(latestViewer);
-      const layer = latestTarget.collection.addImageryProvider(provider);
-      // Start hidden. We reveal the new overlay only once its tiles have
-      // finished loading in the current viewport — so the user sees the
-      // previous view "frozen" and the new dataset appears at once instead
-      // of streaming in tile by tile.
-      layer.alpha = 0;
-      layer.show = false;
-      layerRefs.current[def.id] = layer;
-      activeDefs.current[def.id] = def;
-      if (parseGibsLayer(def)) {
-        warmViewportCenter(provider, latestViewer, Math.min(Math.max(def.maxZoom ?? 7, 4), 8));
+
+      // Prefetch tiles in the background BEFORE attaching the layer to
+      // Cesium. This keeps the currently-visible earth completely intact
+      // (nothing flashes / disappears) while the dataset streams into the
+      // browser cache. When we finally add the provider, Cesium can paint
+      // from cache and the overlay appears instantly.
+      if (!parseGibsLayer(def)) {
+        await preloadViewportTiles(provider, latestViewer, def);
+        if (layerTokens.current[def.id] !== serial) return;
       }
 
-      // Wait until Cesium reports all tiles loaded (or timeout) before
-      // swapping the layer in. Requires two consecutive "loaded" frames to
-      // avoid a false-positive during the initial request burst.
-      await waitForTilesLoaded(latestViewer, 8000);
-      if (layerTokens.current[def.id] !== serial) return;
-
-      layer.show = true;
+      const latestTarget = targetLayers(latestViewer);
+      const layer = latestTarget.collection.addImageryProvider(provider);
       layer.alpha = 0.92;
+      layerRefs.current[def.id] = layer;
+      activeDefs.current[def.id] = def;
       if (replaceOthers) {
         Object.keys(activeDefs.current)
           .filter((id) => id !== def.id)
