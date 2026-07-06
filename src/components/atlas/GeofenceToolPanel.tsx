@@ -349,8 +349,8 @@ export default function GeofenceToolPanel({ viewerRef, onClose }: Props) {
                   </div>
                   <button
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-sky-500/20 text-sky-300 transition-opacity"
-                    title="Add alarm (Tile Intelligence — coming soon)"
-                    onClick={() => toast.info("Tile Intelligence rules", { description: "Alarms & actions ship in the next update." })}
+                    title="Open Tile Intelligence for this geofence"
+                    onClick={() => window.dispatchEvent(new CustomEvent("atlas:open-tile-intel", { detail: { geofenceId: gf.id } }))}
                   >
                     <Bell className="w-3 h-3" />
                   </button>
