@@ -209,6 +209,11 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
   // full reload, freezing Atlas. User can press the Sync button explicitly.
   useEffect(() => {
     if (!open) return;
+    // Replay the session cache to the parent so map pins render immediately
+    // while the fresh fetch runs in the background.
+    if (intelSessionCache.current && intelSessionCache.current.cameras.length) {
+      onCamerasLoaded?.(intelSessionCache.current.cameras);
+    }
     fetchCameras(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, boundsVersion]);
