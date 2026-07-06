@@ -930,7 +930,9 @@ function SpaceshipPage() {
     try { localStorage.setItem("atlas.earth-intel.open.v1", earthIntelOpen ? "1" : "0"); } catch {}
   }, [earthIntelOpen]);
   // Geofence / Tile Intelligence tool toggle
-  const [geofenceOpen, setGeofenceOpen] = useState<boolean>(false);
+  const [geofenceOpen, setGeofenceOpen] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").geofenceOpen === true; } catch { return false; }
+  });
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
@@ -1225,9 +1227,9 @@ function SpaceshipPage() {
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
-  const [intelligenceOpen, setIntelligenceOpen] = useState(false);
+  const [intelligenceOpen, setIntelligenceOpen] = useState<boolean>(savedUI.intelligenceOpen ?? false);
   const [intelBoundsVersion, setIntelBoundsVersion] = useState(0);
-  const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const [recordingsOpen, setRecordingsOpen] = useState<boolean>(savedUI.recordingsOpen ?? false);
   const [activeCamera, setActiveCamera] = useState<TrafficCamera | null>(null);
   const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
@@ -1438,6 +1440,7 @@ function SpaceshipPage() {
         tilesTool, tileZoom,
         showBusinessIcons, showLiveTraffic, geoCategory,
         showMarketplacePins,
+        intelligenceOpen, recordingsOpen, geofenceOpen,
       }));
     } catch {}
   }, [
@@ -1446,6 +1449,7 @@ function SpaceshipPage() {
     tilesTool, tileZoom,
     showBusinessIcons, showLiveTraffic, geoCategory,
     showMarketplacePins,
+    intelligenceOpen, recordingsOpen, geofenceOpen,
   ]);
 
   const GEO_CATEGORIES = [

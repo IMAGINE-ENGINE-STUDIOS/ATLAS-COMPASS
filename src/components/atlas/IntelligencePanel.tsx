@@ -43,14 +43,24 @@ const DEFAULT_CAMERA_HUBS: CameraBounds[] = [
   { north: 26.15, south: 25.45, east: -79.90, west: -80.55 },   // Miami fallback
 ];
 
+// Session cache: keep the last successfully-fetched camera set alive across
+// panel closes / remounts so re-opening Intelligence is instant. Mirrors the
+// approach used by EarthIntelligenceBar for imagery providers.
+interface IntelSessionCache {
+  cameras: TrafficCamera[];
+  total: number;
+  fetchedAt: number;
+}
+const intelSessionCache: { current: IntelSessionCache | null } = { current: null };
+
 export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera, onCamerasLoaded, boundsVersion = 0 }: Props) {
-  const [cameras, setCameras] = useState<TrafficCamera[]>([]);
+  const [cameras, setCameras] = useState<TrafficCamera[]>(() => intelSessionCache.current?.cameras ?? []);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState<number>(() => intelSessionCache.current?.total ?? 0);
   const abortRef = useRef<AbortController | null>(null);
 
   const expandBounds = (b: CameraBounds, minKm = 30): CameraBounds => {
@@ -124,6 +134,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       let cursor: number | undefined = 0;
       let hasMore = true;
       let safety = 0;
+      let lastTotal = 0;
       // Single lightweight page only. The map layer renders these as Cesium
       // entities, so loading hundreds/thousands at once overwhelms tiles + UI.
       const maxPages = 1;
@@ -132,7 +143,8 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
         const data = await invokeCameraPage(bounds, pageLimit, cursor, controller.signal);
         const page = data.cameras;
         acc.push(...page);
-        setTotal(data.total || acc.length);
+        lastTotal = data.total || acc.length;
+        setTotal(lastTotal);
         hasMore = data.hasMore;
         cursor = data.nextCursor;
         safety++;
@@ -153,7 +165,8 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
           const data = await invokeCameraPage(hub, pageLimit, 0, controller.signal);
           if (data.cameras.length > 0) {
             acc = sortByDistance(data.cameras, bounds).slice(0, pageLimit);
-            setTotal(data.total || acc.length);
+            lastTotal = data.total || acc.length;
+            setTotal(lastTotal);
             break;
           }
         }
@@ -164,6 +177,7 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
       if (!controller.signal.aborted) {
         setCameras(acc);
         onCamerasLoaded?.(acc);
+        intelSessionCache.current = { cameras: acc, total: lastTotal || acc.length, fetchedAt: Date.now() };
       }
       if (!controller.signal.aborted) {
         if (acc.length === 0) setError("No indexed cameras in this viewport yet. Sync can refresh the live sources.");
@@ -195,6 +209,11 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
   // full reload, freezing Atlas. User can press the Sync button explicitly.
   useEffect(() => {
     if (!open) return;
+    // Replay the session cache to the parent so map pins render immediately
+    // while the fresh fetch runs in the background.
+    if (intelSessionCache.current && intelSessionCache.current.cameras.length) {
+      onCamerasLoaded?.(intelSessionCache.current.cameras);
+    }
     fetchCameras(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, boundsVersion]);
