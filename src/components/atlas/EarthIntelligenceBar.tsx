@@ -230,8 +230,17 @@ async function preloadViewportTiles(
   await Promise.all(promises);
 }
 
+// Session cache: keep provider instances alive after they're removed from
+// the scene so re-toggling a dataset in the same session is instant (no
+// re-fetch, no re-preload).
+const providerCache = new Map<string, ImageryProvider>();
+const preloadedTiles = new Set<string>();
+
 async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryProvider> {
+  const cached = providerCache.get(def.id);
+  if (cached) return cached;
   const gibs = parseGibsLayer(def);
+  let provider: ImageryProvider;
   if (gibs) {
     // Use ONE full-world equirectangular image instead of a tile pyramid.
     // Prevents the Pacific/dateline seam that shows with WMTS or WMS-tiled
@@ -240,18 +249,20 @@ async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryPr
     const url = gibsWmsUrl(def, 4096, 2048);
     if (!url) throw new Error(`No GIBS WMS URL for ${def.label}`);
     await preloadImage(url);
-    return await (SingleTileImageryProvider as any).fromUrl(url, {
+    provider = await (SingleTileImageryProvider as any).fromUrl(url, {
       rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
       credit: def.attribution,
     });
+  } else {
+    provider = new UrlTemplateImageryProvider({
+      url: buildEarthLayerUrl(def),
+      maximumLevel: def.maxZoom ?? 9,
+      minimumLevel: def.id === "hillshade" ? 1 : 0,
+      credit: def.attribution,
+    });
   }
-
-  return new UrlTemplateImageryProvider({
-    url: buildEarthLayerUrl(def),
-    maximumLevel: def.maxZoom ?? 9,
-    minimumLevel: def.id === "hillshade" ? 1 : 0,
-    credit: def.attribution,
-  });
+  providerCache.set(def.id, provider);
+  return provider;
 }
 
 export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
@@ -291,11 +302,13 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     const viewer = viewerRef.current;
     const layer = layerRefs.current[id];
     if (viewer && layer && !viewer.isDestroyed()) {
-      // Try both collections since the tileset may have been destroyed / swapped.
-      try { viewer.scene.imageryLayers.remove(layer, true); } catch { /* noop */ }
+      // Pass destroy=false so the underlying provider is kept alive in the
+      // session cache and can be re-attached instantly if the user toggles
+      // the dataset back on.
+      try { viewer.scene.imageryLayers.remove(layer, false); } catch { /* noop */ }
       const v = viewer as any;
       [v._googleDirectTileset, v._realisticTileset, v._osmTileset].forEach((ts) => {
-        try { ts?.imageryLayers?.remove(layer, true); } catch { /* noop */ }
+        try { ts?.imageryLayers?.remove(layer, false); } catch { /* noop */ }
       });
     }
     delete layerRefs.current[id];
@@ -341,8 +354,9 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       // (nothing flashes / disappears) while the dataset streams into the
       // browser cache. When we finally add the provider, Cesium can paint
       // from cache and the overlay appears instantly.
-      if (!parseGibsLayer(def)) {
+      if (!parseGibsLayer(def) && !preloadedTiles.has(def.id)) {
         await preloadViewportTiles(provider, latestViewer, def);
+        preloadedTiles.add(def.id);
         if (layerTokens.current[def.id] !== serial) return;
       }
 
