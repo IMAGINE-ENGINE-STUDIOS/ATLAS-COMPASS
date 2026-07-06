@@ -414,9 +414,9 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     };
   }, [addLayer]);
 
-  // Session persistence: remember which datasets are active across reloads
-  // and remounts (opening/closing the toolbar). Uses sessionStorage so it
-  // clears when the browser tab is closed.
+  // Persistence: remember which datasets are active across full app reloads
+  // and remounts (opening/closing the toolbar). Uses localStorage so the
+  // state survives tab close / browser restart.
   const SESSION_KEY = "atlas.earth-intel.active.v1";
   const restoredRef = useRef(false);
 
@@ -425,7 +425,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     if (restoredRef.current) return;
     restoredRef.current = true;
     let raw: string | null = null;
-    try { raw = sessionStorage.getItem(SESSION_KEY); } catch { /* noop */ }
+    try { raw = localStorage.getItem(SESSION_KEY); } catch { /* noop */ }
     if (!raw) return;
     let ids: string[] = [];
     try { ids = JSON.parse(raw); } catch { return; }
@@ -442,7 +442,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
   useEffect(() => {
     try {
       const ids = Object.keys(active).filter((id) => active[id]);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(ids));
+      localStorage.setItem(SESSION_KEY, JSON.stringify(ids));
     } catch { /* noop */ }
   }, [active]);
 

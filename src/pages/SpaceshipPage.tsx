@@ -911,7 +911,23 @@ function SpaceshipPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
-  const [earthIntelOpen, setEarthIntelOpen] = useState(false);
+  const [earthIntelOpen, setEarthIntelOpen] = useState<boolean>(() => {
+    // Restore whether the Earth Intelligence bar was open in the previous
+    // session, and also auto-open it if the user had datasets active so the
+    // saved dataset overlays get re-applied on reload.
+    try {
+      if (localStorage.getItem("atlas.earth-intel.open.v1") === "1") return true;
+      const raw = localStorage.getItem("atlas.earth-intel.active.v1");
+      if (raw) {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids) && ids.length) return true;
+      }
+    } catch { /* noop */ }
+    return false;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("atlas.earth-intel.open.v1", earthIntelOpen ? "1" : "0"); } catch {}
+  }, [earthIntelOpen]);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
