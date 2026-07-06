@@ -5424,6 +5424,13 @@ function SpaceshipPage() {
             <GeofenceToolPanel viewerRef={viewerRef} onClose={() => setGeofenceOpen(false)} />
           )}
 
+          {tileIntelOpen && (
+            <TileIntelligencePanel
+              onClose={() => setTileIntelOpen(false)}
+              initialGeofenceId={tileIntelGeofenceId}
+            />
+          )}
+
 
 
 
