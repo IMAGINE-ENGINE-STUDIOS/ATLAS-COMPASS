@@ -929,6 +929,8 @@ function SpaceshipPage() {
   useEffect(() => {
     try { localStorage.setItem("atlas.earth-intel.open.v1", earthIntelOpen ? "1" : "0"); } catch {}
   }, [earthIntelOpen]);
+  // Geofence / Tile Intelligence tool toggle
+  const [geofenceOpen, setGeofenceOpen] = useState<boolean>(false);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
