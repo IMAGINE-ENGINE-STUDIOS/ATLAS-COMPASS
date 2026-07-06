@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { copyToClipboard, getClipboard, type FileClipboardEntry } from "@/lib/fileClipboard";
 import { supabase } from "@/integrations/supabase/client";
 import { createGeofence } from "@/lib/tileIntel/geofences";
-import { lngLatToTile } from "@/components/atlas/geofence/tileMath";
+import { lngLatToTile, tileId } from "@/components/atlas/geofence/tileMath";
 
 export interface EarthLoc { lat: number; lng: number; alt: number }
 
@@ -155,7 +155,7 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
             onClick={async () => {
               try {
                 const z = 18;
-                const t = lngLatToTile(loc.lng, loc.lat, z);
+                const t = tileId(lngLatToTile(loc.lng, loc.lat, z));
                 const gf = await createGeofence({
                   name: `Point ${loc.lat.toFixed(3)}, ${loc.lng.toFixed(3)}`,
                   color: "#d946ef", zoom: z,
