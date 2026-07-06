@@ -5442,6 +5442,9 @@ function SpaceshipPage() {
             />
           )}
 
+          {/* Heatmap overlays — renders active configs from the Tile Intelligence panel */}
+          <HeatmapLayer viewerRef={viewerRef} />
+
 
 
 
