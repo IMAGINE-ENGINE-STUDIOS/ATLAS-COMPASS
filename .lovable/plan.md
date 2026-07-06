@@ -1,163 +1,116 @@
+# Tile Intelligence — Phase 2
 
-# Tile Intelligence + Geofencing
+Building on the geofence tool already shipped. Everything below runs without AI by default; AI only fires when the user opens the Insights panel, asks a question, or explicitly enables background prediction on a rule.
 
-Adds a new Atlas subsystem that lets users anchor **alarms** to tiles / geofenced areas, watch live datasets, and trigger **actions** (in-app, webhook, email, SMS, action pipeline) when a rule fires. Users can also **upload their own datasets** (GIS of any type) and render them as heatmaps.
+## 1. Rules engine (alarms)
 
-Delivered in 4 phases so early phases are usable on their own.
+New "Bell" button on every saved geofence opens a Rules panel.
 
----
+Rule shape:
+- **Source**: Earth Intelligence layer (temperature, precipitation, wind, AQI, fire, flood), storm feed (NOAA/NWS), lightning (Blitzortung), earthquake (USGS), or a user dataset.
+- **Condition**: `>`, `<`, `between`, `enters area`, `exits area`, `rate of change`.
+- **Threshold + unit**.
+- **Cooldown** (min minutes between triggers).
+- **Actions** (multi-select, see §2).
+- **AI assist toggle** (off by default) — when on, the chosen model runs a lightweight forecast on each tick and can pre-fire the rule with a confidence score.
 
-## 1. Geofence Tool (top-right Atlas widget)
+Evaluation:
+- Edge function `tile-intel-tick` runs on a `pg_cron` every 2 min.
+- For each active rule, sample the source over the geofence's tile set / polygon, compare to threshold, respect cooldown, insert a row in `tile_intel_events`, dispatch actions.
+- Events also stream to the browser via a Supabase Realtime channel so the Notifications bell and Atlas pins update live.
 
-New button in the Atlas upper-right icon column (next to Brain / screenshot). Opens the **Geofence Tool** panel.
+## 2. Action targets
 
-Modes:
-- **Tile paint** — click a tile in the current view to toggle it; selected tiles render as a semi-transparent **blue** overlay with a crisp border. Shift-click to erase.
-- **Polygon draw** — click to add vertices, double-click / Enter to close. Polygon fill uses the same blue token.
-- **Rectangle** — drag corner-to-corner (utility shortcut on top of polygon).
+One `actions` table per user, referenced by rules. Types:
+- **In-app notification** (bell + toast + Atlas pin at the geofence centroid)
+- **Webhook** — HTTP POST to a user URL with HMAC signature (secret per action)
+- **Email** — via existing Resend/Seamless email path
+- **SMS** — via the GatewayAPI connector (already documented in knowledge)
+- **In-app pipeline step** — chain into another rule (simple fan-out)
 
-Tile grid: **Web Mercator XYZ**. Default zoom `z=16` (~600 m at equator); slider 10–20. When a polygon is drawn we compute the covered `(z,x,y)` tile set and store *both* the polygon geometry and the tile list, so rules can key on either.
+Dispatch is handled by `tile-intel-dispatch` edge function; failures are retried up to 3× with backoff and logged to `tile_intel_event_deliveries`.
 
-Saved as a **geofence**: name, color, tile set, polygon, z, owner, created_at.
+## 3. User datasets & heatmaps
 
-## 2. Tile Intelligence Rules
+Upload panel accepts: GeoJSON, KML/KMZ, Shapefile (.zip), CSV with lat/lon, GeoTIFF, NetCDF, GPX, and generic JSON with a mapping step. Also raw model files (`.onnx`, `.pt`, `.pkl`, `.joblib`) stored as opaque blobs the user can reference from a rule.
 
-New "Tile Intelligence" panel (opens from a brain-plus button on the geofence tool, or from the geofence's row menu).
+- Storage: new private bucket `user-datasets`.
+- Metadata row in `user_datasets` (kind, bbox, min/max, units, sample count, tile-z hint).
+- Conversion runs in edge function `dataset-convert` (shapefile → GeoJSON, GeoTIFF → tiled PNG stats, CSV → indexed points).
+- **Heatmap rendering**: WebGL heatmap layer over Cesium using the dataset's points/raster; opacity + palette controls.
+- Datasets can be used as a **rule source** (threshold on any numeric field) and streamed as a live layer.
 
-Each **rule** binds:
-1. **Target** — one geofence (tile set / polygon).
-2. **Data source** — one of:
-   - An Earth Intelligence layer already in `EARTH_LAYERS` (temperature, precipitation, lightning composite, wind, etc.) — sampled at tile centroid via existing GIBS WMS endpoints.
-   - A live event feed (`lightning-data`, `earthquake-data` edge functions, plus a new `storm-data` wrapper over NOAA NWS alerts) — fires when an event's coordinate falls inside the geofence.
-   - A **user dataset** (see §4) — sampled the same way as Earth Intelligence.
-3. **Condition** — comparator + threshold (`>`, `<`, `between`, `enters`, `exits`, `any`). Example: `MODIS_LST_Day > 38°C`.
-4. **Actions** — one or more (see §3).
-5. **Schedule / cooldown** — how often to sample (1 min – 24 h) and a per-rule cooldown so alarms don't spam.
+## 4. OSM buildings as intelligence objects
 
-Evaluation runs in a new edge function `tile-intel-tick` triggered by `pg_cron` every minute. It:
-- Loads active rules.
-- Batches by data source, samples once per source per tick.
-- For each rule, computes fire/clear state, writes to `tile_intel_events`, and dispatches actions.
+Cesium's OSM Buildings tileset is already loaded. Adding a click-to-select handler:
+- Clicked building → pull its OSM `id`, footprint, height from the feature.
+- Opens the standard POI card with a new "Make intelligent" action → creates a mini-geofence from the footprint and lets the user attach rules exactly like a drawn area.
+- Buildings with active rules render with a colored outline matching the geofence color.
 
-## 3. Actions
+## 5. Streaming in & out
 
-An **action** is a reusable, named target owned by a user. Rules reference actions by id, so one webhook / phone number can serve many rules.
+- **In**: an "Ingest" endpoint (`/functions/v1/tile-intel-ingest`) accepts JSON or NDJSON with `{ dataset_id, ts, lat, lon, value, ... }`. Each row flows through the same rule evaluator as scheduled ticks, so a user can push sensor data and get instant alarms. Auth via a per-dataset ingest token.
+- **Out**: any rule can flip on "stream firehose" — every event for that rule is also published on a signed WebSocket URL (Supabase Realtime broadcast) and mirrored to the user's webhook if configured. Lets external tools subscribe.
 
-Supported action types in v1:
-- **In-app notification** — toast + entry in a new Notifications inbox (bell icon in top bar). Realtime via existing supabase realtime pattern.
-- **Atlas pin** — drops a pulsing pin on the fired tile until acknowledged.
-- **Webhook** — HTTP POST to a user URL with signed payload (`X-TileIntel-Signature` HMAC using a per-action secret generated by `generate_secret`). This is what wires to sprinkler controllers, PLCs, etc.
-- **Email** — via the existing Lovable email infrastructure (uses `email_domain--setup_email_infra` if not already set up; scaffolds `send-transactional-email`).
-- **SMS** — via the **GatewayAPI** connector (`standard_connectors--connect`), routed through the connector gateway. On first use, the flow prompts the user to link GatewayAPI.
-- **Action pipeline** — an ordered list of the above actions run sequentially with a short delay, so a rule can e.g. notify in-app → SMS on-call → POST to sprinkler webhook.
+## 6. AI model selection (background, opt-in)
 
-## 4. User Datasets (uploads + heatmaps)
+New "AI" tab in the Tile Intelligence panel:
+- Pick a model from the Lovable AI catalog (`google/gemini-3-flash-preview` default; `google/gemini-2.5-pro`, `openai/gpt-5-mini`, `openai/gpt-5.5` etc.).
+- Choice is stored per user in `profiles.ai_preferences` (jsonb).
+- Three surfaces use it, all lazy:
+  1. **Ask** — chat box in the Insights panel; sends the current geofence + recent events + selected datasets as context.
+  2. **Predict on demand** — "Forecast next 24h" button on any rule; one-shot call.
+  3. **Background prediction** — only when the user checks "AI assist" on a specific rule; the tick function calls the model with a strict budget (short prompt, cached recent samples) and stores the forecast in `tile_intel_forecasts`.
 
-New "Datasets" tab in the Earth Intelligence bar. Users can:
-- Upload files: **GeoJSON, KML/KMZ, Shapefile (.zip), CSV with lat/lon, GeoTIFF, NetCDF, PNG/JPG with world-file, JSON**. Client detects type; unknown types fall back to raw storage.
-- For point/line/polygon vector data → rendered as vector overlay + optional **heatmap** (kernel density) with adjustable radius, opacity, palette. Cesium `PointPrimitiveCollection` + a canvas heatmap imagery provider.
-- For raster (GeoTIFF/NetCDF) → converted server-side (edge function `dataset-convert`) into tiled PNGs stored in a new private `user-datasets` bucket, then draped like GIBS layers.
-- Each uploaded dataset becomes selectable as a **Tile Intelligence data source** (§2), so users can build rules on their own data.
-- Metadata: name, description, band/attribute to sample, units, min/max, color ramp.
+No AI runs otherwise — the base intelligence pipeline is deterministic and free.
 
-Storage: private bucket `user-datasets`, signed URLs on read, RLS scoped to owner + explicit share list (reuses `file_shares` pattern).
+## Technical section
 
-## 5. UI surfaces
+### Database (one migration)
 
-- **Top-right Atlas icon widget**: new **Geofence** icon (existing GlyphIcon style).
-- **Geofence Tool panel** (right side, glass card): mode switcher, active tool controls, list of user's geofences with color chip + rule count, "New Geofence" button.
-- **Tile Intelligence panel**: opened per-geofence. Rule cards showing state (green idle / red firing / amber cooldown), last sample value, next check ETA. "New Rule" wizard: source → condition → actions → schedule.
-- **Actions Library** (Settings-style modal from panel): CRUD for webhooks / emails / SMS / pipelines. Test button that fires a synthetic event.
-- **Notifications inbox**: bell icon in Atlas top bar, dropdown list with ack/clear.
-- **Datasets tab** in Earth Intelligence bar with upload dropzone and per-dataset toggle + heatmap controls.
-
-Styling stays inside the existing Atlas dark-glass system (per project memory). Selected tiles use a token that maps to hsl(200 90% 55% / 0.35) fill + hsl(200 100% 70%) border.
-
----
-
-## Technical details
-
-### Data model (new tables, all `public` with GRANTs + RLS)
-
-- `geofences (id, owner_id, name, color, zoom, tile_set jsonb, polygon jsonb, created_at, updated_at)`
-- `tile_intel_datasets (id, owner_id, name, kind, source_ref, storage_path, meta jsonb, created_at)` — `kind` in `earth_layer | event_feed | user_vector | user_raster`.
-- `tile_intel_actions (id, owner_id, name, type, config jsonb, secret_ref, created_at)` — `type` in `in_app | atlas_pin | webhook | email | sms | pipeline`.
-- `tile_intel_rules (id, owner_id, geofence_id, dataset_id, condition jsonb, action_ids uuid[], schedule_seconds int, cooldown_seconds int, enabled bool, last_state text, last_checked_at, last_fired_at)`
-- `tile_intel_events (id, rule_id, fired_at, state, sample_value jsonb, geometry jsonb, acked_at)` — realtime-enabled.
-- `notifications (id, user_id, kind, payload jsonb, read_at, created_at)` — realtime-enabled.
-
-All tables:
-```sql
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.<t> TO authenticated;
-GRANT ALL ON public.<t> TO service_role;
 ```
-RLS restricts rows to `owner_id = auth.uid()` (events / notifications: `user_id = auth.uid()`).
+tile_intel_rules      (id, owner_id, geofence_id, name, source_kind, source_ref,
+                       condition, threshold jsonb, cooldown_s, ai_assist bool,
+                       ai_model text, enabled bool, last_fired_at, ...)
+tile_intel_actions    (id, owner_id, kind, config jsonb, secret text)
+tile_intel_rule_actions (rule_id, action_id)
+tile_intel_events     (id, rule_id, fired_at, sample jsonb, ai_confidence)
+tile_intel_event_deliveries (id, event_id, action_id, status, attempts, last_error)
+tile_intel_forecasts  (id, rule_id, horizon_s, prediction jsonb, model, created_at)
+user_datasets         (id, owner_id, name, kind, bbox, stats jsonb, storage_path,
+                       ingest_token, created_at, updated_at)
+```
+
+All in `public`, with `GRANT SELECT/INSERT/UPDATE/DELETE … TO authenticated`, `GRANT ALL … TO service_role`, RLS scoped to `auth.uid() = owner_id`, and `touch_updated_at` triggers.
+
+Also add `profiles.ai_preferences jsonb default '{}'` and enable Realtime on `tile_intel_events`.
 
 ### Edge functions
 
-- `tile-intel-tick` — cron every minute, samples & dispatches. Uses service role.
-- `tile-intel-webhook-dispatch` — signs and POSTs to user webhooks with retries.
-- `dataset-convert` — accepts uploaded GeoTIFF/NetCDF, converts to XYZ PNG tiles into `user-datasets/<dataset_id>/{z}/{x}/{y}.png`.
-- `storm-data` — thin proxy over NOAA NWS active-alerts GeoJSON.
-- Reuses existing `earthquake-data`, `lightning-data`.
+- `tile-intel-tick` — pg_cron every 2 min; evaluates enabled rules.
+- `tile-intel-dispatch` — action fan-out (in-app / webhook / email / SMS via GatewayAPI).
+- `tile-intel-ingest` — external streaming endpoint (per-dataset token).
+- `tile-intel-ask` — chat endpoint using the user's selected AI model via Lovable AI Gateway (AI SDK, streaming).
+- `dataset-convert` — parses uploaded files into a normalized shape.
 
-### Cron (via `supabase--insert`, not migration, since it contains project URL):
-```sql
-select cron.schedule('tile-intel-tick', '* * * * *',
-  $$ select net.http_post(url:='<functions-url>/tile-intel-tick', ...) $$);
-```
+### Frontend (all under `src/components/atlas/tileIntel/` and `src/lib/tileIntel/`)
 
-### Connectors & secrets
+- `RulesPanel.tsx`, `RuleEditor.tsx`, `ActionsLibrary.tsx`, `DatasetsPanel.tsx`, `DatasetUploader.tsx`
+- `HeatmapLayer.tsx` (Cesium primitive)
+- `OsmBuildingsInteractor.tsx` — click handler + footprint → geofence bridge
+- `InsightsPanel.tsx` (Ask + Forecast) + `AiModelPicker.tsx`
+- `NotificationsBell.tsx` with Realtime subscription
+- Rule/action/dataset persistence in `lib/tileIntel/*.ts`, same pattern as `geofences.ts`
 
-- GatewayAPI connector for SMS (`standard_connectors--connect`), asked-for only when a user first creates an SMS action.
-- Email through existing Lovable email infra (`email_domain--setup_email_infra` if needed).
-- Per-webhook signing secret via `generate_secret` at action-creation time.
+### Order of implementation
 
-### Realtime
+1. Migration + RLS + Realtime.
+2. Actions library + dispatcher.
+3. Rules panel wired to geofences + `tile-intel-tick`.
+4. Notifications bell + Atlas event pins.
+5. Dataset upload/convert + heatmap layer.
+6. OSM buildings selector → geofence bridge.
+7. AI model picker + Ask/Forecast + optional background AI on rules.
+8. Ingest endpoint + firehose broadcast.
 
-`ALTER PUBLICATION supabase_realtime ADD TABLE public.tile_intel_events, public.notifications;`
-Frontend subscribes inside `useEffect` and tears down on unmount.
-
-### File paths (new)
-
-```
-src/components/atlas/
-  GeofenceToolButton.tsx
-  GeofenceToolPanel.tsx
-  TileIntelligencePanel.tsx
-  ActionsLibraryDialog.tsx
-  NotificationsBell.tsx
-src/components/atlas/geofence/
-  TilePaintLayer.tsx     // Cesium primitives for blue tile overlay
-  PolygonDrawLayer.tsx
-  tileMath.ts            // lat/lon <-> z/x/y, polygon → tile set
-src/components/atlas/datasets/
-  DatasetsTab.tsx
-  DatasetUploader.tsx
-  HeatmapLayer.tsx
-src/lib/tileIntel/
-  rules.ts               // client CRUD helpers
-  datasets.ts
-  actions.ts
-supabase/functions/
-  tile-intel-tick/index.ts
-  tile-intel-webhook-dispatch/index.ts
-  dataset-convert/index.ts
-  storm-data/index.ts
-```
-`EarthIntelligenceBar.tsx` gets a small addition to expose sampled values to rules (no visual change).
-
----
-
-## Phasing (each phase ships independently)
-
-1. **Phase 1 — Geofence tool**: icon, panel, tile-paint + polygon draw, persistence, blue overlay.
-2. **Phase 2 — Rules on Earth Intelligence + event feeds**: rules table, `tile-intel-tick`, in-app notifications + Atlas pin actions, notifications bell.
-3. **Phase 3 — Extended actions**: webhook (with signing), email, SMS via GatewayAPI, action pipelines, Actions Library UI.
-4. **Phase 4 — User datasets**: uploads (vector + raster), heatmap rendering, dataset-backed rules.
-
-## Out of scope for v1
-
-- Sharing rules/geofences with other users (uses existing sharing infra later).
-- Complex boolean rule composition (`A AND B`) — v1 is one source per rule.
-- Historical playback of events (data is stored, UI comes later).
+Persistence and caching follow the same pattern as Earth Intelligence and the geofence tool: session cache for freshly loaded rules/datasets, `localStorage` for panel state, DB for the source of truth.
