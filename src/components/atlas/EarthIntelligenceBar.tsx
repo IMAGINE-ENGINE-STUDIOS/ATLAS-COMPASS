@@ -12,10 +12,12 @@ import { X, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import type { Viewer } from "cesium";
 import {
   UrlTemplateImageryProvider,
+  SingleTileImageryProvider,
   GeographicTilingScheme,
   ImageryLayer,
   ImageryLayerCollection,
   Cartographic,
+  Rectangle,
   type ImageryProvider,
 } from "cesium";
 import {
