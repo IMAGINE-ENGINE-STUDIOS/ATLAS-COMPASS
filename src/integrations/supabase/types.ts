@@ -280,6 +280,42 @@ export type Database = {
         }
         Relationships: []
       }
+      geofences: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          polygon: Json | null
+          tile_set: Json
+          updated_at: string
+          zoom: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          polygon?: Json | null
+          tile_set?: Json
+          updated_at?: string
+          zoom?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          polygon?: Json | null
+          tile_set?: Json
+          updated_at?: string
+          zoom?: number
+        }
+        Relationships: []
+      }
       geometries: {
         Row: {
           created_at: string
