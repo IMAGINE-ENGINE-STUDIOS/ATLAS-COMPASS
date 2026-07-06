@@ -332,15 +332,9 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
 
       const latestTarget = targetLayers(latestViewer);
       const layer = latestTarget.collection.addImageryProvider(provider);
-      layer.alpha = 0.92;
       layerRefs.current[def.id] = layer;
       activeDefs.current[def.id] = def;
-      if (replaceOthers) {
-        Object.keys(activeDefs.current)
-          .filter((id) => id !== def.id)
-          .forEach((id) => removeLayer(id));
-        setActive({ [def.id]: true });
-      }
+      rebalanceAlpha();
       latestViewer.scene.requestRender?.();
       syncOverlayFlag();
     } catch (err) {
