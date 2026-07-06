@@ -32,6 +32,8 @@ import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import Google3DController from "@/components/atlas/Google3DController";
 import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
 import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
+import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligencePanel";
+import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import {
   amenityToCategoryId,
   clearSelected,
@@ -933,6 +935,21 @@ function SpaceshipPage() {
   const [geofenceOpen, setGeofenceOpen] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").geofenceOpen === true; } catch { return false; }
   });
+  // Tile Intelligence panel (rules, actions, datasets, AI insights)
+  const [tileIntelOpen, setTileIntelOpen] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").tileIntelOpen === true; } catch { return false; }
+  });
+  const [tileIntelGeofenceId, setTileIntelGeofenceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent).detail?.geofenceId ?? null;
+      setTileIntelGeofenceId(id);
+      setTileIntelOpen(true);
+    };
+    window.addEventListener("atlas:open-tile-intel", onOpen as EventListener);
+    return () => window.removeEventListener("atlas:open-tile-intel", onOpen as EventListener);
+  }, []);
   // LEVEL placements on Atlas — click a pin to play the Level in-place
   // Levels render directly in the same world as the globe via
   // AtlasLevelsR3FOverlay — clicking a pin just flies the camera there,
@@ -1440,7 +1457,7 @@ function SpaceshipPage() {
         tilesTool, tileZoom,
         showBusinessIcons, showLiveTraffic, geoCategory,
         showMarketplacePins,
-        intelligenceOpen, recordingsOpen, geofenceOpen,
+        intelligenceOpen, recordingsOpen, geofenceOpen, tileIntelOpen,
       }));
     } catch {}
   }, [
@@ -1449,7 +1466,7 @@ function SpaceshipPage() {
     tilesTool, tileZoom,
     showBusinessIcons, showLiveTraffic, geoCategory,
     showMarketplacePins,
-    intelligenceOpen, recordingsOpen, geofenceOpen,
+    intelligenceOpen, recordingsOpen, geofenceOpen, tileIntelOpen,
   ]);
 
   const GEO_CATEGORIES = [
@@ -5369,6 +5386,21 @@ function SpaceshipPage() {
                     <Layers className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Geo</span>
                   </button>
+                  {/* Tile Intelligence — rules, actions, datasets, AI insights */}
+                  <button
+                    onClick={() => { setTileIntelGeofenceId(null); setTileIntelOpen((v) => !v); }}
+                    aria-pressed={tileIntelOpen}
+                    title="Tile Intelligence — rules, actions, datasets, AI"
+                    className={`shrink-0 h-7 px-2 rounded-md flex items-center gap-1 border font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      tileIntelOpen
+                        ? "bg-fuchsia-500/25 border-fuchsia-300 text-fuchsia-100 shadow-[0_0_14px_rgba(217,70,239,0.55)]"
+                        : "bg-white/[0.04] border-white/20 text-white/80 hover:text-white hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <Brain className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">TI</span>
+                  </button>
+                  <NotificationsBell />
                   {/* SOS — Emergency Mode toggle */}
                   <button
                     onClick={() => {
@@ -5400,6 +5432,13 @@ function SpaceshipPage() {
 
           {geofenceOpen && (
             <GeofenceToolPanel viewerRef={viewerRef} onClose={() => setGeofenceOpen(false)} />
+          )}
+
+          {tileIntelOpen && (
+            <TileIntelligencePanel
+              onClose={() => setTileIntelOpen(false)}
+              initialGeofenceId={tileIntelGeofenceId}
+            />
           )}
 
 
