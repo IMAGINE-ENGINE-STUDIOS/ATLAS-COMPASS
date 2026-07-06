@@ -172,91 +172,81 @@ function gibsWmsTileTemplate(def: EarthLayerDef): string | null {
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${qs.join("&")}`;
 }
 
-function warmViewportCenter(provider: ImageryProvider, viewer: Viewer, maxLevel: number) {
-  // Small, non-blocking cache warm: request the tile under the camera first,
-  // then the nearest neighbors. Cesium still controls actual rendering, but
-  // this nudges browser/network cache to fill from the viewport center out.
-  const tilingScheme = (provider as any).tilingScheme;
-  if (!tilingScheme?.positionToTileXY || !provider.requestImage) return;
-  const cartographic = Cartographic.fromCartesian(viewer.camera.positionWC);
-  if (!cartographic) return;
-  const height = Math.max(0, cartographic.height || 0);
-  const warmLevel = Math.max(
-    0,
-    Math.min(
-      maxLevel,
-      height > 18_000_000 ? 2 : height > 7_000_000 ? 3 : height > 2_000_000 ? 4 : height > 600_000 ? 5 : 6,
-    ),
-  );
-  const center = tilingScheme.positionToTileXY(cartographic, warmLevel);
-  if (!center) return;
-  const xCount = tilingScheme.getNumberOfXTilesAtLevel(warmLevel);
-  const yCount = tilingScheme.getNumberOfYTilesAtLevel(warmLevel);
-  const offsets = [
-    [0, 0],
-    [-1, 0], [1, 0], [0, -1], [0, 1],
-    [-1, -1], [1, -1], [-1, 1], [1, 1],
-  ];
-  offsets.forEach(([dx, dy], i) => {
-    window.setTimeout(() => {
-      try {
-        const x = ((center.x + dx) % xCount + xCount) % xCount;
-        const y = center.y + dy;
-        if (y < 0 || y >= yCount) return;
-        void provider.requestImage?.(x, y, warmLevel);
-      } catch { /* cache warm only */ }
-    }, i * 45);
+/**
+ * Preload an image URL through the browser cache so Cesium paints it the very
+ * first frame it renders. Resolves on load, rejects on error / timeout.
+ */
+function preloadImage(url: string, timeoutMs = 20000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    let done = false;
+    const finish = (ok: boolean, err?: unknown) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      ok ? resolve() : reject(err ?? new Error("image load failed"));
+    };
+    const timer = window.setTimeout(() => finish(false, new Error("timeout")), timeoutMs);
+    img.onload = () => finish(true);
+    img.onerror = (e) => finish(false, e);
+    img.src = url;
   });
 }
 
 /**
- * Resolve when the scene reports all tiles loaded for two consecutive frames,
- * or after `timeoutMs`. Used to hold a newly-added overlay hidden until it's
- * fully painted, so the previous view stays frozen instead of flickering.
+ * For tiled providers, prefetch every tile that intersects the current
+ * viewport at an appropriate zoom level. Populates Cesium's internal loader
+ * cache so the layer paints without a flicker once revealed.
  */
-function waitForTilesLoaded(viewer: any, timeoutMs = 8000): Promise<void> {
-  return new Promise((resolve) => {
-    if (!viewer || viewer.isDestroyed?.()) return resolve();
-    let stableFrames = 0;
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      try { remove?.(); } catch { /* noop */ }
-      clearTimeout(timer);
-      resolve();
-    };
-    const timer = window.setTimeout(finish, timeoutMs);
-    let remove: (() => void) | undefined;
-    try {
-      remove = viewer.scene.postRender.addEventListener(() => {
-        if (viewer.isDestroyed?.()) return finish();
-        if (viewer.scene.globe.tilesLoaded) {
-          stableFrames += 1;
-          if (stableFrames >= 2) finish();
-        } else {
-          stableFrames = 0;
-        }
-      });
-      viewer.scene.requestRender?.();
-    } catch {
-      finish();
+async function preloadViewportTiles(
+  provider: ImageryProvider,
+  viewer: Viewer,
+  def: EarthLayerDef,
+): Promise<void> {
+  const tilingScheme: any = (provider as any).tilingScheme;
+  const requestImage: any = (provider as any).requestImage;
+  if (!tilingScheme?.positionToTileXY || typeof requestImage !== "function") return;
+  const cam = Cartographic.fromCartesian(viewer.camera.positionWC);
+  if (!cam) return;
+  const height = Math.max(0, cam.height || 0);
+  const maxLevel = def.maxZoom ?? 9;
+  const minLevel = def.id === "hillshade" ? 1 : 0;
+  const level = Math.max(minLevel, Math.min(maxLevel,
+    height > 18_000_000 ? 2 : height > 7_000_000 ? 3 : height > 2_000_000 ? 4 : height > 600_000 ? 5 : 6,
+  ));
+  const center = tilingScheme.positionToTileXY(cam, level);
+  if (!center) return;
+  const xCount = tilingScheme.getNumberOfXTilesAtLevel(level);
+  const yCount = tilingScheme.getNumberOfYTilesAtLevel(level);
+  const radius = 2;
+  const promises: Promise<unknown>[] = [];
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const x = ((center.x + dx) % xCount + xCount) % xCount;
+      const y = center.y + dy;
+      if (y < 0 || y >= yCount) continue;
+      try {
+        const p = requestImage.call(provider, x, y, level);
+        if (p?.then) promises.push(p.catch(() => null));
+      } catch { /* noop */ }
     }
-  });
+  }
+  await Promise.all(promises);
 }
 
 async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryProvider> {
   const gibs = parseGibsLayer(def);
   if (gibs) {
-    const url = gibsWmsTileTemplate(def);
+    // Use ONE full-world equirectangular image instead of a tile pyramid.
+    // Prevents the Pacific/dateline seam that shows with WMTS or WMS-tiled
+    // rendering, and lets us preload a single URL before attaching the layer
+    // — so the overlay appears instantly when it's ready.
+    const url = gibsWmsUrl(def, 4096, 2048);
     if (!url) throw new Error(`No GIBS WMS URL for ${def.label}`);
-    return new UrlTemplateImageryProvider({
-      url,
-      tilingScheme: new GeographicTilingScheme(),
-      tileWidth: 512,
-      tileHeight: 512,
-      minimumLevel: 0,
-      maximumLevel: Math.min(Math.max(def.maxZoom ?? 7, 4), 8),
+    await preloadImage(url);
+    return await (SingleTileImageryProvider as any).fromUrl(url, {
+      rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
       credit: def.attribution,
     });
   }
