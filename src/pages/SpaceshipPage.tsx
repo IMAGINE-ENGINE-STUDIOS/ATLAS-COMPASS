@@ -5280,6 +5280,14 @@ function SpaceshipPage() {
                   >
                     <GlyphIcon name="layers" alt="Atlas Console" glow={consoleOpen ? "#22d3ee" : undefined} />
                   </button>
+                  <button
+                    onClick={toggleFullscreen}
+                    className="p-1 rounded-md text-white/75 hover:text-white transition-colors shrink-0"
+                    title="Fullscreen"
+                  >
+                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                  </button>
+                  <AtlasScreenshotMenu viewerRef={viewerRef} />
                   <NotificationsBell />
                   <button
                     onClick={() => {
@@ -5311,13 +5319,6 @@ function SpaceshipPage() {
                         <div className="text-[9px] text-white/40">All tools</div>
                       </div>
                       <div className="flex flex-wrap gap-1.5 [&>button]:!shrink-0 [&>button]:!h-9 [&>button]:!min-w-9 [&>button]:!px-2 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-white/10 [&>button]:!bg-white/[0.04] [&>button:hover]:!bg-white/[0.08]" onClick={() => setConsoleOpen(false)}>
-                  <button
-                    onClick={toggleBuildings}
-                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
-                    title="Toggle Buildings On/Off"
-                  >
-                    <GlyphIcon name="layers" alt="Toggle Buildings" glow={showBuildings ? "#22d3ee" : undefined} />
-                  </button>
                   <button
                     onClick={resetView}
                     className="p-1 rounded-md text-white/75 hover:text-white transition-colors shrink-0"
@@ -5392,14 +5393,6 @@ function SpaceshipPage() {
                   >
                     <GlyphIcon name="telemetry" alt="Recordings" glow={recordingsOpen ? "#f87171" : undefined} />
                   </button>
-                  <button
-                    onClick={toggleFullscreen}
-                    className="p-1 rounded-md text-white/75 hover:text-white transition-colors shrink-0"
-                    title="Fullscreen"
-                  >
-                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                  </button>
-                  <AtlasScreenshotMenu viewerRef={viewerRef} />
                   {/* Earth Intelligence — dataset overlays */}
                   <button
                     onClick={() => setEarthIntelOpen((v) => !v)}
