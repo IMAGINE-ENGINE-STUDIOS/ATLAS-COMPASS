@@ -34,6 +34,7 @@ import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
 import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
 import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligencePanel";
 import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
+import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
   amenityToCategoryId,
   clearSelected,
