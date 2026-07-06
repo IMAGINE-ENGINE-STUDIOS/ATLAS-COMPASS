@@ -41,10 +41,31 @@ export interface LiveGisSource {
 
 /* ─────────── helpers ─────────── */
 
-async function j<T = unknown>(url: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(url, init);
+/**
+ * All live GIS feeds are routed through the `gis-proxy` edge function so we
+ * bypass CORS + intermittent host restrictions and get a stable browser
+ * response. `direct: true` opts out (used for feeds already CORS-friendly).
+ */
+const SUPABASE_URL: string =
+  (import.meta as any).env?.VITE_SUPABASE_URL ||
+  "https://acqvtnezswxveaqhgvgy.supabase.co";
+
+function viaProxy(url: string): string {
+  return `${SUPABASE_URL}/functions/v1/gis-proxy?url=${encodeURIComponent(url)}`;
+}
+
+async function j<T = unknown>(url: string, init?: RequestInit & { direct?: boolean }): Promise<T> {
+  const { direct, ...rest } = init ?? {};
+  const target = direct ? url : viaProxy(url);
+  const r = await fetch(target, rest);
   if (!r.ok) throw new Error(`${url} → ${r.status}`);
   return (await r.json()) as T;
+}
+
+async function text(url: string): Promise<string> {
+  const r = await fetch(viaProxy(url));
+  if (!r.ok) throw new Error(`${url} → ${r.status}`);
+  return await r.text();
 }
 
 function norm(values: number[]): (v: number) => number {
@@ -145,9 +166,9 @@ export const LIVE_GIS_SOURCES: LiveGisSource[] = [
     description: "Active fire detections in the last 24 hours from VIIRS S-NPP.",
     radius: 14, ramp: "inferno", refreshMs: 30 * 60_000,
     fetchPoints: async () => {
-      const csv = await (await fetch(
+      const csv = await text(
         "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv"
-      )).text();
+      );
       const lines = csv.split("\n").slice(1).filter(Boolean);
       const pts: HeatPoint[] = [];
       for (const l of lines) {
@@ -264,7 +285,7 @@ export const LIVE_GIS_SOURCES: LiveGisSource[] = [
     description: "Large & medium airports worldwide.",
     radius: 14, ramp: "cool", refreshMs: 24 * 3600 * 1000,
     fetchPoints: async () => {
-      const csv = await (await fetch("https://davidmegginson.github.io/ourairports-data/airports.csv")).text();
+      const csv = await text("https://davidmegginson.github.io/ourairports-data/airports.csv");
       const lines = csv.split("\n"); const header = lines[0].split(",");
       const iLat = header.indexOf("latitude_deg"), iLon = header.indexOf("longitude_deg"), iT = header.indexOf("type"), iN = header.indexOf("name");
       const pts: HeatPoint[] = [];

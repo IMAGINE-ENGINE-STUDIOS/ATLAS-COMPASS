@@ -47,6 +47,7 @@ import {
   listHeatmaps, upsertHeatmap, deleteHeatmap, toggleHeatmap, newHeatmap,
   type HeatmapConfig,
 } from "@/lib/tileIntel/heatmaps";
+import { runPipeline } from "@/lib/tileIntel/pipeline";
 
 type Tab = "rules" | "heatmaps" | "datasets" | "actions" | "insights";
 
@@ -88,9 +89,19 @@ export default function TileIntelligencePanel({ onClose, initialGeofenceId }: Pr
     <div className="fixed top-20 right-4 z-[70] w-[520px] max-h-[82vh] rounded-2xl overflow-hidden backdrop-blur-xl bg-black/70 border border-white/15 shadow-2xl flex flex-col text-white animate-in fade-in slide-in-from-right-2 duration-200">
       <header className="flex items-center gap-2 px-4 py-2.5 border-b border-white/10 bg-gradient-to-r from-cyan-500/10 via-transparent to-fuchsia-500/10">
         <Sparkles className="w-4 h-4 text-cyan-200" />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="text-[11px] font-bold tracking-widest uppercase text-cyan-200">Tile Intelligence</div>
           <div className="text-[10px] text-white/50">Rules, heatmaps, live GIS &amp; datasets</div>
+        </div>
+        <div className="flex items-center gap-1 mr-1 rounded-md border border-white/10 bg-black/40 pl-1.5 pr-0.5 py-0.5"
+          title="Preferred AI model — only runs when you ask, forecast, or opt in on a rule">
+          <Bot className="w-3 h-3 text-cyan-200" />
+          <select value={model} onChange={(e) => { setModel(e.target.value); void setAiPreferences({ model: e.target.value }); }}
+            className="bg-transparent text-[10px] text-white/85 outline-none max-w-[110px] appearance-none pr-1">
+            {AI_MODELS.map((m) => (
+              <option key={m.id} value={m.id} className="bg-black text-white">{m.label}</option>
+            ))}
+          </select>
         </div>
         <button onClick={onClose} className="p-1 rounded hover:bg-white/10"><X className="w-4 h-4" /></button>
       </header>
@@ -115,7 +126,7 @@ export default function TileIntelligencePanel({ onClose, initialGeofenceId }: Pr
       <div className="flex-1 overflow-auto p-3 text-[12px]">
         {tab === "rules" && (
           <RulesTab geofences={geofences} actions={actions} rules={rules}
-            defaultGeofenceId={initialGeofenceId ?? null} datasets={datasets} onChange={refreshRules} />
+            defaultGeofenceId={initialGeofenceId ?? null} datasets={datasets} onChange={refreshRules} model={model} />
         )}
         {tab === "heatmaps" && (
           <HeatmapsTab heatmaps={heatmaps} datasets={datasets} onChange={refreshHeatmaps} />
@@ -124,12 +135,10 @@ export default function TileIntelligencePanel({ onClose, initialGeofenceId }: Pr
           <DatasetsTab datasets={datasets} onChange={refreshDatasets} onHeatmapCreated={refreshHeatmaps} />
         )}
         {tab === "actions" && (
-          <ActionsTab actions={actions} onChange={refreshActions} />
+          <ActionsTab actions={actions} onChange={refreshActions} model={model} />
         )}
         {tab === "insights" && (
-          <InsightsTab model={model}
-            onModelChange={async (m) => { setModel(m); await setAiPreferences({ model: m }); toast.success("AI model saved"); }}
-            geofences={geofences} rules={rules} datasets={datasets} />
+          <InsightsTab model={model} geofences={geofences} rules={rules} datasets={datasets} />
         )}
       </div>
     </div>
@@ -191,9 +200,9 @@ const EMPTY_DRAFT: RuleDraft = {
   aiHelper: false, firehose: false, actionIds: [],
 };
 
-function RulesTab({ geofences, actions, rules, defaultGeofenceId, datasets, onChange }: {
+function RulesTab({ geofences, actions, rules, defaultGeofenceId, datasets, onChange, model }: {
   geofences: Geofence[]; actions: TileAction[]; rules: Rule[];
-  defaultGeofenceId: string | null; datasets: UserDataset[]; onChange: () => Promise<void>;
+  defaultGeofenceId: string | null; datasets: UserDataset[]; onChange: () => Promise<void>; model: string;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showBuilder, setShowBuilder] = useState(rules.length === 0);
@@ -261,8 +270,14 @@ function RulesTab({ geofences, actions, rules, defaultGeofenceId, datasets, onCh
       });
       if (!rule) return toast.error("Sign in to save rules");
       if (draft.actionIds.length) await setRuleActions(rule.id, draft.actionIds);
+      const plan = await runPipeline("rule", rule as unknown as Record<string, unknown>, { ai: draft.aiHelper, model });
+      if (plan) {
+        toast.success(`Pipeline · ${plan.steps.length} steps`, {
+          description: plan.ai ?? plan.steps.map((s) => s.label).join(" → "),
+          duration: 6000,
+        });
+      }
     }
-    toast.success(editingId ? "Rule updated" : `${draft.geofenceIds.length} rule(s) created`);
     reset(); setShowBuilder(false);
     await onChange();
   };
@@ -734,7 +749,7 @@ const ACTION_KINDS: { k: ActionKind; label: string; icon: JSX.Element; hint: str
   { k: "pipeline", label: "Pipeline",     icon: <Waves className="w-3.5 h-3.5" />, hint: "Push into an internal pipeline queue (name it however you like).", fields: [{ key: "queue", label: "Queue name", placeholder: "my-queue" }] },
 ];
 
-function ActionsTab({ actions, onChange }: { actions: TileAction[]; onChange: () => Promise<void> }) {
+function ActionsTab({ actions, onChange, model }: { actions: TileAction[]; onChange: () => Promise<void>; model: string }) {
   const [kind, setKind] = useState<ActionKind>("in_app");
   const [name, setName] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
@@ -748,7 +763,11 @@ function ActionsTab({ actions, onChange }: { actions: TileAction[]; onChange: ()
     if (!created) return toast.error("Sign in to create actions");
     setName(""); setValues({});
     await onChange();
-    toast.success("Action added");
+    const plan = await runPipeline("action", created as unknown as Record<string, unknown>, { ai: true, model });
+    toast.success(plan ? `Pipeline · ${plan.steps.length} steps` : "Action added", {
+      description: plan?.ai ?? plan?.steps.map((s) => s.label).join(" → "),
+      duration: 6000,
+    });
   };
 
   return (
@@ -877,8 +896,8 @@ function DatasetsTab({ datasets, onChange, onHeatmapCreated }: {
 
 /* ═══════════════════════════════ INSIGHTS ═══════════════════════════════ */
 
-function InsightsTab({ model, onModelChange, geofences, rules, datasets }: {
-  model: string; onModelChange: (m: string) => void;
+function InsightsTab({ model, geofences, rules, datasets }: {
+  model: string;
   geofences: Geofence[]; rules: Rule[]; datasets: UserDataset[];
 }) {
   const [prompt, setPrompt] = useState("");
@@ -927,15 +946,12 @@ function InsightsTab({ model, onModelChange, geofences, rules, datasets }: {
 
   return (
     <div className="space-y-3">
-      <div className={`${glass} p-3`}>
-        <div className="text-[10px] uppercase tracking-widest text-cyan-100/70 mb-1.5 flex items-center gap-1"><Bot className="w-3 h-3" /> Preferred AI model</div>
-        <select value={model} onChange={(e) => onModelChange(e.target.value)}
-          className="w-full bg-black/40 rounded-md px-2 py-1.5 border border-white/10 text-[11px]">
-          {AI_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
-        <div className="mt-1.5 text-[10px] text-white/45 leading-snug">
-          AI never runs in the background. It only runs when you ask a question here, run a forecast, or check
-          <b> “AI helper on each fire”</b> on a rule.
+      <div className={`${glass} p-2.5 flex items-start gap-2 text-[10px] text-white/55 leading-snug`}>
+        <Info className="w-3 h-3 mt-0.5 text-cyan-200 shrink-0" />
+        <div>
+          Model <span className="text-cyan-100 font-medium">{AI_MODELS.find((m) => m.id === model)?.label ?? model}</span> —
+          switch it any time from the dropdown in the panel header. AI only runs when you Ask, Forecast, opt-in on a rule,
+          or when the pipeline narrator is enabled on save.
         </div>
       </div>
       <div className={`${glass} p-3 space-y-2`}>
