@@ -5270,7 +5270,47 @@ function SpaceshipPage() {
                 </div>
               </div>
 
-              <GlassPanel className="flex items-center flex-nowrap gap-1.5 p-1.5 sm:p-2 overflow-x-auto max-w-[calc(100vw-5rem)] sm:max-w-none sm:flex-wrap sm:overflow-visible">
+              <div className="relative">
+                <GlassPanel className="flex items-center gap-1.5 p-1.5 sm:p-2">
+                  <button
+                    onClick={() => setConsoleOpen((v) => !v)}
+                    aria-pressed={consoleOpen}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${consoleOpen ? "bg-cyan-500/25 text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.5)]" : "text-white/85 hover:text-white"}`}
+                    title="Atlas Console — all tools"
+                  >
+                    <GlyphIcon name="layers" alt="Atlas Console" glow={consoleOpen ? "#22d3ee" : undefined} />
+                  </button>
+                  <NotificationsBell />
+                  <button
+                    onClick={() => {
+                      const next = !emergencyMode;
+                      setEmergencyMode(next);
+                      (window as any).__atlasEmergencyMode = next;
+                      window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: next }));
+                      if (next) toast.error("EMERGENCY MODE ACTIVE", { description: "Atlas is broadcasting emergency layer." });
+                      else toast.success("Emergency mode off");
+                    }}
+                    aria-pressed={emergencyMode}
+                    title={emergencyMode ? "Emergency mode ACTIVE" : "Activate emergency mode"}
+                    className={`shrink-0 h-7 px-2.5 rounded-md flex items-center justify-center border text-white font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      emergencyMode
+                        ? "bg-red-600 border-red-300 shadow-[0_0_18px_rgba(239,68,68,0.85)]"
+                        : "bg-red-600/90 border-red-400/70 hover:bg-red-500"
+                    }`}
+                    style={{ animation: "atlasEmergencyPulse 1.1s ease-in-out infinite" }}
+                  >
+                    SOS
+                  </button>
+                </GlassPanel>
+                {consoleOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[60]" onClick={() => setConsoleOpen(false)} />
+                    <div className="absolute right-0 top-[calc(100%+8px)] z-[65] w-[300px] rounded-xl border border-white/15 bg-black/85 backdrop-blur-xl shadow-2xl p-3 animate-in fade-in slide-in-from-top-2 duration-150">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-[10px] uppercase tracking-widest text-cyan-200 font-bold">Atlas Console</div>
+                        <div className="text-[9px] text-white/40">All tools</div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 [&>button]:!shrink-0 [&>button]:!h-9 [&>button]:!min-w-9 [&>button]:!px-2 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-white/10 [&>button]:!bg-white/[0.04] [&>button:hover]:!bg-white/[0.08]" onClick={() => setConsoleOpen(false)}>
                   <button
                     onClick={toggleBuildings}
                     className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${showBuildings ? "bg-primary/20 text-primary" : "text-white/75 hover:text-white"}`}
@@ -5402,29 +5442,11 @@ function SpaceshipPage() {
                     <Brain className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">TI</span>
                   </button>
-                  <NotificationsBell />
-                  {/* SOS — Emergency Mode toggle */}
-                  <button
-                    onClick={() => {
-                      const next = !emergencyMode;
-                      setEmergencyMode(next);
-                      (window as any).__atlasEmergencyMode = next;
-                      window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: next }));
-                      if (next) toast.error("EMERGENCY MODE ACTIVE", { description: "Atlas is broadcasting emergency layer." });
-                      else toast.success("Emergency mode off");
-                    }}
-                    aria-pressed={emergencyMode}
-                    title={emergencyMode ? "Emergency mode ACTIVE" : "Activate emergency mode"}
-                    className={`shrink-0 h-7 px-2.5 rounded-md flex items-center justify-center border text-white font-bold text-[10px] tracking-widest uppercase transition-all ${
-                      emergencyMode
-                        ? "bg-red-600 border-red-300 shadow-[0_0_18px_rgba(239,68,68,0.85)]"
-                        : "bg-red-600/90 border-red-400/70 hover:bg-red-500"
-                    }`}
-                    style={{ animation: "atlasEmergencyPulse 1.1s ease-in-out infinite" }}
-                  >
-                    SOS
-                  </button>
-                </GlassPanel>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
