@@ -207,6 +207,42 @@ function warmViewportCenter(provider: ImageryProvider, viewer: Viewer, maxLevel:
   });
 }
 
+/**
+ * Resolve when the scene reports all tiles loaded for two consecutive frames,
+ * or after `timeoutMs`. Used to hold a newly-added overlay hidden until it's
+ * fully painted, so the previous view stays frozen instead of flickering.
+ */
+function waitForTilesLoaded(viewer: any, timeoutMs = 8000): Promise<void> {
+  return new Promise((resolve) => {
+    if (!viewer || viewer.isDestroyed?.()) return resolve();
+    let stableFrames = 0;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      try { remove?.(); } catch { /* noop */ }
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, timeoutMs);
+    let remove: (() => void) | undefined;
+    try {
+      remove = viewer.scene.postRender.addEventListener(() => {
+        if (viewer.isDestroyed?.()) return finish();
+        if (viewer.scene.globe.tilesLoaded) {
+          stableFrames += 1;
+          if (stableFrames >= 2) finish();
+        } else {
+          stableFrames = 0;
+        }
+      });
+      viewer.scene.requestRender?.();
+    } catch {
+      finish();
+    }
+  });
+}
+
 async function createEarthImageryProvider(def: EarthLayerDef): Promise<ImageryProvider> {
   const gibs = parseGibsLayer(def);
   if (gibs) {
