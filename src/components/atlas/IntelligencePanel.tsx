@@ -43,14 +43,24 @@ const DEFAULT_CAMERA_HUBS: CameraBounds[] = [
   { north: 26.15, south: 25.45, east: -79.90, west: -80.55 },   // Miami fallback
 ];
 
+// Session cache: keep the last successfully-fetched camera set alive across
+// panel closes / remounts so re-opening Intelligence is instant. Mirrors the
+// approach used by EarthIntelligenceBar for imagery providers.
+interface IntelSessionCache {
+  cameras: TrafficCamera[];
+  total: number;
+  fetchedAt: number;
+}
+const intelSessionCache: { current: IntelSessionCache | null } = { current: null };
+
 export default function IntelligencePanel({ open, onClose, getBounds, onSelectCamera, onCamerasLoaded, boundsVersion = 0 }: Props) {
-  const [cameras, setCameras] = useState<TrafficCamera[]>([]);
+  const [cameras, setCameras] = useState<TrafficCamera[]>(() => intelSessionCache.current?.cameras ?? []);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState<number>(() => intelSessionCache.current?.total ?? 0);
   const abortRef = useRef<AbortController | null>(null);
 
   const expandBounds = (b: CameraBounds, minKm = 30): CameraBounds => {
