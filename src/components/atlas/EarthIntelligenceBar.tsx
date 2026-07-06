@@ -314,6 +314,7 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       });
     }
     syncOverlayFlag();
+    rebalanceAlpha();
   }, [viewerRef, syncOverlayFlag]);
 
   const addLayer = useCallback(async (def: EarthLayerDef, replaceOthers = false) => {
