@@ -235,25 +235,23 @@ const applyAtlasMapVisibility = (
   const google = viewer._googleDirectTileset as Cesium3DTileset | undefined;
   const realistic = viewer._realisticTileset as Cesium3DTileset | undefined;
   const osm = viewer._osmTileset as Cesium3DTileset | undefined;
-  // Strict single-active-tileset. The active one is chosen by mode only,
-  // never by "whichever happens to exist" — that caused overlaps where two
-  // photoreal layers streamed and rendered simultaneously.
-  if (google) google.show = mode === "google" && showBuildings;
-  if (realistic) realistic.show = mode === "realistic" && showBuildings;
+  // While an Earth Intelligence dataset is active we hide the photoreal
+  // tileset so the dataset itself is visible on the Cesium globe. Draping
+  // imagery directly onto the 3D tileset was unreliable, so the dataset
+  // takes over as the primary earth surface for as long as it's toggled on.
+  const earthIntelActive = !!viewer._earthIntelActive;
+  if (google) google.show = mode === "google" && showBuildings && !earthIntelActive;
+  if (realistic) realistic.show = mode === "realistic" && showBuildings && !earthIntelActive;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
   // Mapbox / Light: swap the globe's imagery for a lightweight raster basemap.
   applyMapboxImageryLayer(viewer, mode === "mapbox");
 
-  // Only show the Cesium base globe (terrain + imagery) when it is actually
-  // the active surface (OSM buildings sit on top of it, or buildings are
-  // turned off entirely). In google / realistic photoreal modes the globe
-  // must NOT render underneath — the user explicitly does not want a Cesium
-  // layer behind Google 3D Tiles.
+  // Show the Cesium base globe whenever it's needed as the surface: in
+  // non-photoreal modes, or in photoreal modes while a dataset overlay is
+  // active (dataset takes over the photoreal tileset).
   const photoreal = (mode === "google" || mode === "realistic") && showBuildings;
-  // Earth Intelligence overlays are attached directly to the active 3D tileset
-  // by EarthIntelligenceBar in photoreal modes, so do not show a second globe.
-  viewer.scene.globe.show = !photoreal;
+  viewer.scene.globe.show = !photoreal || earthIntelActive;
   // Skybox / atmosphere still render; only the globe surface is suppressed.
   viewer.scene.requestRender?.();
 };

@@ -35,15 +35,10 @@ import {
  * Falls back to the globe's imagery layers otherwise.
  */
 function targetLayers(viewer: any): { collection: ImageryLayerCollection; onTileset: boolean } {
-  const v = viewer as any;
-  // Photoreal modes hide the Cesium globe, so imagery must be draped on the
-  // photoreal tileset. OSM mode keeps the globe visible under OSM buildings,
-  // so use the normal scene imagery collection there.
-  const tileset = [v._googleDirectTileset, v._realisticTileset]
-    .find((ts) => ts?.imageryLayers && ts.show !== false);
-  if (tileset && tileset.imageryLayers) {
-    return { collection: tileset.imageryLayers as ImageryLayerCollection, onTileset: true };
-  }
+  // Always render Earth Intelligence datasets on the Cesium globe. In
+  // photoreal modes the photoreal tileset is hidden by SpaceshipPage while a
+  // dataset is active (see `applyAtlasMapVisibility` reading _earthIntelActive)
+  // so the dataset becomes the visible earth surface — no "two earths".
   return { collection: viewer.scene.imageryLayers as ImageryLayerCollection, onTileset: false };
 }
 
