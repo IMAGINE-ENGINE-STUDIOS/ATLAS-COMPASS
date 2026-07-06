@@ -298,18 +298,33 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       if (!latestViewer || latestViewer.isDestroyed()) return;
       const latestTarget = targetLayers(latestViewer);
       const layer = latestTarget.collection.addImageryProvider(provider);
-      layer.alpha = 0.92;
+      // Start hidden. We reveal the new overlay only once its tiles have
+      // finished loading in the current viewport — so the user sees the
+      // previous view "frozen" and the new dataset appears at once instead
+      // of streaming in tile by tile.
+      layer.alpha = 0;
+      layer.show = false;
       layerRefs.current[def.id] = layer;
       activeDefs.current[def.id] = def;
       if (parseGibsLayer(def)) {
         warmViewportCenter(provider, latestViewer, Math.min(Math.max(def.maxZoom ?? 7, 4), 8));
       }
+
+      // Wait until Cesium reports all tiles loaded (or timeout) before
+      // swapping the layer in. Requires two consecutive "loaded" frames to
+      // avoid a false-positive during the initial request burst.
+      await waitForTilesLoaded(latestViewer, 8000);
+      if (layerTokens.current[def.id] !== serial) return;
+
+      layer.show = true;
+      layer.alpha = 0.92;
       if (replaceOthers) {
         Object.keys(activeDefs.current)
           .filter((id) => id !== def.id)
           .forEach((id) => removeLayer(id));
         setActive({ [def.id]: true });
       }
+      latestViewer.scene.requestRender?.();
       syncOverlayFlag();
     } catch (err) {
       console.warn(`[Earth Intelligence] failed to load ${def.id}`, err);
