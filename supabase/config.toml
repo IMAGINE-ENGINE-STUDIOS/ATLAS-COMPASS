@@ -1,1 +1,10 @@
 project_id = "acqvtnezswxveaqhgvgy"
+
+[functions.gis-proxy]
+verify_jwt = false
+
+[functions.tile-intel-ingest]
+verify_jwt = false
+
+[functions.tile-intel-pipeline]
+verify_jwt = false
