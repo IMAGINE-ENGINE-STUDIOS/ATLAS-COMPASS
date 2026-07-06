@@ -47,6 +47,7 @@ import {
   listHeatmaps, upsertHeatmap, deleteHeatmap, toggleHeatmap, newHeatmap,
   type HeatmapConfig,
 } from "@/lib/tileIntel/heatmaps";
+import { runPipeline } from "@/lib/tileIntel/pipeline";
 
 type Tab = "rules" | "heatmaps" | "datasets" | "actions" | "insights";
 
@@ -88,9 +89,19 @@ export default function TileIntelligencePanel({ onClose, initialGeofenceId }: Pr
     <div className="fixed top-20 right-4 z-[70] w-[520px] max-h-[82vh] rounded-2xl overflow-hidden backdrop-blur-xl bg-black/70 border border-white/15 shadow-2xl flex flex-col text-white animate-in fade-in slide-in-from-right-2 duration-200">
       <header className="flex items-center gap-2 px-4 py-2.5 border-b border-white/10 bg-gradient-to-r from-cyan-500/10 via-transparent to-fuchsia-500/10">
         <Sparkles className="w-4 h-4 text-cyan-200" />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="text-[11px] font-bold tracking-widest uppercase text-cyan-200">Tile Intelligence</div>
           <div className="text-[10px] text-white/50">Rules, heatmaps, live GIS &amp; datasets</div>
+        </div>
+        <div className="flex items-center gap-1 mr-1 rounded-md border border-white/10 bg-black/40 pl-1.5 pr-0.5 py-0.5"
+          title="Preferred AI model — only runs when you ask, forecast, or opt in on a rule">
+          <Bot className="w-3 h-3 text-cyan-200" />
+          <select value={model} onChange={(e) => { setModel(e.target.value); void setAiPreferences({ model: e.target.value }); }}
+            className="bg-transparent text-[10px] text-white/85 outline-none max-w-[110px] appearance-none pr-1">
+            {AI_MODELS.map((m) => (
+              <option key={m.id} value={m.id} className="bg-black text-white">{m.label}</option>
+            ))}
+          </select>
         </div>
         <button onClick={onClose} className="p-1 rounded hover:bg-white/10"><X className="w-4 h-4" /></button>
       </header>
@@ -115,7 +126,7 @@ export default function TileIntelligencePanel({ onClose, initialGeofenceId }: Pr
       <div className="flex-1 overflow-auto p-3 text-[12px]">
         {tab === "rules" && (
           <RulesTab geofences={geofences} actions={actions} rules={rules}
-            defaultGeofenceId={initialGeofenceId ?? null} datasets={datasets} onChange={refreshRules} />
+            defaultGeofenceId={initialGeofenceId ?? null} datasets={datasets} onChange={refreshRules} model={model} />
         )}
         {tab === "heatmaps" && (
           <HeatmapsTab heatmaps={heatmaps} datasets={datasets} onChange={refreshHeatmaps} />
@@ -124,12 +135,10 @@ export default function TileIntelligencePanel({ onClose, initialGeofenceId }: Pr
           <DatasetsTab datasets={datasets} onChange={refreshDatasets} onHeatmapCreated={refreshHeatmaps} />
         )}
         {tab === "actions" && (
-          <ActionsTab actions={actions} onChange={refreshActions} />
+          <ActionsTab actions={actions} onChange={refreshActions} model={model} />
         )}
         {tab === "insights" && (
-          <InsightsTab model={model}
-            onModelChange={async (m) => { setModel(m); await setAiPreferences({ model: m }); toast.success("AI model saved"); }}
-            geofences={geofences} rules={rules} datasets={datasets} />
+          <InsightsTab model={model} geofences={geofences} rules={rules} datasets={datasets} />
         )}
       </div>
     </div>
