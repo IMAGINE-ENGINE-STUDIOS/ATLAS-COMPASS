@@ -31,6 +31,7 @@ import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOve
 import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import Google3DController from "@/components/atlas/Google3DController";
 import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
+import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
 import {
   amenityToCategoryId,
   clearSelected,
