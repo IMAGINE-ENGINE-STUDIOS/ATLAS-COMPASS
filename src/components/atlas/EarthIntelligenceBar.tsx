@@ -382,10 +382,10 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       return;
     }
 
-    // Keep GPU/network pressure predictable: one raster dataset at a time,
-    // but keep the previous overlay visible until the new one is ready.
+    // Allow stacking multiple datasets. Alpha is rebalanced automatically so
+    // overlapping layers remain visible through each other.
     setActive((prev) => ({ ...prev, [def.id]: true }));
-    void addLayer(def, true);
+    void addLayer(def, false);
   }, [active, addLayer, removeLayer]);
 
   // Clear all on unmount
