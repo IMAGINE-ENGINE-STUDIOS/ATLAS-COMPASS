@@ -272,6 +272,21 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
     window.dispatchEvent(new CustomEvent("atlas:earth-intel-changed", { detail: { active: anyActive } }));
   }, [viewerRef]);
 
+  // Multi-dataset overlay: reduce per-layer alpha as more datasets stack so
+ // the ones underneath remain visible. Single overlay stays near opaque.
+  const rebalanceAlpha = useCallback(() => {
+    const ids = Object.keys(layerRefs.current);
+    const n = ids.length;
+    if (!n) return;
+    const alpha = n === 1 ? 0.92 : n === 2 ? 0.7 : n === 3 ? 0.55 : Math.max(0.35, 1 / (n + 0.2));
+    ids.forEach((id) => {
+      const l = layerRefs.current[id];
+      if (l) l.alpha = alpha;
+    });
+    const viewer = viewerRef.current;
+    if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender?.();
+  }, [viewerRef]);
+
   const removeLayer = useCallback((id: string, forget = true) => {
     const viewer = viewerRef.current;
     const layer = layerRefs.current[id];
@@ -299,7 +314,8 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       });
     }
     syncOverlayFlag();
-  }, [viewerRef, syncOverlayFlag]);
+    rebalanceAlpha();
+  }, [viewerRef, syncOverlayFlag, rebalanceAlpha]);
 
   const addLayer = useCallback(async (def: EarthLayerDef, replaceOthers = false) => {
     const viewer = viewerRef.current;
@@ -332,15 +348,9 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
 
       const latestTarget = targetLayers(latestViewer);
       const layer = latestTarget.collection.addImageryProvider(provider);
-      layer.alpha = 0.92;
       layerRefs.current[def.id] = layer;
       activeDefs.current[def.id] = def;
-      if (replaceOthers) {
-        Object.keys(activeDefs.current)
-          .filter((id) => id !== def.id)
-          .forEach((id) => removeLayer(id));
-        setActive({ [def.id]: true });
-      }
+      rebalanceAlpha();
       latestViewer.scene.requestRender?.();
       syncOverlayFlag();
     } catch (err) {
@@ -373,10 +383,10 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
       return;
     }
 
-    // Keep GPU/network pressure predictable: one raster dataset at a time,
-    // but keep the previous overlay visible until the new one is ready.
+    // Allow stacking multiple datasets. Alpha is rebalanced automatically so
+    // overlapping layers remain visible through each other.
     setActive((prev) => ({ ...prev, [def.id]: true }));
-    void addLayer(def, true);
+    void addLayer(def, false);
   }, [active, addLayer, removeLayer]);
 
   // Clear all on unmount
