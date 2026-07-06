@@ -74,7 +74,7 @@ export async function createGeofence(input: GeofenceInput): Promise<Geofence> {
   }
   const { data, error } = await supabase
     .from("geofences")
-    .insert({ ...input, owner_id: uid })
+    .insert({ ...input, polygon: input.polygon as any, tile_set: input.tile_set as any, owner_id: uid })
     .select()
     .single();
   if (error) throw error;
@@ -88,7 +88,7 @@ export async function updateGeofence(id: string, patch: Partial<GeofenceInput>):
     writeLocal(list);
     return;
   }
-  const { error } = await supabase.from("geofences").update(patch).eq("id", id);
+  const { error } = await supabase.from("geofences").update(patch as any).eq("id", id);
   if (error) throw error;
 }
 
