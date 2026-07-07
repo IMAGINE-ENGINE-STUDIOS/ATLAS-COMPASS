@@ -1121,7 +1121,7 @@ function SpaceshipPage() {
       // Apply once. No 140ms re-tuning loop — that was thrashing the tile
       // scheduler and the resolutionScale flips were the most visible cause
       // of "loading worse than Cesium defaults".
-      tilesets.forEach((ts) => tuneAtlasTileset(ts, "boot"));
+      tilesets.forEach((ts) => ts === ot ? tuneOsmBuildingsTileset(ts) : tuneAtlasTileset(ts, "boot"));
       viewer.scene.globe.maximumScreenSpaceError = 8;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = false;
@@ -2525,7 +2525,7 @@ function SpaceshipPage() {
       resizeTimer = setTimeout(() => {
         if (viewer.isDestroyed()) return;
         if (rt) tuneAtlasTileset(rt, "boot");
-        if (ot) tuneAtlasTileset(ot, "boot");
+        if (ot) tuneOsmBuildingsTileset(ot);
         if (gt) tuneAtlasTileset(gt, "boot");
         viewer.scene.globe.maximumScreenSpaceError = 8;
         viewer.scene.requestRender();
