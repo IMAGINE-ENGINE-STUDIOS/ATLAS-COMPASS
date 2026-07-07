@@ -32,6 +32,7 @@ import {
   History,
   CheckSquare,
   Square,
+  Move3D,
 } from "lucide-react";
 import type {
   BuildingCardRecord,
