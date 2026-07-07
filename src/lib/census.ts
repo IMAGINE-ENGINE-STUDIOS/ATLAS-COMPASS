@@ -31,7 +31,7 @@ export interface CensusBlockData {
 export interface BuildingResidentsEstimate {
   residents: number;
   units: number;
-  source: "us-census-2020" | "heuristic";
+  source: "us-census-2020" | "worldpop-2020" | "ghsl-2023" | "heuristic" | "unavailable";
   block?: CensusBlockData;
   note?: string;
 }
@@ -128,25 +128,44 @@ export async function estimateBuildingResidents(input: {
     ? Math.max(1, Math.round((footprint * floors) / unitFootprint))
     : Math.max(1, floors * 4);
 
-  const block = await fetchCensusBlockData(input.lat, input.lng);
-  if (block && block.population > 0) {
-    const hh = block.household_size > 0 ? block.household_size : 2.5;
-    const residents = Math.max(1, Math.round(units * hh));
-    return {
-      residents,
-      units,
-      source: "us-census-2020",
-      block,
-      note: `Block ${block.geoid} · ${block.population} residents / ${block.housing_units} units`,
-    };
+  // Ask the edge function, which chains Census (US) → WorldPop (global)
+  // → GHSL (global fallback) and caches results server-side.
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data } = await supabase.functions.invoke("population-lookup", {
+      body: { lat: input.lat, lng: input.lng },
+    });
+    const ppl = (data as any)?.residents_per_km2 as number | null | undefined;
+    const source = (data as any)?.source as BuildingResidentsEstimate["source"] | undefined;
+    const note = (data as any)?.note as string | undefined;
+    if (typeof ppl === "number" && ppl > 0 && source) {
+      // Building footprint (m²) → km². Assume ~30 % of the block's people
+      // actually live in this building's footprint × floors (rest is roads,
+      // commerce, empty lots). Cap at 1 unit × household size floor.
+      const buildingFootprintKm2 = footprint / 1_000_000;
+      const blockShare = Math.max(
+        1,
+        Math.round(ppl * buildingFootprintKm2 * floors * 0.3),
+      );
+      // Never exceed our per-unit ceiling (units × 3.5 people).
+      const capped = Math.min(blockShare, Math.round(units * 3.5));
+      return {
+        residents: capped,
+        units,
+        source,
+        note: note ?? undefined,
+      };
+    }
+  } catch (e) {
+    console.warn("[estimateBuildingResidents] edge function failed, falling back", e);
   }
 
-  // Heuristic fallback (non-US or API failure): 35 m² per resident
+  // Heuristic fallback (all providers failed): 35 m² per resident
   const perFloor = footprint > 0 ? Math.max(1, Math.floor(footprint / 35)) : 4;
   return {
     residents: floors * perFloor,
     units,
     source: "heuristic",
-    note: "Outside US coverage — approximate",
+    note: "No population source responded — approximate",
   };
 }
