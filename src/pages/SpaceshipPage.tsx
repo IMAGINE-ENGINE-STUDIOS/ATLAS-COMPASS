@@ -6299,8 +6299,14 @@ function SpaceshipPage() {
                     </div>
                   </div>
 
-                  {/* ── Area mode body ── */}
-                  {brushSubMode === "area" && (
+                  {/* ── Area (always visible) ── */}
+                  <div className="space-y-2.5 mb-2.5">
+                    <SectionHeader
+                      label="Area · Scan · Export"
+                      accent="cyan"
+                      active={brushSubMode === "area"}
+                      onActivate={() => setBrushSubMode("area")}
+                    />
                     <div className="space-y-2.5">
                       <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-cyan-300/80 leading-relaxed">
