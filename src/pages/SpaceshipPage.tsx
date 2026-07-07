@@ -2618,23 +2618,37 @@ function SpaceshipPage() {
         }
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
-        // OSM Buildings: load ALL buildings in the viewport + a wide
-        // surrounding halo (several km) rather than the foveated /
-        // SSE-culled subset. OSM buildings are cheap (a single geometry
-        // pack per tile) so we can afford a much lower SSE + full sibling
-        // loading without hurting FPS.
+        // OSM Buildings: load every building inside the viewport + a
+        // surrounding halo, but scale the halo/cache to the device so
+        // low-memory machines don't OOM. "In-view" coverage stays full
+        // on every tier (SSE ≤ 6, no LOD skipping, no foveated culling);
+        // only the *halo radius* (loadSiblings) and RAM cache shrink.
         try {
-          tileset.maximumScreenSpaceError = 4;    // was ~8 → far more coverage
-          tileset.skipLevelOfDetail = false;      // no LOD skipping = fill everything
-          tileset.loadSiblings = true;            // pull neighbouring tiles around view
-          tileset.foveatedScreenSpaceError = false;
+          const nav: any = typeof navigator !== "undefined" ? navigator : {};
+          const deviceMemGB: number = typeof nav.deviceMemory === "number" ? nav.deviceMemory : 8;
+          const hwThreads: number   = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : 8;
+          // Tier: low (<=4GB or <=4 cores), mid (<=8GB), high (>8GB).
+          const tier: "low" | "mid" | "high" =
+            deviceMemGB <= 4 || hwThreads <= 4 ? "low"
+            : deviceMemGB <= 8 ? "mid"
+            : "high";
+          const cfg = {
+            low:  { sse: 6, siblings: false, cacheMiB: 768,  overflowMiB: 192 },
+            mid:  { sse: 5, siblings: true,  cacheMiB: 2048, overflowMiB: 512 },
+            high: { sse: 4, siblings: true,  cacheMiB: 4096, overflowMiB: 1024 },
+          }[tier];
+
+          tileset.maximumScreenSpaceError = cfg.sse;         // in-view coverage stays full
+          tileset.skipLevelOfDetail = false;                 // no LOD popping
+          tileset.loadSiblings = cfg.siblings;               // halo width scales with device
+          tileset.foveatedScreenSpaceError = false;          // don't drop peripheral packs
           tileset.foveatedTimeDelay = 0;
-          (tileset as any).cullWithChildrenBounds = false; // don't early-cull sibling packs
-          tileset.preloadWhenHidden = true;
+          tileset.preloadWhenHidden = tier !== "low";
           tileset.preloadFlightDestinations = true;
-          tileset.progressiveResolutionHeightFraction = 0; // no low-res pre-pass
-          tileset.cacheBytes = 4096 * TILE_MIB;   // 4 GiB pinned in RAM
-          tileset.maximumCacheOverflowBytes = 1024 * TILE_MIB;
+          tileset.progressiveResolutionHeightFraction = 0;   // no low-res pre-pass
+          tileset.cacheBytes = cfg.cacheMiB * TILE_MIB;
+          tileset.maximumCacheOverflowBytes = cfg.overflowMiB * TILE_MIB;
+          console.info(`[Atlas OSM] halo tier=${tier} mem≈${deviceMemGB}GB cores=${hwThreads} sse=${cfg.sse} cache=${cfg.cacheMiB}MiB`);
         } catch {}
         // Re-apply user paint whenever a tile becomes visible so painted
         // buildings keep their colour across LOD swaps and camera moves.
