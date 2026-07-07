@@ -404,7 +404,8 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
   }, [active, viewerRef, getOsmTileset, handlePick, groups]);
 
   /** Convert a screen-space rectangle into the OSM ids inside it and add
-   *  them to (or subtract from) the active selection group. */
+   *  them to the PENDING selection (green preview). User then hits ✓ Save
+   *  in the confirm bar to commit them to a group. */
   const handleMarquee = useCallback(
     async (rect: MarqueeRect) => {
       const viewer = viewerRef.current;
@@ -450,37 +451,162 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
         console.warn("[AtlasBuildingsOverlay] marquee walk failed", e);
       }
 
+      // Fallback for large rectangles: sample-grid raycast picks up buildings
+      // whose centroid centroid lookup failed (some tiles expose bounding
+      // sphere only after full load).
+      try {
+        const w = cMaxX - cMinX, h = cMaxY - cMinY;
+        if (w > 40 && h > 40) {
+          const step = Math.max(12, Math.floor(Math.min(w, h) / 12));
+          for (let x = cMinX; x <= cMaxX; x += step) {
+            for (let y = cMinY; y <= cMaxY; y += step) {
+              const p = viewer.scene.pick(new Cartesian2(x, y));
+              if (p instanceof Cesium3DTileFeature) {
+                const id = featureOsmId(p);
+                if (id) hits.add(id);
+              }
+            }
+          }
+        }
+      } catch {}
+
       if (hits.size === 0) {
         toast("No buildings in that rectangle — zoom closer.", { duration: 2000 });
         return;
       }
 
-      // Ensure a group exists (create if none active).
-      let group = groups.activeGroup;
-      if (!group) group = await groups.createGroup();
-      if (!group) return;
-
-      const ids = Array.from(hits);
-      if (rect.mode === "replace") {
-        await groups.updateGroup(group.id, { osm_ids: ids });
-        toast.success(`${ids.length} building${ids.length === 1 ? "" : "s"} → "${group.name}"`);
-      } else if (rect.mode === "add") {
-        await groups.addToGroup(group.id, ids);
-        toast.success(`+${ids.length} → "${group.name}"`);
-      } else {
-        await groups.removeFromGroup(group.id, ids);
-        toast.success(`−${ids.length} from "${group.name}"`);
-      }
-
-      // Ensure records exist for each hit so future edits persist.
-      for (const osmId of ids) {
-        if (!records.records[osmId]) {
-          await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
+      // Merge into pending selection based on drag mode.
+      const hitIds = Array.from(hits);
+      setPendingIds((prev) => {
+        let next: string[];
+        if (rect.mode === "replace") {
+          // Restore any previously-pending that aren't in the new hit set.
+          for (const oldId of prev) {
+            if (!hits.has(oldId)) restorePendingColor(oldId);
+          }
+          next = hitIds;
+        } else if (rect.mode === "add") {
+          const s = new Set(prev);
+          for (const id of hitIds) s.add(id);
+          next = Array.from(s);
+        } else {
+          const drop = new Set(hitIds);
+          const kept: string[] = [];
+          for (const id of prev) {
+            if (drop.has(id)) restorePendingColor(id);
+            else kept.push(id);
+          }
+          next = kept;
         }
-      }
+        // Paint all now-pending ids green (idempotent).
+        for (const id of next) paintPendingColor(id);
+        return next;
+      });
     },
-    [viewerRef, getOsmTileset, groups, records],
+    [viewerRef, getOsmTileset],
   );
+
+  /** Save the current pending color for `osmId` (if not already saved) then
+   *  paint it green. */
+  const paintPendingColor = useCallback((osmId: string) => {
+    if (!pendingSnapshot.current.has(osmId)) {
+      pendingSnapshot.current.set(osmId, appliedColors.current.get(osmId) ?? null);
+    }
+    // Repaint on the tileset without persisting to appliedColors — we still
+    // want the snapshot value to survive if the user hits ✕ Clear.
+    const viewer = viewerRef.current;
+    const ts = getOsmTileset();
+    if (!viewer || !ts) return;
+    try {
+      (ts as any)._selectedTiles?.forEach((tile: any) => {
+        const count = tile.content?.featuresLength ?? 0;
+        for (let i = 0; i < count; i++) {
+          const f: Cesium3DTileFeature = tile.content.getFeature(i);
+          if (featureOsmId(f) === osmId) {
+            f.color = CesiumColor.fromCssColorString(PENDING_HEX);
+          }
+        }
+      });
+    } catch {}
+    viewer.scene.requestRender();
+  }, [viewerRef, getOsmTileset]);
+
+  /** Restore the original tint of an osm_id from `pendingSnapshot`. */
+  const restorePendingColor = useCallback((osmId: string) => {
+    const original = pendingSnapshot.current.get(osmId) ?? null;
+    pendingSnapshot.current.delete(osmId);
+    const viewer = viewerRef.current;
+    const ts = getOsmTileset();
+    if (!viewer || !ts) return;
+    try {
+      (ts as any)._selectedTiles?.forEach((tile: any) => {
+        const count = tile.content?.featuresLength ?? 0;
+        for (let i = 0; i < count; i++) {
+          const f: Cesium3DTileFeature = tile.content.getFeature(i);
+          if (featureOsmId(f) === osmId) {
+            f.color = original ? CesiumColor.fromCssColorString(original) : CesiumColor.WHITE;
+          }
+        }
+      });
+    } catch {}
+    viewer.scene.requestRender();
+  }, [viewerRef, getOsmTileset]);
+
+  /** Wipe pending, restoring every affected building to its saved color. */
+  const clearPending = useCallback(() => {
+    for (const id of pendingIds) restorePendingColor(id);
+    pendingSnapshot.current.clear();
+    setPendingIds([]);
+  }, [pendingIds, restorePendingColor]);
+
+  /** Commit pending → brand-new group (color = green) then paint members. */
+  const savePendingAsNewGroup = useCallback(async () => {
+    if (pendingIds.length === 0) return;
+    const ids = [...pendingIds];
+    const g = await groups.createGroup(`Selection ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+    if (!g) { toast.error("Could not create group"); return; }
+    await groups.updateGroup(g.id, { osm_ids: ids, color: PENDING_HEX });
+    groups.setActiveId(g.id);
+    // Move buildings from "pending green" to a persisted green (saved on record).
+    pendingSnapshot.current.clear();
+    setPendingIds([]);
+    for (const osmId of ids) {
+      appliedColors.current.set(osmId, PENDING_HEX);
+      if (!records.records[osmId]) {
+        await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
+      }
+      await records.patchRecord(
+        osmId,
+        { color: PENDING_HEX },
+        { kind: "color", message: `Saved to group "${g.name}"` },
+      );
+    }
+    toast.success(`Saved ${ids.length} building${ids.length === 1 ? "" : "s"} → "${g.name}"`);
+  }, [pendingIds, groups, records]);
+
+  /** Commit pending → existing active group, using that group's color. */
+  const addPendingToActive = useCallback(async () => {
+    if (pendingIds.length === 0 || !groups.activeGroup) return;
+    const g = groups.activeGroup;
+    const ids = [...pendingIds];
+    await groups.addToGroup(g.id, ids);
+    pendingSnapshot.current.clear();
+    setPendingIds([]);
+    for (const osmId of ids) {
+      appliedColors.current.set(osmId, g.color);
+      if (!records.records[osmId]) {
+        await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
+      }
+      await records.patchRecord(
+        osmId,
+        { color: g.color },
+        { kind: "color", message: `Added to group "${g.name}"` },
+      );
+      // Repaint immediately with group color.
+      applyColorImmediate(osmId, g.color);
+    }
+    toast.success(`+${ids.length} → "${g.name}"`);
+  }, [pendingIds, groups, records]);
 
   // ── Callbacks passed to BuildingCard ────────────────────────────────
   const applyColorImmediate = (osmId: string, hex: string | null) => {
