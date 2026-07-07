@@ -6500,7 +6500,20 @@ function SpaceshipPage() {
                       {/* Zoom (tile size) */}
                       <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="text-[9px] text-white/70 uppercase tracking-wider">Tile zoom (z)</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[9px] text-white/70 uppercase tracking-wider">Tile zoom (z)</p>
+                            <button
+                              onClick={() => setTileZoomAuto((v) => !v)}
+                              className={`px-1.5 py-0.5 rounded-md text-[8px] font-semibold uppercase tracking-wider border transition-colors ${
+                                tileZoomAuto
+                                  ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/30"
+                                  : "text-white/60 border-white/10 hover:text-white hover:border-white/20"
+                              }`}
+                              title="Auto-match the current basemap zoom (recommended)"
+                            >
+                              {tileZoomAuto ? "Auto · Synced" : "Manual"}
+                            </button>
+                          </div>
                           <p className="text-[11px] text-white/85 font-mono">
                             z{tileZoom} · ~{tileSizeMeters(cursorInfo?.lat ?? 0, tileZoom).toFixed(1)} m
                           </p>
@@ -6508,11 +6521,14 @@ function SpaceshipPage() {
                         <input
                           type="range" min={6} max={22} step={1}
                           value={tileZoom}
+                          disabled={tileZoomAuto}
                           onChange={(e) => setTileZoom(parseInt(e.target.value))}
-                          className="w-full accent-emerald-400"
+                          className="w-full accent-emerald-400 disabled:opacity-40"
                         />
                         <p className="text-[9px] text-white/50 mt-1">
-                          Higher z = smaller tiles. z18 ≈ building; z14 ≈ neighborhood; z10 ≈ city.
+                          {tileZoomAuto
+                            ? "Auto follows the basemap — tiles you pick match what Google/OSM is drawing right now."
+                            : "Manual: higher z = smaller tiles. z18 ≈ building; z14 ≈ neighborhood; z10 ≈ city."}
                         </p>
                       </div>
 
