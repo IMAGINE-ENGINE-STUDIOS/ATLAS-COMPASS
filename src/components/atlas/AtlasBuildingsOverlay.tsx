@@ -875,10 +875,32 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
             records={records.records}
             onSetActive={groups.setActiveId}
             onCreate={groups.createGroup}
-            onRename={(id, name) => { groups.updateGroup(id, { name }); }}
-            onRecolor={(id, color) => { groups.updateGroup(id, { color }); }}
-            onTogglePublic={(id, isPublic) => { groups.updateGroup(id, { is_public: isPublic }); }}
-            onDelete={groups.deleteGroup}
+            onRename={async (id, name) => {
+              await groups.updateGroup(id, { name });
+              await ledgerToGroup(id, "import", `Group renamed → "${name}"`);
+            }}
+            onRecolor={async (id, color) => {
+              await groups.updateGroup(id, { color });
+              await ledgerToGroup(id, "color", `Group color → ${color}`, { color });
+            }}
+            onTogglePublic={async (id, isPublic) => {
+              await groups.updateGroup(id, { is_public: isPublic });
+              await ledgerToGroup(id, "publish", isPublic ? "Group published" : "Group made private");
+            }}
+            onDelete={async (id) => {
+              const g = groups.groups.find((x) => x.id === id);
+              if (g) {
+                for (const osmId of g.osm_ids) {
+                  const rec = records.records[osmId];
+                  if (rec) {
+                    await records.appendLedger(rec.id, "import",
+                      `Removed from group "${g.name}"`,
+                      { group_id: g.id, group_name: g.name });
+                  }
+                }
+              }
+              await groups.deleteGroup(id);
+            }}
             onApplyColorToGroup={applyColorToGroup}
             onFlyToGroup={(id) => {
               const g = groups.groups.find((x) => x.id === id);
