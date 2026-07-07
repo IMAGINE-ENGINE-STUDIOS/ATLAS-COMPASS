@@ -2878,6 +2878,51 @@ function SpaceshipPage() {
       }
     }, ScreenSpaceEventType.LEFT_UP);
 
+    // ── OSM Building selection (paintable) ──
+    // Fires on a normal left click. When the picked object is a
+    // Cesium3DTileFeature from the OSM Buildings tileset, gather the
+    // OSM tags off the feature and open the OSM building inspector.
+    // Non-OSM picks (models, entities, other tilesets) are ignored so
+    // this handler doesn't fight the other click handlers.
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (!defined(picked) || !(picked instanceof Cesium3DTileFeature)) return;
+      const osm = (viewer as any)._osmTileset;
+      if (!osm || picked.tileset !== osm) return;
+
+      // Collect useful OSM tag properties from the feature.
+      let ids: string[] = [];
+      try { ids = picked.getPropertyIds(); } catch {}
+      const prop = (k: string) => {
+        try { const v = picked.getProperty(k); return v == null ? undefined : String(v); } catch { return undefined; }
+      };
+      const elementId = prop("elementId") || prop("cesium#elementId") || `${click.position.x},${click.position.y}`;
+
+      // World position of the click → lat/lng for reverse geocoding fallback.
+      let lat = 0, lng = 0;
+      try {
+        const cart = viewer.scene.pickPosition(click.position);
+        if (cart) {
+          const c = Cartographic.fromCartesian(cart);
+          lat = CesiumMath.toDegrees(c.latitude);
+          lng = CesiumMath.toDegrees(c.longitude);
+        }
+      } catch {}
+
+      const painted = paintedBuildingsRef.current.get(String(elementId)) || null;
+      setSelectedBuilding({
+        id: String(elementId),
+        name:        prop("name"),
+        housenumber: prop("addr:housenumber") || prop("addr_housenumber"),
+        street:      prop("addr:street")      || prop("addr_street"),
+        city:        prop("addr:city")        || prop("addr_city"),
+        postcode:    prop("addr:postcode")    || prop("addr_postcode"),
+        country:     prop("addr:country")     || prop("addr_country"),
+        lat, lng,
+        currentColor: painted,
+      });
+    }, ScreenSpaceEventType.LEFT_CLICK);
+
     // Helper: pick a world location under the given screen point.
     const pickWorldLoc = (screenPos: any) => {
       const ray = viewer.camera.getPickRay(screenPos);
