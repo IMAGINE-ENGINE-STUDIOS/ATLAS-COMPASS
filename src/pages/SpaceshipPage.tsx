@@ -5204,7 +5204,7 @@ function SpaceshipPage() {
       <AtlasSplatUploader viewer={viewerRef.current} />
 
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
-          (right-click / double-click → "Play from here"). WASD + mouse,
+          (triple-left-click the globe → "Play from here"). WASD + mouse,
           Shift to run, Space to jump, Esc to exit. */}
       <AtlasFreePlayOverlay
         viewerRef={viewerRef}
