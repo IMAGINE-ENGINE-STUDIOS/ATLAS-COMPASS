@@ -1369,6 +1369,7 @@ function SpaceshipPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const quickFilterSuppressSearchUntilRef = useRef(0);
   const [hoveredResultIdx, setHoveredResultIdx] = useState<number | null>(null);
   const [activeSearchCategory, setActiveSearchCategory] = useState<string>("");
   const searchResultEntitiesRef = useRef<any[]>([]);
