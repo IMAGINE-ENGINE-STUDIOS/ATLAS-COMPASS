@@ -12,6 +12,7 @@ import {
   Sun, Brain
 } from "lucide-react";
 import { Layers } from "lucide-react";
+import { ScanLine } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlob, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
