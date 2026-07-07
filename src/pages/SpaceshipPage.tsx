@@ -6676,7 +6676,7 @@ function SpaceshipPage() {
                         )}
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {/* Placed models list (shared across all modes) */}
                   <div className="mt-2.5 pt-2.5 border-t border-white/[0.06]">
