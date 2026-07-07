@@ -6673,10 +6673,6 @@ function SpaceshipPage() {
 
           {/* Business POI Card Popup */}
           
-            {selectedBusiness && (
-              /* rendered below */
-              null
-            )}
             {selectedBuilding && (
               <div
                 className={`${isMobile
