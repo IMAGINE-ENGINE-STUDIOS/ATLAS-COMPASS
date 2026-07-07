@@ -35,6 +35,7 @@ import BuildingCard from "./BuildingCard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import { useBuildingRecords } from "@/hooks/useBuildingRecords";
 import { estimatePopulation, type PickedBuilding } from "@/types/BuildingCardRecord";
+import { estimateBuildingResidents } from "@/lib/census";
 import { toast } from "sonner";
 import { MousePointerSquareDashed } from "lucide-react";
 
@@ -244,15 +245,34 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
           if (Array.isArray(el.geometry) && el.geometry.length >= 3) {
             base.footprint_m2 = polygonAreaM2(el.geometry);
           }
-          base.est_population = estimatePopulation({
-            levels: base.levels,
-            footprint_m2: base.footprint_m2,
-            building_kind: base.building_kind,
-          });
           base.raw = { ...(base.raw ?? {}), tags: t };
         }
       }
     } catch {}
+    // Real population: US Census 2020 block data (falls back to heuristic).
+    try {
+      const est = await estimateBuildingResidents({
+        lat: base.lat,
+        lng: base.lng,
+        levels: base.levels,
+        footprint_m2: base.footprint_m2,
+        building_kind: base.building_kind,
+      });
+      base.est_population = est.residents;
+      base.population_source = est.source;
+      base.population_note = est.note ?? null;
+      base.raw = {
+        ...(base.raw ?? {}),
+        population: { residents: est.residents, units: est.units, source: est.source, note: est.note, block: est.block },
+      };
+    } catch {
+      base.est_population = estimatePopulation({
+        levels: base.levels,
+        footprint_m2: base.footprint_m2,
+        building_kind: base.building_kind,
+      });
+      base.population_source = "heuristic";
+    }
     return base;
   }, []);
 
