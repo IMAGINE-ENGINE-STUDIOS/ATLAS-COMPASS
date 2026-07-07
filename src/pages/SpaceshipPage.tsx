@@ -62,6 +62,7 @@ import {
   CameraEventType, KeyboardEventModifier,
   UrlTemplateImageryProvider, ImageryLayer,
 } from "cesium";
+import { Cesium3DTileFeature } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAtlasKeyboardNav } from "@/components/atlas/useAtlasKeyboardNav";
@@ -84,6 +85,7 @@ import AtlasFreePlayOverlay, {
 } from "@/components/atlas/AtlasFreePlayOverlay";
 import { importMapToAtlas, pickMapFile } from "@/lib/atlasMapImport";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
+import OsmBuildingInspector, { type OsmBuildingSelection } from "@/components/atlas/OsmBuildingInspector";
 import {
   setAtlasCameraAltitude,
   useAtlasCameraAltitude,
@@ -1410,6 +1412,11 @@ function SpaceshipPage() {
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
+  // ── OSM Building selection + paint ──
+  // paintedBuildingsRef maps OSM elementId → CSS hex. tileVisible re-applies
+  // the paint whenever the tileset swaps LODs so colours survive panning.
+  const paintedBuildingsRef = useRef<Map<string, string>>(new Map());
+  const [selectedBuilding, setSelectedBuilding] = useState<OsmBuildingSelection | null>(null);
   const instantBusinessAbortRef = useRef<AbortController | null>(null);
   const atlasTags = useMemo<AtlasTag[]>(() => {
     const allTags: AtlasTag[] = [];
@@ -2629,6 +2636,28 @@ function SpaceshipPage() {
           tileset.cacheBytes = 4096 * TILE_MIB;   // 4 GiB pinned in RAM
           tileset.maximumCacheOverflowBytes = 1024 * TILE_MIB;
         } catch {}
+        // Re-apply user paint whenever a tile becomes visible so painted
+        // buildings keep their colour across LOD swaps and camera moves.
+        try {
+          tileset.tileVisible.addEventListener((tile: any) => {
+            const painted = paintedBuildingsRef.current;
+            if (!painted.size) return;
+            const content = tile.content;
+            if (!content) return;
+            const n = content.featuresLength;
+            for (let i = 0; i < n; i++) {
+              const f = content.getFeature(i);
+              if (!f) continue;
+              let id: any;
+              try { id = f.getProperty("elementId"); } catch {}
+              if (id == null) continue;
+              const css = painted.get(String(id));
+              if (css) {
+                try { f.color = Color.fromCssColorString(css); } catch {}
+              }
+            }
+          });
+        } catch {}
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
         keepAtlasRenderingDuringBoot(viewer, 10000);
@@ -2848,6 +2877,51 @@ function SpaceshipPage() {
         viewer.scene.screenSpaceCameraController.enableLook = true;
       }
     }, ScreenSpaceEventType.LEFT_UP);
+
+    // ── OSM Building selection (paintable) ──
+    // Fires on a normal left click. When the picked object is a
+    // Cesium3DTileFeature from the OSM Buildings tileset, gather the
+    // OSM tags off the feature and open the OSM building inspector.
+    // Non-OSM picks (models, entities, other tilesets) are ignored so
+    // this handler doesn't fight the other click handlers.
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (!defined(picked) || !(picked instanceof Cesium3DTileFeature)) return;
+      const osm = (viewer as any)._osmTileset;
+      if (!osm || picked.tileset !== osm) return;
+
+      // Collect useful OSM tag properties from the feature.
+      let ids: string[] = [];
+      try { ids = picked.getPropertyIds(); } catch {}
+      const prop = (k: string) => {
+        try { const v = picked.getProperty(k); return v == null ? undefined : String(v); } catch { return undefined; }
+      };
+      const elementId = prop("elementId") || prop("cesium#elementId") || `${click.position.x},${click.position.y}`;
+
+      // World position of the click → lat/lng for reverse geocoding fallback.
+      let lat = 0, lng = 0;
+      try {
+        const cart = viewer.scene.pickPosition(click.position);
+        if (cart) {
+          const c = Cartographic.fromCartesian(cart);
+          lat = CesiumMath.toDegrees(c.latitude);
+          lng = CesiumMath.toDegrees(c.longitude);
+        }
+      } catch {}
+
+      const painted = paintedBuildingsRef.current.get(String(elementId)) || null;
+      setSelectedBuilding({
+        id: String(elementId),
+        name:        prop("name"),
+        housenumber: prop("addr:housenumber") || prop("addr_housenumber"),
+        street:      prop("addr:street")      || prop("addr_street"),
+        city:        prop("addr:city")        || prop("addr_city"),
+        postcode:    prop("addr:postcode")    || prop("addr_postcode"),
+        country:     prop("addr:country")     || prop("addr_country"),
+        lat, lng,
+        currentColor: painted,
+      });
+    }, ScreenSpaceEventType.LEFT_CLICK);
 
     // Helper: pick a world location under the given screen point.
     const pickWorldLoc = (screenPos: any) => {
@@ -6599,6 +6673,61 @@ function SpaceshipPage() {
 
           {/* Business POI Card Popup */}
           
+            {selectedBuilding && (
+              <div
+                className={`${isMobile
+                  ? "absolute inset-x-3 bottom-28 z-40"
+                  : "absolute bottom-28 right-6 z-40 w-full max-w-sm"
+                }`}
+              >
+                <OsmBuildingInspector
+                  building={selectedBuilding}
+                  onClose={() => setSelectedBuilding(null)}
+                  onPaint={(css) => {
+                    const viewer = viewerRef.current;
+                    const osm = (viewer as any)?._osmTileset;
+                    const id = selectedBuilding.id;
+                    if (css) {
+                      paintedBuildingsRef.current.set(id, css);
+                    } else {
+                      paintedBuildingsRef.current.delete(id);
+                    }
+                    // Immediately re-color any currently-loaded feature with
+                    // this id so the change is visible without waiting for
+                    // the next tileVisible pass.
+                    if (osm) {
+                      try {
+                        const stats = osm.statistics;
+                        // Iterate over visible tiles via internal API — falls
+                        // back to tileVisible-on-next-frame if unavailable.
+                        const root = osm._selectedTiles || [];
+                        (root as any[]).forEach((tile: any) => {
+                          const content = tile.content;
+                          if (!content) return;
+                          const n = content.featuresLength;
+                          for (let i = 0; i < n; i++) {
+                            const f = content.getFeature(i);
+                            if (!f) continue;
+                            let fid: any;
+                            try { fid = f.getProperty("elementId"); } catch {}
+                            if (String(fid) === id) {
+                              try {
+                                f.color = css
+                                  ? Color.fromCssColorString(css)
+                                  : Color.WHITE;
+                              } catch {}
+                            }
+                          }
+                        });
+                        void stats;
+                        viewer?.scene?.requestRender?.();
+                      } catch {}
+                    }
+                    setSelectedBuilding((prev) => prev ? { ...prev, currentColor: css } : prev);
+                  }}
+                />
+              </div>
+            )}
             {selectedBusiness && (
               <div
                 className={`animate-scale-in ${isMobile
