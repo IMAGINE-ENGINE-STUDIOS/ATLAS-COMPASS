@@ -145,3 +145,36 @@ export function haversineKm(a: { lat: number; lng: number }, b: { lat: number; l
   const c = s1 * s1 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * s2 * s2;
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(c)));
 }
+
+// Extracts an array of [lng, lat] pairs from any of the common polygon
+// shapes we store in geofences.polygon: GeoJSON Feature, GeoJSON Polygon,
+// or a raw ring.
+export function extractRing(polygon: unknown): Array<[number, number]> | null {
+  if (!polygon || typeof polygon !== "object") return null;
+  const p = polygon as any;
+  const candidates: any[] = [
+    p?.geometry?.coordinates?.[0],
+    p?.coordinates?.[0],
+    p?.ring,
+    Array.isArray(p) ? p : null,
+  ];
+  for (const c of candidates) {
+    if (Array.isArray(c) && c.length >= 3 && Array.isArray(c[0]) && c[0].length >= 2) {
+      return c.map((pt: any) => [Number(pt[0]), Number(pt[1])] as [number, number])
+        .filter((pt) => Number.isFinite(pt[0]) && Number.isFinite(pt[1]));
+    }
+  }
+  return null;
+}
+
+export function pointInRing(lat: number, lng: number, ring: Array<[number, number]>): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
