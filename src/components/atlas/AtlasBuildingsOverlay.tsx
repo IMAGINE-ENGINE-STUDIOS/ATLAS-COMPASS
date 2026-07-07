@@ -739,7 +739,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
             <LassoSelect className="w-3.5 h-3.5 text-sky-300" />
             <span>Marquee</span>
             <span className="opacity-60">·</span>
-            <span className="opacity-80">Shift = add · Alt = subtract · Esc = exit</span>
+            <span className="opacity-80">Press &amp; drag · Shift = add · Alt = subtract · Esc = exit</span>
           </>
         ) : (
           <>
