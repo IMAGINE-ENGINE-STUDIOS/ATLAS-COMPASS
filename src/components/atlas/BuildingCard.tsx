@@ -64,6 +64,7 @@ export interface BuildingCardProps {
   onUploadModel: (osmId: string, file: File) => Promise<void> | void;
   onClearModel: (osmId: string) => Promise<void> | void;
   onApplyColorToSelection?: (hex: string | null) => Promise<void> | void;
+  onOpenModelControls?: (osmId: string) => void;
   loadLedger: (recordId: string) => Promise<BuildingLedgerEntry[]>;
 }
 
@@ -79,6 +80,7 @@ export default function BuildingCard({
   onUploadModel,
   onClearModel,
   onApplyColorToSelection,
+  onOpenModelControls,
   loadLedger,
 }: BuildingCardProps) {
   const [tagDraft, setTagDraft] = useState(record?.tag ?? "");
@@ -267,14 +269,22 @@ export default function BuildingCard({
             <Upload className="w-3 h-3" /> Replacement Model
           </div>
           {record?.replacement_glb_url ? (
-            <div className="flex items-center gap-2 rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-1.5 text-[11px] text-emerald-200">
-              <div className="flex-1 truncate">Loaded — OSM geometry hidden</div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-1.5 text-[11px] text-emerald-200">
+                <div className="flex-1 truncate">Loaded — OSM geometry hidden</div>
+                <button
+                  onClick={() => onClearModel(picked.osm_id)}
+                  className="rounded p-1 hover:bg-white/10 text-white/70 hover:text-white"
+                  title="Remove replacement"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
               <button
-                onClick={() => onClearModel(picked.osm_id)}
-                className="rounded p-1 hover:bg-white/10 text-white/70 hover:text-white"
-                title="Remove replacement"
+                onClick={() => onOpenModelControls?.(picked.osm_id)}
+                className="w-full h-8 rounded-md bg-cyan-500/15 border border-cyan-400/40 text-[11px] text-cyan-100 hover:bg-cyan-500/25 flex items-center justify-center gap-1.5"
               >
-                <Trash2 className="w-3 h-3" />
+                <Move3D className="w-3 h-3" /> Open 3D Controllers
               </button>
             </div>
           ) : (
