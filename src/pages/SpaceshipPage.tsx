@@ -1237,6 +1237,8 @@ function SpaceshipPage() {
   type TilesToolExt = TilesTool | "terrain";
   const [tilesTool, setTilesTool] = useState<TilesToolExt>(savedUI.tilesTool ?? "grid");
   const [tileZoom, setTileZoom] = useState<number>(savedUI.tileZoom ?? 18);
+  // When true, tile zoom auto-follows the basemap (matches what the camera is currently rendering).
+  const [tileZoomAuto, setTileZoomAuto] = useState<boolean>(savedUI.tileZoomAuto ?? true);
   const [selectedTiles, setSelectedTiles] = useState<Set<TileKey>>(new Set());
   const [rectStart, setRectStart] = useState<{ lat: number; lng: number } | null>(null);
   const [lassoPoints, setLassoPoints] = useState<{ lat: number; lng: number }[]>([]);
