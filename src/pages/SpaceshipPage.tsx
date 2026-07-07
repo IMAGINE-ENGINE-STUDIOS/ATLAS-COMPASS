@@ -1393,6 +1393,10 @@ function SpaceshipPage() {
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
   const instantBusinessAbortRef = useRef<AbortController | null>(null);
+  // Tracks the last searched area for auto-refresh when the camera drifts
+  // outside it and stays still for ~2 seconds.
+  const lastSearchAreaRef = useRef<{ lat: number; lng: number; radiusKm: number; category: string } | null>(null);
+  const autoRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const atlasTags = useMemo<AtlasTag[]>(() => {
     const allTags: AtlasTag[] = [];
     businessDataRef.current.forEach((data, id) => {
