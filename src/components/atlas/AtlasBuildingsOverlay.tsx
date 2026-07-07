@@ -754,10 +754,46 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
     );
   }, [active, marqueeActive, groups.activeGroup]);
 
+  // Keep clearPending accessible from the ESC handler defined earlier.
+  useEffect(() => { clearPendingRef.current = clearPending; }, [clearPending]);
+
   if (!active) return null;
   return (
     <>
       {statusPill}
+
+      {/* Save-Group confirm bar — appears whenever there is a pending
+          (uncommitted) green selection. */}
+      {pendingIds.length > 0 && (
+        <div className="pointer-events-auto fixed left-1/2 bottom-40 z-40 -translate-x-1/2 flex items-center gap-2 rounded-2xl bg-black/70 backdrop-blur-xl border border-emerald-400/40 px-3 py-2 shadow-2xl shadow-emerald-500/20">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: PENDING_HEX }} />
+          <span className="text-xs text-white tabular-nums">
+            {pendingIds.length} building{pendingIds.length === 1 ? "" : "s"} selected
+          </span>
+          <button
+            onClick={savePendingAsNewGroup}
+            className="ml-2 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-[11px] font-semibold"
+            title="Save selection as a new group"
+          >
+            <Check className="w-3 h-3" /> Save as group
+          </button>
+          <button
+            onClick={addPendingToActive}
+            disabled={!groups.activeGroup}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white text-[11px]"
+            title={groups.activeGroup ? `Add to "${groups.activeGroup.name}"` : "No active group"}
+          >
+            <Plus className="w-3 h-3" /> Add to active
+          </button>
+          <button
+            onClick={clearPending}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/15 text-white/70 text-[11px]"
+            title="Clear selection (Esc)"
+          >
+            <XIcon className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* Marquee tool toggle + saved groups panel. Docked bottom-left so it
           doesn't clash with the mode carousel or the level HUD. */}
