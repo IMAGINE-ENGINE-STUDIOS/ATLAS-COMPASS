@@ -53,24 +53,23 @@ export default function ModeCarousel({ value, onChange }: Props) {
       {/* Deployed vertical carousel — dropup */}
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 flex flex-col items-end gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-200"
+          className="absolute bottom-full mb-2 right-0 flex flex-col items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200"
         >
           {others.map((m, i) => (
             <button
               key={m.id}
               onClick={() => { onChange(m.id); setOpen(false); }}
-              className="group flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-full bg-black/85 backdrop-blur-xl border border-white/10 hover:border-white/25 hover:bg-black/95 transition-all shadow-[0_8px_30px_rgba(0,0,0,0.45)]"
+              className="group flex flex-col items-center gap-1 p-1.5 rounded-2xl bg-black/85 backdrop-blur-xl border border-white/10 hover:border-white/25 hover:bg-black/95 transition-all shadow-[0_8px_30px_rgba(0,0,0,0.45)]"
               style={{ animationDelay: `${i * 40}ms` }}
               title={m.label}
             >
               <span
-                className="relative w-6 h-6 rounded-full overflow-hidden ring-1 ring-white/15 shrink-0"
+                className="relative w-24 h-24 rounded-xl overflow-hidden ring-1 ring-white/15 shrink-0"
                 style={{ boxShadow: `0 0 12px ${m.glow}55` }}
               >
-                <img src={m.thumb} alt={m.label} width={48} height={48} loading="lazy" className="w-full h-full object-cover" />
+                <img src={m.thumb} alt={m.label} width={192} height={192} loading="lazy" className="w-full h-full object-cover" />
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-medium tracking-wide text-white/85 group-hover:text-white">
-                <m.Icon className="w-2.5 h-2.5" />
+              <span className="text-[10px] font-medium tracking-wide text-white/85 group-hover:text-white">
                 {m.label}
               </span>
             </button>
