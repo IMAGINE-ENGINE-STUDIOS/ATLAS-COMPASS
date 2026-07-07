@@ -2172,6 +2172,8 @@ function SpaceshipPage() {
     setGeoLocationName(`${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`);
     businessLoadedAreaRef.current = `instant-${center.lat.toFixed(3)},${center.lng.toFixed(3)},${radiusKm},${category ?? "all"}`;
     bizLastFetchRef.current = 0;
+    lastSearchAreaRef.current = { lat: center.lat, lng: center.lng, radiusKm, category: category ?? "all" };
+    if (autoRefreshTimerRef.current) { clearTimeout(autoRefreshTimerRef.current); autoRefreshTimerRef.current = null; }
 
     try {
       let hits = await runOverpassAround("", center, radiusKm, controller.signal, category);
