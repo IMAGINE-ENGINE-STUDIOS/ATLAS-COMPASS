@@ -25,9 +25,14 @@ import {
   Math as CesiumMath,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
+  HeadingPitchRoll,
+  Transforms,
+  ConstantProperty,
+  ConstantPositionProperty,
   type Viewer,
 } from "cesium";
 import BuildingCard from "./BuildingCard";
+import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import { useBuildingRecords } from "@/hooks/useBuildingRecords";
 import { estimatePopulation, type PickedBuilding } from "@/types/BuildingCardRecord";
 import { toast } from "sonner";
@@ -46,6 +51,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
   const [picked, setPicked] = useState<PickedBuilding | null>(null);
   const [multiSelect, setMultiSelect] = useState(false);
   const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [editingOsmId, setEditingOsmId] = useState<string | null>(null);
   const selectionRef = useRef(selection);
   const multiRef = useRef(multiSelect);
   useEffect(() => { selectionRef.current = selection; }, [selection]);
