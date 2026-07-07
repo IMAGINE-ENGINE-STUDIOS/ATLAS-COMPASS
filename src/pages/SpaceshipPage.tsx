@@ -6674,6 +6674,65 @@ function SpaceshipPage() {
           {/* Business POI Card Popup */}
           
             {selectedBusiness && (
+              /* rendered below */
+              null
+            )}
+            {selectedBuilding && (
+              <div
+                className={`${isMobile
+                  ? "absolute inset-x-3 bottom-28 z-40"
+                  : "absolute bottom-28 right-6 z-40 w-full max-w-sm"
+                }`}
+              >
+                <OsmBuildingInspector
+                  building={selectedBuilding}
+                  onClose={() => setSelectedBuilding(null)}
+                  onPaint={(css) => {
+                    const viewer = viewerRef.current;
+                    const osm = (viewer as any)?._osmTileset;
+                    const id = selectedBuilding.id;
+                    if (css) {
+                      paintedBuildingsRef.current.set(id, css);
+                    } else {
+                      paintedBuildingsRef.current.delete(id);
+                    }
+                    // Immediately re-color any currently-loaded feature with
+                    // this id so the change is visible without waiting for
+                    // the next tileVisible pass.
+                    if (osm) {
+                      try {
+                        const stats = osm.statistics;
+                        // Iterate over visible tiles via internal API — falls
+                        // back to tileVisible-on-next-frame if unavailable.
+                        const root = osm._selectedTiles || [];
+                        (root as any[]).forEach((tile: any) => {
+                          const content = tile.content;
+                          if (!content) return;
+                          const n = content.featuresLength;
+                          for (let i = 0; i < n; i++) {
+                            const f = content.getFeature(i);
+                            if (!f) continue;
+                            let fid: any;
+                            try { fid = f.getProperty("elementId"); } catch {}
+                            if (String(fid) === id) {
+                              try {
+                                f.color = css
+                                  ? Color.fromCssColorString(css)
+                                  : Color.WHITE;
+                              } catch {}
+                            }
+                          }
+                        });
+                        void stats;
+                        viewer?.scene?.requestRender?.();
+                      } catch {}
+                    }
+                    setSelectedBuilding((prev) => prev ? { ...prev, currentColor: css } : prev);
+                  }}
+                />
+              </div>
+            )}
+            {selectedBusiness && (
               <div
                 className={`animate-scale-in ${isMobile
                   ? "absolute inset-x-3 bottom-28 z-40"
