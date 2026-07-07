@@ -199,8 +199,14 @@ export default function BuildingCard({
             sub={
               picked.population_source === "us-census-2020"
                 ? "US Census 2020"
+                : picked.population_source === "worldpop-2020"
+                ? "WorldPop 2020"
+                : picked.population_source === "ghsl-2023"
+                ? "GHSL 2023"
                 : picked.population_source === "heuristic"
                 ? "Heuristic"
+                : picked.population_source === "unavailable"
+                ? "No data"
                 : undefined
             }
             title={picked.population_note ?? undefined}
