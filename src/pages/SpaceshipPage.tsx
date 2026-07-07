@@ -182,23 +182,45 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
     ts.maximumScreenSpaceError = sse;
     // Aggressive in-memory cache: keep a *much* larger set of already-loaded
     // tiles pinned so revisits (walking back around a corner, orbiting, or
-    // toggling map modes) never re-download. Combined with the browser disk
-    // cache in `tiles-sw.js`, this virtually eliminates re-fetches for tiles
-    // the user has already seen this session.
+    // toggling map modes) never re-download.
     ts.cacheBytes = 2048 * TILE_MIB;               // 2 GiB in RAM
     ts.maximumCacheOverflowBytes = 512 * TILE_MIB; // + 512 MiB slack
-    ts.skipLevelOfDetail = false;
-    ts.dynamicScreenSpaceError = true;
-    ts.dynamicScreenSpaceErrorDensity = 0.00278;
-    ts.dynamicScreenSpaceErrorFactor = 4;
-    ts.cullRequestsWhileMoving = true;
+
+    // Anti-flicker tuning. The old settings produced the "buildings pop in
+    // and out of the scene" effect the user reported. Root causes:
+    //   1. dynamicScreenSpaceError with a high factor aggressively fades
+    //      distant tiles OUT then swaps them back IN on the next frame.
+    //   2. cullRequestsWhileMoving throws away in-flight tile requests
+    //      during any camera motion, so panning drops tiles that were
+    //      about to appear and re-requests them a moment later.
+    //   3. immediatelyLoadDesiredLevelOfDetail=false + loadSiblings=true
+    //      loads every intermediate LOD, so users see a low-res tile,
+    //      then a mid-res one, then the real one — three visible pops.
+    //   4. foveatedScreenSpaceError without a time delay drops peripheral
+    //      tiles the instant they leave the center of the screen.
+    //
+    // Enabling skipLevelOfDetail with conservative skip counts lets
+    // Cesium jump straight to the final LOD without the intermediate
+    // pop-in cascade, and keeping requests alive while moving eliminates
+    // the "tile disappears mid-pan" flicker.
+    ts.skipLevelOfDetail = true;
+    ts.baseScreenSpaceError = 1024;
+    ts.skipScreenSpaceErrorFactor = 16;
+    ts.skipLevels = 1;
+    ts.dynamicScreenSpaceError = false;
+    ts.cullRequestsWhileMoving = false;
     // Preload tiles that will be visible after camera flights and keep hidden
     // tiles warm so returning to a view is instant.
     ts.preloadWhenHidden = true;
     ts.preloadFlightDestinations = true;
-    ts.immediatelyLoadDesiredLevelOfDetail = false;
-    ts.loadSiblings = true;
+    ts.immediatelyLoadDesiredLevelOfDetail = true;
+    ts.loadSiblings = false;
     ts.foveatedScreenSpaceError = true;
+    // Give foveated tiles time to catch up before being culled — kills the
+    // "peripheral OSM building pack blinks in and out" effect.
+    ts.foveatedTimeDelay = 0.4;
+    ts.foveatedConeSize = 0.2;
+    ts.foveatedMinimumScreenSpaceErrorRelaxation = 0;
     ts.shadows = 0;
   } catch {}
 };
