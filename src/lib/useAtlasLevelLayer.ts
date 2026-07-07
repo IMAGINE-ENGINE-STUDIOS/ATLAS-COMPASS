@@ -43,6 +43,10 @@ export const hiddenLevelIds: Set<string> = new Set();
 
 /** Fired by Cesium pin/box click — overlay listens and starts in-world play. */
 export const LEVEL_PLAY_EVENT = "atlas-level-play-request";
+/** Fired when a Cesium level pin is clicked/tapped so the overlay can
+ *  surface the "▶ Play <name>" HUD button even when the camera is not
+ *  yet inside the proximity radius. */
+export const LEVEL_SELECT_EVENT = "atlas-level-select";
 
 /**
  * Loads atlas_level_placements and renders them as Cesium pins.
@@ -95,7 +99,9 @@ export function useAtlasLevelLayer(
       const size = DEFAULT_LEVEL_SIZE_M;
       const baseAlt = p.altitude ?? 0;
       const boxHeight = LEVEL_HEIGHT_M;
-      const beaconTop = baseAlt + 600;
+      // Short beacon just tall enough to be spotted from a low camera —
+      // we no longer float the label 300m+ in the sky.
+      const beaconTop = baseAlt + 40;
 
       // Ultra-low LOD placeholder: a green box drawn directly by Cesium so
       // it shows up the moment the globe loads (before the heavier R3F
@@ -116,7 +122,7 @@ export function useAtlasLevelLayer(
       (boxEnt as any)._levelPlacement = p;
       added.push(boxEnt);
 
-      // Tall beacon polyline so the cube is spotted from far away.
+      // Short beacon polyline anchoring the on-ground pin to the box.
       const beacon = viewer.entities.add({
         id: `level-placement-${p.id}-beacon`,
         polyline: {
@@ -124,7 +130,7 @@ export function useAtlasLevelLayer(
             Cartesian3.fromDegrees(p.lng, p.lat, baseAlt),
             Cartesian3.fromDegrees(p.lng, p.lat, beaconTop),
           ] as any,
-          width: 4,
+          width: 3,
           material: Color.fromCssColorString("#34d399").withAlpha(0.9) as any,
           arcType: ArcType.NONE,
           show: new CallbackProperty(() => !hiddenLevelIds.has(p.id), false) as any,
@@ -133,29 +139,32 @@ export function useAtlasLevelLayer(
       (beacon as any)._levelPlacement = p;
       added.push(beacon);
 
-      // Floating label always on top.
+      // Ground-clamped label + tag pin. Sits on the terrain right at the
+      // level's footprint so it reads like a real "you are here" marker
+      // instead of a floating tag hovering hundreds of meters in the sky.
       const label = viewer.entities.add({
         id: `level-placement-${p.id}-label`,
-        position: Cartesian3.fromDegrees(p.lng, p.lat, beaconTop) as any,
+        position: Cartesian3.fromDegrees(p.lng, p.lat, 0) as any,
         label: {
           text: `▣ ${p.levels?.name ?? "Level"}`,
-          font: "bold 13px Inter, sans-serif",
-          pixelOffset: new Cartesian2(0, -8),
+          font: "bold 14px Inter, sans-serif",
+          pixelOffset: new Cartesian2(0, -22),
           fillColor: Color.WHITE,
           outlineColor: Color.BLACK,
           outlineWidth: 2,
           style: LabelStyle.FILL_AND_OUTLINE,
           showBackground: true,
           backgroundColor: Color.fromCssColorString("rgba(16,185,129,0.85)"),
-          heightReference: HeightReference.NONE,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
           verticalOrigin: VerticalOrigin.BOTTOM,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         point: {
-          pixelSize: 12,
+          pixelSize: 22,
           color: Color.fromCssColorString("#34d399"),
           outlineColor: Color.WHITE,
-          outlineWidth: 2,
+          outlineWidth: 3,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
@@ -181,11 +190,18 @@ export function useAtlasLevelLayer(
       } catch {}
     };
 
-    // Single click → just select (open the inspector panel). No fly-in.
+    // Single click → select the level: opens the inspector panel AND
+    // surfaces the "▶ Play <name>" HUD button so the user can jump in
+    // immediately without having to fly closer first.
     const onClick = (click: any) => {
       const picked = viewer.scene.pick(click.position);
       if (defined(picked) && picked.id && (picked.id as any)._levelPlacement) {
         const p = (picked.id as any)._levelPlacement as LevelPlacement;
+        try {
+          window.dispatchEvent(
+            new CustomEvent(LEVEL_SELECT_EVENT, { detail: { id: p.id } }),
+          );
+        } catch {}
         onOpenLevel(p);
       }
     };
