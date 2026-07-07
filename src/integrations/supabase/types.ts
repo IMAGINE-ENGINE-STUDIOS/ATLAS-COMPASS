@@ -285,6 +285,7 @@ export type Database = {
           color: string
           created_at: string
           id: string
+          lpr_alert: boolean
           name: string
           owner_id: string
           polygon: Json | null
@@ -296,6 +297,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          lpr_alert?: boolean
           name: string
           owner_id: string
           polygon?: Json | null
@@ -307,6 +309,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          lpr_alert?: boolean
           name?: string
           owner_id?: string
           polygon?: Json | null
@@ -453,6 +456,287 @@ export type Database = {
           shared_with?: string[]
           thumbnail_url?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      lpr_access_requests: {
+        Row: {
+          admin_notes: string | null
+          contact_email: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          jurisdictions: string | null
+          organization: string | null
+          purpose: string
+          requester_name: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          contact_email: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          jurisdictions?: string | null
+          organization?: string | null
+          purpose: string
+          requester_name: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          contact_email?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          jurisdictions?: string | null
+          organization?: string | null
+          purpose?: string
+          requester_name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lpr_cameras: {
+        Row: {
+          active: boolean
+          agent_uid: string | null
+          created_at: string
+          id: string
+          kind: string
+          label: string
+          last_seen_at: string | null
+          lat: number | null
+          lng: number | null
+          meta: Json
+          rtsp_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          agent_uid?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          label: string
+          last_seen_at?: string | null
+          lat?: number | null
+          lng?: number | null
+          meta?: Json
+          rtsp_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          agent_uid?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          label?: string
+          last_seen_at?: string | null
+          lat?: number | null
+          lng?: number | null
+          meta?: Json
+          rtsp_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lpr_geofence_hits: {
+        Row: {
+          acknowledged: boolean
+          geofence_id: string | null
+          hit_at: string
+          id: string
+          plate: string
+          read_id: string | null
+          user_id: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          geofence_id?: string | null
+          hit_at?: string
+          id?: string
+          plate: string
+          read_id?: string | null
+          user_id: string
+        }
+        Update: {
+          acknowledged?: boolean
+          geofence_id?: string | null
+          hit_at?: string
+          id?: string
+          plate?: string
+          read_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lpr_geofence_hits_geofence_id_fkey"
+            columns: ["geofence_id"]
+            isOneToOne: false
+            referencedRelation: "geofences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lpr_geofence_hits_read_id_fkey"
+            columns: ["read_id"]
+            isOneToOne: false
+            referencedRelation: "lpr_plate_reads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lpr_plate_reads: {
+        Row: {
+          camera_id: string | null
+          confidence: number | null
+          created_at: string
+          epoch_ms: number
+          id: string
+          image_url: string | null
+          lat: number | null
+          lng: number | null
+          plate: string
+          raw: Json
+          region: string | null
+          user_id: string
+          vehicle_body: string | null
+          vehicle_color: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_year: string | null
+        }
+        Insert: {
+          camera_id?: string | null
+          confidence?: number | null
+          created_at?: string
+          epoch_ms: number
+          id?: string
+          image_url?: string | null
+          lat?: number | null
+          lng?: number | null
+          plate: string
+          raw?: Json
+          region?: string | null
+          user_id: string
+          vehicle_body?: string | null
+          vehicle_color?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_year?: string | null
+        }
+        Update: {
+          camera_id?: string | null
+          confidence?: number | null
+          created_at?: string
+          epoch_ms?: number
+          id?: string
+          image_url?: string | null
+          lat?: number | null
+          lng?: number | null
+          plate?: string
+          raw?: Json
+          region?: string | null
+          user_id?: string
+          vehicle_body?: string | null
+          vehicle_color?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_year?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lpr_plate_reads_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "lpr_cameras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lpr_settings: {
+        Row: {
+          access_mode: string
+          byok_api_key: string | null
+          created_at: string
+          daily_request_cap: number
+          legal_ack_at: string | null
+          platform_approved: boolean
+          requests_reset_at: string
+          requests_today: number
+          updated_at: string
+          user_id: string
+          webhook_secret: string
+        }
+        Insert: {
+          access_mode?: string
+          byok_api_key?: string | null
+          created_at?: string
+          daily_request_cap?: number
+          legal_ack_at?: string | null
+          platform_approved?: boolean
+          requests_reset_at?: string
+          requests_today?: number
+          updated_at?: string
+          user_id: string
+          webhook_secret?: string
+        }
+        Update: {
+          access_mode?: string
+          byok_api_key?: string | null
+          created_at?: string
+          daily_request_cap?: number
+          legal_ack_at?: string | null
+          platform_approved?: boolean
+          requests_reset_at?: string
+          requests_today?: number
+          updated_at?: string
+          user_id?: string
+          webhook_secret?: string
+        }
+        Relationships: []
+      }
+      lpr_watchlist: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          label: string | null
+          notify: boolean
+          plate: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          notify?: boolean
+          plate: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          notify?: boolean
+          plate?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1017,6 +1301,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1025,6 +1330,13 @@ export type Database = {
       confirm_emergency_resource: {
         Args: { _resource_id: string }
         Returns: number
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       lookup_user_by_username: {
         Args: { _q: string }
@@ -1050,6 +1362,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "atlas_admin" | "moderator" | "user"
       friendship_status: "pending" | "accepted" | "blocked"
       share_status: "pending" | "accepted" | "declined"
     }
@@ -1179,6 +1492,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["atlas_admin", "moderator", "user"],
       friendship_status: ["pending", "accepted", "blocked"],
       share_status: ["pending", "accepted", "declined"],
     },
