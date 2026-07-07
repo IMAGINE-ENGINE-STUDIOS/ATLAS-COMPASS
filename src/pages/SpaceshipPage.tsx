@@ -6191,8 +6191,14 @@ function SpaceshipPage() {
                     </div>
                   </div>
 
-                  {/* ── Reticle mode body ── */}
-                  {brushSubMode === "reticle" && (
+                  {/* ── Reticle / Target ── (always visible) */}
+                  <div className="space-y-2.5 mb-2.5">
+                    <SectionHeader
+                      label="Target"
+                      accent="emerald"
+                      active={brushSubMode === "reticle"}
+                      onActivate={() => setBrushSubMode("reticle")}
+                    />
                     <div className="space-y-2.5">
                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-emerald-400/80 leading-relaxed">
@@ -6251,7 +6257,7 @@ function SpaceshipPage() {
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
 
                   {/* ── Area mode body ── */}
                   {brushSubMode === "area" && (
