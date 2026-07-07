@@ -100,9 +100,15 @@ export async function resolveRekorKey(userId: string): Promise<ResolvedKey> {
 
 export async function bumpUsage(userId: string, delta = 1) {
   const svc = serviceClient();
-  await svc.rpc("noop_ignore", {}).then(() => {}, () => {});
-  await svc.from("lpr_settings")
-    .update({ requests_today: (await svc.from("lpr_settings").select("requests_today").eq("user_id", userId).single()).data!.requests_today + delta })
+  const { data } = await svc
+    .from("lpr_settings")
+    .select("requests_today")
+    .eq("user_id", userId)
+    .single();
+  const current = data?.requests_today ?? 0;
+  await svc
+    .from("lpr_settings")
+    .update({ requests_today: current + delta })
     .eq("user_id", userId);
 }
 
