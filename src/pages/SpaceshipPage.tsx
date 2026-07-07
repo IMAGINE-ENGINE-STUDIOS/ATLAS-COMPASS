@@ -1248,6 +1248,8 @@ function SpaceshipPage() {
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
+  // License Plate Reader panel state
+  const [lprPanelOpen, setLprPanelOpen] = useState(false);
   const [intelligenceOpen, setIntelligenceOpen] = useState<boolean>(savedUI.intelligenceOpen ?? false);
   const [intelBoundsVersion, setIntelBoundsVersion] = useState(0);
   const [recordingsOpen, setRecordingsOpen] = useState<boolean>(savedUI.recordingsOpen ?? false);
