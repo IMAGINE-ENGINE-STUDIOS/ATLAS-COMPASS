@@ -2736,20 +2736,14 @@ function SpaceshipPage() {
       lastMouseX = mx;
       lastMouseY = my;
 
-      // If dragging a model, reposition it
-      if (draggingRef.current) {
-        const ray = viewer.camera.getPickRay(movement.endPosition);
-        if (ray) {
-          const cartesian = viewer.scene.pickPosition(movement.endPosition)
-            || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
-          if (defined(cartesian)) {
-            const entity = viewer.entities.getById(`model-${draggingRef.current}`);
-            if (entity) {
-              entity.position = cartesian as any;
-            }
-          }
-        }
-        return;
+      // If the user has armed a hold-to-open-widget on a model but their
+      // pointer moves more than a few pixels, treat it as a camera pan
+      // (cancel the pending widget open) instead of stealing focus away
+      // from Cesium's built-in navigation.
+      if (holdModelRef.current) {
+        const dx = mx - holdModelRef.current.startX;
+        const dy = my - holdModelRef.current.startY;
+        if (dx * dx + dy * dy > 36) cancelModelHold();
       }
 
       const ray = viewer.camera.getPickRay(movement.endPosition);
@@ -2771,42 +2765,41 @@ function SpaceshipPage() {
       }
     }, ScreenSpaceEventType.MOUSE_MOVE);
 
-    // Left click down — start dragging a model entity
+    // Hold-to-open the transform widget on a placed model.
+    //
+    // Previously LEFT_DOWN on a model armed a live drag that repositioned
+    // the entity under the cursor — which, at oblique camera angles, made
+    // the object appear to "fly toward the user" as the pick ray raced
+    // across the globe. Instead we now arm a 350ms hold timer; if the
+    // user keeps the button pressed on the same model without dragging,
+    // we dispatch the model-widget-open event (same channel as right
+    // click) so the ModelTransformWidget opens with its full gizmo /
+    // controller set. A quick click still lets Cesium do its normal
+    // pick behaviour without the model moving.
+    const cancelModelHold = () => {
+      const h = holdModelRef.current;
+      if (!h) return;
+      if (h.timer) window.clearTimeout(h.timer);
+      holdModelRef.current = null;
+    };
     handler.setInputAction((click: any) => {
       const picked = viewer.scene.pick(click.position);
-      if (defined(picked) && picked.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
-        const modelId = picked.id.id.replace("model-", "");
-        draggingRef.current = modelId;
-        setDraggingModelId(modelId);
-        viewer.scene.screenSpaceCameraController.enableRotate = false;
-        viewer.scene.screenSpaceCameraController.enableTranslate = false;
-        viewer.scene.screenSpaceCameraController.enableLook = false;
-      }
+      if (!defined(picked) || !picked.id || typeof picked.id.id !== "string" || !picked.id.id.startsWith("model-")) return;
+      const modelId = picked.id.id.replace("model-", "");
+      cancelModelHold();
+      const startX = click.position?.x ?? 0;
+      const startY = click.position?.y ?? 0;
+      const timer = window.setTimeout(() => {
+        holdModelRef.current = null;
+        viewer.trackedEntity = undefined;
+        viewer.selectedEntity = undefined;
+        window.dispatchEvent(new CustomEvent("cesium-model-dblclick", { detail: { id: modelId } }));
+      }, 350);
+      holdModelRef.current = { id: modelId, timer, startX, startY };
     }, ScreenSpaceEventType.LEFT_DOWN);
 
-    // Left click up — finish dragging
-    handler.setInputAction((_click: any) => {
-      if (draggingRef.current) {
-        const modelId = draggingRef.current;
-        const entity = viewer.entities.getById(`model-${modelId}`);
-        if (entity && entity.position) {
-          const pos = entity.position.getValue(viewer.clock.currentTime);
-          if (pos) {
-            const carto = Cartographic.fromCartesian(pos);
-            const newLat = CesiumMath.toDegrees(carto.latitude);
-            const newLng = CesiumMath.toDegrees(carto.longitude);
-            // Dispatch event to update React state
-            window.dispatchEvent(new CustomEvent("cesium-model-moved", {
-              detail: { id: modelId, lat: newLat, lng: newLng, alt: carto.height }
-            }));
-          }
-        }
-        draggingRef.current = null;
-        setDraggingModelId(null);
-        viewer.scene.screenSpaceCameraController.enableRotate = true;
-        viewer.scene.screenSpaceCameraController.enableTranslate = true;
-        viewer.scene.screenSpaceCameraController.enableLook = true;
-      }
+    handler.setInputAction(() => {
+      cancelModelHold();
     }, ScreenSpaceEventType.LEFT_UP);
 
     // Helper: pick a world location under the given screen point.
