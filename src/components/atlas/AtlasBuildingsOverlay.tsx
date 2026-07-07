@@ -428,9 +428,10 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
 
       const hits = new Set<string>();
       const scratch = new Cartesian2();
-      // 1) Centroid pass — walks every currently loaded tile (not just the
-      //    ones in `_selectedTiles`) so buildings whose centroid falls inside
-      //    the rectangle are always captured, even when partially off-screen.
+      const t0 = performance.now();
+      // 1) Centroid pass — walks every currently loaded tile so buildings
+      //    whose centroid falls in the rectangle are captured. Extremely
+      //    fast: pure math, zero GPU picks.
       try {
         const walk = (tile: any) => {
           if (!tile) return;
@@ -459,36 +460,38 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
           for (const c of children) walk(c);
         };
         walk((tileset as any).root);
-        // Also cover any explicitly-selected tiles the recursion may have skipped.
         (tileset as any)._selectedTiles?.forEach(walk);
       } catch (e) {
         console.warn("[AtlasBuildingsOverlay] marquee walk failed", e);
       }
 
-      // 2) Dense raycast pass — catches buildings whose centroid sits outside
-      //    the rectangle but whose visible geometry intersects it (tall
-      //    towers seen from a low angle, wide L-shaped footprints, etc.).
-      //    Uses drillPick so a single ray can register several stacked
-      //    features. Step is adaptive so huge rectangles don't hang.
+      // 2) Light single-pick safety net — catches tall/off-center buildings
+      //    whose centroid falls outside the rectangle but whose visible
+      //    geometry crosses it. Coarse step keeps this cheap (< ~400 picks
+      //    even for a fullscreen drag) so the UI never freezes.
       try {
         const w = cMaxX - cMinX, h = cMaxY - cMinY;
-        if (w >= 6 && h >= 6) {
-          const step = Math.max(6, Math.min(22, Math.floor(Math.min(w, h) / 60)));
+        if (w >= 8 && h >= 8) {
+          const target = 24; // ~24×24 = 576 max picks
+          const step = Math.max(18, Math.ceil(Math.max(w, h) / target));
           const pt = new Cartesian2();
+          const isOsmFeature = (p: any) =>
+            p instanceof Cesium3DTileFeature &&
+            ((p as any).tileset === tileset || (p as any).primitive === tileset);
           for (let x = cMinX; x <= cMaxX; x += step) {
             for (let y = cMinY; y <= cMaxY; y += step) {
               pt.x = x; pt.y = y;
-              const picks = viewer.scene.drillPick(pt, 4);
-              for (const p of picks) {
-                if (p instanceof Cesium3DTileFeature) {
-                  const id = featureOsmId(p);
-                  if (id) hits.add(id);
-                }
+              const p = viewer.scene.pick(pt);
+              if (isOsmFeature(p)) {
+                const id = featureOsmId(p as Cesium3DTileFeature);
+                if (id) hits.add(id);
               }
             }
           }
         }
       } catch {}
+      const dt = Math.round(performance.now() - t0);
+      console.log(`[marquee] ${hits.size} building(s) in ${dt}ms`);
 
       if (hits.size === 0) {
         toast("No buildings in that rectangle — zoom closer.", { duration: 2000 });
