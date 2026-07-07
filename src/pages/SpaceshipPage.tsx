@@ -227,50 +227,6 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
   } catch {}
 };
 
-const getOsmBuildingsPerformanceConfig = () => {
-  const nav: any = typeof navigator !== "undefined" ? navigator : {};
-  const deviceMemGB: number = typeof nav.deviceMemory === "number" ? nav.deviceMemory : 8;
-  const hwThreads: number = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : 8;
-  const tier: "low" | "mid" | "high" =
-    deviceMemGB <= 4 || hwThreads <= 4 ? "low"
-      : deviceMemGB <= 8 ? "mid"
-        : "high";
-  const cfg = {
-    // Lower SSE is intentional: coarse OSM parent tiles can omit small
-    // buildings, which looks like "not all buildings loaded" in the viewport.
-    low:  { sse: 4, cacheMiB: 1024, overflowMiB: 256, hiddenPreload: false },
-    mid:  { sse: 3, cacheMiB: 2048, overflowMiB: 512, hiddenPreload: true },
-    high: { sse: 2, cacheMiB: 4096, overflowMiB: 1024, hiddenPreload: true },
-  }[tier];
-
-  return { tier, deviceMemGB, hwThreads, ...cfg };
-};
-
-const tuneOsmBuildingsTileset = (tileset: any) => {
-  if (!tileset) return;
-  try {
-    const cfg = getOsmBuildingsPerformanceConfig();
-
-    tileset.maximumScreenSpaceError = cfg.sse;
-    tileset.dynamicScreenSpaceError = false;
-    tileset.skipLevelOfDetail = false;
-    tileset.cullRequestsWhileMoving = false;
-    tileset.cullRequestsWhileMovingMultiplier = 0;
-    tileset.loadSiblings = true;
-    tileset.foveatedScreenSpaceError = false;
-    tileset.foveatedTimeDelay = 0;
-    tileset.preferLeaves = true;
-    tileset.immediatelyLoadDesiredLevelOfDetail = false;
-    tileset.preloadWhenHidden = cfg.hiddenPreload;
-    tileset.preloadFlightDestinations = true;
-    tileset.progressiveResolutionHeightFraction = 0;
-    tileset.cacheBytes = cfg.cacheMiB * TILE_MIB;
-    tileset.maximumCacheOverflowBytes = cfg.overflowMiB * TILE_MIB;
-
-    console.info(`[Atlas OSM] viewport-fill tier=${cfg.tier} mem≈${cfg.deviceMemGB}GB cores=${cfg.hwThreads} sse=${cfg.sse} cache=${cfg.cacheMiB}MiB`);
-  } catch {}
-};
-
 const keepAtlasRenderingDuringBoot = (viewer: any, durationMs = 10000) => {
   if (!viewer || viewer.isDestroyed?.()) return;
   try {
@@ -1121,7 +1077,7 @@ function SpaceshipPage() {
       // Apply once. No 140ms re-tuning loop — that was thrashing the tile
       // scheduler and the resolutionScale flips were the most visible cause
       // of "loading worse than Cesium defaults".
-      tilesets.forEach((ts) => ts === ot ? tuneOsmBuildingsTileset(ts) : tuneAtlasTileset(ts, "boot"));
+      tilesets.forEach((ts) => tuneAtlasTileset(ts, "boot"));
       viewer.scene.globe.maximumScreenSpaceError = 8;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.preloadSiblings = false;
@@ -2525,7 +2481,7 @@ function SpaceshipPage() {
       resizeTimer = setTimeout(() => {
         if (viewer.isDestroyed()) return;
         if (rt) tuneAtlasTileset(rt, "boot");
-        if (ot) tuneOsmBuildingsTileset(ot);
+        if (ot) tuneAtlasTileset(ot, "boot");
         if (gt) tuneAtlasTileset(gt, "boot");
         viewer.scene.globe.maximumScreenSpaceError = 8;
         viewer.scene.requestRender();
@@ -2661,10 +2617,39 @@ function SpaceshipPage() {
           return null;
         }
         viewer.scene.primitives.add(tileset);
-        // OSM Buildings are sparse at coarse LOD, so use a dedicated tuning
-        // path instead of the photoreal/Google profile. This prioritizes every
-        // visible building first, then scales only RAM/hidden preload by device.
-        tuneOsmBuildingsTileset(tileset);
+        tuneAtlasTileset(tileset, "boot");
+        // OSM Buildings: load every building inside the viewport + a
+        // surrounding halo, but scale the halo/cache to the device so
+        // low-memory machines don't OOM. "In-view" coverage stays full
+        // on every tier (SSE ≤ 6, no LOD skipping, no foveated culling);
+        // only the *halo radius* (loadSiblings) and RAM cache shrink.
+        try {
+          const nav: any = typeof navigator !== "undefined" ? navigator : {};
+          const deviceMemGB: number = typeof nav.deviceMemory === "number" ? nav.deviceMemory : 8;
+          const hwThreads: number   = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : 8;
+          // Tier: low (<=4GB or <=4 cores), mid (<=8GB), high (>8GB).
+          const tier: "low" | "mid" | "high" =
+            deviceMemGB <= 4 || hwThreads <= 4 ? "low"
+            : deviceMemGB <= 8 ? "mid"
+            : "high";
+          const cfg = {
+            low:  { sse: 6, siblings: false, cacheMiB: 768,  overflowMiB: 192 },
+            mid:  { sse: 5, siblings: true,  cacheMiB: 2048, overflowMiB: 512 },
+            high: { sse: 4, siblings: true,  cacheMiB: 4096, overflowMiB: 1024 },
+          }[tier];
+
+          tileset.maximumScreenSpaceError = cfg.sse;         // in-view coverage stays full
+          tileset.skipLevelOfDetail = false;                 // no LOD popping
+          tileset.loadSiblings = cfg.siblings;               // halo width scales with device
+          tileset.foveatedScreenSpaceError = false;          // don't drop peripheral packs
+          tileset.foveatedTimeDelay = 0;
+          tileset.preloadWhenHidden = tier !== "low";
+          tileset.preloadFlightDestinations = true;
+          tileset.progressiveResolutionHeightFraction = 0;   // no low-res pre-pass
+          tileset.cacheBytes = cfg.cacheMiB * TILE_MIB;
+          tileset.maximumCacheOverflowBytes = cfg.overflowMiB * TILE_MIB;
+          console.info(`[Atlas OSM] halo tier=${tier} mem≈${deviceMemGB}GB cores=${hwThreads} sse=${cfg.sse} cache=${cfg.cacheMiB}MiB`);
+        } catch {}
         // Re-apply user paint whenever a tile becomes visible so painted
         // buildings keep their colour across LOD swaps and camera moves.
         try {
@@ -2689,7 +2674,7 @@ function SpaceshipPage() {
         } catch {}
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
-        keepAtlasRenderingDuringBoot(viewer, 18000);
+        keepAtlasRenderingDuringBoot(viewer, 10000);
         window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
         return tileset;
       }).catch((err) => {
@@ -3015,14 +3000,12 @@ function SpaceshipPage() {
       if (profile === __perfProfile && now - __lastPerfApply < 4000) return;
       __perfProfile = profile;
       __lastPerfApply = now;
-      const googleTileset = (viewer as any)._googleDirectTileset;
-      const realisticTileset = (viewer as any)._realisticTileset;
-      const osmTileset = (viewer as any)._osmTileset;
-      [googleTileset, realisticTileset].filter(Boolean).forEach((ts) => tuneAtlasTileset(ts, profile));
-      // Do not let the adaptive governor loosen OSM Buildings SSE. Coarse OSM
-      // parent tiles omit small structures, so higher SSE reads as missing
-      // buildings inside the camera view. Keep the viewport-fill profile fixed.
-      if (osmTileset) tuneOsmBuildingsTileset(osmTileset);
+      const sets = [
+        (viewer as any)._googleDirectTileset,
+        (viewer as any)._realisticTileset,
+        (viewer as any)._osmTileset,
+      ].filter(Boolean);
+      sets.forEach((ts) => tuneAtlasTileset(ts, profile));
       // Never lower render resolution in Atlas: it makes the city look like a
       // blurred backdrop. Tile pressure is handled through SSE/culling instead.
       try { viewer.resolutionScale = 1; } catch {}
