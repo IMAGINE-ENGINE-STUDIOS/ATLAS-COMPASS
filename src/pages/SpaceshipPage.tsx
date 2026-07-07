@@ -137,6 +137,46 @@ const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string })
     style={{ filter: `drop-shadow(0 0 4px ${hex}aa) drop-shadow(0 0 1px ${hex})` }}
   />
 );
+
+/**
+ * Compact header row shown at the top of each Targeting Brush section.
+ * All sections are always visible now (unified tool); this row shows the
+ * section name plus a small "Active" chip when the section owns the
+ * globe double-click.
+ */
+const SectionHeader = ({
+  label,
+  accent,
+  active,
+  onActivate,
+}: {
+  label: string;
+  accent: "emerald" | "cyan" | "amber" | "violet";
+  active: boolean;
+  onActivate: () => void;
+}) => {
+  const activeCls = {
+    emerald: "bg-emerald-500/25 text-emerald-300 border-emerald-500/30",
+    cyan: "bg-cyan-500/25 text-cyan-300 border-cyan-500/30",
+    amber: "bg-amber-500/25 text-amber-300 border-amber-500/30",
+    violet: "bg-violet-500/25 text-violet-300 border-violet-500/30",
+  }[accent];
+  return (
+    <div className="flex items-center justify-between px-1">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-white/70 font-semibold">
+        {label}
+      </p>
+      <button
+        onClick={onActivate}
+        className={`px-1.5 py-0.5 rounded-md text-[8px] font-semibold uppercase tracking-wider border transition-colors ${
+          active ? activeCls : "text-white/50 border-white/10 hover:text-white hover:border-white/20"
+        }`}
+      >
+        {active ? "● Active" : "Set active"}
+      </button>
+    </div>
+  );
+};
 import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
 import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
 import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery";
@@ -1237,6 +1277,8 @@ function SpaceshipPage() {
   type TilesToolExt = TilesTool | "terrain";
   const [tilesTool, setTilesTool] = useState<TilesToolExt>(savedUI.tilesTool ?? "grid");
   const [tileZoom, setTileZoom] = useState<number>(savedUI.tileZoom ?? 18);
+  // When true, tile zoom auto-follows the basemap (matches what the camera is currently rendering).
+  const [tileZoomAuto, setTileZoomAuto] = useState<boolean>(savedUI.tileZoomAuto ?? true);
   const [selectedTiles, setSelectedTiles] = useState<Set<TileKey>>(new Set());
   const [rectStart, setRectStart] = useState<{ lat: number; lng: number } | null>(null);
   const [lassoPoints, setLassoPoints] = useState<{ lat: number; lng: number }[]>([]);
@@ -1470,7 +1512,7 @@ function SpaceshipPage() {
       localStorage.setItem("atlas_ui", JSON.stringify({
         showBuildings, viewMode, hudVisible,
         brushMode, brushPanelOpen, brushSubMode,
-        tilesTool, tileZoom,
+        tilesTool, tileZoom, tileZoomAuto,
         showBusinessIcons, showLiveTraffic, geoCategory,
         showMarketplacePins,
         intelligenceOpen, recordingsOpen, geofenceOpen, tileIntelOpen,
@@ -1479,7 +1521,7 @@ function SpaceshipPage() {
   }, [
     showBuildings, viewMode, hudVisible,
     brushMode, brushPanelOpen, brushSubMode,
-    tilesTool, tileZoom,
+    tilesTool, tileZoom, tileZoomAuto,
     showBusinessIcons, showLiveTraffic, geoCategory,
     showMarketplacePins,
     intelligenceOpen, recordingsOpen, geofenceOpen, tileIntelOpen,
@@ -1662,6 +1704,46 @@ function SpaceshipPage() {
   // Keep ref in sync with state for use inside Cesium handlers
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
   useEffect(() => { brushSubModeRef.current = brushSubMode; }, [brushSubMode]);
+
+  /**
+   * Auto-sync the XYZ tile zoom to what the basemap is actually rendering.
+   * Slippy-tile zoom is derived from the camera's meters-per-pixel at the
+   * viewport center, so the selection grid matches the currently visible
+   * OSM / Google / Bing tiles exactly.
+   */
+  useEffect(() => {
+    if (!tileZoomAuto) return;
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const compute = () => {
+      try {
+        const cam = viewer.camera;
+        const carto = cam.positionCartographic;
+        if (!carto) return;
+        const lat = CesiumMath.toDegrees(carto.latitude);
+        const height = Math.max(1, carto.height); // meters above ellipsoid
+        const canvasH = viewer.scene.canvas.clientHeight || viewer.scene.canvas.height || 800;
+        const fovy = (cam.frustum as any).fovy ?? Math.PI / 3;
+        // meters per screen pixel at the camera nadir distance
+        const mpp = (2 * height * Math.tan(fovy / 2)) / canvasH;
+        if (!isFinite(mpp) || mpp <= 0) return;
+        const z = Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / mpp);
+        const clamped = Math.max(1, Math.min(22, Math.round(z)));
+        setTileZoom((prev) => (prev === clamped ? prev : clamped));
+      } catch {
+        // ignore transient camera reads
+      }
+    };
+    compute();
+    const remove = viewer.camera.changed.addEventListener(compute);
+    // Also poll on resize so the tile size stays correct as the canvas grows.
+    const onResize = () => compute();
+    window.addEventListener("resize", onResize);
+    return () => {
+      try { remove?.(); } catch {}
+      window.removeEventListener("resize", onResize);
+    };
+  }, [tileZoomAuto]);
 
   /* ── Classify OSM result into business type ── */
   const classifyOsmResult = useCallback((r: any): string => {
@@ -6120,31 +6202,43 @@ function SpaceshipPage() {
                     </button>
                   </div>
 
-                  {/* Mode tabs */}
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg mb-2.5">
-                    {(["reticle", "area", "stamp", "tiles"] as const).map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => setBrushSubMode(m)}
-                        className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                          brushSubMode === m
-                            ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
-                            : "text-white/60 hover:text-white border border-transparent"
-                        }`}
-                        title={
-                          m === "reticle" ? "Live targeting info" :
-                          m === "area" ? "Paint a zone & scan" :
-                          m === "stamp" ? "Stamp 3D models" :
-                          "Select map tiles (XYZ)"
-                        }
-                      >
-                        {m === "reticle" ? "Reticle" : m === "area" ? "Area" : m === "stamp" ? "Stamp" : "Tiles"}
-                      </button>
-                    ))}
+                  {/* Unified action selector — every section below is always visible;
+                      this row only decides what a double-click on the globe does. */}
+                  <div className="bg-black/60 border border-white/[0.06] rounded-lg p-1.5 mb-2.5">
+                    <p className="text-[8px] text-white/50 uppercase tracking-wider mb-1 px-1">
+                      Double-click action
+                    </p>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(["reticle", "area", "stamp", "tiles"] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setBrushSubMode(m)}
+                          className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                            brushSubMode === m
+                              ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
+                              : "text-white/60 hover:text-white border border-transparent bg-white/[0.02]"
+                          }`}
+                          title={
+                            m === "reticle" ? "Lock a target" :
+                            m === "area" ? "Set area center" :
+                            m === "stamp" ? "Stamp 3D model" :
+                            "Pick map tile"
+                          }
+                        >
+                          {m === "reticle" ? "Target" : m === "area" ? "Area" : m === "stamp" ? "Stamp" : "Tile"}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* ── Reticle mode body ── */}
-                  {brushSubMode === "reticle" && (
+                  {/* ── Reticle / Target ── (always visible) */}
+                  <div className="space-y-2.5 mb-2.5">
+                    <SectionHeader
+                      label="Target"
+                      accent="emerald"
+                      active={brushSubMode === "reticle"}
+                      onActivate={() => setBrushSubMode("reticle")}
+                    />
                     <div className="space-y-2.5">
                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-emerald-400/80 leading-relaxed">
@@ -6203,10 +6297,16 @@ function SpaceshipPage() {
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
 
-                  {/* ── Area mode body ── */}
-                  {brushSubMode === "area" && (
+                  {/* ── Area (always visible) ── */}
+                  <div className="space-y-2.5 mb-2.5">
+                    <SectionHeader
+                      label="Area · Scan · Export"
+                      accent="cyan"
+                      active={brushSubMode === "area"}
+                      onActivate={() => setBrushSubMode("area")}
+                    />
                     <div className="space-y-2.5">
                       <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-cyan-300/80 leading-relaxed">
@@ -6313,10 +6413,16 @@ function SpaceshipPage() {
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
 
-                  {/* ── Stamp mode body ── */}
-                  {brushSubMode === "stamp" && (
+                  {/* ── Stamp (always visible) ── */}
+                  <div className="space-y-2.5 mb-2.5">
+                    <SectionHeader
+                      label="Stamp 3D Model"
+                      accent="emerald"
+                      active={brushSubMode === "stamp"}
+                      onActivate={() => setBrushSubMode("stamp")}
+                    />
                     <div className="space-y-2.5">
                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-emerald-400/80 leading-relaxed">
@@ -6356,10 +6462,16 @@ function SpaceshipPage() {
                         />
                       </div>
                     </div>
-                  )}
+                  </div>
 
-                  {/* ── Tiles mode body ── */}
-                  {brushSubMode === "tiles" && (
+                  {/* ── Tiles / Map-Tile Selection (always visible) ── */}
+                  <div className="space-y-2.5 mb-2.5">
+                    <SectionHeader
+                      label="Map Tiles"
+                      accent="violet"
+                      active={brushSubMode === "tiles"}
+                      onActivate={() => setBrushSubMode("tiles")}
+                    />
                     <div className="space-y-2.5">
                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
                         <p className="text-[10px] text-emerald-400/80 leading-relaxed">
@@ -6388,7 +6500,20 @@ function SpaceshipPage() {
                       {/* Zoom (tile size) */}
                       <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="text-[9px] text-white/70 uppercase tracking-wider">Tile zoom (z)</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[9px] text-white/70 uppercase tracking-wider">Tile zoom (z)</p>
+                            <button
+                              onClick={() => setTileZoomAuto((v) => !v)}
+                              className={`px-1.5 py-0.5 rounded-md text-[8px] font-semibold uppercase tracking-wider border transition-colors ${
+                                tileZoomAuto
+                                  ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/30"
+                                  : "text-white/60 border-white/10 hover:text-white hover:border-white/20"
+                              }`}
+                              title="Auto-match the current basemap zoom (recommended)"
+                            >
+                              {tileZoomAuto ? "Auto · Synced" : "Manual"}
+                            </button>
+                          </div>
                           <p className="text-[11px] text-white/85 font-mono">
                             z{tileZoom} · ~{tileSizeMeters(cursorInfo?.lat ?? 0, tileZoom).toFixed(1)} m
                           </p>
@@ -6396,11 +6521,14 @@ function SpaceshipPage() {
                         <input
                           type="range" min={6} max={22} step={1}
                           value={tileZoom}
+                          disabled={tileZoomAuto}
                           onChange={(e) => setTileZoom(parseInt(e.target.value))}
-                          className="w-full accent-emerald-400"
+                          className="w-full accent-emerald-400 disabled:opacity-40"
                         />
                         <p className="text-[9px] text-white/50 mt-1">
-                          Higher z = smaller tiles. z18 ≈ building; z14 ≈ neighborhood; z10 ≈ city.
+                          {tileZoomAuto
+                            ? "Auto follows the basemap — tiles you pick match what Google/OSM is drawing right now."
+                            : "Manual: higher z = smaller tiles. z18 ≈ building; z14 ≈ neighborhood; z10 ≈ city."}
                         </p>
                       </div>
 
@@ -6564,7 +6692,7 @@ function SpaceshipPage() {
                         )}
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {/* Placed models list (shared across all modes) */}
                   <div className="mt-2.5 pt-2.5 border-t border-white/[0.06]">
