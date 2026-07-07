@@ -80,6 +80,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import AtlasSplatOverlay from "@/components/atlas/AtlasSplatOverlay";
+import AtlasBuildingsOverlay from "@/components/atlas/AtlasBuildingsOverlay";
 import AtlasSplatUploader from "@/components/atlas/AtlasSplatUploader";
 import AtlasFreePlayOverlay, {
   DEFAULT_FREEPLAY_CHARACTER,
