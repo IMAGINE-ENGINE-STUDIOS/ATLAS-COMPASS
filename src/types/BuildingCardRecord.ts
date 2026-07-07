@@ -70,6 +70,10 @@ export interface PickedBuilding {
   levels?: number | null;
   footprint_m2?: number | null;
   est_population?: number | null;
+  /** Where est_population came from. */
+  population_source?: "us-census-2020" | "heuristic" | null;
+  /** Free-form human-readable explanation of the population estimate. */
+  population_note?: string | null;
   raw?: Record<string, unknown>;
 }
 
