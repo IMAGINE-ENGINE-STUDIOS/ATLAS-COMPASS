@@ -237,7 +237,7 @@ const getOsmBuildingsPerformanceConfig = () => {
         : "high";
   const cfg = {
     // Lower SSE is intentional: coarse OSM parent tiles can omit small
-    // buildings, which looks like "not all buildings loaded" in street view.
+    // buildings, which looks like "not all buildings loaded" in the viewport.
     low:  { sse: 4, cacheMiB: 1024, overflowMiB: 256, hiddenPreload: false },
     mid:  { sse: 3, cacheMiB: 2048, overflowMiB: 512, hiddenPreload: true },
     high: { sse: 2, cacheMiB: 4096, overflowMiB: 1024, hiddenPreload: true },
