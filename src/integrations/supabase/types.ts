@@ -82,6 +82,116 @@ export type Database = {
           },
         ]
       }
+      building_ledger: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          message: string | null
+          payload: Json
+          record_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          message?: string | null
+          payload?: Json
+          record_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          message?: string | null
+          payload?: Json
+          record_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_ledger_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "building_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      building_records: {
+        Row: {
+          address: string | null
+          building_kind: string | null
+          color: string | null
+          created_at: string
+          est_population: number | null
+          footprint_m2: number | null
+          id: string
+          is_hidden: boolean
+          is_public: boolean
+          lat: number | null
+          levels: number | null
+          lng: number | null
+          name: string | null
+          notes: string | null
+          osm_id: string
+          raw: Json
+          replacement_glb_path: string | null
+          replacement_glb_url: string | null
+          tag: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          building_kind?: string | null
+          color?: string | null
+          created_at?: string
+          est_population?: number | null
+          footprint_m2?: number | null
+          id?: string
+          is_hidden?: boolean
+          is_public?: boolean
+          lat?: number | null
+          levels?: number | null
+          lng?: number | null
+          name?: string | null
+          notes?: string | null
+          osm_id: string
+          raw?: Json
+          replacement_glb_path?: string | null
+          replacement_glb_url?: string | null
+          tag?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          building_kind?: string | null
+          color?: string | null
+          created_at?: string
+          est_population?: number | null
+          footprint_m2?: number | null
+          id?: string
+          is_hidden?: boolean
+          is_public?: boolean
+          lat?: number | null
+          levels?: number | null
+          lng?: number | null
+          name?: string | null
+          notes?: string | null
+          osm_id?: string
+          raw?: Json
+          replacement_glb_path?: string | null
+          replacement_glb_url?: string | null
+          tag?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       camera_catalog: {
         Row: {
           country: string | null
