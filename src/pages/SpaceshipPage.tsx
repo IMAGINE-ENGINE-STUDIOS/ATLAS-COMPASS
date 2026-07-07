@@ -3252,6 +3252,43 @@ function SpaceshipPage() {
     };
   }, [showBusinessIcons, geoCategory]);
 
+  // ── Auto-refresh search results after camera drifts outside searched area
+  // and stays still for 2 seconds. Only active when a category search is live.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const onMoveEnd = () => {
+      const area = lastSearchAreaRef.current;
+      if (!area) return;
+      if (viewer.isDestroyed()) return;
+      const cam = viewer.camera.positionCartographic;
+      const lat = CesiumMath.toDegrees(cam.latitude);
+      const lng = CesiumMath.toDegrees(cam.longitude);
+      const dist = geoHaversine(area.lat, area.lng, lat, lng);
+      // Trigger only when camera has clearly drifted outside the searched radius.
+      if (dist < area.radiusKm * 0.6) {
+        if (autoRefreshTimerRef.current) { clearTimeout(autoRefreshTimerRef.current); autoRefreshTimerRef.current = null; }
+        return;
+      }
+      if (autoRefreshTimerRef.current) clearTimeout(autoRefreshTimerRef.current);
+      autoRefreshTimerRef.current = setTimeout(() => {
+        autoRefreshTimerRef.current = null;
+        const current = lastSearchAreaRef.current;
+        if (!current) return;
+        loadCategoryBusinessesInstant(current.category);
+      }, 2000);
+    };
+    const remove = viewer.camera.moveEnd.addEventListener(onMoveEnd);
+    const removeStart = viewer.camera.moveStart.addEventListener(() => {
+      if (autoRefreshTimerRef.current) { clearTimeout(autoRefreshTimerRef.current); autoRefreshTimerRef.current = null; }
+    });
+    return () => {
+      remove();
+      removeStart();
+      if (autoRefreshTimerRef.current) { clearTimeout(autoRefreshTimerRef.current); autoRefreshTimerRef.current = null; }
+    };
+  }, [loadCategoryBusinessesInstant]);
+
   // ── Always-active click handler for business pin entities ──
   useEffect(() => {
     const viewer = viewerRef.current;
