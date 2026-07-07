@@ -4311,6 +4311,7 @@ function SpaceshipPage() {
       (viewer as any)._ensureGoogleDirectTileset?.();
     } else if (mode === "realistic") {
       (viewer as any)._ensureRealisticTileset?.();
+      (viewer as any)._ensureIonDetailOverlays?.();
     } else if (mode === "osm") {
       (viewer as any)._ensureOsmTileset?.();
     }
@@ -4332,6 +4333,7 @@ function SpaceshipPage() {
         (viewer as any)._ensureGoogleDirectTileset?.();
       } else if (viewMode === "realistic") {
         (viewer as any)._ensureRealisticTileset?.();
+        (viewer as any)._ensureIonDetailOverlays?.();
       } else {
         (viewer as any)._ensureOsmTileset?.();
       }
