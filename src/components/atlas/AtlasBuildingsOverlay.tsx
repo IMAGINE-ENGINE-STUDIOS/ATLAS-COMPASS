@@ -776,6 +776,36 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
   // Keep clearPending accessible from the ESC handler defined earlier.
   useEffect(() => { clearPendingRef.current = clearPending; }, [clearPending]);
 
+  /**
+   * Append a ledger row on every building that belongs to `groupId`.
+   * Used so that group-level actions (rename / recolor / publish / delete /
+   * paint) are traceable from every individual building's history.
+   */
+  const ledgerToGroup = useCallback(
+    async (
+      groupId: string,
+      kind: "color" | "publish" | "tag" | "note" | "import",
+      message: string,
+      payload: Record<string, unknown> = {},
+    ) => {
+      const g = groups.groups.find((x) => x.id === groupId);
+      if (!g) return;
+      for (const osmId of g.osm_ids) {
+        let rec = records.records[osmId];
+        if (!rec) {
+          rec = await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
+          if (!rec) continue;
+        }
+        await records.appendLedger(rec.id, kind, message, {
+          group_id: groupId,
+          group_name: g.name,
+          ...payload,
+        });
+      }
+    },
+    [groups.groups, records],
+  );
+
   if (!active) return null;
   return (
     <>
