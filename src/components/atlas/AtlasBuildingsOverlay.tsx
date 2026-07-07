@@ -428,11 +428,16 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
 
       const hits = new Set<string>();
       const scratch = new Cartesian2();
+      // 1) Centroid pass — walks every currently loaded tile (not just the
+      //    ones in `_selectedTiles`) so buildings whose centroid falls inside
+      //    the rectangle are always captured, even when partially off-screen.
       try {
-        (tileset as any)._selectedTiles?.forEach((tile: any) => {
-          const count = tile.content?.featuresLength ?? 0;
+        const walk = (tile: any) => {
+          if (!tile) return;
+          const content = tile.content;
+          const count = content?.featuresLength ?? 0;
           for (let i = 0; i < count; i++) {
-            const feature: Cesium3DTileFeature = tile.content.getFeature(i);
+            const feature: Cesium3DTileFeature = content.getFeature(i);
             const osmId = featureOsmId(feature);
             if (!osmId) continue;
             const centroid = featureCentroid(feature);
@@ -450,24 +455,35 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
               hits.add(osmId);
             }
           }
-        });
+          const children = tile.children ?? [];
+          for (const c of children) walk(c);
+        };
+        walk((tileset as any).root);
+        // Also cover any explicitly-selected tiles the recursion may have skipped.
+        (tileset as any)._selectedTiles?.forEach(walk);
       } catch (e) {
         console.warn("[AtlasBuildingsOverlay] marquee walk failed", e);
       }
 
-      // Fallback for large rectangles: sample-grid raycast picks up buildings
-      // whose centroid centroid lookup failed (some tiles expose bounding
-      // sphere only after full load).
+      // 2) Dense raycast pass — catches buildings whose centroid sits outside
+      //    the rectangle but whose visible geometry intersects it (tall
+      //    towers seen from a low angle, wide L-shaped footprints, etc.).
+      //    Uses drillPick so a single ray can register several stacked
+      //    features. Step is adaptive so huge rectangles don't hang.
       try {
         const w = cMaxX - cMinX, h = cMaxY - cMinY;
-        if (w > 40 && h > 40) {
-          const step = Math.max(12, Math.floor(Math.min(w, h) / 12));
+        if (w >= 6 && h >= 6) {
+          const step = Math.max(6, Math.min(22, Math.floor(Math.min(w, h) / 60)));
+          const pt = new Cartesian2();
           for (let x = cMinX; x <= cMaxX; x += step) {
             for (let y = cMinY; y <= cMaxY; y += step) {
-              const p = viewer.scene.pick(new Cartesian2(x, y));
-              if (p instanceof Cesium3DTileFeature) {
-                const id = featureOsmId(p);
-                if (id) hits.add(id);
+              pt.x = x; pt.y = y;
+              const picks = viewer.scene.drillPick(pt, 4);
+              for (const p of picks) {
+                if (p instanceof Cesium3DTileFeature) {
+                  const id = featureOsmId(p);
+                  if (id) hits.add(id);
+                }
               }
             }
           }
