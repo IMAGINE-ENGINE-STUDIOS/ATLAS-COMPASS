@@ -387,6 +387,8 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (marqueeActiveRef.current) setMarqueeActive(false);
+        // Clear any pending green preview.
+        if (pendingIds.length > 0) clearPending();
         setPicked(null);
       }
       // "m" toggles the marquee tool (Finder-style shortcut).
@@ -401,7 +403,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
       handler.destroy();
       window.removeEventListener("keydown", onKey);
     };
-  }, [active, viewerRef, getOsmTileset, handlePick, groups]);
+  }, [active, viewerRef, getOsmTileset, handlePick, groups, pendingIds, clearPending]);
 
   /** Convert a screen-space rectangle into the OSM ids inside it and add
    *  them to the PENDING selection (green preview). User then hits ✓ Save
