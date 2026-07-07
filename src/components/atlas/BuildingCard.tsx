@@ -192,7 +192,19 @@ export default function BuildingCard({
             label="Footprint"
             value={footprint != null ? `${Math.round(footprint)} m²` : "—"}
           />
-          <StatCell icon={<Users className="w-3 h-3" />} label="Est. Residents" value={population > 0 ? String(population) : "—"} />
+          <StatCell
+            icon={<Users className="w-3 h-3" />}
+            label="Est. Residents"
+            value={population > 0 ? String(population) : "—"}
+            sub={
+              picked.population_source === "us-census-2020"
+                ? "US Census 2020"
+                : picked.population_source === "heuristic"
+                ? "Heuristic"
+                : undefined
+            }
+            title={picked.population_note ?? undefined}
+          />
         </section>
 
         {/* Color */}
@@ -358,13 +370,33 @@ export default function BuildingCard({
   );
 }
 
-function StatCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function StatCell({
+  icon,
+  label,
+  value,
+  sub,
+  title,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  title?: string;
+}) {
   return (
-    <div className="rounded-md bg-white/[0.03] border border-white/[0.05] px-2 py-1.5">
+    <div
+      className="rounded-md bg-white/[0.03] border border-white/[0.05] px-2 py-1.5"
+      title={title}
+    >
       <div className="flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-white/60">
         {icon} {label}
       </div>
       <div className="text-xs text-white font-mono tabular-nums mt-0.5">{value}</div>
+      {sub && (
+        <div className="text-[8px] uppercase tracking-wider text-cyan-300/80 mt-0.5 truncate">
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
