@@ -287,9 +287,23 @@ export default function PlayableCharacter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned, obj.scale[1]]);
 
-  // Camera state
-  const camOrbit = useRef({ yaw: 0, pitch: 0.25, dist: 4 });
+  // Camera state — GTA5-style trailing third-person.
+  // yaw/pitch/dist are the *desired* orbit parameters; smoothYaw/smoothPitch/
+  // smoothDist chase them with critical damping so mouse look feels lively
+  // but the follow position never snaps. `lastLookAt` gates the auto-follow:
+  // if the player hasn't touched the mouse recently, the camera slowly
+  // rotates behind their movement direction.
+  const camOrbit = useRef({
+    yaw: 0, pitch: 0.15, dist: 4.2,
+    smoothYaw: 0, smoothPitch: 0.15, smoothDist: 4.2,
+    lastLookAt: 0,
+  });
   const pointerLocked = useRef(false);
+  // Smoothed eye/target vectors kept across frames so the follow motion is
+  // continuous — much closer to a spring-damper than a per-frame lerp.
+  const smoothEye = useRef(new THREE.Vector3());
+  const smoothTarget = useRef(new THREE.Vector3());
+  const smoothInit = useRef(false);
   // Smooth camera-mode blend. When `cameraMode` flips, `blend` runs from 0→1
   // over `blendDuration` seconds; we lerp the eye and target from the previous
   // mode's pose to the new one instead of snapping.
@@ -326,14 +340,18 @@ export default function PlayableCharacter({
     };
     const onMove = (e: MouseEvent) => {
       if (!pointerLocked.current) return;
-      // Inverted mouse X to match inverted strafe controls.
-      camOrbit.current.yaw += e.movementX * 0.0025;
-      camOrbit.current.pitch -= e.movementY * 0.0025;
-      camOrbit.current.pitch = Math.max(-1.2, Math.min(1.2, camOrbit.current.pitch));
+      // GTA5-like sensitivity: crisp horizontal, slightly damped vertical.
+      camOrbit.current.yaw   += e.movementX * 0.0022;
+      camOrbit.current.pitch -= e.movementY * 0.0018;
+      // Clamp pitch so the camera can look up at the sky and down at feet
+      // but never flip over the character.
+      camOrbit.current.pitch = Math.max(-0.9, Math.min(1.1, camOrbit.current.pitch));
+      camOrbit.current.lastLookAt = performance.now();
     };
     const onWheel = (e: WheelEvent) => {
       if (!pointerLocked.current && cameraMode !== "third") return;
-      camOrbit.current.dist = Math.max(1.5, Math.min(10, camOrbit.current.dist + e.deltaY * 0.005));
+      // Distance range tuned for third-person action feel (2m..8m).
+      camOrbit.current.dist = Math.max(2.0, Math.min(8.0, camOrbit.current.dist + e.deltaY * 0.004));
     };
     canvas.addEventListener("click", onClick);
     document.addEventListener("pointerlockchange", onLockChange);
@@ -883,12 +901,39 @@ export default function PlayableCharacter({
       );
     }
 
-    // ---- camera ----
-    // Compute the eye + target for both modes, then blend between them based
-    // on `camBlend.t`. This makes mode swaps a smooth dolly instead of a jump.
-    const pitch = camOrbit.current.pitch;
+    // ---- camera (GTA5-style third-person / smooth first-person) ----
+    // 1) Chase the raw yaw/pitch/dist with a spring-damper so mouse input
+    //    feels immediate but the follow eye never snaps.
+    // 2) If the player is moving and hasn't touched the mouse for ~1.2s,
+    //    slowly recenter the camera behind their heading (classic GTA
+    //    "auto-follow" behind the player).
+    // 3) Smooth the final eye + target with critical damping and clamp the
+    //    camera out of nearby geometry so it never punches through walls.
+    const orbit = camOrbit.current;
+    const timeSinceLook = (performance.now() - orbit.lastLookAt) / 1000;
+    if (cameraMode === "third" && moving && timeSinceLook > 1.2) {
+      // Nudge yaw toward the player's heading, wrapping to the shortest arc.
+      let dy = yawRef.current - orbit.yaw;
+      while (dy >  Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      orbit.yaw += dy * Math.min(1, dt * 1.4);
+    }
+    // Critically-damped chase of orbit → smooth orbit.
+    const yawK   = 1 - Math.exp(-dt / 0.05);   // ~50 ms half-life
+    const pitchK = 1 - Math.exp(-dt / 0.08);
+    const distK  = 1 - Math.exp(-dt / 0.20);
+    // Wrap yaw so smoothing takes the shortest angular path.
+    let yawDelta = orbit.yaw - orbit.smoothYaw;
+    while (yawDelta >  Math.PI) yawDelta -= Math.PI * 2;
+    while (yawDelta < -Math.PI) yawDelta += Math.PI * 2;
+    orbit.smoothYaw   += yawDelta * yawK;
+    orbit.smoothPitch += (orbit.pitch - orbit.smoothPitch) * pitchK;
+    orbit.smoothDist  += (orbit.dist  - orbit.smoothDist ) * distK;
 
-    // First-person pose
+    const pitch = orbit.smoothPitch;
+    const smoothCamYaw = orbit.smoothYaw;
+
+    // First-person pose (uses the smoothed yaw so mouse-look is fluid).
     let fpHeadY = root.position.y + measuredHeight * 0.92;
     const head = cloned.getObjectByName("mixamorigHead") ?? cloned.getObjectByName("Head");
     if (head) {
@@ -896,8 +941,8 @@ export default function PlayableCharacter({
       head.getWorldPosition(wp);
       fpHeadY = wp.y + 0.08;
     }
-    const fwdX = -Math.sin(camYaw);
-    const fwdZ = -Math.cos(camYaw);
+    const fwdX = -Math.sin(smoothCamYaw);
+    const fwdZ = -Math.cos(smoothCamYaw);
     const fpEye = new THREE.Vector3(
       root.position.x + fwdX * 0.18,
       fpHeadY,
@@ -909,15 +954,50 @@ export default function PlayableCharacter({
       fpEye.z + fwdZ * Math.cos(pitch),
     );
 
-    // Third-person pose
-    const tpDist = camOrbit.current.dist * Math.max(0.6, measuredHeight / 1.8);
-    const tpTargetY = root.position.y + measuredHeight * 0.7;
-    const tpTarget = new THREE.Vector3(root.position.x, tpTargetY, root.position.z);
-    const tpEye = new THREE.Vector3(
-      root.position.x + Math.sin(camYaw) * Math.cos(pitch) * tpDist,
-      tpTargetY + Math.sin(pitch) * tpDist,
-      root.position.z + Math.cos(camYaw) * Math.cos(pitch) * tpDist,
+    // Third-person pose — GTA5 feel:
+    //  · look-at pivot is above the player's shoulders so the head is in
+    //    the lower third of frame, not centered.
+    //  · eye orbits BEHIND the character (opposite the yaw) with a slight
+    //    horizontal shoulder offset for a cinematic framing.
+    //  · distance scales gently with character height so tall rigs get
+    //    more room to breathe.
+    const heightScale = Math.max(0.75, measuredHeight / 1.8);
+    const tpDist = orbit.smoothDist * heightScale;
+    const cosP = Math.cos(pitch);
+    const sinP = Math.sin(pitch);
+    const tpTargetY = root.position.y + measuredHeight * 0.75;
+    // Slight lateral shoulder offset (perpendicular to look dir).
+    const shoulder = 0.22 * heightScale;
+    const rightX =  Math.cos(smoothCamYaw);
+    const rightZ = -Math.sin(smoothCamYaw);
+    const tpTarget = new THREE.Vector3(
+      root.position.x + rightX * shoulder,
+      tpTargetY,
+      root.position.z + rightZ * shoulder,
     );
+    const tpEye = new THREE.Vector3(
+      tpTarget.x + Math.sin(smoothCamYaw) * cosP * tpDist,
+      tpTargetY + sinP * tpDist,
+      tpTarget.z + Math.cos(smoothCamYaw) * cosP * tpDist,
+    );
+
+    // Collision-avoid the eye: cast from target → desired eye, and pull the
+    // eye in if we would clip into level geometry. Keeps the camera outside
+    // walls the way GTA5's spring arm does.
+    if (cameraMode === "third") {
+      const rayDir = new THREE.Vector3().subVectors(tpEye, tpTarget);
+      const rayLen = rayDir.length();
+      if (rayLen > 0.001) {
+        rayDir.multiplyScalar(1 / rayLen);
+        tmp.raycaster.set(toWorldPoint(tpTarget), toWorldDir(rayDir));
+        tmp.raycaster.far = rayLen + 0.2;
+        const hit = tmp.raycaster.intersectObjects(staticTargets, true)[0];
+        if (hit && hit.distance < rayLen) {
+          const safe = Math.max(0.6, hit.distance - 0.25);
+          tpEye.copy(tpTarget).addScaledVector(rayDir, safe);
+        }
+      }
+    }
 
     const cb = camBlend.current;
     const finalEye = tmp.camPos;
@@ -938,12 +1018,35 @@ export default function PlayableCharacter({
       const toTarget = cb.to === "first" ? fpTarget : tpTarget;
       finalEye.copy(fromEyeSnap.lerp(toEye, k));
       finalTarget.copy(fromTargetSnap.lerp(toTarget, k));
+      smoothEye.current.copy(finalEye);
+      smoothTarget.current.copy(finalTarget);
+      smoothInit.current = true;
     } else if (cameraMode === "first") {
       finalEye.copy(fpEye);
       finalTarget.copy(fpTarget);
+      smoothEye.current.copy(finalEye);
+      smoothTarget.current.copy(finalTarget);
+      smoothInit.current = true;
     } else {
-      finalEye.copy(immediateCamera ? tpEye : camera.position.clone().lerp(tpEye, Math.min(1, dt * 10)));
-      finalTarget.copy(tpTarget);
+      // GTA5-style critically-damped follow. Different half-lives on
+      // position vs. look-at give the classic "eye trails, target snaps"
+      // feeling — the camera pulls behind you smoothly, but always looks
+      // at where you are right now.
+      if (immediateCamera && !smoothInit.current) {
+        smoothEye.current.copy(tpEye);
+        smoothTarget.current.copy(tpTarget);
+        smoothInit.current = true;
+      } else if (!smoothInit.current) {
+        smoothEye.current.copy(camera.position);
+        smoothTarget.current.copy(tpTarget);
+        smoothInit.current = true;
+      }
+      const posK    = 1 - Math.exp(-dt / 0.14); // ~140 ms half-life on eye
+      const targetK = 1 - Math.exp(-dt / 0.06); // ~60 ms half-life on target
+      smoothEye.current.lerp(tpEye, posK);
+      smoothTarget.current.lerp(tpTarget, targetK);
+      finalEye.copy(smoothEye.current);
+      finalTarget.copy(smoothTarget.current);
     }
 
     onCameraPose?.({
