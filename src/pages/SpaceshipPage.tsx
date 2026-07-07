@@ -2157,9 +2157,10 @@ function SpaceshipPage() {
     const radiusKm = cam.height < 2500 ? 2 : cam.height < 7000 ? 4 : cam.height < 25000 ? 8 : 15;
 
     setShowBusinessIcons(true);
-    setSearchOpen(true);
-    setSearchQuery("");
-    setSearchLoading(true);
+    // Background load: do NOT open the search-results panel here. The
+    // quick filter is a globe-side pin loader — the panel is reserved
+    // for the bottom search input. The spinner on the QuickStoreFilter
+    // pill (driven by `isLoadingBusinesses`) is the only progress UI.
     setIsLoadingBusinesses(true);
     setActiveSearchCategory(category ?? "");
     setGeoCenter(center);
@@ -2193,7 +2194,6 @@ function SpaceshipPage() {
       addBusinessPinsFromResults(sorted, center);
     } finally {
       if (!controller.signal.aborted) {
-        setSearchLoading(false);
         setIsLoadingBusinesses(false);
       }
     }
