@@ -166,12 +166,9 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
         </button>
       )}
 
-      {/* Label chip */}
-      {open && current && (
-        <div className="px-2 py-1 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] text-[10px] font-mono text-white/85 animate-fade-in whitespace-nowrap">
-          {current.label}
-        </div>
-      )}
+      {/* Label chip removed: the selection is already indicated by the
+          green dot next to the active row in the picker above, so this
+          chip was a third visual copy of the same information. */}
     </div>
   );
 }
