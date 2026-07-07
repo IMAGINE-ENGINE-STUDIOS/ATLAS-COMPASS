@@ -293,6 +293,16 @@ const applyAtlasMapVisibility = (
   if (realistic) realistic.show = mode === "realistic" && showBuildings && !earthIntelActive;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
+  // Cesium Ion premium city photogrammetry overlays (Aerometrex, Bentley, etc.)
+  // Layered on top of Google Photorealistic ("realistic" mode) so cities like
+  // NYC, Tokyo, Melbourne, Denver get HD mesh detail wherever the user's Ion
+  // account has access. Hidden in every other mode.
+  const overlays: any[] = (viewer._ionDetailOverlays as any[]) || [];
+  const overlaysVisible = mode === "realistic" && showBuildings && !earthIntelActive;
+  for (const ts of overlays) {
+    try { ts.show = overlaysVisible; } catch {}
+  }
+
   // Mapbox / Light: swap the globe's imagery for a lightweight raster basemap.
   applyMapboxImageryLayer(viewer, mode === "mapbox");
 
@@ -2705,6 +2715,56 @@ function SpaceshipPage() {
       return (viewer as any)._osmLoading;
     };
 
+    // ── Cesium Ion premium city photogrammetry overlays ──
+    // Discovers every 3DTILES asset on the connected Ion account (Aerometrex
+    // NYC / Melbourne / Denver, Bentley Tokyo, ContextCapture cities, etc.)
+    // and layers them on top of Google Photorealistic when the user is in
+    // "realistic" mode. Base assets (Google 2275207, OSM Buildings 96188) are
+    // skipped so we never double-load them.
+    (viewer as any)._ionDetailOverlays = (viewer as any)._ionDetailOverlays || [];
+    (viewer as any)._ensureIonDetailOverlays = async () => {
+      if ((viewer as any)._ionDetailOverlaysLoading) return (viewer as any)._ionDetailOverlaysLoading;
+      if ((viewer as any)._ionDetailOverlaysReady) return (viewer as any)._ionDetailOverlays;
+      const BASE_IDS = new Set([2275207, 96188, 1, 2, 3, 4]); // base globe/imagery/terrain
+      const promise = (async () => {
+        try {
+          const res = await fetch("https://api.cesium.com/v1/assets", {
+            headers: { Authorization: `Bearer ${CESIUM_TOKEN}` },
+          });
+          if (!res.ok) throw new Error(`ion list ${res.status}`);
+          const json = await res.json();
+          const items: any[] = Array.isArray(json?.items) ? json.items : [];
+          const detail = items.filter((a) =>
+            a && a.type === "3DTILES" && a.status === "COMPLETE" && !BASE_IDS.has(Number(a.id))
+          );
+          console.log(`[Atlas realistic] found ${detail.length} Ion detail tilesets`);
+          for (const asset of detail) {
+            try {
+              const ts = await Cesium3DTileset.fromIonAssetId(Number(asset.id));
+              if (viewer.isDestroyed()) { try { ts.destroy?.(); } catch {} return; }
+              viewer.scene.primitives.add(ts);
+              tuneAtlasTileset(ts, "boot");
+              ts.show = viewModeRef.current === "realistic" && showBuildingsRef.current;
+              (ts as any)._ionAssetName = asset.name;
+              (viewer as any)._ionDetailOverlays.push(ts);
+              viewer.scene.requestRender?.();
+            } catch (err) {
+              console.warn(`[Atlas realistic] failed to load Ion asset ${asset.id} (${asset.name})`, err);
+            }
+          }
+          (viewer as any)._ionDetailOverlaysReady = true;
+          window.dispatchEvent(new CustomEvent("cesium-tileset-ready"));
+        } catch (err) {
+          console.warn("[Atlas realistic] Ion asset discovery failed", err);
+        } finally {
+          (viewer as any)._ionDetailOverlaysLoading = null;
+        }
+        return (viewer as any)._ionDetailOverlays;
+      })();
+      (viewer as any)._ionDetailOverlaysLoading = promise;
+      return promise;
+    };
+
     // ── Google Photorealistic 3D Tiles (Direct via Map Tiles API) ──
     // Streams the freshest mesh straight from tile.googleapis.com
     // through an edge-function proxy that injects the connector API key
@@ -2753,6 +2813,7 @@ function SpaceshipPage() {
       (viewer as any)._ensureGoogleDirectTileset();
     } else if (viewModeRef.current === "realistic") {
       (viewer as any)._ensureRealisticTileset();
+      (viewer as any)._ensureIonDetailOverlays?.();
     } else {
       (viewer as any)._ensureOsmTileset();
     }
@@ -4250,6 +4311,7 @@ function SpaceshipPage() {
       (viewer as any)._ensureGoogleDirectTileset?.();
     } else if (mode === "realistic") {
       (viewer as any)._ensureRealisticTileset?.();
+      (viewer as any)._ensureIonDetailOverlays?.();
     } else if (mode === "osm") {
       (viewer as any)._ensureOsmTileset?.();
     }
@@ -4271,6 +4333,7 @@ function SpaceshipPage() {
         (viewer as any)._ensureGoogleDirectTileset?.();
       } else if (viewMode === "realistic") {
         (viewer as any)._ensureRealisticTileset?.();
+        (viewer as any)._ensureIonDetailOverlays?.();
       } else {
         (viewer as any)._ensureOsmTileset?.();
       }
