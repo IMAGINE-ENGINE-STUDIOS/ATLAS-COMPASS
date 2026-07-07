@@ -115,7 +115,7 @@ export default function MarqueeSelectionLayer({
       {/* Map-level pointer capture — below Atlas UI controls so buttons remain clickable. */}
       <div
         ref={captureRef}
-        className="fixed inset-0 z-[20] select-none"
+        className="fixed inset-0 z-[5] select-none"
         style={{ cursor: "crosshair", background: "transparent", touchAction: "none" }}
         onPointerDown={handleDown}
         onPointerMove={handleMove}
