@@ -107,10 +107,14 @@ export function useSelectionGroups() {
 
   const updateGroup = useCallback(
     async (id: string, patch: Partial<BuildingSelectionGroup>) => {
-      const prev = groups.find((g) => g.id === id);
-      if (!prev) return null;
-      // Optimistic
-      setGroups((cur) => cur.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+      // Snapshot the prior row via the functional setter so we always see the
+      // latest state (the memoized `groups` closure can be stale right after
+      // createGroup → updateGroup calls in the same tick).
+      let prev: BuildingSelectionGroup | undefined;
+      setGroups((cur) => {
+        prev = cur.find((g) => g.id === id);
+        return prev ? cur.map((g) => (g.id === id ? { ...g, ...patch } : g)) : cur;
+      });
       const { data, error } = await supabase
         .from("building_selection_groups")
         .update(patch as never)
@@ -119,7 +123,7 @@ export function useSelectionGroups() {
         .single();
       if (error) {
         console.warn("[useSelectionGroups] update failed", error);
-        setGroups((cur) => cur.map((g) => (g.id === id ? prev : g)));
+        if (prev) setGroups((cur) => cur.map((g) => (g.id === id ? prev! : g)));
         toast.error("Save failed — rolled back");
         return null;
       }
@@ -127,7 +131,7 @@ export function useSelectionGroups() {
       setGroups((cur) => cur.map((g) => (g.id === id ? row : g)));
       return row;
     },
-    [groups],
+    [],
   );
 
   const deleteGroup = useCallback(
@@ -148,25 +152,37 @@ export function useSelectionGroups() {
   /** Add ids to a group without duplicating. */
   const addToGroup = useCallback(
     async (id: string, ids: string[]) => {
-      const g = groups.find((x) => x.id === id);
-      if (!g) return;
-      const merged = Array.from(new Set([...g.osm_ids, ...ids]));
-      if (merged.length === g.osm_ids.length) return;
+      // Read the latest osm_ids straight from Supabase to avoid a stale
+      // closure clobbering a freshly-created group with an empty array.
+      const { data, error } = await supabase
+        .from("building_selection_groups")
+        .select("osm_ids")
+        .eq("id", id)
+        .single();
+      if (error || !data) return;
+      const current: string[] = (data as any).osm_ids ?? [];
+      const merged = Array.from(new Set([...current, ...ids]));
+      if (merged.length === current.length) return;
       await updateGroup(id, { osm_ids: merged });
     },
-    [groups, updateGroup],
+    [updateGroup],
   );
 
   const removeFromGroup = useCallback(
     async (id: string, ids: string[]) => {
-      const g = groups.find((x) => x.id === id);
-      if (!g) return;
+      const { data, error } = await supabase
+        .from("building_selection_groups")
+        .select("osm_ids")
+        .eq("id", id)
+        .single();
+      if (error || !data) return;
+      const current: string[] = (data as any).osm_ids ?? [];
       const remove = new Set(ids);
-      const next = g.osm_ids.filter((x) => !remove.has(x));
-      if (next.length === g.osm_ids.length) return;
+      const next = current.filter((x) => !remove.has(x));
+      if (next.length === current.length) return;
       await updateGroup(id, { osm_ids: next });
     },
-    [groups, updateGroup],
+    [updateGroup],
   );
 
   const toggleInActiveGroup = useCallback(
