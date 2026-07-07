@@ -215,7 +215,8 @@ export default function SelectionGroupsPanel({
       )}
 
       <div className="px-3 py-1.5 border-t border-white/10 text-[10px] text-white/40 leading-relaxed">
-        Marquee = ⌘/Shift-drag. Hold Shift to add, Alt to subtract.
+        Turn on <span className="text-white/70">Marquee</span>, then press &amp; drag to select.
+        Selected buildings turn <span className="text-emerald-300">green</span> — hit ✓ Save to keep them.
       </div>
     </div>
   );
