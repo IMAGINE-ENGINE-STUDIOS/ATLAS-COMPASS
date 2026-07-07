@@ -227,6 +227,50 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
   } catch {}
 };
 
+const getOsmBuildingsPerformanceConfig = () => {
+  const nav: any = typeof navigator !== "undefined" ? navigator : {};
+  const deviceMemGB: number = typeof nav.deviceMemory === "number" ? nav.deviceMemory : 8;
+  const hwThreads: number = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : 8;
+  const tier: "low" | "mid" | "high" =
+    deviceMemGB <= 4 || hwThreads <= 4 ? "low"
+      : deviceMemGB <= 8 ? "mid"
+        : "high";
+  const cfg = {
+    // Lower SSE is intentional: coarse OSM parent tiles can omit small
+    // buildings, which looks like "not all buildings loaded" in street view.
+    low:  { sse: 4, cacheMiB: 1024, overflowMiB: 256, hiddenPreload: false },
+    mid:  { sse: 3, cacheMiB: 2048, overflowMiB: 512, hiddenPreload: true },
+    high: { sse: 2, cacheMiB: 4096, overflowMiB: 1024, hiddenPreload: true },
+  }[tier];
+
+  return { tier, deviceMemGB, hwThreads, ...cfg };
+};
+
+const tuneOsmBuildingsTileset = (tileset: any) => {
+  if (!tileset) return;
+  try {
+    const cfg = getOsmBuildingsPerformanceConfig();
+
+    tileset.maximumScreenSpaceError = cfg.sse;
+    tileset.dynamicScreenSpaceError = false;
+    tileset.skipLevelOfDetail = false;
+    tileset.cullRequestsWhileMoving = false;
+    tileset.cullRequestsWhileMovingMultiplier = 0;
+    tileset.loadSiblings = true;
+    tileset.foveatedScreenSpaceError = false;
+    tileset.foveatedTimeDelay = 0;
+    tileset.preferLeaves = true;
+    tileset.immediatelyLoadDesiredLevelOfDetail = false;
+    tileset.preloadWhenHidden = cfg.hiddenPreload;
+    tileset.preloadFlightDestinations = true;
+    tileset.progressiveResolutionHeightFraction = 0;
+    tileset.cacheBytes = cfg.cacheMiB * TILE_MIB;
+    tileset.maximumCacheOverflowBytes = cfg.overflowMiB * TILE_MIB;
+
+    console.info(`[Atlas OSM] viewport-fill tier=${cfg.tier} mem≈${cfg.deviceMemGB}GB cores=${cfg.hwThreads} sse=${cfg.sse} cache=${cfg.cacheMiB}MiB`);
+  } catch {}
+};
+
 const keepAtlasRenderingDuringBoot = (viewer: any, durationMs = 10000) => {
   if (!viewer || viewer.isDestroyed?.()) return;
   try {
