@@ -72,7 +72,7 @@ export default function SelectionGroupsPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/50 backdrop-blur-xl overflow-hidden">
+    <div className="pointer-events-auto rounded-2xl border border-white/10 bg-black/50 backdrop-blur-xl overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-white/60">
           <MapPin className="w-3.5 h-3.5" />
