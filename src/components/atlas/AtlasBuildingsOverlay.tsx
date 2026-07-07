@@ -73,6 +73,8 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
   const [pendingIds, setPendingIds] = useState<string[]>([]);
   // Original color per osm_id, so we can restore on Clear or after save.
   const pendingSnapshot = useRef<Map<string, string | null>>(new Map());
+  // Latest clearPending function (avoids use-before-decl in the ESC handler).
+  const clearPendingRef = useRef<() => void>(() => {});
 
   // Map: osm_id → applied CesiumColor (so we can restore or reapply on tile reload)
   const appliedColors = useRef<Map<string, string | null>>(new Map());
@@ -388,7 +390,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
       if (e.key === "Escape") {
         if (marqueeActiveRef.current) setMarqueeActive(false);
         // Clear any pending green preview.
-        if (pendingIds.length > 0) clearPending();
+        clearPendingRef.current();
         setPicked(null);
       }
       // "m" toggles the marquee tool (Finder-style shortcut).
@@ -403,7 +405,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
       handler.destroy();
       window.removeEventListener("keydown", onKey);
     };
-  }, [active, viewerRef, getOsmTileset, handlePick, groups, pendingIds, clearPending]);
+  }, [active, viewerRef, getOsmTileset, handlePick, groups]);
 
   /** Convert a screen-space rectangle into the OSM ids inside it and add
    *  them to the PENDING selection (green preview). User then hits ✓ Save
