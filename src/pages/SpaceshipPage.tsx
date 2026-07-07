@@ -137,6 +137,46 @@ const FilterPng = ({ src, alt, hex }: { src: string; alt: string; hex: string })
     style={{ filter: `drop-shadow(0 0 4px ${hex}aa) drop-shadow(0 0 1px ${hex})` }}
   />
 );
+
+/**
+ * Compact header row shown at the top of each Targeting Brush section.
+ * All sections are always visible now (unified tool); this row shows the
+ * section name plus a small "Active" chip when the section owns the
+ * globe double-click.
+ */
+const SectionHeader = ({
+  label,
+  accent,
+  active,
+  onActivate,
+}: {
+  label: string;
+  accent: "emerald" | "cyan" | "amber" | "violet";
+  active: boolean;
+  onActivate: () => void;
+}) => {
+  const activeCls = {
+    emerald: "bg-emerald-500/25 text-emerald-300 border-emerald-500/30",
+    cyan: "bg-cyan-500/25 text-cyan-300 border-cyan-500/30",
+    amber: "bg-amber-500/25 text-amber-300 border-amber-500/30",
+    violet: "bg-violet-500/25 text-violet-300 border-violet-500/30",
+  }[accent];
+  return (
+    <div className="flex items-center justify-between px-1">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-white/70 font-semibold">
+        {label}
+      </p>
+      <button
+        onClick={onActivate}
+        className={`px-1.5 py-0.5 rounded-md text-[8px] font-semibold uppercase tracking-wider border transition-colors ${
+          active ? activeCls : "text-white/50 border-white/10 hover:text-white hover:border-white/20"
+        }`}
+      >
+        {active ? "● Active" : "Set active"}
+      </button>
+    </div>
+  );
+};
 import IntelligencePanel, { type TrafficCamera, type CameraBounds } from "@/components/atlas/IntelligencePanel";
 import CameraViewerPopup from "@/components/atlas/CameraViewerPopup";
 import CameraRecordingsGallery from "@/components/atlas/CameraRecordingsGallery";
