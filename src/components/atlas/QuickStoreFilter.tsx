@@ -92,28 +92,26 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
                   key={opt.key}
                   onClick={() => { onChange(opt.key); }}
                   title={opt.label}
-                  className="flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full transition-all backdrop-blur-xl"
-                  style={active ? {
-                    background: `${hex}22`,
-                    border: `1px solid ${hex}66`,
-                    boxShadow: `0 4px 20px ${hex}33`,
-                  } : {
-                    background: "transparent",
-                    border: "1px solid transparent",
-                  }}
+                  className="relative flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full transition-all backdrop-blur-xl border border-transparent hover:bg-white/[0.04]"
                 >
                   <span
                     className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
-                    style={active ? { background: `${hex}33`, color: hex } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}
+                    style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.75)" }}
                   >
                     {opt.icon}
                   </span>
                   <span
                     className="text-[11px] font-medium tracking-wide whitespace-nowrap"
-                    style={{ color: active ? hex : "rgba(255,255,255,0.7)" }}
+                    style={{ color: "rgba(255,255,255,0.75)" }}
                   >
                     {opt.label}
                   </span>
+                  {/* Selection mark — a single green dot, matching the
+                      indicator on the collapsed pill so the currently
+                      active filter isn't visually duplicated. */}
+                  {active && (
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" style={{ boxShadow: "0 0 6px rgba(52,211,153,0.85)" }} />
+                  )}
                 </button>
               );
             })}
@@ -168,12 +166,9 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
         </button>
       )}
 
-      {/* Label chip */}
-      {open && current && (
-        <div className="px-2 py-1 rounded-full bg-black/70 backdrop-blur-xl border border-white/[0.08] text-[10px] font-mono text-white/85 animate-fade-in whitespace-nowrap">
-          {current.label}
-        </div>
-      )}
+      {/* Label chip removed: the selection is already indicated by the
+          green dot next to the active row in the picker above, so this
+          chip was a third visual copy of the same information. */}
     </div>
   );
 }
