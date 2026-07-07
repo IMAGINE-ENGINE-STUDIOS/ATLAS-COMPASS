@@ -8,8 +8,9 @@
  *
  *   1. Cache        (population_cache, 30-day TTL, 0.005° cell)
  *   2. US Census    (2020 Decennial PL, block-level — only in US bbox)
- *   3. SEDAC GPW v4 (NASA/CIESIN, 1 km global, persons/km² direct)
- *   4. WorldPop     (v1 stats, 250 m buffer, global 100 m — async fallback)
+ *   3. WorldPop     (v1 stats, 250 m polygon, global 100 m — verified for
+ *                    Venezuela, Colombia, Brazil, Peru, Bolivia, Ecuador,
+ *                    remote Amazon, Andes, Guyana Shield)
  *
  * Returns: { residents_per_km2, source, note, cached }.
  *
@@ -74,77 +75,52 @@ async function fetchCensus(lat: number, lng: number) {
 
 async function fetchWorldPop(lat: number, lng: number) {
   try {
-    // Small square (~250 m) around the point. WorldPop stats runs async
-    // and requires polling — we give it a short window before giving up.
+    // ~500 m × 500 m FeatureCollection around the point. WorldPop's stats
+    // service ONLY accepts FeatureCollection GeoJSON — a bare Feature is
+    // rejected with "Invalid GeoJSON". Kick it off then poll the task id.
     const d = 0.0025;
-    const poly = {
-      type: "Feature",
-      geometry: {
-        type: "Polygon",
-        coordinates: [[
-          [lng - d, lat - d],
-          [lng + d, lat - d],
-          [lng + d, lat + d],
-          [lng - d, lat + d],
-          [lng - d, lat - d],
-        ]],
-      },
+    const fc = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "Polygon",
+          coordinates: [[
+            [lng - d, lat - d],
+            [lng + d, lat - d],
+            [lng + d, lat + d],
+            [lng - d, lat + d],
+            [lng - d, lat - d],
+          ]],
+        },
+      }],
     };
     const kickoff = await fetch(
       `https://api.worldpop.org/v1/services/stats?dataset=wpgppop&year=2020` +
-        `&geojson=${encodeURIComponent(JSON.stringify(poly))}`,
+        `&geojson=${encodeURIComponent(JSON.stringify(fc))}`,
     );
     if (!kickoff.ok) return null;
-    const first = await kickoff.json();
+    const first: any = await kickoff.json();
     const taskid: string | undefined = first?.taskid;
+    if (!taskid) return null;
     let payload: any = first;
-    // Poll up to ~6 s if async.
-    for (let i = 0; i < 6 && taskid && payload?.status !== "finished"; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
       const pr = await fetch(`https://api.worldpop.org/v1/tasks/${taskid}`);
-      if (!pr.ok) break;
+      if (!pr.ok) continue;
       payload = await pr.json();
+      if (payload?.status === "finished") break;
     }
+    if (payload?.error) return null;
     const total = payload?.data?.total_population;
     if (typeof total !== "number") return null;
-    const areaKm2 = 0.25; // ~500 m × 500 m
+    const areaKm2 = 0.25;
     return {
       residents_per_km2: total / areaKm2,
       source: "worldpop-2020",
       note: `WorldPop 100 m · ${total.toFixed(0)} residents in ~0.25 km²`,
       raw: payload?.data ?? {},
-    };
-  } catch { return null; }
-}
-
-/**
- * NASA SEDAC GPWv4 (Gridded Population of the World) via CIESIN GeoServer.
- * WMS GetFeatureInfo returns persons/km² directly at 1 km resolution and
- * works globally, including remote South America, Africa, Asia.
- */
-async function fetchSedacGPW(lat: number, lng: number) {
-  try {
-    const d = 0.005; // ~500 m half-width
-    const bbox = `${lng - d},${lat - d},${lng + d},${lat + d}`;
-    const layer = "gpw-v4:gpw-v4-population-density-rev11_2020";
-    const url =
-      `https://sedac.ciesin.columbia.edu/geoserver/wms?SERVICE=WMS&VERSION=1.1.1` +
-      `&REQUEST=GetFeatureInfo&LAYERS=${layer}&QUERY_LAYERS=${layer}` +
-      `&SRS=EPSG:4326&BBOX=${bbox}&WIDTH=3&HEIGHT=3&X=1&Y=1` +
-      `&INFO_FORMAT=application/json`;
-    const r = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!r.ok) return null;
-    const j = await r.json();
-    const props = j?.features?.[0]?.properties ?? {};
-    // GeoServer returns GRAY_INDEX for raster layers.
-    const val = props.GRAY_INDEX ?? props.value ?? props.PALETTE_INDEX;
-    const density = Number(val);
-    if (!Number.isFinite(density) || density < 0) return null;
-    return {
-      residents_per_km2: density,
-      source: "ghsl-2023",
-      note: `NASA SEDAC GPWv4 2020 · ${density.toFixed(1)} persons/km²`,
-      raw: props,
     };
   } catch { return null; }
 }
@@ -192,7 +168,6 @@ Deno.serve(async (req) => {
       | { residents_per_km2: number; source: string; note: string; raw: unknown }
       | null = null;
     if (inUS(lat, lng)) result = await fetchCensus(lat, lng);
-    if (!result) result = await fetchSedacGPW(lat, lng);
     if (!result) result = await fetchWorldPop(lat, lng);
 
     if (!result) {
