@@ -2611,6 +2611,24 @@ function SpaceshipPage() {
         }
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
+        // OSM Buildings: load ALL buildings in the viewport + a wide
+        // surrounding halo (several km) rather than the foveated /
+        // SSE-culled subset. OSM buildings are cheap (a single geometry
+        // pack per tile) so we can afford a much lower SSE + full sibling
+        // loading without hurting FPS.
+        try {
+          tileset.maximumScreenSpaceError = 4;    // was ~8 → far more coverage
+          tileset.skipLevelOfDetail = false;      // no LOD skipping = fill everything
+          tileset.loadSiblings = true;            // pull neighbouring tiles around view
+          tileset.foveatedScreenSpaceError = false;
+          tileset.foveatedTimeDelay = 0;
+          tileset.cullWithChildrenBounds = false; // don't early-cull sibling packs
+          tileset.preloadWhenHidden = true;
+          tileset.preloadFlightDestinations = true;
+          tileset.progressiveResolutionHeightFraction = 0; // no low-res pre-pass
+          tileset.cacheBytes = 4096 * TILE_MIB;   // 4 GiB pinned in RAM
+          tileset.maximumCacheOverflowBytes = 1024 * TILE_MIB;
+        } catch {}
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
         keepAtlasRenderingDuringBoot(viewer, 10000);
