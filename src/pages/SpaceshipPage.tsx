@@ -1198,6 +1198,9 @@ function SpaceshipPage() {
   const pendingPlacementRef = useRef<{ lat: number; lng: number; alt: number } | null>(null);
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null); // used for UI indicator
   const draggingRef = useRef<string | null>(null);
+  // Hold-to-open-widget arming state for placed 3D models. See the
+  // LEFT_DOWN handler for behaviour.
+  const holdModelRef = useRef<{ id: string; timer: number; startX: number; startY: number } | null>(null);
 
   // Stamp-mode loaded model (persists across stamps so dialog opens only once)
   const stampModelRef = useRef<{
