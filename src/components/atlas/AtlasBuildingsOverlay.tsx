@@ -42,12 +42,14 @@ import { useSelectionGroups } from "@/hooks/useSelectionGroups";
 import { estimatePopulation, type PickedBuilding } from "@/types/BuildingCardRecord";
 import { estimateBuildingResidents } from "@/lib/census";
 import { toast } from "sonner";
-import { MousePointerSquareDashed, LassoSelect } from "lucide-react";
+import { MousePointerSquareDashed, LassoSelect, Check, Plus, X as XIcon } from "lucide-react";
 import MarqueeSelectionLayer, { type MarqueeRect } from "./MarqueeSelectionLayer";
 import SelectionGroupsPanel from "./SelectionGroupsPanel";
 
 const LONG_PRESS_MS = 450;
 const PRESS_MOVE_TOL_PX = 6;
+
+const PENDING_HEX = "#22c55e"; // Tailwind green-500 — pending selection preview
 
 interface Props {
   viewerRef: React.RefObject<Viewer | null>;
@@ -64,6 +66,13 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
   useEffect(() => { marqueeActiveRef.current = marqueeActive; }, [marqueeActive]);
   // Panel visibility: shown by default so the user always sees the tool.
   const [panelOpen, setPanelOpen] = useState(true);
+
+  // Pending (uncommitted) selection: buildings the user just lassoed but has
+  // NOT yet saved into a group. These are painted green until the user hits
+  // ✓ Save or ✕ Clear.
+  const [pendingIds, setPendingIds] = useState<string[]>([]);
+  // Original color per osm_id, so we can restore on Clear or after save.
+  const pendingSnapshot = useRef<Map<string, string | null>>(new Map());
 
   // Map: osm_id → applied CesiumColor (so we can restore or reapply on tile reload)
   const appliedColors = useRef<Map<string, string | null>>(new Map());
