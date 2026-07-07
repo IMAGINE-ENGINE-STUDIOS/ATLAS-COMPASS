@@ -287,9 +287,23 @@ export default function PlayableCharacter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloned, obj.scale[1]]);
 
-  // Camera state
-  const camOrbit = useRef({ yaw: 0, pitch: 0.25, dist: 4 });
+  // Camera state — GTA5-style trailing third-person.
+  // yaw/pitch/dist are the *desired* orbit parameters; smoothYaw/smoothPitch/
+  // smoothDist chase them with critical damping so mouse look feels lively
+  // but the follow position never snaps. `lastLookAt` gates the auto-follow:
+  // if the player hasn't touched the mouse recently, the camera slowly
+  // rotates behind their movement direction.
+  const camOrbit = useRef({
+    yaw: 0, pitch: 0.15, dist: 4.2,
+    smoothYaw: 0, smoothPitch: 0.15, smoothDist: 4.2,
+    lastLookAt: 0,
+  });
   const pointerLocked = useRef(false);
+  // Smoothed eye/target vectors kept across frames so the follow motion is
+  // continuous — much closer to a spring-damper than a per-frame lerp.
+  const smoothEye = useRef(new THREE.Vector3());
+  const smoothTarget = useRef(new THREE.Vector3());
+  const smoothInit = useRef(false);
   // Smooth camera-mode blend. When `cameraMode` flips, `blend` runs from 0→1
   // over `blendDuration` seconds; we lerp the eye and target from the previous
   // mode's pose to the new one instead of snapping.
@@ -326,14 +340,18 @@ export default function PlayableCharacter({
     };
     const onMove = (e: MouseEvent) => {
       if (!pointerLocked.current) return;
-      // Inverted mouse X to match inverted strafe controls.
-      camOrbit.current.yaw += e.movementX * 0.0025;
-      camOrbit.current.pitch -= e.movementY * 0.0025;
-      camOrbit.current.pitch = Math.max(-1.2, Math.min(1.2, camOrbit.current.pitch));
+      // GTA5-like sensitivity: crisp horizontal, slightly damped vertical.
+      camOrbit.current.yaw   += e.movementX * 0.0022;
+      camOrbit.current.pitch -= e.movementY * 0.0018;
+      // Clamp pitch so the camera can look up at the sky and down at feet
+      // but never flip over the character.
+      camOrbit.current.pitch = Math.max(-0.9, Math.min(1.1, camOrbit.current.pitch));
+      camOrbit.current.lastLookAt = performance.now();
     };
     const onWheel = (e: WheelEvent) => {
       if (!pointerLocked.current && cameraMode !== "third") return;
-      camOrbit.current.dist = Math.max(1.5, Math.min(10, camOrbit.current.dist + e.deltaY * 0.005));
+      // Distance range tuned for third-person action feel (2m..8m).
+      camOrbit.current.dist = Math.max(2.0, Math.min(8.0, camOrbit.current.dist + e.deltaY * 0.004));
     };
     canvas.addEventListener("click", onClick);
     document.addEventListener("pointerlockchange", onLockChange);
