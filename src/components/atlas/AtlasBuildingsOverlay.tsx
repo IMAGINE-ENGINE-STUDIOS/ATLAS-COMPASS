@@ -177,7 +177,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
     (viewer: Viewer, osmId: string, lat: number, lng: number, url: string) => {
       if (replacementEntities.current.has(osmId)) return;
       const entityId = `building-replacement:${osmId}`;
-      viewer.entities.add({
+      const entity = viewer.entities.add({
         id: entityId,
         position: Cartesian3.fromDegrees(lng, lat, 0),
         model: {
@@ -188,9 +188,13 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
         } as any,
       });
       replacementEntities.current.set(osmId, entityId);
+      // Apply saved transform (if any)
+      const rec = records.records[osmId];
+      const t = (rec?.raw as any)?.transform as TransformData | undefined;
+      if (t) applyEntityTransform(viewer, entityId, t);
       viewer.scene.requestRender();
     },
-    [],
+    [records.records],
   );
 
   const removeReplacementEntity = useCallback((viewer: Viewer, osmId: string) => {
