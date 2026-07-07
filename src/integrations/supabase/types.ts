@@ -192,6 +192,45 @@ export type Database = {
         }
         Relationships: []
       }
+      building_selection_groups: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_public: boolean
+          name: string
+          notes: string | null
+          osm_ids: string[]
+          tag: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          name: string
+          notes?: string | null
+          osm_ids?: string[]
+          tag?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          name?: string
+          notes?: string | null
+          osm_ids?: string[]
+          tag?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       camera_catalog: {
         Row: {
           country: string | null
@@ -907,6 +946,42 @@ export type Database = {
           room_channel?: string
           state?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      population_cache: {
+        Row: {
+          cell_key: string
+          fetched_at: string
+          id: string
+          lat: number
+          lng: number
+          note: string | null
+          raw: Json
+          residents_per_km2: number | null
+          source: string
+        }
+        Insert: {
+          cell_key: string
+          fetched_at?: string
+          id?: string
+          lat: number
+          lng: number
+          note?: string | null
+          raw?: Json
+          residents_per_km2?: number | null
+          source: string
+        }
+        Update: {
+          cell_key?: string
+          fetched_at?: string
+          id?: string
+          lat?: number
+          lng?: number
+          note?: string | null
+          raw?: Json
+          residents_per_km2?: number | null
+          source?: string
         }
         Relationships: []
       }

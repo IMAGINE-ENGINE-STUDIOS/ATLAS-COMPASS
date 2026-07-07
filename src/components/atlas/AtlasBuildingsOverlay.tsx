@@ -16,6 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Cartesian2,
   Cartesian3,
   Cartographic,
   Color as CesiumColor,
@@ -25,6 +26,9 @@ import {
   Math as CesiumMath,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
+  SceneTransforms,
+  BoundingSphere,
+  HeadingPitchRange,
   HeadingPitchRoll,
   Transforms,
   ConstantProperty,
@@ -34,10 +38,13 @@ import {
 import BuildingCard from "./BuildingCard";
 import ModelTransformWidget, { type TransformData } from "@/components/ModelTransformWidget";
 import { useBuildingRecords } from "@/hooks/useBuildingRecords";
+import { useSelectionGroups } from "@/hooks/useSelectionGroups";
 import { estimatePopulation, type PickedBuilding } from "@/types/BuildingCardRecord";
 import { estimateBuildingResidents } from "@/lib/census";
 import { toast } from "sonner";
-import { MousePointerSquareDashed } from "lucide-react";
+import { MousePointerSquareDashed, LassoSelect } from "lucide-react";
+import MarqueeSelectionLayer, { type MarqueeRect } from "./MarqueeSelectionLayer";
+import SelectionGroupsPanel from "./SelectionGroupsPanel";
 
 const LONG_PRESS_MS = 450;
 const PRESS_MOVE_TOL_PX = 6;
@@ -49,14 +56,14 @@ interface Props {
 
 export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
   const records = useBuildingRecords();
+  const groups = useSelectionGroups();
   const [picked, setPicked] = useState<PickedBuilding | null>(null);
-  const [multiSelect, setMultiSelect] = useState(false);
-  const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [marqueeActive, setMarqueeActive] = useState(false);
   const [editingOsmId, setEditingOsmId] = useState<string | null>(null);
-  const selectionRef = useRef(selection);
-  const multiRef = useRef(multiSelect);
-  useEffect(() => { selectionRef.current = selection; }, [selection]);
-  useEffect(() => { multiRef.current = multiSelect; }, [multiSelect]);
+  const marqueeActiveRef = useRef(marqueeActive);
+  useEffect(() => { marqueeActiveRef.current = marqueeActive; }, [marqueeActive]);
+  // Panel visibility: shown by default so the user always sees the tool.
+  const [panelOpen, setPanelOpen] = useState(true);
 
   // Map: osm_id → applied CesiumColor (so we can restore or reapply on tile reload)
   const appliedColors = useRef<Map<string, string | null>>(new Map());
@@ -79,6 +86,17 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
         feature.getProperty("osm_id");
       if (id == null) return null;
       return `way/${id}`;
+    } catch {
+      return null;
+    }
+  };
+
+  /** Compute a feature's world centroid via its tile bounding sphere. */
+  const featureCentroid = (feature: Cesium3DTileFeature): Cartesian3 | null => {
+    try {
+      const sphere = (feature as any)._content?.tile?.boundingSphere?.center
+        ?? (feature as any).content?._boundingVolume?.boundingSphere?.center;
+      return sphere ? Cartesian3.clone(sphere) : null;
     } catch {
       return null;
     }
@@ -111,6 +129,28 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
       return { lat: 0, lng: 0 };
     },
     [],
+  );
+
+  /** Fly the camera to a group by fitting its member centroids. */
+  const flyToGroupIds = useCallback(
+    (ids: string[]) => {
+      const viewer = viewerRef.current;
+      if (!viewer || ids.length === 0) return;
+      const positions: Cartesian3[] = [];
+      for (const osmId of ids) {
+        const rec = records.records[osmId];
+        if (rec?.lat != null && rec?.lng != null) {
+          positions.push(Cartesian3.fromDegrees(rec.lng, rec.lat, 0));
+        }
+      }
+      if (positions.length === 0) return;
+      const sphere = BoundingSphere.fromPoints(positions);
+      viewer.camera.flyToBoundingSphere(sphere, {
+        duration: 1.2,
+        offset: new HeadingPitchRange(0, CesiumMath.toRadians(-45), Math.max(sphere.radius * 3, 400)),
+      });
+    },
+    [viewerRef, records.records],
   );
 
   /** Re-apply persisted colors + replacement models whenever OSM tileset finishes streaming a batch. */
@@ -297,18 +337,6 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
         raw: {},
       };
 
-      if (multiRef.current) {
-        // toggle in/out of the selection
-        setSelection((prev) => {
-          const next = new Set(prev);
-          if (next.has(osmId)) {
-            next.delete(osmId);
-          } else {
-            next.add(osmId);
-          }
-          return next;
-        });
-      }
       // Always open/refresh the card on the just-picked building
       setPicked(base);
       // Ensure record exists so subsequent edits are persisted immediately
@@ -320,73 +348,130 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
     [viewerRef, featureCoords, records, enrichPicked],
   );
 
-  /** LEFT_DOWN → start long-press timer; LEFT_CLICK → normal pick. */
+  /** LEFT_CLICK → normal pick, unless the marquee tool owns the pointer. */
   useEffect(() => {
     if (!active) return;
     const viewer = viewerRef.current;
     if (!viewer) return;
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
-    let downAt = 0;
-    let downPos: { x: number; y: number } | null = null;
-    let longTimer: number | null = null;
-
-    const clearTimer = () => {
-      if (longTimer != null) { window.clearTimeout(longTimer); longTimer = null; }
-    };
-
-    handler.setInputAction((e: any) => {
-      downAt = performance.now();
-      downPos = { x: e.position.x, y: e.position.y };
-      clearTimer();
-      longTimer = window.setTimeout(() => {
-        // Only enter multi-select if the finger/mouse hasn't moved much
-        if (!downPos) return;
-        setMultiSelect(true);
-        toast("Multi-select ON — click buildings to add. Escape to exit.", { duration: 2500 });
-      }, LONG_PRESS_MS);
-    }, ScreenSpaceEventType.LEFT_DOWN);
-
-    handler.setInputAction(() => {
-      clearTimer();
-    }, ScreenSpaceEventType.LEFT_UP);
-
-    handler.setInputAction((e: any) => {
-      if (!downPos) return;
-      const dx = e.endPosition.x - downPos.x;
-      const dy = e.endPosition.y - downPos.y;
-      if (Math.hypot(dx, dy) > PRESS_MOVE_TOL_PX) clearTimer();
-    }, ScreenSpaceEventType.MOUSE_MOVE);
 
     handler.setInputAction((click: any) => {
+      if (marqueeActiveRef.current) return; // marquee owns the drag
       const picked = viewer.scene.pick(click.position);
       if (picked instanceof Cesium3DTileFeature) {
         const ts = getOsmTileset();
         if (ts && (picked as any).tileset === ts) {
+          // Shift-click toggles membership in the ACTIVE group instead of
+          // opening the card, so single-shot selection still works.
+          const shift = (window.event as any)?.shiftKey;
+          const osmId = featureOsmId(picked);
+          if (shift && osmId) {
+            groups.toggleInActiveGroup([osmId]);
+            return;
+          }
           handlePick(picked, { x: click.position.x, y: click.position.y });
           return;
         }
-      }
-      // Clicking empty sky exits multi-select
-      if (!picked && multiRef.current) {
-        setMultiSelect(false);
-        toast("Multi-select OFF");
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (multiRef.current) { setMultiSelect(false); setSelection(new Set()); }
+        if (marqueeActiveRef.current) setMarqueeActive(false);
         setPicked(null);
+      }
+      // "m" toggles the marquee tool (Finder-style shortcut).
+      if ((e.key === "m" || e.key === "M") && !e.metaKey && !e.ctrlKey && !e.altKey &&
+          !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        setMarqueeActive((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey);
 
     return () => {
-      clearTimer();
       handler.destroy();
       window.removeEventListener("keydown", onKey);
     };
-  }, [active, viewerRef, getOsmTileset, handlePick]);
+  }, [active, viewerRef, getOsmTileset, handlePick, groups]);
+
+  /** Convert a screen-space rectangle into the OSM ids inside it and add
+   *  them to (or subtract from) the active selection group. */
+  const handleMarquee = useCallback(
+    async (rect: MarqueeRect) => {
+      const viewer = viewerRef.current;
+      const tileset = getOsmTileset();
+      if (!viewer || !tileset) return;
+      const minX = Math.min(rect.x1, rect.x2);
+      const maxX = Math.max(rect.x1, rect.x2);
+      const minY = Math.min(rect.y1, rect.y2);
+      const maxY = Math.max(rect.y1, rect.y2);
+      // Convert page coords → canvas coords (Cesium wants canvas-local).
+      const canvasRect = viewer.scene.canvas.getBoundingClientRect();
+      const cMinX = minX - canvasRect.left;
+      const cMaxX = maxX - canvasRect.left;
+      const cMinY = minY - canvasRect.top;
+      const cMaxY = maxY - canvasRect.top;
+
+      const hits = new Set<string>();
+      const scratch = new Cartesian2();
+      try {
+        (tileset as any)._selectedTiles?.forEach((tile: any) => {
+          const count = tile.content?.featuresLength ?? 0;
+          for (let i = 0; i < count; i++) {
+            const feature: Cesium3DTileFeature = tile.content.getFeature(i);
+            const osmId = featureOsmId(feature);
+            if (!osmId) continue;
+            const centroid = featureCentroid(feature);
+            if (!centroid) continue;
+            const screen = SceneTransforms.worldToWindowCoordinates(
+              viewer.scene,
+              centroid,
+              scratch,
+            ) as Cartesian2 | undefined;
+            if (!screen) continue;
+            if (
+              screen.x >= cMinX && screen.x <= cMaxX &&
+              screen.y >= cMinY && screen.y <= cMaxY
+            ) {
+              hits.add(osmId);
+            }
+          }
+        });
+      } catch (e) {
+        console.warn("[AtlasBuildingsOverlay] marquee walk failed", e);
+      }
+
+      if (hits.size === 0) {
+        toast("No buildings in that rectangle — zoom closer.", { duration: 2000 });
+        return;
+      }
+
+      // Ensure a group exists (create if none active).
+      let group = groups.activeGroup;
+      if (!group) group = await groups.createGroup();
+      if (!group) return;
+
+      const ids = Array.from(hits);
+      if (rect.mode === "replace") {
+        await groups.updateGroup(group.id, { osm_ids: ids });
+        toast.success(`${ids.length} building${ids.length === 1 ? "" : "s"} → "${group.name}"`);
+      } else if (rect.mode === "add") {
+        await groups.addToGroup(group.id, ids);
+        toast.success(`+${ids.length} → "${group.name}"`);
+      } else {
+        await groups.removeFromGroup(group.id, ids);
+        toast.success(`−${ids.length} from "${group.name}"`);
+      }
+
+      // Ensure records exist for each hit so future edits persist.
+      for (const osmId of ids) {
+        if (!records.records[osmId]) {
+          await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
+        }
+      }
+    },
+    [viewerRef, getOsmTileset, groups, records],
+  );
 
   // ── Callbacks passed to BuildingCard ────────────────────────────────
   const applyColorImmediate = (osmId: string, hex: string | null) => {
@@ -418,10 +503,31 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
     );
   };
 
-  const onApplyColorToSelection = async (hex: string | null) => {
-    for (const osmId of selectionRef.current) {
+  /** Paint every building in a saved group using the group's own color. */
+  const applyColorToGroup = useCallback(async (groupId: string) => {
+    const g = groups.groups.find((x) => x.id === groupId);
+    if (!g) return;
+    const hex = g.color;
+    for (const osmId of g.osm_ids) {
       applyColorImmediate(osmId, hex);
-      // Ensure a record exists per selected building before patching
+      if (!records.records[osmId]) {
+        await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
+      }
+      await records.patchRecord(
+        osmId,
+        { color: hex },
+        { kind: "color", message: `Group "${g.name}" → ${hex}` },
+      );
+    }
+    toast.success(`Painted ${g.osm_ids.length} building${g.osm_ids.length === 1 ? "" : "s"}`);
+  }, [groups.groups, records]);
+
+  /** For the BuildingCard's legacy "apply to selection" button — targets
+   *  the currently active group. */
+  const onApplyColorToSelection = async (hex: string | null) => {
+    if (!groups.activeGroup) return;
+    for (const osmId of groups.activeGroup.osm_ids) {
+      applyColorImmediate(osmId, hex);
       if (!records.records[osmId]) {
         await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
       }
@@ -484,24 +590,98 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
 
   // Small multi-select status pill
   const statusPill = useMemo(() => {
-    if (!active || !multiSelect) return null;
+    if (!active) return null;
+    const g = groups.activeGroup;
+    if (!marqueeActive && !g) return null;
     return (
-      <div className="pointer-events-auto fixed left-1/2 top-4 z-30 -translate-x-1/2 flex items-center gap-2 rounded-full bg-cyan-500/20 backdrop-blur-xl border border-cyan-400/40 px-3 py-1.5 text-xs text-cyan-100">
-        <MousePointerSquareDashed className="w-3.5 h-3.5" />
-        Multi-select · {selection.size} building{selection.size === 1 ? "" : "s"} · Esc to exit
+      <div className="pointer-events-auto fixed left-1/2 top-4 z-30 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-xl border border-white/15 px-3 py-1.5 text-xs text-white">
+        {marqueeActive ? (
+          <>
+            <LassoSelect className="w-3.5 h-3.5 text-sky-300" />
+            <span>Marquee</span>
+            <span className="opacity-60">·</span>
+            <span className="opacity-80">Shift = add · Alt = subtract · Esc = exit</span>
+          </>
+        ) : (
+          <>
+            <MousePointerSquareDashed className="w-3.5 h-3.5 opacity-70" />
+            <span>Active group:</span>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: g!.color }} />
+            <span className="font-semibold">{g!.name}</span>
+            <span className="opacity-60 tabular-nums">· {g!.osm_ids.length}</span>
+          </>
+        )}
       </div>
     );
-  }, [active, multiSelect, selection.size]);
+  }, [active, marqueeActive, groups.activeGroup]);
 
   if (!active) return null;
   return (
     <>
       {statusPill}
+
+      {/* Marquee tool toggle + saved groups panel. Docked bottom-left so it
+          doesn't clash with the mode carousel or the level HUD. */}
+      {panelOpen ? (
+        <div className="pointer-events-auto fixed left-3 bottom-24 z-30 w-72 space-y-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMarqueeActive((v) => !v)}
+              className={`flex-1 px-3 py-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 ${
+                marqueeActive
+                  ? "bg-sky-500 border-sky-300 text-white shadow-lg shadow-sky-500/30"
+                  : "bg-black/50 border-white/15 text-white/80 hover:bg-white/10"
+              }`}
+              title="Toggle marquee selection (M)"
+            >
+              <LassoSelect className="w-3.5 h-3.5" />
+              {marqueeActive ? "Marquee ON" : "Marquee"}
+            </button>
+            <button
+              onClick={() => setPanelOpen(false)}
+              className="w-9 h-9 rounded-xl bg-black/50 border border-white/15 text-white/60 hover:text-white text-xs"
+              title="Hide panel"
+            >
+              −
+            </button>
+          </div>
+          <SelectionGroupsPanel
+            groups={groups.groups}
+            activeId={groups.activeId}
+            records={records.records}
+            onSetActive={groups.setActiveId}
+            onCreate={groups.createGroup}
+            onRename={(id, name) => { groups.updateGroup(id, { name }); }}
+            onRecolor={(id, color) => { groups.updateGroup(id, { color }); }}
+            onTogglePublic={(id, isPublic) => { groups.updateGroup(id, { is_public: isPublic }); }}
+            onDelete={groups.deleteGroup}
+            onApplyColorToGroup={applyColorToGroup}
+            onFlyToGroup={(id) => {
+              const g = groups.groups.find((x) => x.id === id);
+              if (g) flyToGroupIds(g.osm_ids);
+            }}
+          />
+        </div>
+      ) : (
+        <button
+          onClick={() => setPanelOpen(true)}
+          className="pointer-events-auto fixed left-3 bottom-24 z-30 px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-white text-xs flex items-center gap-2"
+        >
+          <LassoSelect className="w-3.5 h-3.5" /> Selection groups
+        </button>
+      )}
+
+      {/* macOS-style rubber-band. Only mounts while the marquee tool is on. */}
+      <MarqueeSelectionLayer
+        active={marqueeActive}
+        onSelect={handleMarquee}
+      />
+
       {picked && (
         <BuildingCard
           picked={picked}
           record={currentRecord}
-          multiSelectCount={multiSelect ? selection.size : 1}
+          multiSelectCount={groups.activeGroup?.osm_ids.length ?? 1}
           onClose={() => setPicked(null)}
           onColor={onColor}
           onTag={onTag}

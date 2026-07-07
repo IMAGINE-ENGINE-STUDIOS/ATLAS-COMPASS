@@ -71,7 +71,13 @@ export interface PickedBuilding {
   footprint_m2?: number | null;
   est_population?: number | null;
   /** Where est_population came from. */
-  population_source?: "us-census-2020" | "heuristic" | null;
+  population_source?:
+    | "us-census-2020"
+    | "worldpop-2020"
+    | "ghsl-2023"
+    | "heuristic"
+    | "unavailable"
+    | null;
   /** Free-form human-readable explanation of the population estimate. */
   population_note?: string | null;
   raw?: Record<string, unknown>;
