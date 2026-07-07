@@ -15,6 +15,7 @@ interface EventRow {
 export default function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [rulesCount, setRulesCount] = useState<number>(0);
   const unread = events.filter((e) => !e.read_at).length;
 
   useEffect(() => {
@@ -22,6 +23,11 @@ export default function NotificationsBell() {
     (async () => {
       const { data } = await supabase.from("tile_intel_events").select("id,rule_id,fired_at,sample,read_at").order("fired_at", { ascending: false }).limit(20);
       if (mounted) setEvents((data ?? []) as unknown as EventRow[]);
+      const { count } = await supabase
+        .from("tile_intel_rules")
+        .select("id", { count: "exact", head: true })
+        .eq("enabled", true);
+      if (mounted) setRulesCount(count ?? 0);
     })();
     const channel = supabase.channel("tile_intel_events_rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "tile_intel_events" }, (payload) => {
@@ -30,7 +36,20 @@ export default function NotificationsBell() {
         toast.info("New alarm", { description: JSON.stringify(row.sample).slice(0, 120) });
       })
       .subscribe();
-    return () => { mounted = false; supabase.removeChannel(channel); };
+    const rulesChannel = supabase.channel("tile_intel_rules_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tile_intel_rules" }, async () => {
+        const { count } = await supabase
+          .from("tile_intel_rules")
+          .select("id", { count: "exact", head: true })
+          .eq("enabled", true);
+        if (mounted) setRulesCount(count ?? 0);
+      })
+      .subscribe();
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+      supabase.removeChannel(rulesChannel);
+    };
   }, []);
 
   const markAll = async () => {
@@ -39,6 +58,10 @@ export default function NotificationsBell() {
     await supabase.from("tile_intel_events").update({ read_at: new Date().toISOString() }).in("id", ids);
     setEvents((prev) => prev.map((e) => ({ ...e, read_at: e.read_at ?? new Date().toISOString() })));
   };
+
+  // Only render when the user has an active alarm pipeline (rules) or
+  // recorded events. Keeps the top bar clean otherwise.
+  if (rulesCount === 0 && events.length === 0) return null;
 
   return (
     <div className="relative">
