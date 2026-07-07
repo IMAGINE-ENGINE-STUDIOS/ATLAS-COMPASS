@@ -90,17 +90,26 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
       if (k.Shift || k.ShiftLeft || k.ShiftRight) run = true;
     }
     if (scheme !== "keyboard") {
-      const pads = navigator.getGamepads?.() ?? [];
-      for (const pad of pads) {
-        if (!pad) continue;
-        const lx = Math.abs(pad.axes[0] ?? 0) > 0.15 ? pad.axes[0] : 0;
-        const ly = Math.abs(pad.axes[1] ?? 0) > 0.15 ? pad.axes[1] : 0;
-        x += lx;
-        z += ly;
-        if (pad.buttons[0]?.pressed) jump = true;     // A / Cross
-        if (pad.buttons[6]?.pressed || pad.buttons[10]?.pressed) run = true; // LT / L3
-        if (pad.buttons[2]?.pressed) inputPulse.interact = true; // X / Square
-        break;
+      // Gamepad polling can throw SecurityError in embedded/iframed
+      // previews where the "gamepad" permissions-policy is disallowed
+      // (Lovable preview). Guarding here prevents the whole locomotion
+      // frame from crashing — which would silently unmount the playable
+      // character and leave the scene empty on "Play from here".
+      try {
+        const pads = navigator.getGamepads?.() ?? [];
+        for (const pad of pads) {
+          if (!pad) continue;
+          const lx = Math.abs(pad.axes[0] ?? 0) > 0.15 ? pad.axes[0] : 0;
+          const ly = Math.abs(pad.axes[1] ?? 0) > 0.15 ? pad.axes[1] : 0;
+          x += lx;
+          z += ly;
+          if (pad.buttons[0]?.pressed) jump = true;     // A / Cross
+          if (pad.buttons[6]?.pressed || pad.buttons[10]?.pressed) run = true; // LT / L3
+          if (pad.buttons[2]?.pressed) inputPulse.interact = true; // X / Square
+          break;
+        }
+      } catch {
+        // no-op: gamepad access blocked by permissions policy
       }
     }
     const len = Math.hypot(x, z);

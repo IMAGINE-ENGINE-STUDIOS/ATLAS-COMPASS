@@ -2824,23 +2824,50 @@ function SpaceshipPage() {
       };
     };
 
-    // LEFT double click → set a camera focus point to orbit around, OR
-    // LEFT DOUBLE CLICK → drive brush / pending placement, or open the
-    // earth context menu. Edit a model if double-clicked on one.
+    // LEFT double click → drive brush / pending level placement. The
+    // model transform widget was previously wired here too; it now opens
+    // on RIGHT click (see below), and the earth context menu now opens
+    // on TRIPLE left click (see below) so users get a cleaner separation
+    // between "act on the tile" (dbl-click) and "inspect / play here"
+    // (right / triple-click).
     handler.setInputAction((click: any) => {
       viewer.trackedEntity = undefined;
       viewer.selectedEntity = undefined;
-      const picked = viewer.scene.pick(click.position);
-      if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
-        const modelId = picked.id.id.replace("model-", "");
-        window.dispatchEvent(new CustomEvent("cesium-model-dblclick", { detail: { id: modelId } }));
-        return;
-      }
       const loc = pickWorldLoc(click.position);
       if (!loc) return;
       const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
       window.dispatchEvent(new CustomEvent("cesium-dblclick", { detail: { ...loc, screen } }));
     }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+    // RIGHT click → open the model transform widget when a placed model
+    // is under the cursor. Falls through to Cesium's default (no-op with
+    // our controller settings) when clicking empty earth.
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
+        const modelId = picked.id.id.replace("model-", "");
+        viewer.trackedEntity = undefined;
+        viewer.selectedEntity = undefined;
+        window.dispatchEvent(new CustomEvent("cesium-model-dblclick", { detail: { id: modelId } }));
+      }
+    }, ScreenSpaceEventType.RIGHT_CLICK);
+
+    // TRIPLE left click → open the earth context menu ("Play from here",
+    // "Drop POI", "Load MAP", etc.). We detect a triple by keeping the
+    // last two click timestamps and firing when a third click lands
+    // within 600ms of the first.
+    const clickTimes: number[] = [];
+    handler.setInputAction((click: any) => {
+      const now = performance.now();
+      while (clickTimes.length && now - clickTimes[0] > 600) clickTimes.shift();
+      clickTimes.push(now);
+      if (clickTimes.length < 3) return;
+      clickTimes.length = 0;
+      const loc = pickWorldLoc(click.position);
+      if (!loc) return;
+      const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };
+      window.dispatchEvent(new CustomEvent("cesium-triple-click", { detail: { ...loc, screen } }));
+    }, ScreenSpaceEventType.LEFT_CLICK);
 
     // Track camera altitude — throttled to ~4Hz with a prev-value guard so
     // we don't re-render the whole 6.8k-line page on every Cesium frame.
@@ -3594,13 +3621,28 @@ function SpaceshipPage() {
         if (brushIndicatorRef.current && viewer) {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
-      } else {
-        // No brush / no pending placement: open the earth context menu.
-        setEarthMenu({ x: loc.screen?.x ?? window.innerWidth / 2, y: loc.screen?.y ?? window.innerHeight / 2, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
       }
+      // Note: the earth context menu no longer opens on double-click —
+      // it opens on triple-left-click via the `cesium-triple-click`
+      // listener below.
+    };
+    const handleTripleClick = (e: Event) => {
+      const loc = (e as CustomEvent).detail;
+      // Triple-click always opens the earth context menu, even when a
+      // brush tool is active — the brush owns double-click, the menu
+      // owns triple-click.
+      setEarthMenu({
+        x: loc.screen?.x ?? window.innerWidth / 2,
+        y: loc.screen?.y ?? window.innerHeight / 2,
+        loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt },
+      });
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
-    return () => window.removeEventListener("cesium-dblclick", handleDblClick);
+    window.addEventListener("cesium-triple-click", handleTripleClick);
+    return () => {
+      window.removeEventListener("cesium-dblclick", handleDblClick);
+      window.removeEventListener("cesium-triple-click", handleTripleClick);
+    };
   }, [brushMode, tileZoom, rectStart, stampSpacingM]);
 
 
@@ -5162,7 +5204,7 @@ function SpaceshipPage() {
       <AtlasSplatUploader viewer={viewerRef.current} />
 
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
-          (right-click / double-click → "Play from here"). WASD + mouse,
+          (triple-left-click the globe → "Play from here"). WASD + mouse,
           Shift to run, Space to jump, Esc to exit. */}
       <AtlasFreePlayOverlay
         viewerRef={viewerRef}
