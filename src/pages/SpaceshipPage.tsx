@@ -6680,7 +6680,6 @@ function SpaceshipPage() {
                   : "absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-3"
                 }`}
               >
-                {/* placeholder retained – business card renders below */}
                 <div className="relative">
                   <button onClick={() => setSelectedBusiness(null)}
                     className="absolute -top-2 -right-2 z-10 w-6 h-6 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-colors">
