@@ -3621,13 +3621,28 @@ function SpaceshipPage() {
         if (brushIndicatorRef.current && viewer) {
           brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
-      } else {
-        // No brush / no pending placement: open the earth context menu.
-        setEarthMenu({ x: loc.screen?.x ?? window.innerWidth / 2, y: loc.screen?.y ?? window.innerHeight / 2, loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt } });
       }
+      // Note: the earth context menu no longer opens on double-click —
+      // it opens on triple-left-click via the `cesium-triple-click`
+      // listener below.
+    };
+    const handleTripleClick = (e: Event) => {
+      const loc = (e as CustomEvent).detail;
+      // Triple-click always opens the earth context menu, even when a
+      // brush tool is active — the brush owns double-click, the menu
+      // owns triple-click.
+      setEarthMenu({
+        x: loc.screen?.x ?? window.innerWidth / 2,
+        y: loc.screen?.y ?? window.innerHeight / 2,
+        loc: { lat: loc.lat, lng: loc.lng, alt: loc.alt },
+      });
     };
     window.addEventListener("cesium-dblclick", handleDblClick);
-    return () => window.removeEventListener("cesium-dblclick", handleDblClick);
+    window.addEventListener("cesium-triple-click", handleTripleClick);
+    return () => {
+      window.removeEventListener("cesium-dblclick", handleDblClick);
+      window.removeEventListener("cesium-triple-click", handleTripleClick);
+    };
   }, [brushMode, tileZoom, rectStart, stampSpacingM]);
 
 
