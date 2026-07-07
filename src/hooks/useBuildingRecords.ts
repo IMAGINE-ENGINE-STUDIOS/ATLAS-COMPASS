@@ -101,7 +101,7 @@ export function useBuildingRecords() {
         footprint_m2: picked.footprint_m2 ?? null,
         est_population: est,
         raw: picked.raw ?? {},
-      };
+      } as never;
       const { data, error } = await supabase
         .from("building_records")
         .upsert(insert, { onConflict: "user_id,osm_id" })
@@ -132,8 +132,8 @@ export function useBuildingRecords() {
         user_id: userId,
         kind,
         message,
-        payload,
-      });
+        payload: payload as never,
+      } as never);
     },
     [userId],
   );
@@ -148,7 +148,7 @@ export function useBuildingRecords() {
       if (!current) return null;
       const { data, error } = await supabase
         .from("building_records")
-        .update(patch)
+        .update(patch as never)
         .eq("id", current.id)
         .select("*")
         .single();
