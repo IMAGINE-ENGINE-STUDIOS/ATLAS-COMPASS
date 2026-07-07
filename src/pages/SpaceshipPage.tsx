@@ -5132,7 +5132,16 @@ function SpaceshipPage() {
         <ModelLabelsOverlay
           viewer={viewerRef.current}
           models={placedModels}
-          onSelect={(m) => flyToModel(m as PlacedModel)}
+          onSelect={(m) => {
+            // Open the transform editor instead of flying the camera —
+            // clicking a label should let the user manipulate the model
+            // in place with the gizmo widget, not zoom the camera onto it.
+            if (viewerRef.current) {
+              viewerRef.current.trackedEntity = undefined;
+              viewerRef.current.selectedEntity = undefined;
+            }
+            setEditingModel(m as PlacedModel);
+          }}
         />
       )}
 
