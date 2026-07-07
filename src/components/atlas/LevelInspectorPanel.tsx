@@ -108,27 +108,16 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
 
   const deletePlacement = async () => {
     if (!confirm("Remove this level placement from the Atlas?")) return;
-    // Ask PostgREST to return the deleted row so we can tell the difference
-    // between "RLS silently blocked it" (data is []) and "actually deleted".
-    // Without this, RLS-blocked deletes look successful and leave stale pins.
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("atlas_level_placements")
       .delete()
-      .eq("id", placement.id)
-      .select("id");
-    if (error) {
-      toast.error(`Delete failed: ${error.message}`);
-      return;
+      .eq("id", placement.id);
+    if (error) toast.error(`Delete failed: ${error.message}`);
+    else {
+      toast.success("Placement removed");
+      window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
+      onClose();
     }
-    if (!data || data.length === 0) {
-      toast.error(
-        "You don't have permission to remove this placement. Ask the level owner or sign in as the account that placed it.",
-      );
-      return;
-    }
-    toast.success("Placement removed");
-    window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
-    onClose();
   };
 
   const exportAsMap = async () => {

@@ -62,7 +62,6 @@ import {
   CameraEventType, KeyboardEventModifier,
   UrlTemplateImageryProvider, ImageryLayer,
 } from "cesium";
-import { Cesium3DTileFeature } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAtlasKeyboardNav } from "@/components/atlas/useAtlasKeyboardNav";
@@ -85,7 +84,6 @@ import AtlasFreePlayOverlay, {
 } from "@/components/atlas/AtlasFreePlayOverlay";
 import { importMapToAtlas, pickMapFile } from "@/lib/atlasMapImport";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
-import OsmBuildingInspector, { type OsmBuildingSelection } from "@/components/atlas/OsmBuildingInspector";
 import {
   setAtlasCameraAltitude,
   useAtlasCameraAltitude,
@@ -184,45 +182,23 @@ const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "
     ts.maximumScreenSpaceError = sse;
     // Aggressive in-memory cache: keep a *much* larger set of already-loaded
     // tiles pinned so revisits (walking back around a corner, orbiting, or
-    // toggling map modes) never re-download.
+    // toggling map modes) never re-download. Combined with the browser disk
+    // cache in `tiles-sw.js`, this virtually eliminates re-fetches for tiles
+    // the user has already seen this session.
     ts.cacheBytes = 2048 * TILE_MIB;               // 2 GiB in RAM
     ts.maximumCacheOverflowBytes = 512 * TILE_MIB; // + 512 MiB slack
-
-    // Anti-flicker tuning. The old settings produced the "buildings pop in
-    // and out of the scene" effect the user reported. Root causes:
-    //   1. dynamicScreenSpaceError with a high factor aggressively fades
-    //      distant tiles OUT then swaps them back IN on the next frame.
-    //   2. cullRequestsWhileMoving throws away in-flight tile requests
-    //      during any camera motion, so panning drops tiles that were
-    //      about to appear and re-requests them a moment later.
-    //   3. immediatelyLoadDesiredLevelOfDetail=false + loadSiblings=true
-    //      loads every intermediate LOD, so users see a low-res tile,
-    //      then a mid-res one, then the real one — three visible pops.
-    //   4. foveatedScreenSpaceError without a time delay drops peripheral
-    //      tiles the instant they leave the center of the screen.
-    //
-    // Enabling skipLevelOfDetail with conservative skip counts lets
-    // Cesium jump straight to the final LOD without the intermediate
-    // pop-in cascade, and keeping requests alive while moving eliminates
-    // the "tile disappears mid-pan" flicker.
-    ts.skipLevelOfDetail = true;
-    ts.baseScreenSpaceError = 1024;
-    ts.skipScreenSpaceErrorFactor = 16;
-    ts.skipLevels = 1;
-    ts.dynamicScreenSpaceError = false;
-    ts.cullRequestsWhileMoving = false;
+    ts.skipLevelOfDetail = false;
+    ts.dynamicScreenSpaceError = true;
+    ts.dynamicScreenSpaceErrorDensity = 0.00278;
+    ts.dynamicScreenSpaceErrorFactor = 4;
+    ts.cullRequestsWhileMoving = true;
     // Preload tiles that will be visible after camera flights and keep hidden
     // tiles warm so returning to a view is instant.
     ts.preloadWhenHidden = true;
     ts.preloadFlightDestinations = true;
-    ts.immediatelyLoadDesiredLevelOfDetail = true;
-    ts.loadSiblings = false;
+    ts.immediatelyLoadDesiredLevelOfDetail = false;
+    ts.loadSiblings = true;
     ts.foveatedScreenSpaceError = true;
-    // Give foveated tiles time to catch up before being culled — kills the
-    // "peripheral OSM building pack blinks in and out" effect.
-    ts.foveatedTimeDelay = 0.4;
-    ts.foveatedConeSize = 0.2;
-    ts.foveatedMinimumScreenSpaceErrorRelaxation = 0;
     ts.shadows = 0;
   } catch {}
 };
@@ -1412,11 +1388,6 @@ function SpaceshipPage() {
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
-  // ── OSM Building selection + paint ──
-  // paintedBuildingsRef maps OSM elementId → CSS hex. tileVisible re-applies
-  // the paint whenever the tileset swaps LODs so colours survive panning.
-  const paintedBuildingsRef = useRef<Map<string, string>>(new Map());
-  const [selectedBuilding, setSelectedBuilding] = useState<OsmBuildingSelection | null>(null);
   const instantBusinessAbortRef = useRef<AbortController | null>(null);
   const atlasTags = useMemo<AtlasTag[]>(() => {
     const allTags: AtlasTag[] = [];
@@ -2618,60 +2589,6 @@ function SpaceshipPage() {
         }
         viewer.scene.primitives.add(tileset);
         tuneAtlasTileset(tileset, "boot");
-        // OSM Buildings: load every building inside the viewport + a
-        // surrounding halo, but scale the halo/cache to the device so
-        // low-memory machines don't OOM. "In-view" coverage stays full
-        // on every tier (SSE ≤ 6, no LOD skipping, no foveated culling);
-        // only the *halo radius* (loadSiblings) and RAM cache shrink.
-        try {
-          const nav: any = typeof navigator !== "undefined" ? navigator : {};
-          const deviceMemGB: number = typeof nav.deviceMemory === "number" ? nav.deviceMemory : 8;
-          const hwThreads: number   = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : 8;
-          // Tier: low (<=4GB or <=4 cores), mid (<=8GB), high (>8GB).
-          const tier: "low" | "mid" | "high" =
-            deviceMemGB <= 4 || hwThreads <= 4 ? "low"
-            : deviceMemGB <= 8 ? "mid"
-            : "high";
-          const cfg = {
-            low:  { sse: 6, siblings: false, cacheMiB: 768,  overflowMiB: 192 },
-            mid:  { sse: 5, siblings: true,  cacheMiB: 2048, overflowMiB: 512 },
-            high: { sse: 4, siblings: true,  cacheMiB: 4096, overflowMiB: 1024 },
-          }[tier];
-
-          tileset.maximumScreenSpaceError = cfg.sse;         // in-view coverage stays full
-          tileset.skipLevelOfDetail = false;                 // no LOD popping
-          tileset.loadSiblings = cfg.siblings;               // halo width scales with device
-          tileset.foveatedScreenSpaceError = false;          // don't drop peripheral packs
-          tileset.foveatedTimeDelay = 0;
-          tileset.preloadWhenHidden = tier !== "low";
-          tileset.preloadFlightDestinations = true;
-          tileset.progressiveResolutionHeightFraction = 0;   // no low-res pre-pass
-          tileset.cacheBytes = cfg.cacheMiB * TILE_MIB;
-          tileset.maximumCacheOverflowBytes = cfg.overflowMiB * TILE_MIB;
-          console.info(`[Atlas OSM] halo tier=${tier} mem≈${deviceMemGB}GB cores=${hwThreads} sse=${cfg.sse} cache=${cfg.cacheMiB}MiB`);
-        } catch {}
-        // Re-apply user paint whenever a tile becomes visible so painted
-        // buildings keep their colour across LOD swaps and camera moves.
-        try {
-          tileset.tileVisible.addEventListener((tile: any) => {
-            const painted = paintedBuildingsRef.current;
-            if (!painted.size) return;
-            const content = tile.content;
-            if (!content) return;
-            const n = content.featuresLength;
-            for (let i = 0; i < n; i++) {
-              const f = content.getFeature(i);
-              if (!f) continue;
-              let id: any;
-              try { id = f.getProperty("elementId"); } catch {}
-              if (id == null) continue;
-              const css = painted.get(String(id));
-              if (css) {
-                try { f.color = Color.fromCssColorString(css); } catch {}
-              }
-            }
-          });
-        } catch {}
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
         keepAtlasRenderingDuringBoot(viewer, 10000);
@@ -2891,51 +2808,6 @@ function SpaceshipPage() {
         viewer.scene.screenSpaceCameraController.enableLook = true;
       }
     }, ScreenSpaceEventType.LEFT_UP);
-
-    // ── OSM Building selection (paintable) ──
-    // Fires on a normal left click. When the picked object is a
-    // Cesium3DTileFeature from the OSM Buildings tileset, gather the
-    // OSM tags off the feature and open the OSM building inspector.
-    // Non-OSM picks (models, entities, other tilesets) are ignored so
-    // this handler doesn't fight the other click handlers.
-    handler.setInputAction((click: any) => {
-      const picked = viewer.scene.pick(click.position);
-      if (!defined(picked) || !(picked instanceof Cesium3DTileFeature)) return;
-      const osm = (viewer as any)._osmTileset;
-      if (!osm || picked.tileset !== osm) return;
-
-      // Collect useful OSM tag properties from the feature.
-      let ids: string[] = [];
-      try { ids = picked.getPropertyIds(); } catch {}
-      const prop = (k: string) => {
-        try { const v = picked.getProperty(k); return v == null ? undefined : String(v); } catch { return undefined; }
-      };
-      const elementId = prop("elementId") || prop("cesium#elementId") || `${click.position.x},${click.position.y}`;
-
-      // World position of the click → lat/lng for reverse geocoding fallback.
-      let lat = 0, lng = 0;
-      try {
-        const cart = viewer.scene.pickPosition(click.position);
-        if (cart) {
-          const c = Cartographic.fromCartesian(cart);
-          lat = CesiumMath.toDegrees(c.latitude);
-          lng = CesiumMath.toDegrees(c.longitude);
-        }
-      } catch {}
-
-      const painted = paintedBuildingsRef.current.get(String(elementId)) || null;
-      setSelectedBuilding({
-        id: String(elementId),
-        name:        prop("name"),
-        housenumber: prop("addr:housenumber") || prop("addr_housenumber"),
-        street:      prop("addr:street")      || prop("addr_street"),
-        city:        prop("addr:city")        || prop("addr_city"),
-        postcode:    prop("addr:postcode")    || prop("addr_postcode"),
-        country:     prop("addr:country")     || prop("addr_country"),
-        lat, lng,
-        currentColor: painted,
-      });
-    }, ScreenSpaceEventType.LEFT_CLICK);
 
     // Helper: pick a world location under the given screen point.
     const pickWorldLoc = (screenPos: any) => {
@@ -6687,61 +6559,6 @@ function SpaceshipPage() {
 
           {/* Business POI Card Popup */}
           
-            {selectedBuilding && (
-              <div
-                className={`${isMobile
-                  ? "absolute inset-x-3 bottom-28 z-40"
-                  : "absolute bottom-28 right-6 z-40 w-full max-w-sm"
-                }`}
-              >
-                <OsmBuildingInspector
-                  building={selectedBuilding}
-                  onClose={() => setSelectedBuilding(null)}
-                  onPaint={(css) => {
-                    const viewer = viewerRef.current;
-                    const osm = (viewer as any)?._osmTileset;
-                    const id = selectedBuilding.id;
-                    if (css) {
-                      paintedBuildingsRef.current.set(id, css);
-                    } else {
-                      paintedBuildingsRef.current.delete(id);
-                    }
-                    // Immediately re-color any currently-loaded feature with
-                    // this id so the change is visible without waiting for
-                    // the next tileVisible pass.
-                    if (osm) {
-                      try {
-                        const stats = osm.statistics;
-                        // Iterate over visible tiles via internal API — falls
-                        // back to tileVisible-on-next-frame if unavailable.
-                        const root = osm._selectedTiles || [];
-                        (root as any[]).forEach((tile: any) => {
-                          const content = tile.content;
-                          if (!content) return;
-                          const n = content.featuresLength;
-                          for (let i = 0; i < n; i++) {
-                            const f = content.getFeature(i);
-                            if (!f) continue;
-                            let fid: any;
-                            try { fid = f.getProperty("elementId"); } catch {}
-                            if (String(fid) === id) {
-                              try {
-                                f.color = css
-                                  ? Color.fromCssColorString(css)
-                                  : Color.WHITE;
-                              } catch {}
-                            }
-                          }
-                        });
-                        void stats;
-                        viewer?.scene?.requestRender?.();
-                      } catch {}
-                    }
-                    setSelectedBuilding((prev) => prev ? { ...prev, currentColor: css } : prev);
-                  }}
-                />
-              </div>
-            )}
             {selectedBusiness && (
               <div
                 className={`animate-scale-in ${isMobile
