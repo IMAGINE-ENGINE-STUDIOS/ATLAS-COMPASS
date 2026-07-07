@@ -112,10 +112,10 @@ export default function MarqueeSelectionLayer({
 
   return (
     <>
-      {/* Full-viewport pointer capture — mouse, pen, and touch. */}
+      {/* Map-level pointer capture — below Atlas UI controls so buttons remain clickable. */}
       <div
         ref={captureRef}
-        className="fixed inset-0 z-[60] select-none"
+        className="fixed inset-0 z-[5] select-none"
         style={{ cursor: "crosshair", background: "transparent", touchAction: "none" }}
         onPointerDown={handleDown}
         onPointerMove={handleMove}
@@ -124,7 +124,7 @@ export default function MarqueeSelectionLayer({
       />
       {rect && (
         <div
-          className="fixed z-[61] pointer-events-none"
+          className="fixed z-[50] pointer-events-none"
           style={{
             left,
             top,
