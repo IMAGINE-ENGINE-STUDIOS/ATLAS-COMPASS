@@ -62,6 +62,7 @@ import {
   CameraEventType, KeyboardEventModifier,
   UrlTemplateImageryProvider, ImageryLayer,
 } from "cesium";
+import { Cesium3DTileFeature } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAtlasKeyboardNav } from "@/components/atlas/useAtlasKeyboardNav";
