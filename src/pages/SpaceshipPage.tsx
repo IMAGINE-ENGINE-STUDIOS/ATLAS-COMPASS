@@ -12,6 +12,7 @@ import {
   Sun, Brain
 } from "lucide-react";
 import { Layers } from "lucide-react";
+import { ScanLine } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlob, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
@@ -34,6 +35,7 @@ import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
 import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
 import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligencePanel";
 import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
+import LPRPanel from "@/components/atlas/lpr/LPRPanel";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
   amenityToCategoryId,
@@ -1248,6 +1250,8 @@ function SpaceshipPage() {
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
+  // License Plate Reader panel state
+  const [lprPanelOpen, setLprPanelOpen] = useState(false);
   const [intelligenceOpen, setIntelligenceOpen] = useState<boolean>(savedUI.intelligenceOpen ?? false);
   const [intelBoundsVersion, setIntelBoundsVersion] = useState(0);
   const [recordingsOpen, setRecordingsOpen] = useState<boolean>(savedUI.recordingsOpen ?? false);
@@ -5484,6 +5488,14 @@ function SpaceshipPage() {
                   >
                     <GlyphIcon name="market" alt="Marketplace" glow={showMarketplacePins ? "#a78bfa" : undefined} />
                   </button>
+                  {/* License Plate Readers */}
+                  <button
+                    onClick={() => setLprPanelOpen((v) => !v)}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${lprPanelOpen ? "bg-cyan-500/20 text-cyan-300" : "text-white/75 hover:text-white"}`}
+                    title="License Plate Readers"
+                  >
+                    <ScanLine className={`w-4 h-4 ${lprPanelOpen ? "text-cyan-300" : ""}`} />
+                  </button>
                   {/* Intelligence — Traffic Cameras */}
                   <button
                     onClick={() => setIntelligenceOpen(o => !o)}
@@ -5853,6 +5865,20 @@ function SpaceshipPage() {
               </GlassPanel>
             </div>
           )}
+
+          {/* ── LICENSE PLATE READER PANEL ── */}
+          <LPRPanel
+            open={lprPanelOpen}
+            onClose={() => setLprPanelOpen(false)}
+            flyTo={(lat, lng) => {
+              const v = viewerRef.current;
+              if (!v || v.isDestroyed()) return;
+              v.camera.flyTo({
+                destination: Cartesian3.fromDegrees(lng, lat, 2000),
+                duration: 1.6,
+              });
+            }}
+          />
 
           {/* POI Naming Dialog */}
           
