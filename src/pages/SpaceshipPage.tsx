@@ -5387,6 +5387,14 @@ function SpaceshipPage() {
                     {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                   </button>
                   <AtlasScreenshotMenu viewerRef={viewerRef} />
+                  {/* Tile Brush Toggle (exposed alongside camera) */}
+                  <button
+                    onClick={() => { setBrushMode(!brushMode); setBrushPanelOpen(!brushMode); }}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
+                    title="Tile Brush — Place 3D Models"
+                  >
+                    <GlyphIcon name="brush" alt="Tile Brush" glow={brushMode ? "#34d399" : undefined} />
+                  </button>
                   <NotificationsBell />
                   <button
                     onClick={() => {
