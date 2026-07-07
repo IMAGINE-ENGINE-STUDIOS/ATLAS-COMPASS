@@ -1,17 +1,14 @@
 /**
  * MarqueeSelectionLayer
  * ---------------------
- * Apple-Finder-style rubber band selection over the Cesium canvas.
- *
- * Enabled only while `active` is true. On mousedown starts a rectangle
- * anchored to the pointer; on mousemove updates the size; on mouseup
- * calls `onSelect` with the final screen-space rectangle plus modifier
- * state (shift = add, alt = subtract, plain = replace).
- *
- * The visual style mirrors macOS Finder: a 15%-opacity fill of the OS
- * accent (blue), a 1px accent border, and a subtle drop shadow. We use
- * an HTML overlay `div` so the interaction is instant, no Cesium
- * redraws required. Escape cancels the current drag.
+ * Apple-Finder-style rubber band. Uses Pointer Events so it works
+ * identically for mouse, pen, touch (iPad/phone). While `active` is
+ * true a transparent full-viewport capture layer sits above the globe
+ * with `cursor:crosshair` and `touch-action:none`, so the OS never
+ * hijacks the gesture for panning/zooming. On pointerdown we anchor
+ * a rectangle; pointermove sizes it; pointerup fires `onSelect` with
+ * modifier state (shift=add, alt=subtract, plain=replace). Escape
+ * cancels a live drag.
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -43,48 +40,16 @@ export default function MarqueeSelectionLayer({
   onDragEnd,
 }: Props) {
   const [rect, setRect] = useState<MarqueeRect | null>(null);
-  const startRef = useRef<{ x: number; y: number; mode: MarqueeMode } | null>(null);
+  const startRef = useRef<{ x: number; y: number; mode: MarqueeMode; pointerId: number } | null>(null);
+  const captureRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!active) { setRect(null); startRef.current = null; return; }
+    if (!active) { setRect(null); startRef.current = null; }
+  }, [active]);
 
-    const modeFromEvent = (e: MouseEvent): MarqueeMode =>
-      e.altKey ? "subtract" : e.shiftKey ? "add" : "replace";
-
-    const onDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      startRef.current = { x: e.clientX, y: e.clientY, mode: modeFromEvent(e) };
-      setRect({ x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY, mode: startRef.current.mode });
-      onDragStart?.();
-      e.preventDefault();
-      e.stopPropagation();
-    };
-    const onMove = (e: MouseEvent) => {
-      if (!startRef.current) return;
-      setRect({
-        x1: startRef.current.x,
-        y1: startRef.current.y,
-        x2: e.clientX,
-        y2: e.clientY,
-        mode: modeFromEvent(e), // let user change mode mid-drag
-      });
-    };
-    const onUp = (e: MouseEvent) => {
-      if (!startRef.current) return;
-      const finalRect: MarqueeRect = {
-        x1: startRef.current.x,
-        y1: startRef.current.y,
-        x2: e.clientX,
-        y2: e.clientY,
-        mode: modeFromEvent(e),
-      };
-      const w = Math.abs(finalRect.x2 - finalRect.x1);
-      const h = Math.abs(finalRect.y2 - finalRect.y1);
-      startRef.current = null;
-      setRect(null);
-      onDragEnd?.();
-      if (w >= 4 && h >= 4) onSelect(finalRect);
-    };
+  // ESC cancels an in-flight drag.
+  useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && startRef.current) {
         startRef.current = null;
@@ -92,19 +57,51 @@ export default function MarqueeSelectionLayer({
         onDragEnd?.();
       }
     };
-
-    // Capture-phase so the marquee wins over Cesium's default handlers.
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("mousemove", onMove, true);
-    window.addEventListener("mouseup", onUp, true);
     window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("mousemove", onMove, true);
-      window.removeEventListener("mouseup", onUp, true);
-      window.removeEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, onDragEnd]);
+
+  const modeFromEvent = (e: PointerEvent | React.PointerEvent): MarqueeMode =>
+    e.altKey ? "subtract" : e.shiftKey ? "add" : "replace";
+
+  const handleDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const mode = modeFromEvent(e);
+    startRef.current = { x: e.clientX, y: e.clientY, mode, pointerId: e.pointerId };
+    setRect({ x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY, mode });
+    try { captureRef.current?.setPointerCapture(e.pointerId); } catch {}
+    onDragStart?.();
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const handleMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!startRef.current || e.pointerId !== startRef.current.pointerId) return;
+    setRect({
+      x1: startRef.current.x,
+      y1: startRef.current.y,
+      x2: e.clientX,
+      y2: e.clientY,
+      mode: modeFromEvent(e),
+    });
+    e.preventDefault();
+  };
+  const handleUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!startRef.current || e.pointerId !== startRef.current.pointerId) return;
+    const finalRect: MarqueeRect = {
+      x1: startRef.current.x,
+      y1: startRef.current.y,
+      x2: e.clientX,
+      y2: e.clientY,
+      mode: modeFromEvent(e),
     };
-  }, [active, onSelect, onDragStart, onDragEnd]);
+    const w = Math.abs(finalRect.x2 - finalRect.x1);
+    const h = Math.abs(finalRect.y2 - finalRect.y1);
+    try { captureRef.current?.releasePointerCapture(e.pointerId); } catch {}
+    startRef.current = null;
+    setRect(null);
+    onDragEnd?.();
+    if (w >= 4 && h >= 4) onSelect(finalRect);
+  };
 
   if (!active) return null;
 
@@ -115,10 +112,15 @@ export default function MarqueeSelectionLayer({
 
   return (
     <>
-      {/* Full-viewport crosshair cursor + pointer capture */}
+      {/* Full-viewport pointer capture — mouse, pen, and touch. */}
       <div
-        className="fixed inset-0 z-[60]"
-        style={{ cursor: "crosshair", background: "transparent" }}
+        ref={captureRef}
+        className="fixed inset-0 z-[60] select-none"
+        style={{ cursor: "crosshair", background: "transparent", touchAction: "none" }}
+        onPointerDown={handleDown}
+        onPointerMove={handleMove}
+        onPointerUp={handleUp}
+        onPointerCancel={handleUp}
       />
       {rect && (
         <div
