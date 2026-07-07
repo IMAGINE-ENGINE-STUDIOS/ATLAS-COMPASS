@@ -1327,6 +1327,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_atlas_admin: { Args: never; Returns: boolean }
       confirm_emergency_resource: {
         Args: { _resource_id: string }
         Returns: number
