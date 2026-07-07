@@ -2636,6 +2636,28 @@ function SpaceshipPage() {
           tileset.cacheBytes = 4096 * TILE_MIB;   // 4 GiB pinned in RAM
           tileset.maximumCacheOverflowBytes = 1024 * TILE_MIB;
         } catch {}
+        // Re-apply user paint whenever a tile becomes visible so painted
+        // buildings keep their colour across LOD swaps and camera moves.
+        try {
+          tileset.tileVisible.addEventListener((tile: any) => {
+            const painted = paintedBuildingsRef.current;
+            if (!painted.size) return;
+            const content = tile.content;
+            if (!content) return;
+            const n = content.featuresLength;
+            for (let i = 0; i < n; i++) {
+              const f = content.getFeature(i);
+              if (!f) continue;
+              let id: any;
+              try { id = f.getProperty("elementId"); } catch {}
+              if (id == null) continue;
+              const css = painted.get(String(id));
+              if (css) {
+                try { f.color = Color.fromCssColorString(css); } catch {}
+              }
+            }
+          });
+        } catch {}
         (viewer as any)._osmTileset = tileset;
         applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
         keepAtlasRenderingDuringBoot(viewer, 10000);
