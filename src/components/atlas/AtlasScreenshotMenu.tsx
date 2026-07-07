@@ -94,15 +94,15 @@ export default function AtlasScreenshotMenu({ viewerRef }: Props) {
       <button
         onClick={capture}
         disabled={busy}
-        className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${
+        className={`p-1 rounded-md transition-colors shrink-0 ${
           busy ? "text-cyan-300" : "text-white/75 hover:text-white"
         }`}
         title="Capture high-quality screenshot (JPG)"
       >
         {busy ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <Loader2 className="w-6 h-6 sm:w-7 sm:h-7 animate-spin" />
         ) : (
-          <ScreenshotIcon className="w-3.5 h-3.5" />
+          <ScreenshotIcon className="w-6 h-6 sm:w-7 sm:h-7" />
         )}
       </button>
       <button
