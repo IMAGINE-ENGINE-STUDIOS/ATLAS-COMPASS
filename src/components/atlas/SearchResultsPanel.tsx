@@ -180,13 +180,8 @@ export default function SearchResultsPanel(p: Props) {
           </div>
         )}
 
-        {p.loading && totalCount === 0 && (
-          <div className="px-1 py-1 space-y-1">
-            {[0,1,2].map(i => (
-              <div key={i} className="h-9 rounded-md bg-white/[0.04] animate-pulse" />
-            ))}
-          </div>
-        )}
+        {/* No skeleton loading rows — the spinner in the header shows
+            work-in-progress while results stream in. */}
 
         {totalCount > 0 && p.results.map((r, idx) => {
           const { emoji } = iconFor(r);
