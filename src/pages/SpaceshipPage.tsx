@@ -3015,12 +3015,14 @@ function SpaceshipPage() {
       if (profile === __perfProfile && now - __lastPerfApply < 4000) return;
       __perfProfile = profile;
       __lastPerfApply = now;
-      const sets = [
-        (viewer as any)._googleDirectTileset,
-        (viewer as any)._realisticTileset,
-        (viewer as any)._osmTileset,
-      ].filter(Boolean);
-      sets.forEach((ts) => tuneAtlasTileset(ts, profile));
+      const googleTileset = (viewer as any)._googleDirectTileset;
+      const realisticTileset = (viewer as any)._realisticTileset;
+      const osmTileset = (viewer as any)._osmTileset;
+      [googleTileset, realisticTileset].filter(Boolean).forEach((ts) => tuneAtlasTileset(ts, profile));
+      // Do not let the adaptive governor loosen OSM Buildings SSE. Coarse OSM
+      // parent tiles omit small structures, so higher SSE reads as missing
+      // buildings inside the camera view. Keep the viewport-fill profile fixed.
+      if (osmTileset) tuneOsmBuildingsTileset(osmTileset);
       // Never lower render resolution in Atlas: it makes the city look like a
       // blurred backdrop. Tile pressure is handled through SSE/culling instead.
       try { viewer.resolutionScale = 1; } catch {}
