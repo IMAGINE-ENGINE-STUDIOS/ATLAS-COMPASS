@@ -293,6 +293,16 @@ const applyAtlasMapVisibility = (
   if (realistic) realistic.show = mode === "realistic" && showBuildings && !earthIntelActive;
   if (osm) osm.show = mode === "osm" && showBuildings;
 
+  // Cesium Ion premium city photogrammetry overlays (Aerometrex, Bentley, etc.)
+  // Layered on top of Google Photorealistic ("realistic" mode) so cities like
+  // NYC, Tokyo, Melbourne, Denver get HD mesh detail wherever the user's Ion
+  // account has access. Hidden in every other mode.
+  const overlays: any[] = (viewer._ionDetailOverlays as any[]) || [];
+  const overlaysVisible = mode === "realistic" && showBuildings && !earthIntelActive;
+  for (const ts of overlays) {
+    try { ts.show = overlaysVisible; } catch {}
+  }
+
   // Mapbox / Light: swap the globe's imagery for a lightweight raster basemap.
   applyMapboxImageryLayer(viewer, mode === "mapbox");
 
