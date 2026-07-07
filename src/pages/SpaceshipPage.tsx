@@ -6844,6 +6844,7 @@ function SpaceshipPage() {
           <QuickStoreFilter
             options={GEO_CATEGORIES}
             value={geoCategory}
+            busy={isLoadingBusinesses}
             onOpenChange={(o) => {
               // The filter picker sits on the right edge; the search
               // panel spans the bottom-half of the screen. When the user
