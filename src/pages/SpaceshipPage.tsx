@@ -5244,13 +5244,9 @@ function SpaceshipPage() {
       {/* Loading Screen */}
       {/* Loading screen removed */}
 
-      {/* Business Store Loading Overlay */}
-      {isLoaded && isLoadingBusinesses && (
-        <div className="absolute inset-0 z-40 bg-[#0a0a1a]/40 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in pointer-events-none">
-          <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-primary animate-spin" />
-          <p className="mt-3 text-white/90 text-sm font-mono tracking-wide">LOADING STORES...</p>
-        </div>
-      )}
+      {/* Fullscreen "LOADING STORES…" overlay removed — background loads
+          now surface via the inline spinner on the QuickStoreFilter pill
+          (see `busy` prop) and the header spinner in SearchResultsPanel. */}
       
 
       {/* Brush Mode Indicator */}
