@@ -490,11 +490,71 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
           onUploadModel={onUploadModel}
           onClearModel={onClearModel}
           onApplyColorToSelection={onApplyColorToSelection}
+          onOpenModelControls={(osmId) => setEditingOsmId(osmId)}
           loadLedger={records.listLedger}
         />
       )}
+      {editingOsmId && (() => {
+        const rec = records.records[editingOsmId];
+        if (!rec || !rec.replacement_glb_url) return null;
+        const saved = ((rec.raw as any)?.transform as TransformData | undefined) ?? null;
+        const initial: TransformData = saved ?? {
+          lat: rec.lat ?? 0,
+          lng: rec.lng ?? 0,
+          alt: 0,
+          heading: 0,
+          pitch: 0,
+          roll: 0,
+          scale: 1,
+        };
+        const viewer = viewerRef.current;
+        const entityId = replacementEntities.current.get(editingOsmId);
+        return (
+          <ModelTransformWidget
+            modelName={rec.name ?? rec.tag ?? "Replacement Model"}
+            initial={initial}
+            onUpdate={(t) => {
+              if (viewer && entityId) applyEntityTransform(viewer, entityId, t);
+            }}
+            onApply={async (t) => {
+              if (viewer && entityId) applyEntityTransform(viewer, entityId, t);
+              const nextRaw = { ...(rec.raw as any), transform: t };
+              await records.patchRecord(
+                editingOsmId!,
+                { raw: nextRaw } as any,
+                { kind: "model", message: "Saved 3D transform", payload: { transform: t } },
+              );
+              setEditingOsmId(null);
+            }}
+            onClose={() => setEditingOsmId(null)}
+            onSnapToGround={(t, cb) => cb({ ...t, alt: 0 })}
+          />
+        );
+      })()}
     </>
   );
+}
+
+/** Apply position/orientation/scale of a saved TransformData to a Cesium entity. */
+function applyEntityTransform(viewer: Viewer, entityId: string, t: TransformData) {
+  const entity = viewer.entities.getById(entityId);
+  if (!entity) return;
+  const pos = Cartesian3.fromDegrees(t.lng, t.lat, t.alt || 0);
+  entity.position = new ConstantPositionProperty(pos);
+  const hpr = new HeadingPitchRoll(
+    CesiumMath.toRadians(t.heading || 0),
+    CesiumMath.toRadians(t.pitch || 0),
+    CesiumMath.toRadians(t.roll || 0),
+  );
+  entity.orientation = new ConstantProperty(Transforms.headingPitchRollQuaternion(pos, hpr));
+  if (entity.model) {
+    (entity.model as any).scale = new ConstantProperty(t.scale ?? 1);
+    // Free height when the user sets a non-zero altitude
+    (entity.model as any).heightReference = new ConstantProperty(
+      (t.alt ?? 0) === 0 ? HeightReference.CLAMP_TO_GROUND : HeightReference.NONE,
+    );
+  }
+  viewer.scene.requestRender();
 }
 
 function safeProp(f: Cesium3DTileFeature, key: string): string | null {
