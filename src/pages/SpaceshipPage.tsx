@@ -5350,6 +5350,11 @@ function SpaceshipPage() {
           tileset (Ion 96188) is streaming pickable features. */}
       <AtlasBuildingsOverlay viewerRef={viewerRef} active={viewMode === "osm"} />
 
+      {/* Live Overpass buildings — fills gaps where Cesium's OSM snapshot
+          is missing footprints (remote South America villages, brand-new
+          OSM edits). Adds a "Load OSM ✚" button in OSM mode. */}
+      <OverpassBuildingsOverlay viewerRef={viewerRef} active={viewMode === "osm"} />
+
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
           (triple-left-click the globe → "Play from here"). WASD + mouse,
           Shift to run, Space to jump, Esc to exit. */}
