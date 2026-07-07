@@ -2622,7 +2622,7 @@ function SpaceshipPage() {
           tileset.loadSiblings = true;            // pull neighbouring tiles around view
           tileset.foveatedScreenSpaceError = false;
           tileset.foveatedTimeDelay = 0;
-          tileset.cullWithChildrenBounds = false; // don't early-cull sibling packs
+          (tileset as any).cullWithChildrenBounds = false; // don't early-cull sibling packs
           tileset.preloadWhenHidden = true;
           tileset.preloadFlightDestinations = true;
           tileset.progressiveResolutionHeightFraction = 0; // no low-res pre-pass
