@@ -6852,6 +6852,17 @@ function SpaceshipPage() {
           <QuickStoreFilter
             options={GEO_CATEGORIES}
             value={geoCategory}
+            onOpenChange={(o) => {
+              // The filter picker sits on the right edge; the search
+              // panel spans the bottom-half of the screen. When the user
+              // opens the filter menu we dismiss the search panel so the
+              // two never fight for the same real estate — and so acting
+              // on a filter doesn't inadvertently pop the search UI open.
+              if (o) {
+                setSearchOpen(false);
+                setUnifiedResults([]);
+              }
+            }}
             onChange={(k) => {
               setGeoCategory(k);
               businessLoadedAreaRef.current = "";
@@ -6859,8 +6870,14 @@ function SpaceshipPage() {
               const next = k === "all" ? "" : k;
               setActiveSearchCategory(next);
               loadCategoryBusinessesInstant(k);
+              // Explicitly keep the search panel closed — the quick
+              // filter is a globe-side action, not a search action.
+              setSearchOpen(false);
             }}
-            onActivate={(key) => loadCategoryBusinessesInstant(key)}
+            onActivate={(key) => {
+              setSearchOpen(false);
+              loadCategoryBusinessesInstant(key);
+            }}
           />
 
           {/* Selected (gold) tags chip */}

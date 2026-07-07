@@ -1,4 +1,4 @@
-import { Crosshair, Globe, Layers, Loader2, MapPin, Search, X, Star, Building2, Navigation } from "lucide-react";
+import { Crosshair, Globe, Loader2, MapPin, Search, X, Star, Building2, Navigation } from "lucide-react";
 import POICard, { type POIData } from "@/components/POICard";
 
 export interface PanelResult {
@@ -50,85 +50,26 @@ const PLACE_TYPES = new Set([
   "City", "Mountain", "Highway", "Airport", "Port", "Place", "Coordinate",
 ]);
 
+// Emoji + accent picked per row from its source bucket, so the fused list
+// still carries the visual language the three separate sections had.
+const iconFor = (r: PanelResult) => {
+  if (r.source === "poi" || r.type === "Saved POI") return { emoji: "⭐", accent: "text-yellow-300/85" };
+  if (PLACE_TYPES.has(r.type)) return { emoji: "📍", accent: "text-sky-300/85" };
+  return { emoji: "🏪", accent: "text-emerald-300/85" };
+};
+
 export default function SearchResultsPanel(p: Props) {
   if (!p.open) return null;
 
-  // Group results by source bucket
-  const poiGroup: { r: PanelResult; idx: number }[] = [];
-  const placeGroup: { r: PanelResult; idx: number }[] = [];
-  const bizGroup: { r: PanelResult; idx: number }[] = [];
-  p.results.forEach((r, idx) => {
-    if (r.source === "poi" || r.type === "Saved POI") poiGroup.push({ r, idx });
-    else if (PLACE_TYPES.has(r.type)) placeGroup.push({ r, idx });
-    else bizGroup.push({ r, idx });
-  });
-
   const totalCount = p.results.length;
 
-  const Section = ({
-    title,
-    icon,
-    items,
-    accent,
-    emoji,
-  }: {
-    title: string;
-    icon: React.ReactNode;
-    items: { r: PanelResult; idx: number }[];
-    accent: string;
-    emoji: string;
-  }) => (
-    <div className="space-y-0.5">
-      <div className="flex items-center gap-1.5 px-1.5 pt-1.5 pb-1">
-        <div className={`flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider ${accent}`}>
-          {icon}
-          <span>{title}</span>
-          <span className="opacity-60">· {items.length}</span>
-        </div>
-        <div className="flex-1 h-px bg-white/[0.06]" />
-      </div>
-      {items.length === 0 && p.loading && (
-        <div className="px-2.5 py-1.5 space-y-1">
-          {[0,1].map(i => (
-            <div key={i} className="h-9 rounded-md bg-white/[0.04] animate-pulse" />
-          ))}
-        </div>
-      )}
-      {items.length === 0 && !p.loading && (
-        <p className="px-2.5 py-1 text-[10px] text-white/40">No matches</p>
-      )}
-      {items.map(({ r, idx }) => (
-        <div
-          key={`grp-${idx}`}
-          onMouseEnter={() => p.setHoveredIdx(idx)}
-          onMouseLeave={() => p.setHoveredIdx(null)}
-        >
-          <POICard
-            compact
-            variant="glass"
-            index={idx}
-            poi={{
-              id: `res-${idx}`,
-              name: r.name,
-              emoji,
-              category: r.type,
-              address: r.address,
-              lat: r.lat,
-              lng: r.lng,
-              distance: r.distance,
-              phone: r.phone,
-              website: r.website,
-              brand: r.brand,
-              cuisine: r.cuisine,
-              description: r.description,
-              rating: r.rating,
-            } as POIData}
-            onNavigate={() => p.onSelect(r, idx)}
-          />
-        </div>
-      ))}
-    </div>
-  );
+  // Counts by bucket for the compact legend in the header.
+  let savedCount = 0, placeCount = 0, bizCount = 0;
+  p.results.forEach((r) => {
+    if (r.source === "poi" || r.type === "Saved POI") savedCount++;
+    else if (PLACE_TYPES.has(r.type)) placeCount++;
+    else bizCount++;
+  });
 
   return (
     <div
@@ -179,7 +120,7 @@ export default function SearchResultsPanel(p: Props) {
       </div>
 
       {/* Category chips */}
-      <div className="flex gap-1 overflow-x-auto no-scrollbar px-1.5 py-1.5 border-b border-white/[0.04]">
+      <div className="flex flex-wrap gap-1 px-1.5 py-1.5 border-b border-white/[0.04]">
         {p.categories.map((c) => {
           const active = (c.key === "all" && !p.activeCategory) || c.key === p.activeCategory;
           const hex = c.hex || "#94a3b8";
@@ -211,13 +152,20 @@ export default function SearchResultsPanel(p: Props) {
         })}
       </div>
 
-      {/* Location strip */}
-      {p.geoCenter && (
-        <div className="px-2.5 py-1 border-b border-white/[0.04] flex items-center gap-1.5">
-          <MapPin className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
-          <span className="text-[10px] text-white/65 truncate">{p.geoLocationName}</span>
+      {/* Location strip + unified legend */}
+      <div className="px-2.5 py-1 border-b border-white/[0.04] flex items-center gap-2 flex-wrap">
+        {p.geoCenter && (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <MapPin className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+            <span className="text-[10px] text-white/65 truncate">{p.geoLocationName}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2 ml-auto text-[10px] font-mono">
+          <span className="flex items-center gap-1 text-yellow-300/80"><Star className="w-2.5 h-2.5" />{savedCount}</span>
+          <span className="flex items-center gap-1 text-sky-300/80"><Navigation className="w-2.5 h-2.5" />{placeCount}</span>
+          <span className="flex items-center gap-1 text-emerald-300/80"><Building2 className="w-2.5 h-2.5" />{bizCount}</span>
         </div>
-      )}
+      </div>
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto min-h-0 p-1.5 space-y-1">
@@ -232,31 +180,47 @@ export default function SearchResultsPanel(p: Props) {
           </div>
         )}
 
-        {(totalCount > 0 || p.loading) && (
-          <>
-            <Section
-              title="Saved POIs"
-              icon={<Star className="w-2.5 h-2.5" />}
-              items={poiGroup}
-              accent="text-yellow-300/80"
-              emoji="⭐"
-            />
-            <Section
-              title="Places & Addresses"
-              icon={<Navigation className="w-2.5 h-2.5" />}
-              items={placeGroup}
-              accent="text-sky-300/80"
-              emoji="📍"
-            />
-            <Section
-              title="Businesses & Stores"
-              icon={<Building2 className="w-2.5 h-2.5" />}
-              items={bizGroup}
-              accent="text-emerald-300/80"
-              emoji="🏪"
-            />
-          </>
+        {p.loading && totalCount === 0 && (
+          <div className="px-1 py-1 space-y-1">
+            {[0,1,2].map(i => (
+              <div key={i} className="h-9 rounded-md bg-white/[0.04] animate-pulse" />
+            ))}
+          </div>
         )}
+
+        {totalCount > 0 && p.results.map((r, idx) => {
+          const { emoji } = iconFor(r);
+          return (
+            <div
+              key={`res-${idx}`}
+              onMouseEnter={() => p.setHoveredIdx(idx)}
+              onMouseLeave={() => p.setHoveredIdx(null)}
+            >
+              <POICard
+                compact
+                variant="glass"
+                index={idx}
+                poi={{
+                  id: `res-${idx}`,
+                  name: r.name,
+                  emoji,
+                  category: r.type,
+                  address: r.address,
+                  lat: r.lat,
+                  lng: r.lng,
+                  distance: r.distance,
+                  phone: r.phone,
+                  website: r.website,
+                  brand: r.brand,
+                  cuisine: r.cuisine,
+                  description: r.description,
+                  rating: r.rating,
+                } as POIData}
+                onNavigate={() => p.onSelect(r, idx)}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

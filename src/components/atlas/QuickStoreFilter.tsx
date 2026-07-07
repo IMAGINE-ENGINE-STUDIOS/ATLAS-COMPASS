@@ -17,10 +17,21 @@ interface Props {
   onChange: (key: string) => void;
   /** Fired when the user taps a filter — use to force-load stores instantly. */
   onActivate?: (key: string) => void;
+  /** Fired when the expanded picker opens or closes, so the parent can
+   *  dismiss competing panels (e.g. the search-results panel) that would
+   *  otherwise sit on top of the filter menu. */
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function QuickStoreFilter({ options, value, onChange, onActivate }: Props) {
-  const [open, setOpen] = useState(false);
+export default function QuickStoreFilter({ options, value, onChange, onActivate, onOpenChange }: Props) {
+  const [open, _setOpen] = useState(false);
+  const setOpen = (v: boolean | ((prev: boolean) => boolean)) => {
+    _setOpen((prev) => {
+      const next = typeof v === "function" ? (v as any)(prev) : v;
+      if (next !== prev) onOpenChange?.(next);
+      return next;
+    });
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   const holdTimer = useRef<number | null>(null);
 
@@ -60,7 +71,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate 
   return (
     <div
       ref={rootRef}
-      className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1"
+      className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-1"
     >
       {/* Up arrow + category list (expanded) */}
       {open && (
