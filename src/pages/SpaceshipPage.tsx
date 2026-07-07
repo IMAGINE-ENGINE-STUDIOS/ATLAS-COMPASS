@@ -1369,6 +1369,7 @@ function SpaceshipPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const quickFilterSuppressSearchUntilRef = useRef(0);
   const [hoveredResultIdx, setHoveredResultIdx] = useState<number | null>(null);
   const [activeSearchCategory, setActiveSearchCategory] = useState<string>("");
   const searchResultEntitiesRef = useRef<any[]>([]);
@@ -4043,6 +4044,18 @@ function SpaceshipPage() {
       setUnifiedResults([]);
     }
   }, [runUnifiedSearch, geoCenter, geoLocateUser, activeSearchCategory]);
+
+  const closeSearchForQuickFilter = useCallback(() => {
+    quickFilterSuppressSearchUntilRef.current = Date.now() + 900;
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+    searchAbortRef.current?.abort();
+    setSearchLoading(false);
+    setSearchOpen(false);
+    setUnifiedResults([]);
+  }, []);
 
   /* ── Directions search helpers ── */
   const searchForDirections = useCallback(async (query: string, target: "origin" | "dest") => {
@@ -6845,6 +6858,7 @@ function SpaceshipPage() {
             options={GEO_CATEGORIES}
             value={geoCategory}
             busy={isLoadingBusinesses}
+            onInteract={closeSearchForQuickFilter}
             onOpenChange={(o) => {
               // The filter picker sits on the right edge; the search
               // panel spans the bottom-half of the screen. When the user
@@ -6852,23 +6866,20 @@ function SpaceshipPage() {
               // two never fight for the same real estate — and so acting
               // on a filter doesn't inadvertently pop the search UI open.
               if (o) {
-                setSearchOpen(false);
-                setUnifiedResults([]);
+                closeSearchForQuickFilter();
               }
             }}
             onChange={(k) => {
+              closeSearchForQuickFilter();
               setGeoCategory(k);
               businessLoadedAreaRef.current = "";
               if (!showBusinessIcons) setShowBusinessIcons(true);
               const next = k === "all" ? "" : k;
               setActiveSearchCategory(next);
               loadCategoryBusinessesInstant(k);
-              // Explicitly keep the search panel closed — the quick
-              // filter is a globe-side action, not a search action.
-              setSearchOpen(false);
             }}
             onActivate={(key) => {
-              setSearchOpen(false);
+              closeSearchForQuickFilter();
               loadCategoryBusinessesInstant(key);
             }}
           />
@@ -7038,7 +7049,10 @@ function SpaceshipPage() {
                   )}
                   <div className="w-px h-5 sm:h-7 bg-white/10 ml-auto" />
                   <div className="relative flex items-center gap-1 cursor-text flex-1 min-w-0"
-                    onClick={() => { if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); } }}>
+                    onClick={() => {
+                      if (Date.now() < quickFilterSuppressSearchUntilRef.current) return;
+                      if (!searchOpen) { setSearchOpen(true); setSearchResults(PRESETS); }
+                    }}>
                     <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary shrink-0" />
                     {searchOpen ? (
                       <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search stores, addresses…"

@@ -15,6 +15,7 @@ interface Props {
   options: StoreFilterOption[];
   value: string;
   onChange: (key: string) => void;
+  onInteract?: () => void;
   /** Fired when the user taps a filter — use to force-load stores instantly. */
   onActivate?: (key: string) => void;
   /** Fired when the expanded picker opens or closes, so the parent can
@@ -27,7 +28,7 @@ interface Props {
   busy?: boolean;
 }
 
-export default function QuickStoreFilter({ options, value, onChange, onActivate, onOpenChange, busy }: Props) {
+export default function QuickStoreFilter({ options, value, onChange, onInteract, onActivate, onOpenChange, busy }: Props) {
   const [open, _setOpen] = useState(false);
   const setOpen = (v: boolean | ((prev: boolean) => boolean)) => {
     _setOpen((prev) => {
@@ -60,6 +61,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
   }, [open]);
 
   const startHold = () => {
+    onInteract?.();
     if (holdTimer.current) window.clearTimeout(holdTimer.current);
     holdTimer.current = window.setTimeout(() => setOpen(true), 280);
   };
@@ -75,6 +77,9 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
   return (
     <div
       ref={rootRef}
+      onPointerDownCapture={onInteract}
+      onMouseDownCapture={onInteract}
+      onTouchStartCapture={onInteract}
       className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-1"
     >
       {/* Up arrow + category list (expanded) */}
@@ -94,7 +99,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
               return (
                 <button
                   key={opt.key}
-                  onClick={() => { onChange(opt.key); }}
+                  onClick={(e) => { e.stopPropagation(); onInteract?.(); onChange(opt.key); }}
                   title={opt.label}
                   className="relative flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full transition-all backdrop-blur-xl border border-transparent hover:bg-white/[0.04]"
                 >
@@ -129,7 +134,7 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
         onPointerUp={cancelHold}
         onPointerLeave={cancelHold}
         onPointerCancel={cancelHold}
-        onClick={() => { setOpen(o => !o); onActivate?.(current?.key ?? value); }}
+        onClick={(e) => { e.stopPropagation(); onInteract?.(); setOpen(o => !o); onActivate?.(current?.key ?? value); }}
         title={open ? `Filter: ${current?.label}` : "Hold to choose store filter"}
         aria-label="Quick store filter"
         className="relative flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full backdrop-blur-xl border transition-all select-none touch-none"
@@ -154,9 +159,11 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
             current?.icon ?? <Store className="w-3 h-3" />
           )}
         </span>
-        <span className="text-[11px] font-medium tracking-wide whitespace-nowrap">
-          {current?.label ?? "Stores"}
-        </span>
+        {!open && (
+          <span className="text-[11px] font-medium tracking-wide whitespace-nowrap">
+            {current?.label ?? "Stores"}
+          </span>
+        )}
         {/* Active dot indicator */}
         {value && value !== "all" && !busy && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-black/70" />
