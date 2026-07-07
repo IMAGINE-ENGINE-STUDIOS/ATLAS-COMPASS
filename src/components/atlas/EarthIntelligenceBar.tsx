@@ -514,16 +514,24 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
                       : "border-white/10 hover:border-white/30 bg-white/[0.03]"
                   }`}
                 >
-                  <div className="relative w-[168px] h-[96px] bg-slate-900 overflow-hidden">
+                  {/* 2:1 aspect matches the equirectangular full-globe image
+                      returned by GIBS WMS, so the thumbnail no longer gets
+                      stretched or its poles cropped off. */}
+                  <div className="relative w-[168px] h-[84px] bg-slate-950 overflow-hidden">
                     <img
                       src={thumbUrl(def)}
                       alt={def.label}
                       loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      draggable={false}
+                      className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-[1.04] transition-transform duration-300"
+                      style={{ backgroundColor: "#0b1220" }}
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.opacity = "0";
+                        const img = e.currentTarget as HTMLImageElement;
+                        img.style.opacity = "0";
                       }}
                     />
+                    {/* Subtle vignette so text badges stay legible over any map. */}
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
                     <div
                       className="absolute top-1 left-1 px-1.5 py-[1px] rounded text-[9px] font-semibold uppercase tracking-wider"
                       style={{ background: `${color}33`, color, border: `1px solid ${color}66` }}
