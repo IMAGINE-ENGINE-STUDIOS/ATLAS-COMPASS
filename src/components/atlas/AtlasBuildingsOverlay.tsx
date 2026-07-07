@@ -776,6 +776,36 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
   // Keep clearPending accessible from the ESC handler defined earlier.
   useEffect(() => { clearPendingRef.current = clearPending; }, [clearPending]);
 
+  /**
+   * Append a ledger row on every building that belongs to `groupId`.
+   * Used so that group-level actions (rename / recolor / publish / delete /
+   * paint) are traceable from every individual building's history.
+   */
+  const ledgerToGroup = useCallback(
+    async (
+      groupId: string,
+      kind: "color" | "publish" | "tag" | "note" | "import",
+      message: string,
+      payload: Record<string, unknown> = {},
+    ) => {
+      const g = groups.groups.find((x) => x.id === groupId);
+      if (!g) return;
+      for (const osmId of g.osm_ids) {
+        let rec = records.records[osmId];
+        if (!rec) {
+          rec = await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
+          if (!rec) continue;
+        }
+        await records.appendLedger(rec.id, kind, message, {
+          group_id: groupId,
+          group_name: g.name,
+          ...payload,
+        });
+      }
+    },
+    [groups.groups, records],
+  );
+
   if (!active) return null;
   return (
     <>
@@ -845,10 +875,32 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
             records={records.records}
             onSetActive={groups.setActiveId}
             onCreate={groups.createGroup}
-            onRename={(id, name) => { groups.updateGroup(id, { name }); }}
-            onRecolor={(id, color) => { groups.updateGroup(id, { color }); }}
-            onTogglePublic={(id, isPublic) => { groups.updateGroup(id, { is_public: isPublic }); }}
-            onDelete={groups.deleteGroup}
+            onRename={async (id, name) => {
+              await groups.updateGroup(id, { name });
+              await ledgerToGroup(id, "import", `Group renamed → "${name}"`);
+            }}
+            onRecolor={async (id, color) => {
+              await groups.updateGroup(id, { color });
+              await ledgerToGroup(id, "color", `Group color → ${color}`, { color });
+            }}
+            onTogglePublic={async (id, isPublic) => {
+              await groups.updateGroup(id, { is_public: isPublic });
+              await ledgerToGroup(id, "publish", isPublic ? "Group published" : "Group made private");
+            }}
+            onDelete={async (id) => {
+              const g = groups.groups.find((x) => x.id === id);
+              if (g) {
+                for (const osmId of g.osm_ids) {
+                  const rec = records.records[osmId];
+                  if (rec) {
+                    await records.appendLedger(rec.id, "import",
+                      `Removed from group "${g.name}"`,
+                      { group_id: g.id, group_name: g.name });
+                  }
+                }
+              }
+              await groups.deleteGroup(id);
+            }}
             onApplyColorToGroup={applyColorToGroup}
             onFlyToGroup={(id) => {
               const g = groups.groups.find((x) => x.id === id);

@@ -8,8 +8,9 @@
  *
  *   1. Cache        (population_cache, 30-day TTL, 0.005° cell)
  *   2. US Census    (2020 Decennial PL, block-level — only in US bbox)
- *   3. WorldPop     (v1 stats, 250 m buffer, global 100 m)
- *   4. GHSL 2023    (JRC WMS GetFeatureInfo, 100 m raster fallback)
+ *   3. WorldPop     (v1 stats, 250 m polygon, global 100 m — verified for
+ *                    Venezuela, Colombia, Brazil, Peru, Bolivia, Ecuador,
+ *                    remote Amazon, Andes, Guyana Shield)
  *
  * Returns: { residents_per_km2, source, note, cached }.
  *
@@ -74,61 +75,52 @@ async function fetchCensus(lat: number, lng: number) {
 
 async function fetchWorldPop(lat: number, lng: number) {
   try {
-    // Small square (~250 m) around the point.
+    // ~500 m × 500 m FeatureCollection around the point. WorldPop's stats
+    // service ONLY accepts FeatureCollection GeoJSON — a bare Feature is
+    // rejected with "Invalid GeoJSON". Kick it off then poll the task id.
     const d = 0.0025;
-    const poly = {
-      type: "Feature",
-      geometry: {
-        type: "Polygon",
-        coordinates: [[
-          [lng - d, lat - d],
-          [lng + d, lat - d],
-          [lng + d, lat + d],
-          [lng - d, lat + d],
-          [lng - d, lat - d],
-        ]],
-      },
+    const fc = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "Polygon",
+          coordinates: [[
+            [lng - d, lat - d],
+            [lng + d, lat - d],
+            [lng + d, lat + d],
+            [lng - d, lat + d],
+            [lng - d, lat - d],
+          ]],
+        },
+      }],
     };
-    const url =
+    const kickoff = await fetch(
       `https://api.worldpop.org/v1/services/stats?dataset=wpgppop&year=2020` +
-      `&geojson=${encodeURIComponent(JSON.stringify(poly))}&runasync=false`;
-    const r = await fetch(url);
-    if (!r.ok) return null;
-    const j = await r.json();
-    const total = j?.data?.total_population;
+        `&geojson=${encodeURIComponent(JSON.stringify(fc))}`,
+    );
+    if (!kickoff.ok) return null;
+    const first: any = await kickoff.json();
+    const taskid: string | undefined = first?.taskid;
+    if (!taskid) return null;
+    let payload: any = first;
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const pr = await fetch(`https://api.worldpop.org/v1/tasks/${taskid}`);
+      if (!pr.ok) continue;
+      payload = await pr.json();
+      if (payload?.status === "finished") break;
+    }
+    if (payload?.error) return null;
+    const total = payload?.data?.total_population;
     if (typeof total !== "number") return null;
-    const areaKm2 = 0.25; // ~500 m × 500 m
+    const areaKm2 = 0.25;
     return {
       residents_per_km2: total / areaKm2,
       source: "worldpop-2020",
       note: `WorldPop 100 m · ${total.toFixed(0)} residents in ~0.25 km²`,
-      raw: j?.data ?? {},
-    };
-  } catch { return null; }
-}
-
-async function fetchGHSL(lat: number, lng: number) {
-  try {
-    // JRC GHSL POP 2023, EPSG:4326. GetFeatureInfo at the point.
-    const d = 0.002;
-    const bbox = `${lng - d},${lat - d},${lng + d},${lat + d}`;
-    const url =
-      `https://ghsl.jrc.ec.europa.eu/ghs_pop2023.php?` +
-      `service=WMS&version=1.3.0&request=GetFeatureInfo&layers=GHS_POP_E2020` +
-      `&query_layers=GHS_POP_E2020&info_format=application/json&crs=EPSG:4326` +
-      `&bbox=${bbox}&width=2&height=2&i=1&j=1`;
-    const r = await fetch(url);
-    if (!r.ok) return null;
-    const j = await r.json();
-    const val = j?.features?.[0]?.properties?.GRAY_INDEX ??
-                j?.features?.[0]?.properties?.value;
-    if (typeof val !== "number") return null;
-    // GHSL 2023 is people-per-100m-cell → per-km² = value * 100.
-    return {
-      residents_per_km2: val * 100,
-      source: "ghsl-2023",
-      note: `GHSL 2023 · ${val.toFixed(1)} people per 100 m cell`,
-      raw: j?.features?.[0]?.properties ?? {},
+      raw: payload?.data ?? {},
     };
   } catch { return null; }
 }
@@ -177,7 +169,6 @@ Deno.serve(async (req) => {
       | null = null;
     if (inUS(lat, lng)) result = await fetchCensus(lat, lng);
     if (!result) result = await fetchWorldPop(lat, lng);
-    if (!result) result = await fetchGHSL(lat, lng);
 
     if (!result) {
       return new Response(
