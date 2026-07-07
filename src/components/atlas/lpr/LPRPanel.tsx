@@ -154,6 +154,22 @@ function SettingsTab({ settings, update, isAdmin }: { settings: LPRSettings; upd
   const [saving, setSaving] = useState(false);
   const [reqOpen, setReqOpen] = useState(false);
   const [existingReq, setExistingReq] = useState<AccessRequest | null>(null);
+  const [claimAvailable, setClaimAvailable] = useState(false);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    (async () => {
+      const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "atlas_admin");
+      setClaimAvailable((count ?? 0) === 0);
+    })();
+  }, [isAdmin]);
+
+  const claim = async () => {
+    const { data, error } = await supabase.rpc("claim_atlas_admin" as any);
+    if (error) { toast.error(error.message); return; }
+    if (data) { toast.success("You are now Atlas Admin"); window.location.reload(); }
+    else toast.info("An admin already exists");
+  };
 
   useEffect(() => {
     (async () => {
@@ -188,6 +204,13 @@ function SettingsTab({ settings, update, isAdmin }: { settings: LPRSettings; upd
   return (
     <div className="space-y-4">
       <div className="text-[11px] text-white/60">Choose how your Atlas account authenticates against Rekor Scout / OpenALPR.</div>
+      {claimAvailable && (
+        <div className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 p-3">
+          <div className="text-[11px] font-semibold text-cyan-200 mb-1">No Atlas Admin yet</div>
+          <div className="text-[10px] text-white/70 mb-2">Claim the Atlas Admin role to enable full LPR capabilities and approve platform-access requests from other users.</div>
+          <button onClick={claim} className="h-7 px-3 rounded bg-cyan-500 hover:bg-cyan-400 text-black text-[10px] font-bold uppercase tracking-widest">Claim Atlas Admin</button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-2">
         <ModeCard
           active={settings.access_mode === "admin"}
