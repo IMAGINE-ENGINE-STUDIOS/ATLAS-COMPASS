@@ -5261,6 +5261,12 @@ function SpaceshipPage() {
       <AtlasSplatOverlay viewerRef={viewerRef} />
       <AtlasSplatUploader viewer={viewerRef.current} />
 
+      {/* OSM Buildings — click to open BuildingCard, long-press to enter
+          multi-select, color/tag/notes/GLB-replace individual buildings.
+          Only active in OSM view mode where the Cesium OSM Buildings
+          tileset (Ion 96188) is streaming pickable features. */}
+      <AtlasBuildingsOverlay viewerRef={viewerRef} active={viewMode === "osm"} />
+
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
           (triple-left-click the globe → "Play from here"). WASD + mouse,
           Shift to run, Space to jump, Esc to exit. */}
