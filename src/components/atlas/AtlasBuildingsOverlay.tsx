@@ -466,8 +466,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
       // Ensure records exist for each hit so future edits persist.
       for (const osmId of ids) {
         if (!records.records[osmId]) {
-          const rough = featureRoughLatLng(viewer, osmId, tileset);
-          await records.ensureRecord({ osm_id: osmId, lat: rough.lat, lng: rough.lng });
+          await records.ensureRecord({ osm_id: osmId, lat: 0, lng: 0 });
         }
       }
     },
