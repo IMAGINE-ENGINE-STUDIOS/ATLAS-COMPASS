@@ -85,6 +85,7 @@ import AtlasFreePlayOverlay, {
 } from "@/components/atlas/AtlasFreePlayOverlay";
 import { importMapToAtlas, pickMapFile } from "@/lib/atlasMapImport";
 import LevelInspectorPanel from "@/components/atlas/LevelInspectorPanel";
+import OsmBuildingInspector, { type OsmBuildingSelection } from "@/components/atlas/OsmBuildingInspector";
 import {
   setAtlasCameraAltitude,
   useAtlasCameraAltitude,
