@@ -36,6 +36,7 @@ import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
 import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligencePanel";
 import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import LPRPanel from "@/components/atlas/lpr/LPRPanel";
+import ModeCarousel from "@/components/atlas/ModeCarousel";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
   amenityToCategoryId,
