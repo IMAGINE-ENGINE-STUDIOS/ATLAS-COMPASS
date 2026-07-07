@@ -36,6 +36,7 @@ import { DEFAULT_LEVEL_SIZE_M } from "@/lib/atlasLevelGeo";
 import {
   hiddenLevelIds,
   LEVEL_PLAY_EVENT,
+  LEVEL_SELECT_EVENT,
   type LevelPlacement,
 } from "@/lib/useAtlasLevelLayer";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
@@ -256,6 +257,10 @@ export default function AtlasLevelsR3FOverlay({
   const [nearIds, setNearIds] = useState<Set<string>>(new Set());
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
+  // Tracks the last level pin the user tapped/clicked. Surfaces the
+  // "▶ Play <name>" HUD button even before the camera enters the
+  // proximity radius, so users can jump into a level from any zoom.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Notify parent when a level enters/exits play so the Atlas UI can hide
   // control widgets (e.g. the LevelInspectorPanel) while the user is inside.
@@ -265,8 +270,8 @@ export default function AtlasLevelsR3FOverlay({
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
     const viewer = viewerRef.current;
-    const PROX_M = 3219;          // 2 miles → mount full R3F
-    const BEHIND_PROX_M = 800;    // behind the camera → only if very close
+    const PROX_M = 1600;          // ~1 mile → mount full R3F
+    const BEHIND_PROX_M = 500;    // behind the camera → only if very close
     let raf = 0;
     let last = 0;
     const tick = (t: number) => {
@@ -318,6 +323,26 @@ export default function AtlasLevelsR3FOverlay({
     window.addEventListener(LEVEL_PLAY_EVENT, onReq as any);
     return () => window.removeEventListener(LEVEL_PLAY_EVENT, onReq as any);
   }, []);
+
+  // Click a level pin → surface the Play HUD button for that placement.
+  useEffect(() => {
+    const onSel = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id as string | undefined;
+      if (id) setSelectedId(id);
+    };
+    window.addEventListener(LEVEL_SELECT_EVENT, onSel as any);
+    return () => window.removeEventListener(LEVEL_SELECT_EVENT, onSel as any);
+  }, []);
+
+  // Dismiss selection when the user presses Escape (mirrors Play exit).
+  useEffect(() => {
+    if (!selectedId || playingId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, playingId]);
 
   useEffect(() => {
     if (!pendingPlayId || !viewerRef.current) return;
@@ -412,8 +437,18 @@ export default function AtlasLevelsR3FOverlay({
   const visible = playingId
     ? placements.filter((p) => p.id === playingId)
     : placements.filter((p) => nearIds.has(p.id) || p.id === pendingPlayId);
-  if (visible.length === 0) return null;
-  const playablePlacement = visible[0]; // nearest = first added; good enough
+  // Prefer the explicitly-selected placement so the Play HUD binds to
+  // whichever level the user just tapped; otherwise fall back to the
+  // nearest R3F-mounted level.
+  const selectedPlacement = selectedId
+    ? placements.find((p) => p.id === selectedId) ?? null
+    : null;
+  const playablePlacement = selectedPlacement ?? visible[0] ?? null;
+  const canShowPlay =
+    !playingId &&
+    !!playablePlacement &&
+    (nearIds.has(playablePlacement.id) || selectedId === playablePlacement.id);
+  if (visible.length === 0 && !canShowPlay) return null;
   return (
     <>
       <div
@@ -446,15 +481,27 @@ export default function AtlasLevelsR3FOverlay({
         </Canvas>
       </div>
       {/* In-world Play / Stop HUD button — only shows when a level is in
-          proximity. Lets the user actually enter the nearest level
-          without leaving the unified Atlas world. */}
-      {!playingId && playablePlacement && (
-        <button
-          onClick={() => setPendingPlayId(playablePlacement.id)}
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold shadow-lg pointer-events-auto"
-        >
-          ▶ Play {playablePlacement.levels?.name ?? "Level"}
-        </button>
+          proximity OR the user just tapped its pin. Lets the user enter
+          the level without leaving the unified Atlas world. */}
+      {canShowPlay && playablePlacement && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] flex items-center gap-2 pointer-events-auto">
+          <button
+            onClick={() => setPendingPlayId(playablePlacement.id)}
+            className="px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold shadow-lg"
+          >
+            ▶ Play {playablePlacement.levels?.name ?? "Level"}
+          </button>
+          {selectedId === playablePlacement.id && !nearIds.has(playablePlacement.id) && (
+            <button
+              onClick={() => setSelectedId(null)}
+              className="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs border border-white/20"
+              aria-label="Dismiss"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       )}
       {playingId && (
         <button
