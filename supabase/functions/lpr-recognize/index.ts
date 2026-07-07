@@ -6,7 +6,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   SUPABASE_URL, SUPABASE_ANON_KEY,
-  resolveRekorKey, bumpUsage, serviceClient, toEpochMs, haversineKm,
+  resolveRekorKey, bumpUsage, serviceClient, toEpochMs, extractRing, pointInRing,
 } from "../_shared/lpr.ts";
 
 interface RekorPlate {
@@ -131,8 +131,8 @@ Deno.serve(async (req) => {
   if (insertedReads.length && body.lat != null && body.lng != null) {
     const { data: fences } = await svc
       .from("geofences")
-      .select("id, center_lat, center_lng, radius_m")
-      .eq("user_id", userId)
+      .select("id, polygon")
+      .eq("owner_id", userId)
       .eq("lpr_alert", true);
     const { data: watch } = await svc
       .from("lpr_watchlist")
@@ -145,9 +145,9 @@ Deno.serve(async (req) => {
       const norm = String(r.plate).toUpperCase().replace(/\s/g, "");
       const watched = watchSet.has(norm);
       for (const f of fences ?? []) {
-        if (typeof (f as any).center_lat !== "number" || typeof (f as any).center_lng !== "number") continue;
-        const dKm = haversineKm({ lat: r.lat, lng: r.lng }, { lat: (f as any).center_lat, lng: (f as any).center_lng });
-        if (dKm * 1000 <= ((f as any).radius_m ?? 0)) {
+        const ring = extractRing((f as any).polygon);
+        if (!ring) continue;
+        if (pointInRing(r.lat as number, r.lng as number, ring)) {
           hits.push({ user_id: userId, geofence_id: f.id, read_id: r.id, plate: r.plate });
         }
       }
