@@ -1412,6 +1412,11 @@ function SpaceshipPage() {
   const businessLoadedAreaRef = useRef<string>("");
   const businessDataRef = useRef<Map<string, POIData>>(new Map());
   const [selectedBusiness, setSelectedBusiness] = useState<POIData | null>(null);
+  // ── OSM Building selection + paint ──
+  // paintedBuildingsRef maps OSM elementId → CSS hex. tileVisible re-applies
+  // the paint whenever the tileset swaps LODs so colours survive panning.
+  const paintedBuildingsRef = useRef<Map<string, string>>(new Map());
+  const [selectedBuilding, setSelectedBuilding] = useState<OsmBuildingSelection | null>(null);
   const instantBusinessAbortRef = useRef<AbortController | null>(null);
   const atlasTags = useMemo<AtlasTag[]>(() => {
     const allTags: AtlasTag[] = [];
