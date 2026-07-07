@@ -872,7 +872,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
         <BuildingCard
           picked={picked}
           record={currentRecord}
-          multiSelectCount={groups.activeGroup?.osm_ids.length ?? 1}
+          multiSelectCount={1}
           onClose={() => setPicked(null)}
           onColor={onColor}
           onTag={onTag}
@@ -880,7 +880,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
           onTogglePublish={onTogglePublish}
           onUploadModel={onUploadModel}
           onClearModel={onClearModel}
-          onApplyColorToSelection={onApplyColorToSelection}
+          onApplyColorToSelection={undefined}
           onOpenModelControls={(osmId) => setEditingOsmId(osmId)}
           loadLedger={records.listLedger}
         />
