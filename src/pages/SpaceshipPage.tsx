@@ -2157,9 +2157,10 @@ function SpaceshipPage() {
     const radiusKm = cam.height < 2500 ? 2 : cam.height < 7000 ? 4 : cam.height < 25000 ? 8 : 15;
 
     setShowBusinessIcons(true);
-    setSearchOpen(true);
-    setSearchQuery("");
-    setSearchLoading(true);
+    // Background load: do NOT open the search-results panel here. The
+    // quick filter is a globe-side pin loader — the panel is reserved
+    // for the bottom search input. The spinner on the QuickStoreFilter
+    // pill (driven by `isLoadingBusinesses`) is the only progress UI.
     setIsLoadingBusinesses(true);
     setActiveSearchCategory(category ?? "");
     setGeoCenter(center);
@@ -2193,7 +2194,6 @@ function SpaceshipPage() {
       addBusinessPinsFromResults(sorted, center);
     } finally {
       if (!controller.signal.aborted) {
-        setSearchLoading(false);
         setIsLoadingBusinesses(false);
       }
     }
@@ -5244,13 +5244,9 @@ function SpaceshipPage() {
       {/* Loading Screen */}
       {/* Loading screen removed */}
 
-      {/* Business Store Loading Overlay */}
-      {isLoaded && isLoadingBusinesses && (
-        <div className="absolute inset-0 z-40 bg-[#0a0a1a]/40 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in pointer-events-none">
-          <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-primary animate-spin" />
-          <p className="mt-3 text-white/90 text-sm font-mono tracking-wide">LOADING STORES...</p>
-        </div>
-      )}
+      {/* Fullscreen "LOADING STORES…" overlay removed — background loads
+          now surface via the inline spinner on the QuickStoreFilter pill
+          (see `busy` prop) and the header spinner in SearchResultsPanel. */}
       
 
       {/* Brush Mode Indicator */}
@@ -6848,6 +6844,7 @@ function SpaceshipPage() {
           <QuickStoreFilter
             options={GEO_CATEGORIES}
             value={geoCategory}
+            busy={isLoadingBusinesses}
             onOpenChange={(o) => {
               // The filter picker sits on the right edge; the search
               // panel spans the bottom-half of the screen. When the user

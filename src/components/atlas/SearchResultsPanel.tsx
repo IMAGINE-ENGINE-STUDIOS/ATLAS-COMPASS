@@ -169,24 +169,25 @@ export default function SearchResultsPanel(p: Props) {
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto min-h-0 p-1.5 space-y-1">
-        {totalCount === 0 && !p.loading && (
+        {totalCount === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-3 gap-1.5">
-            <Search className="w-7 h-7 text-white/15" />
-            <p className="text-xs text-white/50">
-              {p.query
-                ? "No matches yet — try a broader term."
-                : "Type to search places, stores, or saved POIs."}
-            </p>
+            {p.loading ? (
+              <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
+            ) : (
+              <>
+                <Search className="w-7 h-7 text-white/15" />
+                <p className="text-xs text-white/50">
+                  {p.query
+                    ? "No matches yet — try a broader term."
+                    : "Type to search places, stores, or saved POIs."}
+                </p>
+              </>
+            )}
           </div>
         )}
 
-        {p.loading && totalCount === 0 && (
-          <div className="px-1 py-1 space-y-1">
-            {[0,1,2].map(i => (
-              <div key={i} className="h-9 rounded-md bg-white/[0.04] animate-pulse" />
-            ))}
-          </div>
-        )}
+        {/* No skeleton loading rows — the spinner in the header shows
+            work-in-progress while results stream in. */}
 
         {totalCount > 0 && p.results.map((r, idx) => {
           const { emoji } = iconFor(r);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronUp, ChevronDown, Store } from "lucide-react";
+import { ChevronUp, ChevronDown, Store, Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type StoreFilterOption = {
@@ -21,9 +21,13 @@ interface Props {
    *  dismiss competing panels (e.g. the search-results panel) that would
    *  otherwise sit on top of the filter menu. */
   onOpenChange?: (open: boolean) => void;
+  /** True while the current filter is fetching results in the background
+   *  (Overpass / Nominatim). Renders a small inline spinner on the pill,
+   *  matching the Earth Intelligence loading affordance. */
+  busy?: boolean;
 }
 
-export default function QuickStoreFilter({ options, value, onChange, onActivate, onOpenChange }: Props) {
+export default function QuickStoreFilter({ options, value, onChange, onActivate, onOpenChange, busy }: Props) {
   const [open, _setOpen] = useState(false);
   const setOpen = (v: boolean | ((prev: boolean) => boolean)) => {
     _setOpen((prev) => {
@@ -144,14 +148,24 @@ export default function QuickStoreFilter({ options, value, onChange, onActivate,
           className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
           style={open ? { background: `${current?.hex || "#94a3b8"}33` } : { background: "rgba(255,255,255,0.06)" }}
         >
-          {current?.icon ?? <Store className="w-3 h-3" />}
+          {busy ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            current?.icon ?? <Store className="w-3 h-3" />
+          )}
         </span>
         <span className="text-[11px] font-medium tracking-wide whitespace-nowrap">
           {current?.label ?? "Stores"}
         </span>
         {/* Active dot indicator */}
-        {value && value !== "all" && (
+        {value && value !== "all" && !busy && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-black/70" />
+        )}
+        {busy && (
+          <span
+            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400 border-2 border-black/70 animate-pulse"
+            title="Loading places…"
+          />
         )}
       </button>
 
