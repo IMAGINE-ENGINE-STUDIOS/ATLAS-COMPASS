@@ -80,6 +80,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import AtlasSplatOverlay from "@/components/atlas/AtlasSplatOverlay";
+import AtlasBuildingsOverlay from "@/components/atlas/AtlasBuildingsOverlay";
 import AtlasSplatUploader from "@/components/atlas/AtlasSplatUploader";
 import AtlasFreePlayOverlay, {
   DEFAULT_FREEPLAY_CHARACTER,
@@ -5259,6 +5260,12 @@ function SpaceshipPage() {
           coords, loaded only when the camera is within their radius. */}
       <AtlasSplatOverlay viewerRef={viewerRef} />
       <AtlasSplatUploader viewer={viewerRef.current} />
+
+      {/* OSM Buildings — click to open BuildingCard, long-press to enter
+          multi-select, color/tag/notes/GLB-replace individual buildings.
+          Only active in OSM view mode where the Cesium OSM Buildings
+          tileset (Ion 96188) is streaming pickable features. */}
+      <AtlasBuildingsOverlay viewerRef={viewerRef} active={viewMode === "osm"} />
 
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
           (triple-left-click the globe → "Play from here"). WASD + mouse,
