@@ -5486,6 +5486,14 @@ function SpaceshipPage() {
                   >
                     <GlyphIcon name="market" alt="Marketplace" glow={showMarketplacePins ? "#a78bfa" : undefined} />
                   </button>
+                  {/* License Plate Readers */}
+                  <button
+                    onClick={() => setLprPanelOpen((v) => !v)}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${lprPanelOpen ? "bg-cyan-500/20 text-cyan-300" : "text-white/75 hover:text-white"}`}
+                    title="License Plate Readers"
+                  >
+                    <ScanLine className={`w-4 h-4 ${lprPanelOpen ? "text-cyan-300" : ""}`} />
+                  </button>
                   {/* Intelligence — Traffic Cameras */}
                   <button
                     onClick={() => setIntelligenceOpen(o => !o)}
