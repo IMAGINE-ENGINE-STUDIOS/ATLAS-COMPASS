@@ -28,7 +28,7 @@ interface Props {
   busy?: boolean;
 }
 
-export default function QuickStoreFilter({ options, value, onChange, onActivate, onOpenChange, busy }: Props) {
+export default function QuickStoreFilter({ options, value, onChange, onInteract, onActivate, onOpenChange, busy }: Props) {
   const [open, _setOpen] = useState(false);
   const setOpen = (v: boolean | ((prev: boolean) => boolean)) => {
     _setOpen((prev) => {
