@@ -1665,6 +1665,46 @@ function SpaceshipPage() {
   useEffect(() => { pendingPlacementRef.current = pendingPlacement; }, [pendingPlacement]);
   useEffect(() => { brushSubModeRef.current = brushSubMode; }, [brushSubMode]);
 
+  /**
+   * Auto-sync the XYZ tile zoom to what the basemap is actually rendering.
+   * Slippy-tile zoom is derived from the camera's meters-per-pixel at the
+   * viewport center, so the selection grid matches the currently visible
+   * OSM / Google / Bing tiles exactly.
+   */
+  useEffect(() => {
+    if (!tileZoomAuto) return;
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const compute = () => {
+      try {
+        const cam = viewer.camera;
+        const carto = cam.positionCartographic;
+        if (!carto) return;
+        const lat = CesiumMath.toDegrees(carto.latitude);
+        const height = Math.max(1, carto.height); // meters above ellipsoid
+        const canvasH = viewer.scene.canvas.clientHeight || viewer.scene.canvas.height || 800;
+        const fovy = (cam.frustum as any).fovy ?? Math.PI / 3;
+        // meters per screen pixel at the camera nadir distance
+        const mpp = (2 * height * Math.tan(fovy / 2)) / canvasH;
+        if (!isFinite(mpp) || mpp <= 0) return;
+        const z = Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / mpp);
+        const clamped = Math.max(1, Math.min(22, Math.round(z)));
+        setTileZoom((prev) => (prev === clamped ? prev : clamped));
+      } catch {
+        // ignore transient camera reads
+      }
+    };
+    compute();
+    const remove = viewer.camera.changed.addEventListener(compute);
+    // Also poll on resize so the tile size stays correct as the canvas grows.
+    const onResize = () => compute();
+    window.addEventListener("resize", onResize);
+    return () => {
+      try { remove?.(); } catch {}
+      window.removeEventListener("resize", onResize);
+    };
+  }, [tileZoomAuto]);
+
   /* ── Classify OSM result into business type ── */
   const classifyOsmResult = useCallback((r: any): string => {
     const t = r.type || "";
