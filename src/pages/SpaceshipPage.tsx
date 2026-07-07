@@ -6162,27 +6162,33 @@ function SpaceshipPage() {
                     </button>
                   </div>
 
-                  {/* Mode tabs */}
-                  <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg mb-2.5">
-                    {(["reticle", "area", "stamp", "tiles"] as const).map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => setBrushSubMode(m)}
-                        className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                          brushSubMode === m
-                            ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
-                            : "text-white/60 hover:text-white border border-transparent"
-                        }`}
-                        title={
-                          m === "reticle" ? "Live targeting info" :
-                          m === "area" ? "Paint a zone & scan" :
-                          m === "stamp" ? "Stamp 3D models" :
-                          "Select map tiles (XYZ)"
-                        }
-                      >
-                        {m === "reticle" ? "Reticle" : m === "area" ? "Area" : m === "stamp" ? "Stamp" : "Tiles"}
-                      </button>
-                    ))}
+                  {/* Unified action selector — every section below is always visible;
+                      this row only decides what a double-click on the globe does. */}
+                  <div className="bg-black/60 border border-white/[0.06] rounded-lg p-1.5 mb-2.5">
+                    <p className="text-[8px] text-white/50 uppercase tracking-wider mb-1 px-1">
+                      Double-click action
+                    </p>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(["reticle", "area", "stamp", "tiles"] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setBrushSubMode(m)}
+                          className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                            brushSubMode === m
+                              ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
+                              : "text-white/60 hover:text-white border border-transparent bg-white/[0.02]"
+                          }`}
+                          title={
+                            m === "reticle" ? "Lock a target" :
+                            m === "area" ? "Set area center" :
+                            m === "stamp" ? "Stamp 3D model" :
+                            "Pick map tile"
+                          }
+                        >
+                          {m === "reticle" ? "Target" : m === "area" ? "Area" : m === "stamp" ? "Stamp" : "Tile"}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* ── Reticle mode body ── */}
