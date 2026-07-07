@@ -5866,6 +5866,20 @@ function SpaceshipPage() {
             </div>
           )}
 
+          {/* ── LICENSE PLATE READER PANEL ── */}
+          <LPRPanel
+            open={lprPanelOpen}
+            onClose={() => setLprPanelOpen(false)}
+            flyTo={(lat, lng) => {
+              const v = viewerRef.current;
+              if (!v || v.isDestroyed()) return;
+              v.camera.flyTo({
+                destination: Cartesian3.fromDegrees(lng, lat, 2000),
+                duration: 1.6,
+              });
+            }}
+          />
+
           {/* POI Naming Dialog */}
           
             {namingPOI && (
