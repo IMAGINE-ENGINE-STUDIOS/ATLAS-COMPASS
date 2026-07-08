@@ -146,8 +146,20 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       setVertices((p) => p.slice(0, -1));
     }, ScreenSpaceEventType.RIGHT_CLICK);
 
+    // Track cursor to render rubber-band + symmetry guides while measuring.
+    let rafId = 0;
+    handler.setInputAction((e: any) => {
+      const v = pickPoint(e.endPosition);
+      cursorRef.current = v;
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => { rafId = 0; setCursorTick((n) => n + 1); });
+    }, ScreenSpaceEventType.MOUSE_MOVE);
+
     return () => { handler.destroy(); };
   }, [viewerRef, mode, pickPoint]);
+
+  // Clear cursor when panel closes (unmount) or mode changes
+  useEffect(() => { cursorRef.current = null; setCursorTick((n) => n + 1); }, [mode]);
 
   // ── Keyboard
   useEffect(() => {
