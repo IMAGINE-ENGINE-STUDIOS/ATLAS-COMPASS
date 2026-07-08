@@ -92,11 +92,20 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const [ledger, setLedger] = useState<SavedMeasurement[]>(() => loadLedger());
   const [expanded, setExpanded] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Undo/redo history for spline point edits (per editing session).
+  const [editPast, setEditPast] = useState<Vertex[][]>([]);
+  const [editFuture, setEditFuture] = useState<Vertex[][]>([]);
+  // Reset history whenever the editing target changes.
+  useEffect(() => { setEditPast([]); setEditFuture([]); }, [editingId]);
 
   useEffect(() => { saveLedger(ledger); }, [ledger]);
 
   const verticesRef = useRef<Vertex[]>([]);
   useEffect(() => { verticesRef.current = vertices; }, [vertices]);
+
+  // ── Live cursor position (world) for rubber-band + guide rails
+  const cursorRef = useRef<Vertex | null>(null);
+  const [cursorTick, setCursorTick] = useState(0);
 
   // ── Precise picker
   const pickPoint = useCallback((position: { x: number; y: number }): Vertex | null => {
