@@ -887,12 +887,13 @@ function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: 
 
 // ── Edit handles overlay: draggable circles at each vertex of a saved item ─
 function EditHandlesOverlay({
-  viewerRef, item, pickPoint, onChange,
+  viewerRef, item, pickPoint, onChange, onCommit,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   item: SavedMeasurement;
   pickPoint: (position: { x: number; y: number }) => Vertex | null;
   onChange: (vertices: Vertex[]) => void;
+  onCommit?: (prevVertices: Vertex[]) => void;
 }) {
   const nodesRef = useRef<Map<number, HTMLDivElement | null>>(new Map());
   const vertsRef = useRef<Vertex[]>(item.vertices);
@@ -941,6 +942,9 @@ function EditHandlesOverlay({
     const controller = viewer.scene.screenSpaceCameraController;
     const prevEnabled = controller.enableInputs;
     controller.enableInputs = false;
+    // Snapshot for undo history (before this drag mutates anything)
+    const snapshot = vertsRef.current.slice();
+    let moved = false;
 
     const onMove = (ev: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -952,6 +956,7 @@ function EditHandlesOverlay({
       const next = vertsRef.current.slice();
       next[index] = v;
       vertsRef.current = next;
+      moved = true;
       onChange(next);
     };
     const onUp = () => {
@@ -959,6 +964,7 @@ function EditHandlesOverlay({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      if (moved) onCommit?.(snapshot);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
