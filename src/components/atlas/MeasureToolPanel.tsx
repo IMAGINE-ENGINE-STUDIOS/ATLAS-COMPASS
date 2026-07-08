@@ -792,14 +792,36 @@ function MeasureMarkersOverlay({
   // Flat list of true vertex handles plus a separate measurement tag.
   const items = useMemo(() => {
     const out: { key: string; index?: number; total?: number; vertex: Vertex; color: string; kind: "draft" | "saved" | "tag"; label?: string }[] = [];
-    draft.vertices.forEach((v, i) => {
-      out.push({ key: `draft:${i}`, index: i + 1, total: draft.vertices.length, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
-    });
+    // In height mode, the "base" vertex is auto-derived from the click and
+    // sits at ground level (often hidden under geometry). Only surface the
+    // TOP vertex as the numbered pin so the visible marker always reads "1".
+    const heightVisibleIdx = (vs: Vertex[]) =>
+      vs.length >= 2 ? (vs[0].alt >= vs[1].alt ? 0 : 1) : 0;
+
+    if (draft.mode === "height") {
+      const idx = heightVisibleIdx(draft.vertices);
+      draft.vertices.forEach((v, i) => {
+        if (i !== idx) return;
+        out.push({ key: `draft:${i}`, index: 1, total: 1, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
+      });
+    } else {
+      draft.vertices.forEach((v, i) => {
+        out.push({ key: `draft:${i}`, index: i + 1, total: draft.vertices.length, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
+      });
+    }
     ledger.forEach((m) => {
       if (m.hidden) return;
-      m.vertices.forEach((v, i) => {
-        out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
-      });
+      if (m.mode === "height") {
+        const idx = heightVisibleIdx(m.vertices);
+        m.vertices.forEach((v, i) => {
+          if (i !== idx) return;
+          out.push({ key: `${m.id}:${i}`, index: 1, total: 1, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
+        });
+      } else {
+        m.vertices.forEach((v, i) => {
+          out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
+        });
+      }
       const tagVertex = measurementTagVertex(m);
       if (tagVertex) {
         out.push({
