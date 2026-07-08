@@ -727,17 +727,27 @@ function MeasureMarkersOverlay({
   const [, tick] = useState(0);
   // We DON'T rerender per frame; the DOM nodes are repositioned imperatively.
 
-  // Flat list of markers: draft first, then each visible saved item.
+  // Flat list of true vertex handles plus a separate measurement tag.
   const items = useMemo(() => {
-    const out: { key: string; index: number; total: number; vertex: Vertex; color: string; kind: "draft" | "saved"; label?: string }[] = [];
+    const out: { key: string; index?: number; total?: number; vertex: Vertex; color: string; kind: "draft" | "saved" | "tag"; label?: string }[] = [];
     draft.vertices.forEach((v, i) => {
       out.push({ key: `draft:${i}`, index: i + 1, total: draft.vertices.length, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
     });
     ledger.forEach((m) => {
       if (m.hidden) return;
       m.vertices.forEach((v, i) => {
-        out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved", label: i === 0 ? m.label : undefined });
+        out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
       });
+      const tagVertex = measurementTagVertex(m);
+      if (tagVertex) {
+        out.push({
+          key: `${m.id}:tag`,
+          vertex: tagVertex,
+          color: MODE_COLOR[m.mode],
+          kind: "tag",
+          label: m.label || shortLabel(m.mode, computeMeasurements(m.mode, m.vertices), "imperial"),
+        });
+      }
     });
     return out;
   }, [draft, ledger]);
@@ -758,7 +768,7 @@ function MeasureMarkersOverlay({
         const node = nodesRef.current.get(it.key);
         if (!node) continue;
         try {
-          const world = Cartesian3.fromDegrees(it.vertex.lng, it.vertex.lat, it.vertex.alt);
+          const world = safeCartesian(viewer, it.vertex, it.kind === "tag" ? 2.2 : RENDER_LIFT_METERS);
           const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
           if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) { node.style.opacity = "0"; continue; }
           const win = SceneTransforms.worldToWindowCoordinates(scene, world);
@@ -785,18 +795,20 @@ function MeasureMarkersOverlay({
           style={{ transform: "translate3d(-9999px,-9999px,0)", opacity: 0 }}
         >
           <div className="relative flex items-center gap-1.5">
-            <div
-              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums backdrop-blur-xl border-2 shadow-lg"
-              style={{
-                background: `${it.color}33`,
-                borderColor: it.color,
-                color: "#fff",
-                boxShadow: `0 4px 14px ${it.color}66, 0 0 0 1px ${it.color}55`,
-                fontFeatureSettings: '"tnum" 1, "ss01" 1',
-              }}
-            >
-              {it.index}
-            </div>
+            {it.kind !== "tag" && (
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums backdrop-blur-xl border-2 shadow-lg"
+                style={{
+                  background: `${it.color}33`,
+                  borderColor: it.color,
+                  color: "#fff",
+                  boxShadow: `0 4px 14px ${it.color}66, 0 0 0 1px ${it.color}55`,
+                  fontFeatureSettings: '"tnum" 1, "ss01" 1',
+                }}
+              >
+                {it.index}
+              </div>
+            )}
             {it.label && (
               <div
                 className="backdrop-blur-xl rounded-full px-2 py-0.5 text-[10px] font-mono tabular-nums whitespace-nowrap"
