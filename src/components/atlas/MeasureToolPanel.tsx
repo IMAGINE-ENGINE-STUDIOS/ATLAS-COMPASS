@@ -541,6 +541,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         viewerRef={viewerRef}
         draft={{ mode, vertices }}
         ledger={ledger}
+        units={units}
       />
       {editingId && (() => {
         const editItem = ledger.find((x) => x.id === editingId);
@@ -717,11 +718,12 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
 // ── HTML overlay for numbered markers (glass-pill style) ──────────────────
 function MeasureMarkersOverlay({
-  viewerRef, draft, ledger,
+  viewerRef, draft, ledger, units,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   draft: { mode: Mode; vertices: Vertex[] };
   ledger: SavedMeasurement[];
+  units: Units;
 }) {
   const nodesRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [, tick] = useState(0);
@@ -745,12 +747,12 @@ function MeasureMarkersOverlay({
           vertex: tagVertex,
           color: MODE_COLOR[m.mode],
           kind: "tag",
-          label: m.label || shortLabel(m.mode, computeMeasurements(m.mode, m.vertices), "imperial"),
+          label: m.label || shortLabel(m.mode, computeMeasurements(m.mode, m.vertices), units),
         });
       }
     });
     return out;
-  }, [draft, ledger]);
+  }, [draft, ledger, units]);
 
   useLayoutEffect(() => { tick((n) => n + 1); }, [items.length]);
 
