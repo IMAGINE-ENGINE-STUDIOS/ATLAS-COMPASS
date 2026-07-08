@@ -1,8 +1,11 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { installDraggableWindows } from "./lib/draggableWindows";
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+installDraggableWindows();
 
 // Register the tile cache service worker so high-resolution 3D tiles, imagery,
 // and Google Photoreal responses are served instantly on revisit within the
