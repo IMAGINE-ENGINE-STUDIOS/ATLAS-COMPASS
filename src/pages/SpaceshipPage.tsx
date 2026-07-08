@@ -992,6 +992,10 @@ function SpaceshipPage() {
   const [geofenceOpen, setGeofenceOpen] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").geofenceOpen === true; } catch { return false; }
   });
+  // Measure tool toggle
+  const [measureOpen, setMeasureOpen] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").measureOpen === true; } catch { return false; }
+  });
   // Tile Intelligence panel (rules, actions, datasets, AI insights)
   const [tileIntelOpen, setTileIntelOpen] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").tileIntelOpen === true; } catch { return false; }
