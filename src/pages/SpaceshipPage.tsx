@@ -5748,6 +5748,10 @@ function SpaceshipPage() {
             <GeofenceToolPanel viewerRef={viewerRef} onClose={() => setGeofenceOpen(false)} />
           )}
 
+          {measureOpen && (
+            <MeasureToolPanel viewerRef={viewerRef} onClose={() => setMeasureOpen(false)} />
+          )}
+
           {tileIntelOpen && (
             <TileIntelligencePanel
               onClose={() => setTileIntelOpen(false)}
