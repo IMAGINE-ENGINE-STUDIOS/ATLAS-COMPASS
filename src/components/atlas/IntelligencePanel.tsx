@@ -245,10 +245,10 @@ export default function IntelligencePanel({ open, onClose, getBounds, onSelectCa
   if (!open) return null;
 
   return (
-    <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-[357px]">
+    <div data-draggable-window className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-[357px]">
       <div className="rounded-xl bg-black/75 backdrop-blur-2xl border border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-7rem)]">
         {/* Header */}
-        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-white/[0.06]">
+        <div data-drag-handle className="flex items-center gap-1.5 px-3 py-2.5 border-b border-white/[0.06] cursor-move select-none">
           <div className="w-7 h-7 rounded-md bg-red-500/15 border border-red-500/30 flex items-center justify-center">
             <Cctv className="w-3.5 h-3.5 text-red-400" />
           </div>
