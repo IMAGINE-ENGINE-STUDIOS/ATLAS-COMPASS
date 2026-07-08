@@ -745,7 +745,7 @@ function MeasureMarkersOverlay({
           vertex: tagVertex,
           color: MODE_COLOR[m.mode],
           kind: "tag",
-          label: m.label || shortLabel(m.mode, computeMeasurements(m.mode, m.vertices), units),
+          label: shortLabel(m.mode, computeMeasurements(m.mode, m.vertices), units),
         });
       }
     });
@@ -873,7 +873,7 @@ function LedgerRow({
         ) : (
           <button onDoubleClick={() => setRenaming(true)} className="text-left w-full">
             <div className="text-[11px] font-semibold truncate" style={{ color }}>
-              {item.label || summary}
+              {summary}
             </div>
             <div className="text-[9px] text-white/45 uppercase tracking-wider">
               {item.mode} · {item.vertices.length} pts{editing ? " · editing" : ""}
