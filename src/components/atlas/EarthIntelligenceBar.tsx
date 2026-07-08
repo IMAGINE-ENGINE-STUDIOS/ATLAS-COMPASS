@@ -516,12 +516,19 @@ export default function EarthIntelligenceBar({ viewerRef, onClose }: Props) {
                       : "border-white/10 hover:border-white/30 bg-white/[0.03]"
                   }`}
                 >
-                  <div className="relative w-[168px] h-[96px] bg-slate-900 overflow-hidden">
+                  <div
+                    className="relative w-[168px] h-[96px] overflow-hidden"
+                    style={{
+                      background:
+                        "radial-gradient(ellipse at center, #0b1220 0%, #05070d 100%)",
+                    }}
+                  >
                     <img
                       src={thumbUrl(def)}
                       alt={def.label}
                       loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      draggable={false}
+                      className="absolute inset-0 w-full h-full object-contain object-center group-hover:scale-[1.04] transition-transform duration-300 select-none"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).style.opacity = "0";
                       }}
