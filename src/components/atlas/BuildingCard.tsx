@@ -138,6 +138,7 @@ export default function BuildingCard({
 
   return (
     <div
+      data-draggable-window
       className="pointer-events-auto fixed right-4 top-20 z-30 w-[340px] max-h-[calc(100vh-140px)] overflow-hidden rounded-2xl border border-white/[0.08] bg-black/85 backdrop-blur-xl shadow-2xl text-white flex flex-col"
       style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}
       onMouseDown={(e) => e.stopPropagation()}
