@@ -293,7 +293,7 @@ export default function CameraHistoryTimeline({
       )}
 
       {open && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] w-[min(720px,calc(100vw-2rem))] rounded-2xl border border-white/15 bg-slate-900/85 backdrop-blur-xl shadow-2xl text-white p-3 pointer-events-auto">
+        <div data-draggable-window data-drag-handle className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] w-[min(720px,calc(100vw-2rem))] rounded-2xl border border-white/15 bg-slate-900/85 backdrop-blur-xl shadow-2xl text-white p-3 pointer-events-auto cursor-move select-none">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/80">
               <History className="w-4 h-4 text-emerald-300" />
