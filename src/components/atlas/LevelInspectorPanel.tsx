@@ -141,7 +141,7 @@ export default function LevelInspectorPanel({ placement, onClose, onChanged }: P
   return (
     <div data-draggable-window className="fixed top-20 right-4 z-[55] w-[320px] max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-emerald-400/20 bg-slate-950/90 backdrop-blur-xl shadow-2xl text-white">
       {/* Header */}
-      <div className="flex items-start gap-2 p-3 border-b border-white/10">
+      <div data-drag-handle className="flex items-start gap-2 p-3 border-b border-white/10 cursor-move select-none">
         <div className="w-8 h-8 rounded-md bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 text-xs font-bold">
           ▣
         </div>
