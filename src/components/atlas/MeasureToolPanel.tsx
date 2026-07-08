@@ -512,10 +512,30 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
               <ReadoutBlock mode={mode} m={measurements} units={units} />
             </div>
 
+            {mode === "height" && (
+              <div className="flex items-center justify-between rounded-md border border-amber-300/25 bg-amber-400/[0.06] px-2.5 py-1.5">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">Auto-base</div>
+                  <div className="text-[9px] text-white/55 leading-tight">
+                    {heightAutoBase ? "One click → top vs ground beneath" : "Click twice (base + top)"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setHeightAutoBase((v) => !v)}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${heightAutoBase ? "bg-amber-400/70" : "bg-white/15"}`}
+                  title="Toggle single-click height measurement"
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${heightAutoBase ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between text-[10px] text-white/55">
               <span>
                 {vertices.length === 0
-                  ? mode === "height" ? "Click 2 points (base + top)" : "Click the globe to add points"
+                  ? mode === "height"
+                    ? (heightAutoBase ? "Click the top of an object — height is measured automatically" : "Click 2 points (base + top)")
+                    : "Click the globe to add points"
                   : `${vertices.length} point${vertices.length === 1 ? "" : "s"} · right-click to undo`}
               </span>
               <div className="flex gap-1">
