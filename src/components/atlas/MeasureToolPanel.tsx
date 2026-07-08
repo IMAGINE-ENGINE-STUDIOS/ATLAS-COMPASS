@@ -650,12 +650,17 @@ function MeasureMarkersOverlay({
 // ── Ledger row ────────────────────────────────────────────────────────────
 function LedgerRow({
   // (declared above)
-  item, units, editing, onEdit, onToggle, onDelete, onFocus, onRename,
+  item, units, editing, onEdit, canUndo, canRedo, onUndo, onRedo,
+  onToggle, onDelete, onFocus, onRename,
 }: {
   item: SavedMeasurement;
   units: Units;
   editing: boolean;
   onEdit: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onToggle: () => void;
   onDelete: () => void;
   onFocus: () => void;
@@ -697,6 +702,18 @@ function LedgerRow({
         <button onClick={onFocus} title="Focus" className="p-1 rounded hover:bg-white/10 text-white/70">
           <Target className="w-3 h-3" />
         </button>
+        {editing && (
+          <>
+            <button onClick={onUndo} disabled={!canUndo} title="Undo point move"
+              className="p-1 rounded hover:bg-white/10 text-white/70 disabled:opacity-30 disabled:cursor-not-allowed">
+              <Undo2 className="w-3 h-3" />
+            </button>
+            <button onClick={onRedo} disabled={!canRedo} title="Redo point move"
+              className="p-1 rounded hover:bg-white/10 text-white/70 disabled:opacity-30 disabled:cursor-not-allowed">
+              <Redo2 className="w-3 h-3" />
+            </button>
+          </>
+        )}
         <button onClick={onEdit} title={editing ? "Done editing" : "Edit points"}
           className={`p-1 rounded hover:bg-white/10 ${editing ? "bg-sky-500/25 text-sky-200" : "text-white/70"}`}>
           <Pencil className="w-3 h-3" />
