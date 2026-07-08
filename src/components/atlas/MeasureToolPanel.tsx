@@ -545,10 +545,12 @@ function MeasureMarkersOverlay({
 
 // ── Ledger row ────────────────────────────────────────────────────────────
 function LedgerRow({
-  item, units, onToggle, onDelete, onFocus, onRename,
+  item, units, editing, onEdit, onToggle, onDelete, onFocus, onRename,
 }: {
   item: SavedMeasurement;
   units: Units;
+  editing: boolean;
+  onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
   onFocus: () => void;
@@ -589,6 +591,10 @@ function LedgerRow({
       <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
         <button onClick={onFocus} title="Focus" className="p-1 rounded hover:bg-white/10 text-white/70">
           <Target className="w-3 h-3" />
+        </button>
+        <button onClick={onEdit} title={editing ? "Done editing" : "Edit points"}
+          className={`p-1 rounded hover:bg-white/10 ${editing ? "bg-sky-500/25 text-sky-200" : "text-white/70"}`}>
+          <Pencil className="w-3 h-3" />
         </button>
         <button onClick={onToggle} title={item.hidden ? "Show" : "Hide"} className="p-1 rounded hover:bg-white/10 text-white/70">
           {item.hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
