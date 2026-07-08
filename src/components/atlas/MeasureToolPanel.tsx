@@ -423,8 +423,10 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                     key={m.id}
                     item={m}
                     units={units}
+                    editing={editingId === m.id}
+                    onEdit={() => setEditingId((cur) => cur === m.id ? null : m.id)}
                     onToggle={() => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, hidden: !x.hidden } : x))}
-                    onDelete={() => setLedger((prev) => prev.filter((x) => x.id !== m.id))}
+                    onDelete={() => { setLedger((prev) => prev.filter((x) => x.id !== m.id)); if (editingId === m.id) setEditingId(null); }}
                     onFocus={() => focus(m)}
                     onRename={(label) => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, label } : x))}
                   />
