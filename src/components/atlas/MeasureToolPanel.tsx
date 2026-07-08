@@ -39,7 +39,7 @@ import {
 } from "cesium";
 import {
   Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2,
-  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight,
+  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil,
 } from "lucide-react";
 
 interface Props {
