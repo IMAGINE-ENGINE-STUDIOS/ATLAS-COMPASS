@@ -301,6 +301,27 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const verticesRef = useRef<Vertex[]>([]);
   useEffect(() => { verticesRef.current = vertices; }, [vertices]);
 
+  // ── Auto-commit helpers so drafts never silently vanish.
+  // "End Measurement" is optional now: switching mode, closing the panel,
+  // or reaching the terminal point count in height mode all save automatically.
+  const modeRef = useRef<Mode>(mode);
+  const unitsRef = useRef<Units>(units);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { unitsRef.current = units; }, [units]);
+  const commitDraftIfValid = useCallback((verts: Vertex[], m: Mode) => {
+    const need = m === "area" ? 3 : 2;
+    if (verts.length < need) return false;
+    const item: SavedMeasurement = {
+      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      mode: m,
+      vertices: verts,
+      createdAt: Date.now(),
+      label: shortLabel(m, computeMeasurements(m, verts), unitsRef.current),
+    };
+    setLedger((prev) => [item, ...prev]);
+    return true;
+  }, []);
+
   // ── Live cursor position (world) for rubber-band + guide rails
   const cursorRef = useRef<Vertex | null>(null);
   const [cursorTick, setCursorTick] = useState(0);
