@@ -36,10 +36,11 @@ import {
   HeadingPitchRange,
   defined,
   ArcType,
+  PolylineDashMaterialProperty,
 } from "cesium";
 import {
   Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2,
-  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil,
+  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil, Redo2,
 } from "lucide-react";
 
 interface Props {
@@ -91,11 +92,20 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const [ledger, setLedger] = useState<SavedMeasurement[]>(() => loadLedger());
   const [expanded, setExpanded] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Undo/redo history for spline point edits (per editing session).
+  const [editPast, setEditPast] = useState<Vertex[][]>([]);
+  const [editFuture, setEditFuture] = useState<Vertex[][]>([]);
+  // Reset history whenever the editing target changes.
+  useEffect(() => { setEditPast([]); setEditFuture([]); }, [editingId]);
 
   useEffect(() => { saveLedger(ledger); }, [ledger]);
 
   const verticesRef = useRef<Vertex[]>([]);
   useEffect(() => { verticesRef.current = vertices; }, [vertices]);
+
+  // ── Live cursor position (world) for rubber-band + guide rails
+  const cursorRef = useRef<Vertex | null>(null);
+  const [cursorTick, setCursorTick] = useState(0);
 
   // ── Precise picker
   const pickPoint = useCallback((position: { x: number; y: number }): Vertex | null => {
@@ -136,8 +146,20 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       setVertices((p) => p.slice(0, -1));
     }, ScreenSpaceEventType.RIGHT_CLICK);
 
+    // Track cursor to render rubber-band + symmetry guides while measuring.
+    let rafId = 0;
+    handler.setInputAction((e: any) => {
+      const v = pickPoint(e.endPosition);
+      cursorRef.current = v;
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => { rafId = 0; setCursorTick((n) => n + 1); });
+    }, ScreenSpaceEventType.MOUSE_MOVE);
+
     return () => { handler.destroy(); };
   }, [viewerRef, mode, pickPoint]);
+
+  // Clear cursor when panel closes (unmount) or mode changes
+  useEffect(() => { cursorRef.current = null; setCursorTick((n) => n + 1); }, [mode]);
 
   // ── Keyboard
   useEffect(() => {
@@ -160,13 +182,17 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const color = Color.fromCssColorString(MODE_COLOR[mode]);
+    const guideColor = Color.fromCssColorString("#ffffff").withAlpha(0.55);
+    const guideDash = () => new PolylineDashMaterialProperty({
+      color: guideColor, dashLength: 12,
+    });
 
     const ents: Entity[] = [];
     if (mode === "distance") {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
           width: 3,
           material: color,
           arcType: ArcType.GEODESIC,
@@ -178,7 +204,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polygon: {
           hierarchy: new CallbackProperty(() =>
             new PolygonHierarchy(
-              verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt))
+              withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt))
             ), false) as any,
           material: color.withAlpha(0.22),
           outline: false,
@@ -189,7 +215,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
-            const pts = verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
+            const pts = withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
             return pts.length >= 3 ? [...pts, pts[0]] : pts;
           }, false),
           width: 3,
@@ -198,12 +224,29 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           depthFailMaterial: color.withAlpha(0.55),
         },
       }));
+      // Dashed closing line from cursor → first vertex (area symmetry hint)
+      ents.push(viewer.entities.add({
+        polyline: {
+          positions: new CallbackProperty(() => {
+            const vs = verticesRef.current;
+            const c = cursorRef.current;
+            if (vs.length < 2 || !c) return [];
+            return [
+              Cartesian3.fromDegrees(c.lng, c.lat, c.alt),
+              Cartesian3.fromDegrees(vs[0].lng, vs[0].lat, vs[0].alt),
+            ];
+          }, false),
+          width: 2,
+          material: guideDash(),
+          arcType: ArcType.GEODESIC,
+        },
+      }));
     } else {
       // height — connector + slant
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
-            const vs = verticesRef.current;
+            const vs = withCursor(verticesRef.current, cursorRef.current, 2);
             if (vs.length < 2) return [];
             const [a, b] = vs;
             const lowAlt = Math.min(a.alt, b.alt);
@@ -220,13 +263,45 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            withCursor(verticesRef.current, cursorRef.current, 2).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
           width: 2,
           material: Color.fromCssColorString("#38bdf8"),
           arcType: ArcType.NONE,
           depthFailMaterial: Color.fromCssColorString("#38bdf8").withAlpha(0.55),
         },
       }));
+    }
+
+    // ── Guide rails from last vertex: continuation, perpendicular, back-ray.
+    // Only meaningful for distance/area while user is picking points.
+    if (mode === "distance" || mode === "area") {
+      const makeRay = (offsetDeg: number) => viewer.entities.add({
+        polyline: {
+          positions: new CallbackProperty(() => {
+            const vs = verticesRef.current;
+            const c = cursorRef.current;
+            if (vs.length < 1 || !c) return [];
+            const anchor = vs[vs.length - 1];
+            // Bearing: last-segment (if any) else anchor→cursor
+            const bearing = vs.length >= 2
+              ? bearingDeg(vs[vs.length - 2], anchor)
+              : bearingDeg(anchor, c);
+            const dist = Math.max(haversine(anchor, c) * 2, 150);
+            const dest = destinationPoint(anchor, bearing + offsetDeg, dist);
+            return [
+              Cartesian3.fromDegrees(anchor.lng, anchor.lat, anchor.alt),
+              Cartesian3.fromDegrees(dest.lng, dest.lat, anchor.alt),
+            ];
+          }, false),
+          width: 1.5,
+          material: guideDash(),
+          arcType: ArcType.GEODESIC,
+        },
+      });
+      ents.push(makeRay(0));    // continuation (symmetry / straight line)
+      ents.push(makeRay(90));   // perpendicular right
+      ents.push(makeRay(-90));  // perpendicular left
+      ents.push(makeRay(180));  // mirror back
     }
     draftEntitiesRef.current = ents;
 
@@ -332,9 +407,22 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             pickPoint={pickPoint}
             onChange={(newVerts) => setLedger((prev) => prev.map((x) =>
               x.id === editingId ? { ...x, vertices: newVerts } : x))}
+            onCommit={(prevVerts) => {
+              setEditPast((p) => [...p, prevVerts]);
+              setEditFuture([]);
+            }}
           />
         );
       })()}
+      {/* Live cursor label with rubber-band distance while measuring */}
+      <CursorMeasureLabel
+        viewerRef={viewerRef}
+        cursorRef={cursorRef}
+        vertices={vertices}
+        mode={mode}
+        units={units}
+        tick={cursorTick}
+      />
       <div data-draggable-window className="absolute top-[62px] right-4 z-30 w-[340px] pointer-events-auto">
         <div className="rounded-2xl border border-white/15 bg-black/80 backdrop-blur-xl shadow-2xl text-white overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col max-h-[80vh]">
           <div data-drag-handle className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0 cursor-move select-none">
@@ -425,6 +513,22 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                     units={units}
                     editing={editingId === m.id}
                     onEdit={() => setEditingId((cur) => cur === m.id ? null : m.id)}
+                    canUndo={editingId === m.id && editPast.length > 0}
+                    canRedo={editingId === m.id && editFuture.length > 0}
+                    onUndo={() => {
+                      if (editingId !== m.id || editPast.length === 0) return;
+                      const prev = editPast[editPast.length - 1];
+                      setEditPast((p) => p.slice(0, -1));
+                      setEditFuture((f) => [...f, m.vertices]);
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: prev } : x));
+                    }}
+                    onRedo={() => {
+                      if (editingId !== m.id || editFuture.length === 0) return;
+                      const next = editFuture[editFuture.length - 1];
+                      setEditFuture((f) => f.slice(0, -1));
+                      setEditPast((p) => [...p, m.vertices]);
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: next } : x));
+                    }}
                     onToggle={() => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, hidden: !x.hidden } : x))}
                     onDelete={() => { setLedger((prev) => prev.filter((x) => x.id !== m.id)); if (editingId === m.id) setEditingId(null); }}
                     onFocus={() => focus(m)}
@@ -546,12 +650,17 @@ function MeasureMarkersOverlay({
 // ── Ledger row ────────────────────────────────────────────────────────────
 function LedgerRow({
   // (declared above)
-  item, units, editing, onEdit, onToggle, onDelete, onFocus, onRename,
+  item, units, editing, onEdit, canUndo, canRedo, onUndo, onRedo,
+  onToggle, onDelete, onFocus, onRename,
 }: {
   item: SavedMeasurement;
   units: Units;
   editing: boolean;
   onEdit: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onToggle: () => void;
   onDelete: () => void;
   onFocus: () => void;
@@ -593,6 +702,18 @@ function LedgerRow({
         <button onClick={onFocus} title="Focus" className="p-1 rounded hover:bg-white/10 text-white/70">
           <Target className="w-3 h-3" />
         </button>
+        {editing && (
+          <>
+            <button onClick={onUndo} disabled={!canUndo} title="Undo point move"
+              className="p-1 rounded hover:bg-white/10 text-white/70 disabled:opacity-30 disabled:cursor-not-allowed">
+              <Undo2 className="w-3 h-3" />
+            </button>
+            <button onClick={onRedo} disabled={!canRedo} title="Redo point move"
+              className="p-1 rounded hover:bg-white/10 text-white/70 disabled:opacity-30 disabled:cursor-not-allowed">
+              <Redo2 className="w-3 h-3" />
+            </button>
+          </>
+        )}
         <button onClick={onEdit} title={editing ? "Done editing" : "Edit points"}
           className={`p-1 rounded hover:bg-white/10 ${editing ? "bg-sky-500/25 text-sky-200" : "text-white/70"}`}>
           <Pencil className="w-3 h-3" />
@@ -764,14 +885,132 @@ function sphericalPolygonArea(verts: { lng: number; lat: number }[]): number {
   return Math.abs(total * R * R / 2);
 }
 
+// ── Cursor / bearing helpers ─────────────────────────────────────────────
+function withCursor(vs: Vertex[], cursor: Vertex | null, cap = Infinity): Vertex[] {
+  if (!cursor || vs.length === 0) return vs;
+  const out = [...vs, cursor];
+  return out.length > cap ? out.slice(0, cap) : out;
+}
+function haversine(a: Vertex, b: Vertex): number {
+  const R = WGS84_MEAN_RADIUS;
+  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
+  const dφ = φ2 - φ1;
+  const dλ = CesiumMath.toRadians(b.lng - a.lng);
+  const s = Math.sin(dφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function bearingDeg(a: Vertex, b: Vertex): number {
+  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
+  const dλ = CesiumMath.toRadians(b.lng - a.lng);
+  const y = Math.sin(dλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
+  return (CesiumMath.toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: number): Vertex {
+  const R = WGS84_MEAN_RADIUS;
+  const δ = distanceMeters / R;
+  const θ = CesiumMath.toRadians(bearingDegrees);
+  const φ1 = CesiumMath.toRadians(from.lat);
+  const λ1 = CesiumMath.toRadians(from.lng);
+  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+  const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+                             Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
+  return { lng: ((CesiumMath.toDegrees(λ2) + 540) % 360) - 180, lat: CesiumMath.toDegrees(φ2), alt: from.alt };
+}
+
+// ── Live cursor label: floating pill anchored to the pointer with live
+// distance from the last vertex to the cursor while measuring.
+function CursorMeasureLabel({
+  viewerRef, cursorRef, vertices, mode, units, tick,
+}: {
+  viewerRef: React.MutableRefObject<Viewer | null>;
+  cursorRef: React.MutableRefObject<Vertex | null>;
+  vertices: Vertex[];
+  mode: Mode;
+  units: Units;
+  tick: number;
+}) {
+  const nodeRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const sync = () => {
+      const node = nodeRef.current;
+      if (!node) return;
+      const c = cursorRef.current;
+      if (!c || vertices.length === 0) { node.style.opacity = "0"; return; }
+      try {
+        const world = Cartesian3.fromDegrees(c.lng, c.lat, c.alt);
+        const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+        if (!win) { node.style.opacity = "0"; return; }
+        node.style.opacity = "1";
+        node.style.transform = `translate3d(${Math.round(win.x + 14)}px, ${Math.round(win.y - 14)}px, 0)`;
+      } catch { node.style.opacity = "0"; }
+    };
+    sync();
+    const remove = viewer.scene.postRender.addEventListener(sync);
+    return () => { remove(); };
+  }, [viewerRef, cursorRef, vertices, tick]);
+
+  const c = cursorRef.current;
+  if (!c || vertices.length === 0) return null;
+  const last = vertices[vertices.length - 1];
+  const segDist = haversine(last, c);
+  const brg = bearingDeg(last, c);
+  let primary = formatDistance(segDist, units);
+  let secondary = `${brg.toFixed(1)}°`;
+  if (mode === "area" && vertices.length >= 2) {
+    // Show live polygon area including cursor
+    const area = sphericalPolygonArea([...vertices, c]);
+    primary = formatArea(area, units);
+    secondary = `+${formatDistance(segDist, units)}`;
+  } else if (mode === "distance" && vertices.length >= 1) {
+    const geodesic = new EllipsoidGeodesic();
+    let total = 0;
+    for (let i = 1; i < vertices.length; i++) {
+      geodesic.setEndPoints(
+        Cartographic.fromDegrees(vertices[i - 1].lng, vertices[i - 1].lat),
+        Cartographic.fromDegrees(vertices[i].lng, vertices[i].lat));
+      total += geodesic.surfaceDistance;
+    }
+    total += segDist;
+    secondary = `Σ ${formatDistance(total, units)}`;
+  }
+  const color = MODE_COLOR[mode];
+  return (
+    <div className="absolute inset-0 z-30 pointer-events-none">
+      <div
+        ref={nodeRef}
+        className="absolute left-0 top-0 will-change-transform"
+        style={{ transform: "translate3d(-9999px,-9999px,0)", opacity: 0 }}
+      >
+        <div
+          className="backdrop-blur-xl rounded-lg px-2 py-1 text-[10px] font-mono tabular-nums whitespace-nowrap shadow-lg"
+          style={{
+            background: "rgba(0,0,0,0.72)",
+            border: `1px solid ${color}88`,
+            color: "#fff",
+            fontFeatureSettings: '"tnum" 1, "ss01" 1',
+            boxShadow: `0 4px 14px ${color}55`,
+          }}
+        >
+          <div className="font-bold text-[11px]" style={{ color }}>{primary}</div>
+          <div className="text-white/60 text-[9px]">{secondary}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Edit handles overlay: draggable circles at each vertex of a saved item ─
 function EditHandlesOverlay({
-  viewerRef, item, pickPoint, onChange,
+  viewerRef, item, pickPoint, onChange, onCommit,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   item: SavedMeasurement;
   pickPoint: (position: { x: number; y: number }) => Vertex | null;
   onChange: (vertices: Vertex[]) => void;
+  onCommit?: (prevVertices: Vertex[]) => void;
 }) {
   const nodesRef = useRef<Map<number, HTMLDivElement | null>>(new Map());
   const vertsRef = useRef<Vertex[]>(item.vertices);
@@ -820,6 +1059,9 @@ function EditHandlesOverlay({
     const controller = viewer.scene.screenSpaceCameraController;
     const prevEnabled = controller.enableInputs;
     controller.enableInputs = false;
+    // Snapshot for undo history (before this drag mutates anything)
+    const snapshot = vertsRef.current.slice();
+    let moved = false;
 
     const onMove = (ev: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -831,6 +1073,7 @@ function EditHandlesOverlay({
       const next = vertsRef.current.slice();
       next[index] = v;
       vertsRef.current = next;
+      moved = true;
       onChange(next);
     };
     const onUp = () => {
@@ -838,6 +1081,7 @@ function EditHandlesOverlay({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      if (moved) onCommit?.(snapshot);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
