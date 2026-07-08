@@ -36,10 +36,11 @@ import {
   HeadingPitchRange,
   defined,
   ArcType,
+  PolylineDashMaterialProperty,
 } from "cesium";
 import {
   Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2,
-  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil,
+  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil, Redo2,
 } from "lucide-react";
 
 interface Props {
