@@ -69,6 +69,40 @@ const MODE_COLOR: Record<Mode, string> = {
   height: "#fbbf24",
 };
 
+// ── Geometry helpers (hoisted; referenced by Cesium CallbackProperty
+// closures which run every render tick — must exist at module top level).
+function withCursor(vs: Vertex[], cursor: Vertex | null, cap = Infinity): Vertex[] {
+  if (!cursor || vs.length === 0) return vs;
+  const out = [...vs, cursor];
+  return out.length > cap ? out.slice(0, cap) : out;
+}
+function haversine(a: Vertex, b: Vertex): number {
+  const R = WGS84_MEAN_RADIUS;
+  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
+  const dφ = φ2 - φ1;
+  const dλ = CesiumMath.toRadians(b.lng - a.lng);
+  const s = Math.sin(dφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function bearingDeg(a: Vertex, b: Vertex): number {
+  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
+  const dλ = CesiumMath.toRadians(b.lng - a.lng);
+  const y = Math.sin(dλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
+  return (CesiumMath.toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: number): Vertex {
+  const R = WGS84_MEAN_RADIUS;
+  const δ = distanceMeters / R;
+  const θ = CesiumMath.toRadians(bearingDegrees);
+  const φ1 = CesiumMath.toRadians(from.lat);
+  const λ1 = CesiumMath.toRadians(from.lng);
+  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+  const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+                             Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
+  return { lng: ((CesiumMath.toDegrees(λ2) + 540) % 360) - 180, lat: CesiumMath.toDegrees(φ2), alt: from.alt };
+}
+
 // ── Ledger persistence ────────────────────────────────────────────────────
 function loadLedger(): SavedMeasurement[] {
   try {
