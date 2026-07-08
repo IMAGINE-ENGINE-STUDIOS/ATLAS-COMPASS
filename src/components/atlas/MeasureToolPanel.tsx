@@ -126,6 +126,10 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const [ledger, setLedger] = useState<SavedMeasurement[]>(() => loadLedger());
   const [expanded, setExpanded] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Height mode: single-click measures top→ground automatically.
+  const [heightAutoBase, setHeightAutoBase] = useState<boolean>(() =>
+    localStorage.getItem("atlas.measure.heightAutoBase") !== "0");
+  useEffect(() => { try { localStorage.setItem("atlas.measure.heightAutoBase", heightAutoBase ? "1" : "0"); } catch {} }, [heightAutoBase]);
   // Undo/redo history for spline point edits (per editing session).
   const [editPast, setEditPast] = useState<Vertex[][]>([]);
   const [editFuture, setEditFuture] = useState<Vertex[][]>([]);
