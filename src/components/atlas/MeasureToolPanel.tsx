@@ -212,7 +212,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
     }, ScreenSpaceEventType.MOUSE_MOVE);
 
     return () => { handler.destroy(); };
-  }, [viewerRef, mode, pickPoint]);
+  }, [viewerRef, mode, pickPoint, heightAutoBase]);
 
   // Clear cursor when panel closes (unmount) or mode changes
   useEffect(() => { cursorRef.current = null; setCursorTick((n) => n + 1); }, [mode]);
