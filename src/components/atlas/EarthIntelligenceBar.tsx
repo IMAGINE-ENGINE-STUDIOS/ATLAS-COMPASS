@@ -23,6 +23,8 @@ import {
 import {
   EARTH_LAYERS,
   buildEarthLayerUrl,
+  mostRecentGibsDate,
+  formatIsoDate,
   type EarthLayerCategory,
   type EarthLayerDef,
 } from "@/hooks/useEarthIntelligence";
