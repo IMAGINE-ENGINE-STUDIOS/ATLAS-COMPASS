@@ -68,6 +68,9 @@ const MODE_COLOR: Record<Mode, string> = {
   area: "#a78bfa",
   height: "#fbbf24",
 };
+const RENDER_LIFT_METERS = 0.85;
+const RENDER_SAMPLE_STEP_METERS = 18;
+const RENDER_SAMPLE_MAX_STEPS = 48;
 
 // ── Geometry helpers (hoisted; referenced by Cesium CallbackProperty
 // closures which run every render tick — must exist at module top level).
@@ -101,6 +104,91 @@ function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: 
   const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
                              Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
   return { lng: ((CesiumMath.toDegrees(λ2) + 540) % 360) - 180, lat: CesiumMath.toDegrees(φ2), alt: from.alt };
+}
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function requestSceneRender(viewer: Viewer | null | undefined) {
+  try { if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender(); } catch {}
+}
+
+function visibleSurfaceHeight(viewer: Viewer | null | undefined, v: Vertex): number {
+  if (!viewer || viewer.isDestroyed()) return v.alt;
+  const heights = [v.alt];
+  try {
+    const globeHeight = viewer.scene.globe.getHeight(Cartographic.fromDegrees(v.lng, v.lat));
+    if (finiteNumber(globeHeight)) heights.push(globeHeight);
+  } catch {}
+  try {
+    const sampleHeight = (viewer.scene as any).sampleHeight?.(Cartographic.fromDegrees(v.lng, v.lat, v.alt));
+    if (finiteNumber(sampleHeight)) heights.push(sampleHeight);
+  } catch {}
+  try {
+    const clamped = (viewer.scene as any).clampToHeight?.(Cartesian3.fromDegrees(v.lng, v.lat, v.alt + 250));
+    if (defined(clamped)) {
+      const c = Cartographic.fromCartesian(clamped);
+      if (finiteNumber(c.height)) heights.push(c.height);
+    }
+  } catch {}
+  return Math.max(...heights);
+}
+
+function safeRenderVertex(viewer: Viewer | null | undefined, v: Vertex, lift = RENDER_LIFT_METERS): Vertex {
+  return { ...v, alt: visibleSurfaceHeight(viewer, v) + lift };
+}
+
+function safeCartesian(viewer: Viewer | null | undefined, v: Vertex, lift = RENDER_LIFT_METERS): Cartesian3 {
+  const p = safeRenderVertex(viewer, v, lift);
+  return Cartesian3.fromDegrees(p.lng, p.lat, p.alt);
+}
+
+function interpolateVertex(a: Vertex, b: Vertex, fraction: number): Vertex {
+  const geodesic = new EllipsoidGeodesic(
+    Cartographic.fromDegrees(a.lng, a.lat),
+    Cartographic.fromDegrees(b.lng, b.lat),
+  );
+  const c = geodesic.interpolateUsingFraction(fraction);
+  return {
+    lng: CesiumMath.toDegrees(c.longitude),
+    lat: CesiumMath.toDegrees(c.latitude),
+    alt: a.alt + (b.alt - a.alt) * fraction,
+  };
+}
+
+function safePolylinePositions(viewer: Viewer | null | undefined, verts: Vertex[], closed = false): Cartesian3[] {
+  if (verts.length === 0) return [];
+  const source = closed && verts.length > 2 ? [...verts, verts[0]] : verts;
+  const out: Cartesian3[] = [];
+  for (let i = 0; i < source.length; i++) {
+    if (i === 0) {
+      out.push(safeCartesian(viewer, source[i]));
+      continue;
+    }
+    const a = source[i - 1];
+    const b = source[i];
+    const steps = Math.max(1, Math.min(RENDER_SAMPLE_MAX_STEPS, Math.ceil(haversine(a, b) / RENDER_SAMPLE_STEP_METERS)));
+    for (let s = 1; s <= steps; s++) out.push(safeCartesian(viewer, interpolateVertex(a, b, s / steps)));
+  }
+  return out;
+}
+
+function measurementTagVertex(item: SavedMeasurement): Vertex | null {
+  const vs = item.vertices;
+  if (vs.length === 0) return null;
+  if (item.mode === "height" && vs.length >= 2) {
+    const [a, b] = vs;
+    const high = a.alt >= b.alt ? a : b;
+    const low = a.alt >= b.alt ? b : a;
+    return { lng: high.lng, lat: high.lat, alt: low.alt + (high.alt - low.alt) * 0.55 };
+  }
+  if (vs.length === 1) return vs[0];
+  const mid = (vs.length - 1) / 2;
+  const left = Math.floor(mid);
+  const right = Math.ceil(mid);
+  if (left === right) return vs[left];
+  return interpolateVertex(vs[left], vs[right], mid - left);
 }
 
 // ── Ledger persistence ────────────────────────────────────────────────────
