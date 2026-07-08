@@ -407,9 +407,22 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             pickPoint={pickPoint}
             onChange={(newVerts) => setLedger((prev) => prev.map((x) =>
               x.id === editingId ? { ...x, vertices: newVerts } : x))}
+            onCommit={(prevVerts) => {
+              setEditPast((p) => [...p, prevVerts]);
+              setEditFuture([]);
+            }}
           />
         );
       })()}
+      {/* Live cursor label with rubber-band distance while measuring */}
+      <CursorMeasureLabel
+        viewerRef={viewerRef}
+        cursorRef={cursorRef}
+        vertices={vertices}
+        mode={mode}
+        units={units}
+        tick={cursorTick}
+      />
       <div data-draggable-window className="absolute top-[62px] right-4 z-30 w-[340px] pointer-events-auto">
         <div className="rounded-2xl border border-white/15 bg-black/80 backdrop-blur-xl shadow-2xl text-white overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col max-h-[80vh]">
           <div data-drag-handle className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0 cursor-move select-none">
