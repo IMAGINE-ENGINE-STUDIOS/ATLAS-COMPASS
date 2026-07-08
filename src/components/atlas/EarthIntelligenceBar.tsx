@@ -23,6 +23,8 @@ import {
 import {
   EARTH_LAYERS,
   buildEarthLayerUrl,
+  mostRecentGibsDate,
+  formatIsoDate,
   type EarthLayerCategory,
   type EarthLayerDef,
 } from "@/hooks/useEarthIntelligence";
@@ -80,10 +82,14 @@ const CATEGORY_COLOR: Record<EarthLayerCategory, string> = {
  * fall back to substituting z/x/y = 0 in their tile template.
  */
 function thumbUrl(def: EarthLayerDef): string {
-  const raw = buildEarthLayerUrl(def);
+  // For temporal layers, GIBS's `default` sentinel returns only the latest
+  // orbit swath (a thin diagonal strip) — useless as a thumbnail. Force a
+  // real recent date so WMS returns the full daily global mosaic.
+  const dated = def.temporal ? formatIsoDate(mostRecentGibsDate()) : undefined;
+  const raw = buildEarthLayerUrl(def, dated);
   // Match the card aspect ratio (168:96 ≈ 16:9) so the whole globe/scene
   // fills the frame instead of being cropped by object-cover.
-  const wms = gibsWmsUrl(def, 672, 384);
+  const wms = gibsWmsUrl(def, 672, 384, dated);
   if (wms) return wms;
   if (def.id === "hillshade") {
     // OSM US hillshade starts at z=1; z=0 returns 404.
@@ -125,7 +131,7 @@ function parseGibsLayer(def: EarthLayerDef): { layerId: string; time: string; fo
  * partial-hemisphere sources like GOES/Himawari, misaligns with the sphere
  * so the user sees "circumference mismatch" gaps.
  */
-function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string | null {
+function gibsWmsUrl(def: EarthLayerDef, width: number, height: number, timeOverride?: string): string | null {
   const gibs = parseGibsLayer(def);
   if (!gibs) return null;
   const params = new URLSearchParams({
@@ -139,7 +145,7 @@ function gibsWmsUrl(def: EarthLayerDef, width: number, height: number): string |
     HEIGHT: String(height),
     FORMAT: gibs.format,
     TRANSPARENT: gibs.format === "image/png" ? "true" : "false",
-    TIME: gibs.time,
+    TIME: timeOverride ?? gibs.time,
   });
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }

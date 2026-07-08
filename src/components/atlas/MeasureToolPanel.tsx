@@ -114,6 +114,64 @@ function finiteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+/**
+ * Find the *visible mesh* ground beneath a picked point.
+ * The picked point is usually the TOP of a building/object; sampling directly
+ * under it returns the roof (mesh is opaque above ground). We ring-sample
+ * around the click and take the LOWEST returned height — that's ground
+ * next to the object. Falls back to terrain, then to the pick's own alt.
+ * Called only on click (never per-frame) so `sampleHeight` cost is fine.
+ */
+function sampleGroundBeneath(viewer: Viewer | null | undefined, top: Vertex): number {
+  if (!viewer || viewer.isDestroyed()) return top.alt;
+  const scene: any = viewer.scene;
+  const R = WGS84_MEAN_RADIUS;
+  const metersToDegLat = (m: number) => (m / R) * (180 / Math.PI);
+  const metersToDegLng = (m: number, lat: number) =>
+    (m / (R * Math.cos(CesiumMath.toRadians(lat)))) * (180 / Math.PI);
+
+  const candidates: number[] = [];
+  // Ring radii in metres — small (right beside object) and larger (open ground).
+  const radii = [4, 10, 22];
+  const angles = [0, 45, 90, 135, 180, 225, 270, 315];
+  for (const r of radii) {
+    const dLat = metersToDegLat(r);
+    const dLng = metersToDegLng(r, top.lat);
+    for (const a of angles) {
+      const rad = CesiumMath.toRadians(a);
+      const lat = top.lat + Math.cos(rad) * dLat;
+      const lng = top.lng + Math.sin(rad) * dLng;
+      const carto = Cartographic.fromDegrees(lng, lat, top.alt + 50);
+      // Prefer sampleHeight (samples visible mesh incl. Photorealistic 3D Tiles).
+      try {
+        if (scene.sampleHeightSupported && typeof scene.sampleHeight === "function") {
+          const h = scene.sampleHeight(carto);
+          if (finiteNumber(h)) { candidates.push(h); continue; }
+        }
+      } catch {}
+      // Fallback: clampToHeight on a point above the surface.
+      try {
+        if (typeof scene.clampToHeight === "function") {
+          const cart = scene.clampToHeight(Cartesian3.fromDegrees(lng, lat, top.alt + 100));
+          if (defined(cart)) {
+            const c = Cartographic.fromCartesian(cart);
+            if (finiteNumber(c.height)) { candidates.push(c.height); continue; }
+          }
+        }
+      } catch {}
+      // Terrain fallback.
+      try {
+        const th = viewer.scene.globe.getHeight(Cartographic.fromDegrees(lng, lat));
+        if (finiteNumber(th)) candidates.push(th);
+      } catch {}
+    }
+  }
+  if (candidates.length === 0) return top.alt;
+  // Ground = lowest surrounding surface (never above the pick itself).
+  const low = Math.min(...candidates);
+  return Math.min(low, top.alt);
+}
+
 function requestSceneRender(viewer: Viewer | null | undefined) {
   try { if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender(); } catch {}
 }
@@ -279,18 +337,12 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         if (mode === "height") {
           // Auto-base: single click gives top + sampled ground → instant height.
           if (heightAutoBase) {
-            const viewer = viewerRef.current;
-            let groundAlt = 0;
-            try {
-              const carto = Cartographic.fromDegrees(v.lng, v.lat);
-              const h = viewer?.scene.globe.getHeight(carto);
-              if (typeof h === "number" && Number.isFinite(h)) groundAlt = h;
-            } catch {}
-            // If we clicked *below* the picked surface (e.g. ground), the tile
-            // pick will be ~= terrain height. Ensure we treat the higher of
-            // the two as the top.
-            const top = v.alt >= groundAlt ? v : { ...v, alt: groundAlt };
-            const base = v.alt >= groundAlt ? { ...v, alt: groundAlt } : v;
+            // Sample the visible mesh AROUND the click to find real ground
+            // (sampling directly under the click returns the roof, giving a
+            // measurement that passes through the object into the earth).
+            const groundAlt = sampleGroundBeneath(viewerRef.current, v);
+            const top = v;
+            const base: Vertex = { ...v, alt: Math.min(groundAlt, v.alt) };
             return [base, top];
           }
           if (prev.length >= 2) return [v];
@@ -740,14 +792,36 @@ function MeasureMarkersOverlay({
   // Flat list of true vertex handles plus a separate measurement tag.
   const items = useMemo(() => {
     const out: { key: string; index?: number; total?: number; vertex: Vertex; color: string; kind: "draft" | "saved" | "tag"; label?: string }[] = [];
-    draft.vertices.forEach((v, i) => {
-      out.push({ key: `draft:${i}`, index: i + 1, total: draft.vertices.length, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
-    });
+    // In height mode, the "base" vertex is auto-derived from the click and
+    // sits at ground level (often hidden under geometry). Only surface the
+    // TOP vertex as the numbered pin so the visible marker always reads "1".
+    const heightVisibleIdx = (vs: Vertex[]) =>
+      vs.length >= 2 ? (vs[0].alt >= vs[1].alt ? 0 : 1) : 0;
+
+    if (draft.mode === "height") {
+      const idx = heightVisibleIdx(draft.vertices);
+      draft.vertices.forEach((v, i) => {
+        if (i !== idx) return;
+        out.push({ key: `draft:${i}`, index: 1, total: 1, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
+      });
+    } else {
+      draft.vertices.forEach((v, i) => {
+        out.push({ key: `draft:${i}`, index: i + 1, total: draft.vertices.length, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
+      });
+    }
     ledger.forEach((m) => {
       if (m.hidden) return;
-      m.vertices.forEach((v, i) => {
-        out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
-      });
+      if (m.mode === "height") {
+        const idx = heightVisibleIdx(m.vertices);
+        m.vertices.forEach((v, i) => {
+          if (i !== idx) return;
+          out.push({ key: `${m.id}:${i}`, index: 1, total: 1, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
+        });
+      } else {
+        m.vertices.forEach((v, i) => {
+          out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
+        });
+      }
       const tagVertex = measurementTagVertex(m);
       if (tagVertex) {
         out.push({
