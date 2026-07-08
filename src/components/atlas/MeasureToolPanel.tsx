@@ -39,7 +39,7 @@ import {
 } from "cesium";
 import {
   Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2,
-  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight,
+  Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil,
 } from "lucide-react";
 
 interface Props {
@@ -90,6 +90,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const [vertices, setVertices] = useState<Vertex[]>([]);
   const [ledger, setLedger] = useState<SavedMeasurement[]>(() => loadLedger());
   const [expanded, setExpanded] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => { saveLedger(ledger); }, [ledger]);
 
@@ -321,6 +322,19 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         draft={{ mode, vertices }}
         ledger={ledger}
       />
+      {editingId && (() => {
+        const editItem = ledger.find((x) => x.id === editingId);
+        if (!editItem || editItem.hidden) return null;
+        return (
+          <EditHandlesOverlay
+            viewerRef={viewerRef}
+            item={editItem}
+            pickPoint={pickPoint}
+            onChange={(newVerts) => setLedger((prev) => prev.map((x) =>
+              x.id === editingId ? { ...x, vertices: newVerts } : x))}
+          />
+        );
+      })()}
       <div data-draggable-window className="absolute top-[62px] right-4 z-30 w-[340px] pointer-events-auto">
         <div className="rounded-2xl border border-white/15 bg-black/80 backdrop-blur-xl shadow-2xl text-white overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col max-h-[80vh]">
           <div data-drag-handle className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0 cursor-move select-none">
@@ -409,8 +423,10 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                     key={m.id}
                     item={m}
                     units={units}
+                    editing={editingId === m.id}
+                    onEdit={() => setEditingId((cur) => cur === m.id ? null : m.id)}
                     onToggle={() => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, hidden: !x.hidden } : x))}
-                    onDelete={() => setLedger((prev) => prev.filter((x) => x.id !== m.id))}
+                    onDelete={() => { setLedger((prev) => prev.filter((x) => x.id !== m.id)); if (editingId === m.id) setEditingId(null); }}
                     onFocus={() => focus(m)}
                     onRename={(label) => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, label } : x))}
                   />
@@ -529,10 +545,13 @@ function MeasureMarkersOverlay({
 
 // ── Ledger row ────────────────────────────────────────────────────────────
 function LedgerRow({
-  item, units, onToggle, onDelete, onFocus, onRename,
+  // (declared above)
+  item, units, editing, onEdit, onToggle, onDelete, onFocus, onRename,
 }: {
   item: SavedMeasurement;
   units: Units;
+  editing: boolean;
+  onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
   onFocus: () => void;
@@ -541,7 +560,7 @@ function LedgerRow({
   const color = MODE_COLOR[item.mode];
   const m = computeMeasurements(item.mode, item.vertices);
   const summary = shortLabel(item.mode, m, units);
-  const [editing, setEditing] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(item.label || summary);
 
   return (
@@ -550,22 +569,22 @@ function LedgerRow({
       style={{ borderLeft: `3px solid ${color}` }}
     >
       <div className="flex-1 min-w-0">
-        {editing ? (
+        {renaming ? (
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onBlur={() => { onRename(name.trim() || summary); setEditing(false); }}
+            onBlur={() => { onRename(name.trim() || summary); setRenaming(false); }}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
             className="w-full bg-transparent text-[11px] font-semibold outline-none border-b border-white/20"
           />
         ) : (
-          <button onDoubleClick={() => setEditing(true)} className="text-left w-full">
+          <button onDoubleClick={() => setRenaming(true)} className="text-left w-full">
             <div className="text-[11px] font-semibold truncate" style={{ color }}>
               {item.label || summary}
             </div>
             <div className="text-[9px] text-white/45 uppercase tracking-wider">
-              {item.mode} · {item.vertices.length} pts
+              {item.mode} · {item.vertices.length} pts{editing ? " · editing" : ""}
             </div>
           </button>
         )}
@@ -573,6 +592,10 @@ function LedgerRow({
       <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
         <button onClick={onFocus} title="Focus" className="p-1 rounded hover:bg-white/10 text-white/70">
           <Target className="w-3 h-3" />
+        </button>
+        <button onClick={onEdit} title={editing ? "Done editing" : "Edit points"}
+          className={`p-1 rounded hover:bg-white/10 ${editing ? "bg-sky-500/25 text-sky-200" : "text-white/70"}`}>
+          <Pencil className="w-3 h-3" />
         </button>
         <button onClick={onToggle} title={item.hidden ? "Show" : "Hide"} className="p-1 rounded hover:bg-white/10 text-white/70">
           {item.hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -739,4 +762,108 @@ function sphericalPolygonArea(verts: { lng: number; lat: number }[]): number {
              (2 + Math.sin(CesiumMath.toRadians(p1.lat)) + Math.sin(CesiumMath.toRadians(p2.lat)));
   }
   return Math.abs(total * R * R / 2);
+}
+
+// ── Edit handles overlay: draggable circles at each vertex of a saved item ─
+function EditHandlesOverlay({
+  viewerRef, item, pickPoint, onChange,
+}: {
+  viewerRef: React.MutableRefObject<Viewer | null>;
+  item: SavedMeasurement;
+  pickPoint: (position: { x: number; y: number }) => Vertex | null;
+  onChange: (vertices: Vertex[]) => void;
+}) {
+  const nodesRef = useRef<Map<number, HTMLDivElement | null>>(new Map());
+  const vertsRef = useRef<Vertex[]>(item.vertices);
+  useEffect(() => { vertsRef.current = item.vertices; }, [item.vertices]);
+  const color = MODE_COLOR[item.mode];
+
+  // Position handles each frame.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const sync = () => {
+      if (!viewer || viewer.isDestroyed()) return;
+      const scene = viewer.scene;
+      const canvas = scene.canvas;
+      const cw = canvas.clientWidth || 0;
+      const ch = canvas.clientHeight || 0;
+      const camera = viewer.camera;
+      vertsRef.current.forEach((v, i) => {
+        const node = nodesRef.current.get(i);
+        if (!node) return;
+        try {
+          const world = Cartesian3.fromDegrees(v.lng, v.lat, v.alt);
+          const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
+          if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) { node.style.opacity = "0"; return; }
+          const win = SceneTransforms.worldToWindowCoordinates(scene, world);
+          if (!win || win.x < -50 || win.y < -50 || win.x > cw + 50 || win.y > ch + 50) {
+            node.style.opacity = "0"; return;
+          }
+          node.style.opacity = "1";
+          node.style.transform = `translate3d(${Math.round(win.x)}px, ${Math.round(win.y)}px, 0) translate(-50%, -50%)`;
+        } catch { node.style.opacity = "0"; }
+      });
+    };
+    sync();
+    const remove = viewer.scene.postRender.addEventListener(sync);
+    return () => { remove(); };
+  }, [viewerRef, item.vertices]);
+
+  const startDrag = (index: number) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const canvas = viewer.scene.canvas;
+    // Disable camera controls while dragging
+    const controller = viewer.scene.screenSpaceCameraController;
+    const prevEnabled = controller.enableInputs;
+    controller.enableInputs = false;
+
+    const onMove = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+      const v = pickPoint({ x, y });
+      if (!v) return;
+      const next = vertsRef.current.slice();
+      next[index] = v;
+      vertsRef.current = next;
+      onChange(next);
+    };
+    const onUp = () => {
+      controller.enableInputs = prevEnabled;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+
+  return (
+    <div className="absolute inset-0 z-40 pointer-events-none">
+      {item.vertices.map((_, i) => (
+        <div
+          key={i}
+          ref={(el) => { nodesRef.current.set(i, el); }}
+          onPointerDown={startDrag(i)}
+          className="absolute left-0 top-0 pointer-events-auto cursor-grab active:cursor-grabbing"
+          style={{ transform: "translate3d(-9999px,-9999px,0)", opacity: 0, touchAction: "none" }}
+        >
+          <div
+            className="w-4 h-4 rounded-full border-2 shadow-lg ring-2 ring-white/70"
+            style={{
+              background: color,
+              borderColor: "#fff",
+              boxShadow: `0 0 0 3px ${color}55, 0 4px 14px ${color}88`,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
 }
