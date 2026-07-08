@@ -218,7 +218,7 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
       )}
 
       {view === "levels" && (
-        <div className="flex flex-col" style={{ maxHeight: H - 40 }}>
+        <div className="flex flex-col flex-1 min-h-0">
           <div className="px-2 py-2 border-b border-white/10 flex items-center gap-2">
             <Search className="w-3.5 h-3.5 text-white/50" />
             <input
