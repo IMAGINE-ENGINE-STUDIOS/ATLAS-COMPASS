@@ -400,7 +400,7 @@ export function mostRecentGibsDate(now: Date = new Date()): Date {
   return d;
 }
 
-function formatIsoDate(d: Date): string {
+export function formatIsoDate(d: Date): string {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
