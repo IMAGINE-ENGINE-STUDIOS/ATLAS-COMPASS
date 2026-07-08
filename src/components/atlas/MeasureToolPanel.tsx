@@ -226,6 +226,12 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
   useEffect(() => { saveLedger(ledger); }, [ledger]);
 
+  const ledgerRef = useRef<SavedMeasurement[]>(ledger);
+  useEffect(() => {
+    ledgerRef.current = ledger;
+    requestSceneRender(viewerRef.current);
+  }, [ledger, viewerRef]);
+
   const verticesRef = useRef<Vertex[]>([]);
   useEffect(() => { verticesRef.current = vertices; }, [vertices]);
 
@@ -550,7 +556,9 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             item={editItem}
             pickPoint={pickPoint}
             onChange={(newVerts) => setLedger((prev) => prev.map((x) =>
-              x.id === editingId ? { ...x, vertices: newVerts } : x))}
+              x.id === editingId
+                ? { ...x, vertices: newVerts, label: shortLabel(x.mode, computeMeasurements(x.mode, newVerts), units) }
+                : x))}
             onCommit={(prevVerts) => {
               setEditPast((p) => [...p, prevVerts]);
               setEditFuture([]);
@@ -684,14 +692,18 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                       const prev = editPast[editPast.length - 1];
                       setEditPast((p) => p.slice(0, -1));
                       setEditFuture((f) => [...f, m.vertices]);
-                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: prev } : x));
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id
+                        ? { ...x, vertices: prev, label: shortLabel(x.mode, computeMeasurements(x.mode, prev), units) }
+                        : x));
                     }}
                     onRedo={() => {
                       if (editingId !== m.id || editFuture.length === 0) return;
                       const next = editFuture[editFuture.length - 1];
                       setEditFuture((f) => f.slice(0, -1));
                       setEditPast((p) => [...p, m.vertices]);
-                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: next } : x));
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id
+                        ? { ...x, vertices: next, label: shortLabel(x.mode, computeMeasurements(x.mode, next), units) }
+                        : x));
                     }}
                     onToggle={() => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, hidden: !x.hidden } : x))}
                     onDelete={() => { setLedger((prev) => prev.filter((x) => x.id !== m.id)); if (editingId === m.id) setEditingId(null); }}
