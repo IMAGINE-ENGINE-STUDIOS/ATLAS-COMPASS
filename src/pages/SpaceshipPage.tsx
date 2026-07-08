@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 // CSS-only animations — no framer-motion in this heavy page
 import {
   ArrowLeft, Search, MapPin, Mountain, Building2, Navigation,
-  Maximize2, Minimize2, Globe, Crosshair, X,
+  Maximize2, Minimize2, Globe, Crosshair, MousePointer2, X,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
@@ -5555,13 +5555,17 @@ function SpaceshipPage() {
                     {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                   </button>
                   <AtlasScreenshotMenu viewerRef={viewerRef} />
-                  {/* Tile Brush Toggle (exposed alongside camera) */}
+                  {/* Georeference Tool (Tile Brush) — outer console shortcut.
+                      Cursor glyph; opens the tile-selection brush so users
+                      can highlight tiles, color/label them and push them into
+                      the Tile Intelligence ledger. */}
                   <button
                     onClick={() => { setBrushMode(!brushMode); setBrushPanelOpen(!brushMode); }}
-                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 ${brushMode ? "bg-emerald-500/20 text-emerald-400" : "text-white/75 hover:text-white"}`}
-                    title="Tile Brush — Place 3D Models"
+                    aria-pressed={brushMode}
+                    className={`p-1.5 sm:p-1 rounded-md transition-colors shrink-0 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 ${brushMode ? "bg-emerald-500/25 text-emerald-300 shadow-[0_0_14px_rgba(52,211,153,0.55)]" : "text-white/85 hover:text-white"}`}
+                    title="Georeference — select, color & label tiles → Tile Intelligence"
                   >
-                    <GlyphIcon name="brush" alt="Tile Brush" glow={brushMode ? "#34d399" : undefined} />
+                    <MousePointer2 className="w-4 h-4 sm:w-[18px] sm:h-[18px]" strokeWidth={2.25} />
                   </button>
                   <NotificationsBell />
                   <button
