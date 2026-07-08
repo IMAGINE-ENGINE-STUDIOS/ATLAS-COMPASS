@@ -425,7 +425,25 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   }, [mode, vertices]);
 
   // Reset draft when mode changes
+  // Reset draft when mode changes — but commit whatever the user had drawn
+  // so the work is preserved in the ledger instead of being thrown away.
+  useEffect(() => {
+    return () => {
+      // On mode change (cleanup of previous mode), commit its draft.
+      const prevMode = modeRef.current;
+      const draft = verticesRef.current;
+      if (draft.length > 0) commitDraftIfValid(draft, prevMode);
+    };
+  }, [mode, commitDraftIfValid]);
   useEffect(() => { setVertices([]); }, [mode]);
+
+  // On panel close (unmount), commit whatever's on screen.
+  useEffect(() => {
+    return () => {
+      const draft = verticesRef.current;
+      if (draft.length > 0) commitDraftIfValid(draft, modeRef.current);
+    };
+  }, [commitDraftIfValid]);
 
   // ── DRAFT geometry entities (one per mode; positions via CallbackProperty)
   const draftEntitiesRef = useRef<Entity[]>([]);
