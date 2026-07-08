@@ -467,32 +467,31 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
     for (const m of ledger) {
       if (m.hidden) continue;
       const color = Color.fromCssColorString(MODE_COLOR[m.mode]);
-      const pts = m.vertices.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
+      const pts = m.vertices.map((v) => safeCartesian(viewer, v));
       if (m.mode === "distance" && pts.length >= 2) {
         ents.push(viewer.entities.add({
-          polyline: { positions: pts, width: 2.5, material: color, arcType: ArcType.GEODESIC,
+          polyline: { positions: safePolylinePositions(viewer, m.vertices), width: 2.5, material: color, arcType: ArcType.GEODESIC,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
       } else if (m.mode === "area" && pts.length >= 3) {
         ents.push(viewer.entities.add({
-          polygon: { hierarchy: new PolygonHierarchy(pts), material: color.withAlpha(0.18), height: 0 },
+          polygon: { hierarchy: new PolygonHierarchy(pts), material: color.withAlpha(0.18), perPositionHeight: true },
         }));
         ents.push(viewer.entities.add({
-          polyline: { positions: [...pts, pts[0]], width: 2.5, material: color, arcType: ArcType.GEODESIC,
+          polyline: { positions: safePolylinePositions(viewer, m.vertices, true), width: 2.5, material: color, arcType: ArcType.GEODESIC,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
       } else if (m.mode === "height" && pts.length === 2) {
         const [a, b] = m.vertices;
         const lowAlt = Math.min(a.alt, b.alt);
         const high = a.alt >= b.alt ? a : b;
-        const base = Cartesian3.fromDegrees(high.lng, high.lat, lowAlt);
         ents.push(viewer.entities.add({
-          polyline: { positions: [base, Cartesian3.fromDegrees(high.lng, high.lat, high.alt)],
+          polyline: { positions: [safeCartesian(viewer, { ...high, alt: lowAlt }), safeCartesian(viewer, high)],
             width: 2.5, material: color, arcType: ArcType.NONE,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
         ents.push(viewer.entities.add({
-          polyline: { positions: pts, width: 2, material: Color.fromCssColorString("#38bdf8"),
+          polyline: { positions: safePolylinePositions(viewer, m.vertices), width: 2, material: Color.fromCssColorString("#38bdf8"),
             arcType: ArcType.NONE,
             depthFailMaterial: Color.fromCssColorString("#38bdf8").withAlpha(0.5) },
         }));
