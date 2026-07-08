@@ -243,21 +243,6 @@ export const LIVE_GIS_SOURCES: LiveGisSource[] = [
     },
   },
   {
-    id: "aisstream-vessels",
-    label: "Vessels (AIS)",
-    provider: "AISHub sample",
-    category: "transport",
-    description: "Global vessel positions (sample AIS feed).",
-    radius: 12, ramp: "viridis", refreshMs: 60_000,
-    fetchPoints: async () => {
-      // Free CORS-open sample from Datalastic public demo tiles fallback.
-      const g = await j<any>("https://services.marinetraffic.com/api/exportvessels/v:5/publicvessels.json").catch(() => ({}));
-      const arr: any[] = Array.isArray(g) ? g : g?.data ?? [];
-      return arr.map((v: any) => ({ lng: Number(v.LON ?? v.lon), lat: Number(v.LAT ?? v.lat), weight: 0.6, label: v.SHIPNAME ?? v.name }))
-        .filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat));
-    },
-  },
-  {
     id: "world-population-cities",
     label: "World Cities (population)",
     provider: "SimpleMaps CC-BY",
