@@ -763,3 +763,107 @@ function sphericalPolygonArea(verts: { lng: number; lat: number }[]): number {
   }
   return Math.abs(total * R * R / 2);
 }
+
+// ── Edit handles overlay: draggable circles at each vertex of a saved item ─
+function EditHandlesOverlay({
+  viewerRef, item, pickPoint, onChange,
+}: {
+  viewerRef: React.MutableRefObject<Viewer | null>;
+  item: SavedMeasurement;
+  pickPoint: (position: { x: number; y: number }) => Vertex | null;
+  onChange: (vertices: Vertex[]) => void;
+}) {
+  const nodesRef = useRef<Map<number, HTMLDivElement | null>>(new Map());
+  const vertsRef = useRef<Vertex[]>(item.vertices);
+  useEffect(() => { vertsRef.current = item.vertices; }, [item.vertices]);
+  const color = MODE_COLOR[item.mode];
+
+  // Position handles each frame.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const sync = () => {
+      if (!viewer || viewer.isDestroyed()) return;
+      const scene = viewer.scene;
+      const canvas = scene.canvas;
+      const cw = canvas.clientWidth || 0;
+      const ch = canvas.clientHeight || 0;
+      const camera = viewer.camera;
+      vertsRef.current.forEach((v, i) => {
+        const node = nodesRef.current.get(i);
+        if (!node) return;
+        try {
+          const world = Cartesian3.fromDegrees(v.lng, v.lat, v.alt);
+          const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
+          if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) { node.style.opacity = "0"; return; }
+          const win = SceneTransforms.worldToWindowCoordinates(scene, world);
+          if (!win || win.x < -50 || win.y < -50 || win.x > cw + 50 || win.y > ch + 50) {
+            node.style.opacity = "0"; return;
+          }
+          node.style.opacity = "1";
+          node.style.transform = `translate3d(${Math.round(win.x)}px, ${Math.round(win.y)}px, 0) translate(-50%, -50%)`;
+        } catch { node.style.opacity = "0"; }
+      });
+    };
+    sync();
+    const remove = viewer.scene.postRender.addEventListener(sync);
+    return () => { remove(); };
+  }, [viewerRef, item.vertices]);
+
+  const startDrag = (index: number) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const canvas = viewer.scene.canvas;
+    // Disable camera controls while dragging
+    const controller = viewer.scene.screenSpaceCameraController;
+    const prevEnabled = controller.enableInputs;
+    controller.enableInputs = false;
+
+    const onMove = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+      const v = pickPoint({ x, y });
+      if (!v) return;
+      const next = vertsRef.current.slice();
+      next[index] = v;
+      vertsRef.current = next;
+      onChange(next);
+    };
+    const onUp = () => {
+      controller.enableInputs = prevEnabled;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+
+  return (
+    <div className="absolute inset-0 z-40 pointer-events-none">
+      {item.vertices.map((_, i) => (
+        <div
+          key={i}
+          ref={(el) => { nodesRef.current.set(i, el); }}
+          onPointerDown={startDrag(i)}
+          className="absolute left-0 top-0 pointer-events-auto cursor-grab active:cursor-grabbing"
+          style={{ transform: "translate3d(-9999px,-9999px,0)", opacity: 0, touchAction: "none" }}
+        >
+          <div
+            className="w-4 h-4 rounded-full border-2 shadow-lg ring-2 ring-white/70"
+            style={{
+              background: color,
+              borderColor: "#fff",
+              boxShadow: `0 0 0 3px ${color}55, 0 4px 14px ${color}88`,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
