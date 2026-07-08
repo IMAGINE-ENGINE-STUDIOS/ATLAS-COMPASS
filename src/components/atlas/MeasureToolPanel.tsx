@@ -342,7 +342,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            safePolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current)), false),
           width: 3,
           material: color,
           arcType: ArcType.GEODESIC,
@@ -354,19 +354,19 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polygon: {
           hierarchy: new CallbackProperty(() =>
             new PolygonHierarchy(
-              withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt))
+              withCursor(verticesRef.current, cursorRef.current).map((v) => safeCartesian(viewer, v))
             ), false) as any,
           material: color.withAlpha(0.22),
           outline: false,
-          height: 0,
+          perPositionHeight: true,
         },
       }));
       // Outline as a closed polyline so it renders reliably over 3D tiles.
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
-            const pts = withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
-            return pts.length >= 3 ? [...pts, pts[0]] : pts;
+            const vs = withCursor(verticesRef.current, cursorRef.current);
+            return safePolylinePositions(viewer, vs, vs.length >= 3);
           }, false),
           width: 3,
           material: color,
@@ -381,10 +381,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             const vs = verticesRef.current;
             const c = cursorRef.current;
             if (vs.length < 2 || !c) return [];
-            return [
-              Cartesian3.fromDegrees(c.lng, c.lat, c.alt),
-              Cartesian3.fromDegrees(vs[0].lng, vs[0].lat, vs[0].alt),
-            ];
+            return safePolylinePositions(viewer, [c, vs[0]]);
           }, false),
           width: 2,
           material: guideDash(),
@@ -401,8 +398,10 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             const [a, b] = vs;
             const lowAlt = Math.min(a.alt, b.alt);
             const high = a.alt >= b.alt ? a : b;
-            const base = Cartesian3.fromDegrees(high.lng, high.lat, lowAlt);
-            return [base, Cartesian3.fromDegrees(high.lng, high.lat, high.alt)];
+            return [
+              safeCartesian(viewer, { ...high, alt: lowAlt }),
+              safeCartesian(viewer, high),
+            ];
           }, false),
           width: 3,
           material: color,
@@ -413,7 +412,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            withCursor(verticesRef.current, cursorRef.current, 2).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            safePolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current, 2)), false),
           width: 2,
           material: Color.fromCssColorString("#38bdf8"),
           arcType: ArcType.NONE,
@@ -438,10 +437,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
               : bearingDeg(anchor, c);
             const dist = Math.max(haversine(anchor, c) * 2, 150);
             const dest = destinationPoint(anchor, bearing + offsetDeg, dist);
-            return [
-              Cartesian3.fromDegrees(anchor.lng, anchor.lat, anchor.alt),
-              Cartesian3.fromDegrees(dest.lng, dest.lat, anchor.alt),
-            ];
+            return safePolylinePositions(viewer, [anchor, dest]);
           }, false),
           width: 1.5,
           material: guideDash(),
