@@ -29,17 +29,25 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
   const [view, setView] = useState<"root" | "levels">("root");
   const [levels, setLevels] = useState<LevelRow[] | null>(null);
   const [filter, setFilter] = useState("");
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number }>(() => ({
+    left: x, top: y, maxHeight: window.innerHeight - 16,
+  }));
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onDblClick = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
+    window.addEventListener("dblclick", onDblClick);
     return () => {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("dblclick", onDblClick);
     };
   }, [onClose]);
 
