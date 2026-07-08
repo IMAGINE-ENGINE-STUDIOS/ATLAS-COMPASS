@@ -1184,7 +1184,7 @@ function EditHandlesOverlay({
         const node = nodesRef.current.get(i);
         if (!node) return;
         try {
-          const world = Cartesian3.fromDegrees(v.lng, v.lat, v.alt);
+          const world = safeCartesian(viewer, v, 2.4);
           const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
           if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) { node.style.opacity = "0"; return; }
           const win = SceneTransforms.worldToWindowCoordinates(scene, world);
@@ -1227,6 +1227,7 @@ function EditHandlesOverlay({
       vertsRef.current = next;
       moved = true;
       onChange(next);
+      requestSceneRender(viewer);
     };
     const onUp = () => {
       controller.enableInputs = prevEnabled;
@@ -1234,6 +1235,7 @@ function EditHandlesOverlay({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       if (moved) onCommit?.(snapshot);
+      requestSceneRender(viewer);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
