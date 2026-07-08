@@ -21,9 +21,9 @@ export default function CameraRecordingsGallery({ open, onClose }: Props) {
 
   return (
   <>
-    <div className="absolute top-20 left-4 z-40 w-[calc(100vw-2rem)] max-w-[357px]">
+    <div data-draggable-window className="absolute top-20 left-4 z-40 w-[calc(100vw-2rem)] max-w-[357px]">
       <div className="rounded-xl bg-black/85 backdrop-blur-2xl border border-white/[0.1] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-7rem)]">
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-white/[0.06]">
+        <div data-drag-handle className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-white/[0.06] cursor-move select-none">
           <div className="w-6 h-6 rounded-md bg-red-500/15 border border-red-500/30 flex items-center justify-center">
             <Film className="w-3 h-3 text-red-400" />
           </div>

@@ -138,11 +138,12 @@ export default function BuildingCard({
 
   return (
     <div
+      data-draggable-window
       className="pointer-events-auto fixed right-4 top-20 z-30 w-[340px] max-h-[calc(100vh-140px)] overflow-hidden rounded-2xl border border-white/[0.08] bg-black/85 backdrop-blur-xl shadow-2xl text-white flex flex-col"
       style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <header className="flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.06]">
+      <header data-drag-handle className="flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.06] cursor-move select-none">
         <div
           className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: (record?.color ?? "#22d3ee") + "22", color: record?.color ?? "#22d3ee" }}

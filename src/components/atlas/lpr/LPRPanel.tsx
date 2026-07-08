@@ -83,8 +83,8 @@ export default function LPRPanel({ open, onClose, flyTo }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed top-[80px] right-4 bottom-4 w-[420px] max-w-[calc(100vw-2rem)] z-[70] rounded-2xl border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+    <div data-draggable-window className="fixed top-[80px] right-4 bottom-4 w-[420px] max-w-[calc(100vw-2rem)] z-[70] rounded-2xl border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col">
+      <div data-drag-handle className="flex items-center justify-between px-4 py-3 border-b border-white/10 cursor-move select-none">
         <div className="flex items-center gap-2">
           <ScanLine className="w-4 h-4 text-cyan-300" />
           <div className="text-[13px] font-bold uppercase tracking-widest">License Plate Readers</div>
