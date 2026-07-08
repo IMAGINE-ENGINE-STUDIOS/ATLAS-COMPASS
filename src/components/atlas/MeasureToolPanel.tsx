@@ -350,7 +350,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            safePolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current)), false),
+            draftPolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current)), false),
           width: 3,
           material: color,
           arcType: ArcType.GEODESIC,
@@ -374,7 +374,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polyline: {
           positions: new CallbackProperty(() => {
             const vs = withCursor(verticesRef.current, cursorRef.current);
-            return safePolylinePositions(viewer, vs, vs.length >= 3);
+            return draftPolylinePositions(viewer, vs, vs.length >= 3);
           }, false),
           width: 3,
           material: color,
@@ -389,7 +389,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             const vs = verticesRef.current;
             const c = cursorRef.current;
             if (vs.length < 2 || !c) return [];
-            return safePolylinePositions(viewer, [c, vs[0]]);
+            return draftPolylinePositions(viewer, [c, vs[0]]);
           }, false),
           width: 2,
           material: guideDash(),
@@ -420,7 +420,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            safePolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current, 2)), false),
+            draftPolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current, 2)), false),
           width: 2,
           material: Color.fromCssColorString("#38bdf8"),
           arcType: ArcType.NONE,
@@ -445,7 +445,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
               : bearingDeg(anchor, c);
             const dist = Math.max(haversine(anchor, c) * 2, 150);
             const dest = destinationPoint(anchor, bearing + offsetDeg, dist);
-            return safePolylinePositions(viewer, [anchor, dest]);
+            return draftPolylinePositions(viewer, [anchor, dest]);
           }, false),
           width: 1.5,
           material: guideDash(),
