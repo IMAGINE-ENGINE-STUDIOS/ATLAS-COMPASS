@@ -81,7 +81,9 @@ const CATEGORY_COLOR: Record<EarthLayerCategory, string> = {
  */
 function thumbUrl(def: EarthLayerDef): string {
   const raw = buildEarthLayerUrl(def);
-  const wms = gibsWmsUrl(def, 1024, 512);
+  // Match the card aspect ratio (168:96 ≈ 16:9) so the whole globe/scene
+  // fills the frame instead of being cropped by object-cover.
+  const wms = gibsWmsUrl(def, 672, 384);
   if (wms) return wms;
   if (def.id === "hillshade") {
     // OSM US hillshade starts at z=1; z=0 returns 404.
