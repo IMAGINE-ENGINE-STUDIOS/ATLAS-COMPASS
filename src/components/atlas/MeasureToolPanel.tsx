@@ -885,6 +885,90 @@ function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: 
   return { lng: ((CesiumMath.toDegrees(λ2) + 540) % 360) - 180, lat: CesiumMath.toDegrees(φ2), alt: from.alt };
 }
 
+// ── Live cursor label: floating pill anchored to the pointer with live
+// distance from the last vertex to the cursor while measuring.
+function CursorMeasureLabel({
+  viewerRef, cursorRef, vertices, mode, units, tick,
+}: {
+  viewerRef: React.MutableRefObject<Viewer | null>;
+  cursorRef: React.MutableRefObject<Vertex | null>;
+  vertices: Vertex[];
+  mode: Mode;
+  units: Units;
+  tick: number;
+}) {
+  const nodeRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    const sync = () => {
+      const node = nodeRef.current;
+      if (!node) return;
+      const c = cursorRef.current;
+      if (!c || vertices.length === 0) { node.style.opacity = "0"; return; }
+      try {
+        const world = Cartesian3.fromDegrees(c.lng, c.lat, c.alt);
+        const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+        if (!win) { node.style.opacity = "0"; return; }
+        node.style.opacity = "1";
+        node.style.transform = `translate3d(${Math.round(win.x + 14)}px, ${Math.round(win.y - 14)}px, 0)`;
+      } catch { node.style.opacity = "0"; }
+    };
+    sync();
+    const remove = viewer.scene.postRender.addEventListener(sync);
+    return () => { remove(); };
+  }, [viewerRef, cursorRef, vertices, tick]);
+
+  const c = cursorRef.current;
+  if (!c || vertices.length === 0) return null;
+  const last = vertices[vertices.length - 1];
+  const segDist = haversine(last, c);
+  const brg = bearingDeg(last, c);
+  let primary = formatDistance(segDist, units);
+  let secondary = `${brg.toFixed(1)}°`;
+  if (mode === "area" && vertices.length >= 2) {
+    // Show live polygon area including cursor
+    const area = sphericalPolygonArea([...vertices, c]);
+    primary = formatArea(area, units);
+    secondary = `+${formatDistance(segDist, units)}`;
+  } else if (mode === "distance" && vertices.length >= 1) {
+    const geodesic = new EllipsoidGeodesic();
+    let total = 0;
+    for (let i = 1; i < vertices.length; i++) {
+      geodesic.setEndPoints(
+        Cartographic.fromDegrees(vertices[i - 1].lng, vertices[i - 1].lat),
+        Cartographic.fromDegrees(vertices[i].lng, vertices[i].lat));
+      total += geodesic.surfaceDistance;
+    }
+    total += segDist;
+    secondary = `Σ ${formatDistance(total, units)}`;
+  }
+  const color = MODE_COLOR[mode];
+  return (
+    <div className="absolute inset-0 z-30 pointer-events-none">
+      <div
+        ref={nodeRef}
+        className="absolute left-0 top-0 will-change-transform"
+        style={{ transform: "translate3d(-9999px,-9999px,0)", opacity: 0 }}
+      >
+        <div
+          className="backdrop-blur-xl rounded-lg px-2 py-1 text-[10px] font-mono tabular-nums whitespace-nowrap shadow-lg"
+          style={{
+            background: "rgba(0,0,0,0.72)",
+            border: `1px solid ${color}88`,
+            color: "#fff",
+            fontFeatureSettings: '"tnum" 1, "ss01" 1',
+            boxShadow: `0 4px 14px ${color}55`,
+          }}
+        >
+          <div className="font-bold text-[11px]" style={{ color }}>{primary}</div>
+          <div className="text-white/60 text-[9px]">{secondary}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Edit handles overlay: draggable circles at each vertex of a saved item ─
 function EditHandlesOverlay({
   viewerRef, item, pickPoint, onChange, onCommit,
