@@ -301,6 +301,27 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const verticesRef = useRef<Vertex[]>([]);
   useEffect(() => { verticesRef.current = vertices; }, [vertices]);
 
+  // ── Auto-commit helpers so drafts never silently vanish.
+  // "End Measurement" is optional now: switching mode, closing the panel,
+  // or reaching the terminal point count in height mode all save automatically.
+  const modeRef = useRef<Mode>(mode);
+  const unitsRef = useRef<Units>(units);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { unitsRef.current = units; }, [units]);
+  const commitDraftIfValid = useCallback((verts: Vertex[], m: Mode) => {
+    const need = m === "area" ? 3 : 2;
+    if (verts.length < need) return false;
+    const item: SavedMeasurement = {
+      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      mode: m,
+      vertices: verts,
+      createdAt: Date.now(),
+      label: shortLabel(m, computeMeasurements(m, verts), unitsRef.current),
+    };
+    setLedger((prev) => [item, ...prev]);
+    return true;
+  }, []);
+
   // ── Live cursor position (world) for rubber-band + guide rails
   const cursorRef = useRef<Vertex | null>(null);
   const [cursorTick, setCursorTick] = useState(0);
@@ -343,9 +364,29 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             const groundAlt = sampleGroundBeneath(viewerRef.current, v);
             const top = v;
             const base: Vertex = { ...v, alt: Math.min(groundAlt, v.alt) };
-            return [base, top];
+            const next: Vertex[] = [base, top];
+            // Persist immediately so the measurement is not lost.
+            queueMicrotask(() => {
+              commitDraftIfValid(next, "height");
+              setVertices([]);
+            });
+            return next;
           }
-          if (prev.length >= 2) return [v];
+          // Manual mode: click base then top. After the 2nd click, auto-save
+          // and reset so the next click begins a fresh measurement instead
+          // of silently discarding the previous one.
+          if (prev.length >= 2) {
+            queueMicrotask(() => setVertices([v]));
+            return prev;
+          }
+          const next = [...prev, v];
+          if (next.length === 2) {
+            queueMicrotask(() => {
+              commitDraftIfValid(next, "height");
+              setVertices([]);
+            });
+          }
+          return next;
         }
         return [...prev, v];
       });
@@ -384,7 +425,25 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   }, [mode, vertices]);
 
   // Reset draft when mode changes
+  // Reset draft when mode changes — but commit whatever the user had drawn
+  // so the work is preserved in the ledger instead of being thrown away.
+  useEffect(() => {
+    return () => {
+      // On mode change (cleanup of previous mode), commit its draft.
+      const prevMode = modeRef.current;
+      const draft = verticesRef.current;
+      if (draft.length > 0) commitDraftIfValid(draft, prevMode);
+    };
+  }, [mode, commitDraftIfValid]);
   useEffect(() => { setVertices([]); }, [mode]);
+
+  // On panel close (unmount), commit whatever's on screen.
+  useEffect(() => {
+    return () => {
+      const draft = verticesRef.current;
+      if (draft.length > 0) commitDraftIfValid(draft, modeRef.current);
+    };
+  }, [commitDraftIfValid]);
 
   // ── DRAFT geometry entities (one per mode; positions via CallbackProperty)
   const draftEntitiesRef = useRef<Entity[]>([]);
