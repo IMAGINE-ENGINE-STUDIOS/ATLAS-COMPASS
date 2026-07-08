@@ -182,13 +182,17 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const color = Color.fromCssColorString(MODE_COLOR[mode]);
+    const guideColor = Color.fromCssColorString("#ffffff").withAlpha(0.55);
+    const guideDash = () => new PolylineDashMaterialProperty({
+      color: guideColor, dashLength: 12,
+    });
 
     const ents: Entity[] = [];
     if (mode === "distance") {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
           width: 3,
           material: color,
           arcType: ArcType.GEODESIC,
@@ -200,7 +204,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polygon: {
           hierarchy: new CallbackProperty(() =>
             new PolygonHierarchy(
-              verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt))
+              withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt))
             ), false) as any,
           material: color.withAlpha(0.22),
           outline: false,
@@ -211,7 +215,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
-            const pts = verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
+            const pts = withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
             return pts.length >= 3 ? [...pts, pts[0]] : pts;
           }, false),
           width: 3,
@@ -220,12 +224,29 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           depthFailMaterial: color.withAlpha(0.55),
         },
       }));
+      // Dashed closing line from cursor → first vertex (area symmetry hint)
+      ents.push(viewer.entities.add({
+        polyline: {
+          positions: new CallbackProperty(() => {
+            const vs = verticesRef.current;
+            const c = cursorRef.current;
+            if (vs.length < 2 || !c) return [];
+            return [
+              Cartesian3.fromDegrees(c.lng, c.lat, c.alt),
+              Cartesian3.fromDegrees(vs[0].lng, vs[0].lat, vs[0].alt),
+            ];
+          }, false),
+          width: 2,
+          material: guideDash(),
+          arcType: ArcType.GEODESIC,
+        },
+      }));
     } else {
       // height — connector + slant
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
-            const vs = verticesRef.current;
+            const vs = withCursor(verticesRef.current, cursorRef.current, 2);
             if (vs.length < 2) return [];
             const [a, b] = vs;
             const lowAlt = Math.min(a.alt, b.alt);
@@ -242,13 +263,45 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            verticesRef.current.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            withCursor(verticesRef.current, cursorRef.current, 2).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
           width: 2,
           material: Color.fromCssColorString("#38bdf8"),
           arcType: ArcType.NONE,
           depthFailMaterial: Color.fromCssColorString("#38bdf8").withAlpha(0.55),
         },
       }));
+    }
+
+    // ── Guide rails from last vertex: continuation, perpendicular, back-ray.
+    // Only meaningful for distance/area while user is picking points.
+    if (mode === "distance" || mode === "area") {
+      const makeRay = (offsetDeg: number) => viewer.entities.add({
+        polyline: {
+          positions: new CallbackProperty(() => {
+            const vs = verticesRef.current;
+            const c = cursorRef.current;
+            if (vs.length < 1 || !c) return [];
+            const anchor = vs[vs.length - 1];
+            // Bearing: last-segment (if any) else anchor→cursor
+            const bearing = vs.length >= 2
+              ? bearingDeg(vs[vs.length - 2], anchor)
+              : bearingDeg(anchor, c);
+            const dist = Math.max(haversine(anchor, c) * 2, 150);
+            const dest = destinationPoint(anchor, bearing + offsetDeg, dist);
+            return [
+              Cartesian3.fromDegrees(anchor.lng, anchor.lat, anchor.alt),
+              Cartesian3.fromDegrees(dest.lng, dest.lat, anchor.alt),
+            ];
+          }, false),
+          width: 1.5,
+          material: guideDash(),
+          arcType: ArcType.GEODESIC,
+        },
+      });
+      ents.push(makeRay(0));    // continuation (symmetry / straight line)
+      ents.push(makeRay(90));   // perpendicular right
+      ents.push(makeRay(-90));  // perpendicular left
+      ents.push(makeRay(180));  // mirror back
     }
     draftEntitiesRef.current = ents;
 
