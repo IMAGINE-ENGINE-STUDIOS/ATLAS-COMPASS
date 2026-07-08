@@ -69,6 +69,40 @@ const MODE_COLOR: Record<Mode, string> = {
   height: "#fbbf24",
 };
 
+// ── Geometry helpers (hoisted; referenced by Cesium CallbackProperty
+// closures which run every render tick — must exist at module top level).
+function withCursor(vs: Vertex[], cursor: Vertex | null, cap = Infinity): Vertex[] {
+  if (!cursor || vs.length === 0) return vs;
+  const out = [...vs, cursor];
+  return out.length > cap ? out.slice(0, cap) : out;
+}
+function haversine(a: Vertex, b: Vertex): number {
+  const R = WGS84_MEAN_RADIUS;
+  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
+  const dφ = φ2 - φ1;
+  const dλ = CesiumMath.toRadians(b.lng - a.lng);
+  const s = Math.sin(dφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function bearingDeg(a: Vertex, b: Vertex): number {
+  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
+  const dλ = CesiumMath.toRadians(b.lng - a.lng);
+  const y = Math.sin(dλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
+  return (CesiumMath.toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: number): Vertex {
+  const R = WGS84_MEAN_RADIUS;
+  const δ = distanceMeters / R;
+  const θ = CesiumMath.toRadians(bearingDegrees);
+  const φ1 = CesiumMath.toRadians(from.lat);
+  const λ1 = CesiumMath.toRadians(from.lng);
+  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+  const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+                             Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
+  return { lng: ((CesiumMath.toDegrees(λ2) + 540) % 360) - 180, lat: CesiumMath.toDegrees(φ2), alt: from.alt };
+}
+
 // ── Ledger persistence ────────────────────────────────────────────────────
 function loadLedger(): SavedMeasurement[] {
   try {
@@ -92,6 +126,10 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const [ledger, setLedger] = useState<SavedMeasurement[]>(() => loadLedger());
   const [expanded, setExpanded] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Height mode: single-click measures top→ground automatically.
+  const [heightAutoBase, setHeightAutoBase] = useState<boolean>(() =>
+    localStorage.getItem("atlas.measure.heightAutoBase") !== "0");
+  useEffect(() => { try { localStorage.setItem("atlas.measure.heightAutoBase", heightAutoBase ? "1" : "0"); } catch {} }, [heightAutoBase]);
   // Undo/redo history for spline point edits (per editing session).
   const [editPast, setEditPast] = useState<Vertex[][]>([]);
   const [editFuture, setEditFuture] = useState<Vertex[][]>([]);
@@ -136,7 +174,25 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       const v = pickPoint(e.position);
       if (!v) return;
       setVertices((prev) => {
-        if (mode === "height" && prev.length >= 2) return [v];
+        if (mode === "height") {
+          // Auto-base: single click gives top + sampled ground → instant height.
+          if (heightAutoBase) {
+            const viewer = viewerRef.current;
+            let groundAlt = 0;
+            try {
+              const carto = Cartographic.fromDegrees(v.lng, v.lat);
+              const h = viewer?.scene.globe.getHeight(carto);
+              if (typeof h === "number" && Number.isFinite(h)) groundAlt = h;
+            } catch {}
+            // If we clicked *below* the picked surface (e.g. ground), the tile
+            // pick will be ~= terrain height. Ensure we treat the higher of
+            // the two as the top.
+            const top = v.alt >= groundAlt ? v : { ...v, alt: groundAlt };
+            const base = v.alt >= groundAlt ? { ...v, alt: groundAlt } : v;
+            return [base, top];
+          }
+          if (prev.length >= 2) return [v];
+        }
         return [...prev, v];
       });
     }, ScreenSpaceEventType.LEFT_CLICK);
@@ -156,7 +212,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
     }, ScreenSpaceEventType.MOUSE_MOVE);
 
     return () => { handler.destroy(); };
-  }, [viewerRef, mode, pickPoint]);
+  }, [viewerRef, mode, pickPoint, heightAutoBase]);
 
   // Clear cursor when panel closes (unmount) or mode changes
   useEffect(() => { cursorRef.current = null; setCursorTick((n) => n + 1); }, [mode]);
@@ -456,10 +512,30 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
               <ReadoutBlock mode={mode} m={measurements} units={units} />
             </div>
 
+            {mode === "height" && (
+              <div className="flex items-center justify-between rounded-md border border-amber-300/25 bg-amber-400/[0.06] px-2.5 py-1.5">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">Auto-base</div>
+                  <div className="text-[9px] text-white/55 leading-tight">
+                    {heightAutoBase ? "One click → top vs ground beneath" : "Click twice (base + top)"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setHeightAutoBase((v) => !v)}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${heightAutoBase ? "bg-amber-400/70" : "bg-white/15"}`}
+                  title="Toggle single-click height measurement"
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${heightAutoBase ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between text-[10px] text-white/55">
               <span>
                 {vertices.length === 0
-                  ? mode === "height" ? "Click 2 points (base + top)" : "Click the globe to add points"
+                  ? mode === "height"
+                    ? (heightAutoBase ? "Click the top of an object — height is measured automatically" : "Click 2 points (base + top)")
+                    : "Click the globe to add points"
                   : `${vertices.length} point${vertices.length === 1 ? "" : "s"} · right-click to undo`}
               </span>
               <div className="flex gap-1">
@@ -883,39 +959,6 @@ function sphericalPolygonArea(verts: { lng: number; lat: number }[]): number {
              (2 + Math.sin(CesiumMath.toRadians(p1.lat)) + Math.sin(CesiumMath.toRadians(p2.lat)));
   }
   return Math.abs(total * R * R / 2);
-}
-
-// ── Cursor / bearing helpers ─────────────────────────────────────────────
-function withCursor(vs: Vertex[], cursor: Vertex | null, cap = Infinity): Vertex[] {
-  if (!cursor || vs.length === 0) return vs;
-  const out = [...vs, cursor];
-  return out.length > cap ? out.slice(0, cap) : out;
-}
-function haversine(a: Vertex, b: Vertex): number {
-  const R = WGS84_MEAN_RADIUS;
-  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
-  const dφ = φ2 - φ1;
-  const dλ = CesiumMath.toRadians(b.lng - a.lng);
-  const s = Math.sin(dφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
-}
-function bearingDeg(a: Vertex, b: Vertex): number {
-  const φ1 = CesiumMath.toRadians(a.lat), φ2 = CesiumMath.toRadians(b.lat);
-  const dλ = CesiumMath.toRadians(b.lng - a.lng);
-  const y = Math.sin(dλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
-  return (CesiumMath.toDegrees(Math.atan2(y, x)) + 360) % 360;
-}
-function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: number): Vertex {
-  const R = WGS84_MEAN_RADIUS;
-  const δ = distanceMeters / R;
-  const θ = CesiumMath.toRadians(bearingDegrees);
-  const φ1 = CesiumMath.toRadians(from.lat);
-  const λ1 = CesiumMath.toRadians(from.lng);
-  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
-  const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
-                             Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
-  return { lng: ((CesiumMath.toDegrees(λ2) + 540) % 360) - 180, lat: CesiumMath.toDegrees(φ2), alt: from.alt };
 }
 
 // ── Live cursor label: floating pill anchored to the pointer with live
