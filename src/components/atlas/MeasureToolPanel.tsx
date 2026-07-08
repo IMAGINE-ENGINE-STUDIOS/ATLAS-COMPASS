@@ -513,6 +513,22 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                     units={units}
                     editing={editingId === m.id}
                     onEdit={() => setEditingId((cur) => cur === m.id ? null : m.id)}
+                    canUndo={editingId === m.id && editPast.length > 0}
+                    canRedo={editingId === m.id && editFuture.length > 0}
+                    onUndo={() => {
+                      if (editingId !== m.id || editPast.length === 0) return;
+                      const prev = editPast[editPast.length - 1];
+                      setEditPast((p) => p.slice(0, -1));
+                      setEditFuture((f) => [...f, m.vertices]);
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: prev } : x));
+                    }}
+                    onRedo={() => {
+                      if (editingId !== m.id || editFuture.length === 0) return;
+                      const next = editFuture[editFuture.length - 1];
+                      setEditFuture((f) => f.slice(0, -1));
+                      setEditPast((p) => [...p, m.vertices]);
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: next } : x));
+                    }}
                     onToggle={() => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, hidden: !x.hidden } : x))}
                     onDelete={() => { setLedger((prev) => prev.filter((x) => x.id !== m.id)); if (editingId === m.id) setEditingId(null); }}
                     onFocus={() => focus(m)}
