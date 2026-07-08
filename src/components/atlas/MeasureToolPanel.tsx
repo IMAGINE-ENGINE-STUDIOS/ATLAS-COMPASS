@@ -22,7 +22,6 @@ import {
   Cartographic,
   Color,
   EllipsoidGeodesic,
-  HeightReference,
   Math as CesiumMath,
   PolygonHierarchy,
   ScreenSpaceEventHandler,
@@ -32,7 +31,6 @@ import {
   LabelStyle,
   VerticalOrigin,
   Cartesian2,
-  ConstantProperty,
 } from "cesium";
 import { Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2 } from "lucide-react";
 
