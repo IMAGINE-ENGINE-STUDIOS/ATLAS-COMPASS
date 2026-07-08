@@ -364,9 +364,29 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             const groundAlt = sampleGroundBeneath(viewerRef.current, v);
             const top = v;
             const base: Vertex = { ...v, alt: Math.min(groundAlt, v.alt) };
-            return [base, top];
+            const next: Vertex[] = [base, top];
+            // Persist immediately so the measurement is not lost.
+            queueMicrotask(() => {
+              commitDraftIfValid(next, "height");
+              setVertices([]);
+            });
+            return next;
           }
-          if (prev.length >= 2) return [v];
+          // Manual mode: click base then top. After the 2nd click, auto-save
+          // and reset so the next click begins a fresh measurement instead
+          // of silently discarding the previous one.
+          if (prev.length >= 2) {
+            queueMicrotask(() => setVertices([v]));
+            return prev;
+          }
+          const next = [...prev, v];
+          if (next.length === 2) {
+            queueMicrotask(() => {
+              commitDraftIfValid(next, "height");
+              setVertices([]);
+            });
+          }
+          return next;
         }
         return [...prev, v];
       });
