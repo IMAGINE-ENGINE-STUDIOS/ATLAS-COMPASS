@@ -226,9 +226,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
   useEffect(() => { saveLedger(ledger); }, [ledger]);
 
-  const ledgerRef = useRef<SavedMeasurement[]>(ledger);
   useEffect(() => {
-    ledgerRef.current = ledger;
     requestSceneRender(viewerRef.current);
   }, [ledger, viewerRef]);
 
