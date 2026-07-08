@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 // CSS-only animations — no framer-motion in this heavy page
 import {
   ArrowLeft, Search, MapPin, Mountain, Building2, Navigation,
-  Maximize2, Minimize2, Globe, Crosshair, X,
+  Maximize2, Minimize2, Globe, Crosshair, MousePointer2, X,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
   Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
