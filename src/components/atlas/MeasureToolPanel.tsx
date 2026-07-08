@@ -90,6 +90,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const [vertices, setVertices] = useState<Vertex[]>([]);
   const [ledger, setLedger] = useState<SavedMeasurement[]>(() => loadLedger());
   const [expanded, setExpanded] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => { saveLedger(ledger); }, [ledger]);
 
