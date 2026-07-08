@@ -559,7 +559,7 @@ function LedgerRow({
   const color = MODE_COLOR[item.mode];
   const m = computeMeasurements(item.mode, item.vertices);
   const summary = shortLabel(item.mode, m, units);
-  const [editing, setEditing] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(item.label || summary);
 
   return (
@@ -568,22 +568,22 @@ function LedgerRow({
       style={{ borderLeft: `3px solid ${color}` }}
     >
       <div className="flex-1 min-w-0">
-        {editing ? (
+        {renaming ? (
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onBlur={() => { onRename(name.trim() || summary); setEditing(false); }}
+            onBlur={() => { onRename(name.trim() || summary); setRenaming(false); }}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
             className="w-full bg-transparent text-[11px] font-semibold outline-none border-b border-white/20"
           />
         ) : (
-          <button onDoubleClick={() => setEditing(true)} className="text-left w-full">
+          <button onDoubleClick={() => setRenaming(true)} className="text-left w-full">
             <div className="text-[11px] font-semibold truncate" style={{ color }}>
               {item.label || summary}
             </div>
             <div className="text-[9px] text-white/45 uppercase tracking-wider">
-              {item.mode} · {item.vertices.length} pts
+              {item.mode} · {item.vertices.length} pts{editing ? " · editing" : ""}
             </div>
           </button>
         )}
