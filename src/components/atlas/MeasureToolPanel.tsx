@@ -69,8 +69,12 @@ const MODE_COLOR: Record<Mode, string> = {
   height: "#fbbf24",
 };
 const RENDER_LIFT_METERS = 0.85;
-const RENDER_SAMPLE_STEP_METERS = 18;
-const RENDER_SAMPLE_MAX_STEPS = 48;
+// Draft (per-frame CallbackProperty) sampling — keep tiny to avoid stalls.
+const DRAFT_SAMPLE_STEP_METERS = 120;
+const DRAFT_SAMPLE_MAX_STEPS = 6;
+// Saved (built once) sampling — can afford more detail.
+const SAVED_SAMPLE_STEP_METERS = 25;
+const SAVED_SAMPLE_MAX_STEPS = 40;
 
 // ── Geometry helpers (hoisted; referenced by Cesium CallbackProperty
 // closures which run every render tick — must exist at module top level).
@@ -116,23 +120,14 @@ function requestSceneRender(viewer: Viewer | null | undefined) {
 
 function visibleSurfaceHeight(viewer: Viewer | null | undefined, v: Vertex): number {
   if (!viewer || viewer.isDestroyed()) return v.alt;
-  const heights = [v.alt];
+  // Only the cheap terrain lookup — sampleHeight / clampToHeight are expensive
+  // GPU picks and stall the frame loop when called from CallbackProperty.
+  let terrain = v.alt;
   try {
     const globeHeight = viewer.scene.globe.getHeight(Cartographic.fromDegrees(v.lng, v.lat));
-    if (finiteNumber(globeHeight)) heights.push(globeHeight);
+    if (finiteNumber(globeHeight)) terrain = globeHeight;
   } catch {}
-  try {
-    const sampleHeight = (viewer.scene as any).sampleHeight?.(Cartographic.fromDegrees(v.lng, v.lat, v.alt));
-    if (finiteNumber(sampleHeight)) heights.push(sampleHeight);
-  } catch {}
-  try {
-    const clamped = (viewer.scene as any).clampToHeight?.(Cartesian3.fromDegrees(v.lng, v.lat, v.alt + 250));
-    if (defined(clamped)) {
-      const c = Cartographic.fromCartesian(clamped);
-      if (finiteNumber(c.height)) heights.push(c.height);
-    }
-  } catch {}
-  return Math.max(...heights);
+  return v.alt >= terrain ? v.alt : terrain;
 }
 
 function safeRenderVertex(viewer: Viewer | null | undefined, v: Vertex, lift = RENDER_LIFT_METERS): Vertex {
@@ -157,7 +152,13 @@ function interpolateVertex(a: Vertex, b: Vertex, fraction: number): Vertex {
   };
 }
 
-function safePolylinePositions(viewer: Viewer | null | undefined, verts: Vertex[], closed = false): Cartesian3[] {
+function safePolylinePositions(
+  viewer: Viewer | null | undefined,
+  verts: Vertex[],
+  closed = false,
+  stepMeters: number = SAVED_SAMPLE_STEP_METERS,
+  maxSteps: number = SAVED_SAMPLE_MAX_STEPS,
+): Cartesian3[] {
   if (verts.length === 0) return [];
   const source = closed && verts.length > 2 ? [...verts, verts[0]] : verts;
   const out: Cartesian3[] = [];
@@ -168,10 +169,19 @@ function safePolylinePositions(viewer: Viewer | null | undefined, verts: Vertex[
     }
     const a = source[i - 1];
     const b = source[i];
-    const steps = Math.max(1, Math.min(RENDER_SAMPLE_MAX_STEPS, Math.ceil(haversine(a, b) / RENDER_SAMPLE_STEP_METERS)));
+    const steps = Math.max(1, Math.min(maxSteps, Math.ceil(haversine(a, b) / stepMeters)));
     for (let s = 1; s <= steps; s++) out.push(safeCartesian(viewer, interpolateVertex(a, b, s / steps)));
   }
   return out;
+}
+
+// Cheap variant for draft geometry driven by CallbackProperty (runs every frame).
+function draftPolylinePositions(
+  viewer: Viewer | null | undefined,
+  verts: Vertex[],
+  closed = false,
+): Cartesian3[] {
+  return safePolylinePositions(viewer, verts, closed, DRAFT_SAMPLE_STEP_METERS, DRAFT_SAMPLE_MAX_STEPS);
 }
 
 function measurementTagVertex(item: SavedMeasurement): Vertex | null {
