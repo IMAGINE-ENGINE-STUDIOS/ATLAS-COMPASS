@@ -337,18 +337,12 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         if (mode === "height") {
           // Auto-base: single click gives top + sampled ground → instant height.
           if (heightAutoBase) {
-            const viewer = viewerRef.current;
-            let groundAlt = 0;
-            try {
-              const carto = Cartographic.fromDegrees(v.lng, v.lat);
-              const h = viewer?.scene.globe.getHeight(carto);
-              if (typeof h === "number" && Number.isFinite(h)) groundAlt = h;
-            } catch {}
-            // If we clicked *below* the picked surface (e.g. ground), the tile
-            // pick will be ~= terrain height. Ensure we treat the higher of
-            // the two as the top.
-            const top = v.alt >= groundAlt ? v : { ...v, alt: groundAlt };
-            const base = v.alt >= groundAlt ? { ...v, alt: groundAlt } : v;
+            // Sample the visible mesh AROUND the click to find real ground
+            // (sampling directly under the click returns the roof, giving a
+            // measurement that passes through the object into the earth).
+            const groundAlt = sampleGroundBeneath(viewerRef.current, v);
+            const top = v;
+            const base: Vertex = { ...v, alt: Math.min(groundAlt, v.alt) };
             return [base, top];
           }
           if (prev.length >= 2) return [v];
