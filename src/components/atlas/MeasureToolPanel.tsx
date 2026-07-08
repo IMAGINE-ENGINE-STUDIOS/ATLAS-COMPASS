@@ -545,6 +545,7 @@ function MeasureMarkersOverlay({
 
 // ── Ledger row ────────────────────────────────────────────────────────────
 function LedgerRow({
+  // (declared above)
   item, units, editing, onEdit, onToggle, onDelete, onFocus, onRename,
 }: {
   item: SavedMeasurement;
