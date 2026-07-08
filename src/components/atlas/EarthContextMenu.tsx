@@ -29,17 +29,25 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
   const [view, setView] = useState<"root" | "levels">("root");
   const [levels, setLevels] = useState<LevelRow[] | null>(null);
   const [filter, setFilter] = useState("");
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number }>(() => ({
+    left: x, top: y, maxHeight: window.innerHeight - 16,
+  }));
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onDblClick = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
+    window.addEventListener("dblclick", onDblClick);
     return () => {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("dblclick", onDblClick);
     };
   }, [onClose]);
 
@@ -105,30 +113,61 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
     onClose();
   };
 
-  // clamp to viewport
+  // Clamp widget to viewport so it's never cropped. Measures the rendered
+  // size and repositions after mount / on content change / on resize.
   const W = 260;
-  const H = view === "levels" ? 380 : 240;
-  const left = Math.min(x, window.innerWidth - W - 8);
-  const top = Math.min(y, window.innerHeight - H - 8);
 
   const filtered = (levels ?? []).filter((l) =>
     !filter.trim() ? true : l.name.toLowerCase().includes(filter.toLowerCase()),
   );
 
+  useEffect(() => {
+    const measure = () => {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const margin = 8;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const maxHeight = vh - margin * 2;
+      const h = Math.min(rect.height || 0, maxHeight);
+      let left = x;
+      let top = y;
+      if (left + W + margin > vw) left = Math.max(margin, vw - W - margin);
+      if (left < margin) left = margin;
+      if (top + h + margin > vh) top = Math.max(margin, vh - h - margin);
+      if (top < margin) top = margin;
+      setPos((p) => (p.left === left && p.top === top && p.maxHeight === maxHeight ? p : { left, top, maxHeight }));
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", measure); };
+  }, [x, y, view, levels, filter]);
+
   return (
     <div
       ref={ref}
-      style={{ position: "fixed", left, top, width: W, zIndex: 9999 }}
+      style={{
+        position: "fixed",
+        left: pos.left,
+        top: pos.top,
+        width: W,
+        maxHeight: pos.maxHeight,
+        zIndex: 9999,
+        display: "flex",
+        flexDirection: "column",
+      }}
       className="rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl text-white overflow-hidden"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <div className="px-3 py-2 border-b border-white/10 text-[10px] font-mono text-white/70 flex items-center justify-between">
+      <div className="px-3 py-2 border-b border-white/10 text-[10px] font-mono text-white/70 flex items-center justify-between shrink-0">
         <span>{loc.lat.toFixed(5)}, {loc.lng.toFixed(5)}</span>
         <span className="text-white/40">{Math.round(loc.alt)}m</span>
       </div>
 
       {view === "root" && (
-        <div className="py-1">
+        <div className="py-1 overflow-y-auto">
           {onPlayHere && (
             <MenuItem
               icon={<PersonStanding className="w-3.5 h-3.5 text-emerald-300" />}
@@ -179,7 +218,7 @@ export default function EarthContextMenu({ x, y, loc, onClose, onCreatePOI, onPa
       )}
 
       {view === "levels" && (
-        <div className="flex flex-col" style={{ maxHeight: H - 40 }}>
+        <div className="flex flex-col flex-1 min-h-0">
           <div className="px-2 py-2 border-b border-white/10 flex items-center gap-2">
             <Search className="w-3.5 h-3.5 text-white/50" />
             <input
