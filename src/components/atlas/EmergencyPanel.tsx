@@ -81,9 +81,9 @@ export default function EmergencyPanel({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="absolute top-20 right-4 z-40 w-[calc(100vw-2rem)] max-w-80 animate-fade-in">
+    <div data-draggable-window className="absolute top-20 right-4 z-40 w-[calc(100vw-2rem)] max-w-80 animate-fade-in">
       <div className="p-3 rounded-xl border border-red-500/40 bg-red-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(239,68,68,0.35)]">
-        <div className="flex items-center gap-2 mb-2">
+        <div data-drag-handle className="flex items-center gap-2 mb-2 cursor-move select-none">
           <AlertTriangle className="w-4 h-4 text-red-400 animate-pulse" />
           <span className="text-sm font-bold text-red-200 tracking-wide">EMERGENCY MODE</span>
           <button onClick={load} className="ml-auto text-red-200/70 hover:text-white" title="Refresh">
