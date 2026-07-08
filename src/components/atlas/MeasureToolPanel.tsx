@@ -68,6 +68,9 @@ const MODE_COLOR: Record<Mode, string> = {
   area: "#a78bfa",
   height: "#fbbf24",
 };
+const RENDER_LIFT_METERS = 0.85;
+const RENDER_SAMPLE_STEP_METERS = 18;
+const RENDER_SAMPLE_MAX_STEPS = 48;
 
 // ── Geometry helpers (hoisted; referenced by Cesium CallbackProperty
 // closures which run every render tick — must exist at module top level).
@@ -101,6 +104,91 @@ function destinationPoint(from: Vertex, bearingDegrees: number, distanceMeters: 
   const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
                              Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
   return { lng: ((CesiumMath.toDegrees(λ2) + 540) % 360) - 180, lat: CesiumMath.toDegrees(φ2), alt: from.alt };
+}
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function requestSceneRender(viewer: Viewer | null | undefined) {
+  try { if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender(); } catch {}
+}
+
+function visibleSurfaceHeight(viewer: Viewer | null | undefined, v: Vertex): number {
+  if (!viewer || viewer.isDestroyed()) return v.alt;
+  const heights = [v.alt];
+  try {
+    const globeHeight = viewer.scene.globe.getHeight(Cartographic.fromDegrees(v.lng, v.lat));
+    if (finiteNumber(globeHeight)) heights.push(globeHeight);
+  } catch {}
+  try {
+    const sampleHeight = (viewer.scene as any).sampleHeight?.(Cartographic.fromDegrees(v.lng, v.lat, v.alt));
+    if (finiteNumber(sampleHeight)) heights.push(sampleHeight);
+  } catch {}
+  try {
+    const clamped = (viewer.scene as any).clampToHeight?.(Cartesian3.fromDegrees(v.lng, v.lat, v.alt + 250));
+    if (defined(clamped)) {
+      const c = Cartographic.fromCartesian(clamped);
+      if (finiteNumber(c.height)) heights.push(c.height);
+    }
+  } catch {}
+  return Math.max(...heights);
+}
+
+function safeRenderVertex(viewer: Viewer | null | undefined, v: Vertex, lift = RENDER_LIFT_METERS): Vertex {
+  return { ...v, alt: visibleSurfaceHeight(viewer, v) + lift };
+}
+
+function safeCartesian(viewer: Viewer | null | undefined, v: Vertex, lift = RENDER_LIFT_METERS): Cartesian3 {
+  const p = safeRenderVertex(viewer, v, lift);
+  return Cartesian3.fromDegrees(p.lng, p.lat, p.alt);
+}
+
+function interpolateVertex(a: Vertex, b: Vertex, fraction: number): Vertex {
+  const geodesic = new EllipsoidGeodesic(
+    Cartographic.fromDegrees(a.lng, a.lat),
+    Cartographic.fromDegrees(b.lng, b.lat),
+  );
+  const c = geodesic.interpolateUsingFraction(fraction);
+  return {
+    lng: CesiumMath.toDegrees(c.longitude),
+    lat: CesiumMath.toDegrees(c.latitude),
+    alt: a.alt + (b.alt - a.alt) * fraction,
+  };
+}
+
+function safePolylinePositions(viewer: Viewer | null | undefined, verts: Vertex[], closed = false): Cartesian3[] {
+  if (verts.length === 0) return [];
+  const source = closed && verts.length > 2 ? [...verts, verts[0]] : verts;
+  const out: Cartesian3[] = [];
+  for (let i = 0; i < source.length; i++) {
+    if (i === 0) {
+      out.push(safeCartesian(viewer, source[i]));
+      continue;
+    }
+    const a = source[i - 1];
+    const b = source[i];
+    const steps = Math.max(1, Math.min(RENDER_SAMPLE_MAX_STEPS, Math.ceil(haversine(a, b) / RENDER_SAMPLE_STEP_METERS)));
+    for (let s = 1; s <= steps; s++) out.push(safeCartesian(viewer, interpolateVertex(a, b, s / steps)));
+  }
+  return out;
+}
+
+function measurementTagVertex(item: SavedMeasurement): Vertex | null {
+  const vs = item.vertices;
+  if (vs.length === 0) return null;
+  if (item.mode === "height" && vs.length >= 2) {
+    const [a, b] = vs;
+    const high = a.alt >= b.alt ? a : b;
+    const low = a.alt >= b.alt ? b : a;
+    return { lng: high.lng, lat: high.lat, alt: low.alt + (high.alt - low.alt) * 0.55 };
+  }
+  if (vs.length === 1) return vs[0];
+  const mid = (vs.length - 1) / 2;
+  const left = Math.floor(mid);
+  const right = Math.ceil(mid);
+  if (left === right) return vs[left];
+  return interpolateVertex(vs[left], vs[right], mid - left);
 }
 
 // ── Ledger persistence ────────────────────────────────────────────────────
@@ -137,6 +225,10 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   useEffect(() => { setEditPast([]); setEditFuture([]); }, [editingId]);
 
   useEffect(() => { saveLedger(ledger); }, [ledger]);
+
+  useEffect(() => {
+    requestSceneRender(viewerRef.current);
+  }, [ledger, viewerRef]);
 
   const verticesRef = useRef<Vertex[]>([]);
   useEffect(() => { verticesRef.current = vertices; }, [vertices]);
@@ -248,7 +340,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            safePolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current)), false),
           width: 3,
           material: color,
           arcType: ArcType.GEODESIC,
@@ -260,19 +352,19 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polygon: {
           hierarchy: new CallbackProperty(() =>
             new PolygonHierarchy(
-              withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt))
+              withCursor(verticesRef.current, cursorRef.current).map((v) => safeCartesian(viewer, v))
             ), false) as any,
           material: color.withAlpha(0.22),
           outline: false,
-          height: 0,
+          perPositionHeight: true,
         },
       }));
       // Outline as a closed polyline so it renders reliably over 3D tiles.
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
-            const pts = withCursor(verticesRef.current, cursorRef.current).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
-            return pts.length >= 3 ? [...pts, pts[0]] : pts;
+            const vs = withCursor(verticesRef.current, cursorRef.current);
+            return safePolylinePositions(viewer, vs, vs.length >= 3);
           }, false),
           width: 3,
           material: color,
@@ -287,10 +379,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             const vs = verticesRef.current;
             const c = cursorRef.current;
             if (vs.length < 2 || !c) return [];
-            return [
-              Cartesian3.fromDegrees(c.lng, c.lat, c.alt),
-              Cartesian3.fromDegrees(vs[0].lng, vs[0].lat, vs[0].alt),
-            ];
+            return safePolylinePositions(viewer, [c, vs[0]]);
           }, false),
           width: 2,
           material: guideDash(),
@@ -307,8 +396,10 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             const [a, b] = vs;
             const lowAlt = Math.min(a.alt, b.alt);
             const high = a.alt >= b.alt ? a : b;
-            const base = Cartesian3.fromDegrees(high.lng, high.lat, lowAlt);
-            return [base, Cartesian3.fromDegrees(high.lng, high.lat, high.alt)];
+            return [
+              safeCartesian(viewer, { ...high, alt: lowAlt }),
+              safeCartesian(viewer, high),
+            ];
           }, false),
           width: 3,
           material: color,
@@ -319,7 +410,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       ents.push(viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() =>
-            withCursor(verticesRef.current, cursorRef.current, 2).map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt)), false),
+            safePolylinePositions(viewer, withCursor(verticesRef.current, cursorRef.current, 2)), false),
           width: 2,
           material: Color.fromCssColorString("#38bdf8"),
           arcType: ArcType.NONE,
@@ -344,10 +435,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
               : bearingDeg(anchor, c);
             const dist = Math.max(haversine(anchor, c) * 2, 150);
             const dest = destinationPoint(anchor, bearing + offsetDeg, dist);
-            return [
-              Cartesian3.fromDegrees(anchor.lng, anchor.lat, anchor.alt),
-              Cartesian3.fromDegrees(dest.lng, dest.lat, anchor.alt),
-            ];
+            return safePolylinePositions(viewer, [anchor, dest]);
           }, false),
           width: 1.5,
           material: guideDash(),
@@ -377,32 +465,31 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
     for (const m of ledger) {
       if (m.hidden) continue;
       const color = Color.fromCssColorString(MODE_COLOR[m.mode]);
-      const pts = m.vertices.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
+      const pts = m.vertices.map((v) => safeCartesian(viewer, v));
       if (m.mode === "distance" && pts.length >= 2) {
         ents.push(viewer.entities.add({
-          polyline: { positions: pts, width: 2.5, material: color, arcType: ArcType.GEODESIC,
+          polyline: { positions: safePolylinePositions(viewer, m.vertices), width: 2.5, material: color, arcType: ArcType.GEODESIC,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
       } else if (m.mode === "area" && pts.length >= 3) {
         ents.push(viewer.entities.add({
-          polygon: { hierarchy: new PolygonHierarchy(pts), material: color.withAlpha(0.18), height: 0 },
+          polygon: { hierarchy: new PolygonHierarchy(pts), material: color.withAlpha(0.18), perPositionHeight: true },
         }));
         ents.push(viewer.entities.add({
-          polyline: { positions: [...pts, pts[0]], width: 2.5, material: color, arcType: ArcType.GEODESIC,
+          polyline: { positions: safePolylinePositions(viewer, m.vertices, true), width: 2.5, material: color, arcType: ArcType.GEODESIC,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
       } else if (m.mode === "height" && pts.length === 2) {
         const [a, b] = m.vertices;
         const lowAlt = Math.min(a.alt, b.alt);
         const high = a.alt >= b.alt ? a : b;
-        const base = Cartesian3.fromDegrees(high.lng, high.lat, lowAlt);
         ents.push(viewer.entities.add({
-          polyline: { positions: [base, Cartesian3.fromDegrees(high.lng, high.lat, high.alt)],
+          polyline: { positions: [safeCartesian(viewer, { ...high, alt: lowAlt }), safeCartesian(viewer, high)],
             width: 2.5, material: color, arcType: ArcType.NONE,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
         ents.push(viewer.entities.add({
-          polyline: { positions: pts, width: 2, material: Color.fromCssColorString("#38bdf8"),
+          polyline: { positions: safePolylinePositions(viewer, m.vertices), width: 2, material: Color.fromCssColorString("#38bdf8"),
             arcType: ArcType.NONE,
             depthFailMaterial: Color.fromCssColorString("#38bdf8").withAlpha(0.5) },
         }));
@@ -452,6 +539,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         viewerRef={viewerRef}
         draft={{ mode, vertices }}
         ledger={ledger}
+        units={units}
       />
       {editingId && (() => {
         const editItem = ledger.find((x) => x.id === editingId);
@@ -462,7 +550,9 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
             item={editItem}
             pickPoint={pickPoint}
             onChange={(newVerts) => setLedger((prev) => prev.map((x) =>
-              x.id === editingId ? { ...x, vertices: newVerts } : x))}
+              x.id === editingId
+                ? { ...x, vertices: newVerts, label: shortLabel(x.mode, computeMeasurements(x.mode, newVerts), units) }
+                : x))}
             onCommit={(prevVerts) => {
               setEditPast((p) => [...p, prevVerts]);
               setEditFuture([]);
@@ -596,14 +686,18 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                       const prev = editPast[editPast.length - 1];
                       setEditPast((p) => p.slice(0, -1));
                       setEditFuture((f) => [...f, m.vertices]);
-                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: prev } : x));
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id
+                        ? { ...x, vertices: prev, label: shortLabel(x.mode, computeMeasurements(x.mode, prev), units) }
+                        : x));
                     }}
                     onRedo={() => {
                       if (editingId !== m.id || editFuture.length === 0) return;
                       const next = editFuture[editFuture.length - 1];
                       setEditFuture((f) => f.slice(0, -1));
                       setEditPast((p) => [...p, m.vertices]);
-                      setLedger((prevL) => prevL.map((x) => x.id === m.id ? { ...x, vertices: next } : x));
+                      setLedger((prevL) => prevL.map((x) => x.id === m.id
+                        ? { ...x, vertices: next, label: shortLabel(x.mode, computeMeasurements(x.mode, next), units) }
+                        : x));
                     }}
                     onToggle={() => setLedger((prev) => prev.map((x) => x.id === m.id ? { ...x, hidden: !x.hidden } : x))}
                     onDelete={() => { setLedger((prev) => prev.filter((x) => x.id !== m.id)); if (editingId === m.id) setEditingId(null); }}
@@ -622,30 +716,41 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
 // ── HTML overlay for numbered markers (glass-pill style) ──────────────────
 function MeasureMarkersOverlay({
-  viewerRef, draft, ledger,
+  viewerRef, draft, ledger, units,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   draft: { mode: Mode; vertices: Vertex[] };
   ledger: SavedMeasurement[];
+  units: Units;
 }) {
   const nodesRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [, tick] = useState(0);
   // We DON'T rerender per frame; the DOM nodes are repositioned imperatively.
 
-  // Flat list of markers: draft first, then each visible saved item.
+  // Flat list of true vertex handles plus a separate measurement tag.
   const items = useMemo(() => {
-    const out: { key: string; index: number; total: number; vertex: Vertex; color: string; kind: "draft" | "saved"; label?: string }[] = [];
+    const out: { key: string; index?: number; total?: number; vertex: Vertex; color: string; kind: "draft" | "saved" | "tag"; label?: string }[] = [];
     draft.vertices.forEach((v, i) => {
       out.push({ key: `draft:${i}`, index: i + 1, total: draft.vertices.length, vertex: v, color: MODE_COLOR[draft.mode], kind: "draft" });
     });
     ledger.forEach((m) => {
       if (m.hidden) return;
       m.vertices.forEach((v, i) => {
-        out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved", label: i === 0 ? m.label : undefined });
+        out.push({ key: `${m.id}:${i}`, index: i + 1, total: m.vertices.length, vertex: v, color: MODE_COLOR[m.mode], kind: "saved" });
       });
+      const tagVertex = measurementTagVertex(m);
+      if (tagVertex) {
+        out.push({
+          key: `${m.id}:tag`,
+          vertex: tagVertex,
+          color: MODE_COLOR[m.mode],
+          kind: "tag",
+          label: shortLabel(m.mode, computeMeasurements(m.mode, m.vertices), units),
+        });
+      }
     });
     return out;
-  }, [draft, ledger]);
+  }, [draft, ledger, units]);
 
   useLayoutEffect(() => { tick((n) => n + 1); }, [items.length]);
 
@@ -663,7 +768,7 @@ function MeasureMarkersOverlay({
         const node = nodesRef.current.get(it.key);
         if (!node) continue;
         try {
-          const world = Cartesian3.fromDegrees(it.vertex.lng, it.vertex.lat, it.vertex.alt);
+          const world = safeCartesian(viewer, it.vertex, it.kind === "tag" ? 2.2 : RENDER_LIFT_METERS);
           const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
           if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) { node.style.opacity = "0"; continue; }
           const win = SceneTransforms.worldToWindowCoordinates(scene, world);
@@ -690,18 +795,20 @@ function MeasureMarkersOverlay({
           style={{ transform: "translate3d(-9999px,-9999px,0)", opacity: 0 }}
         >
           <div className="relative flex items-center gap-1.5">
-            <div
-              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums backdrop-blur-xl border-2 shadow-lg"
-              style={{
-                background: `${it.color}33`,
-                borderColor: it.color,
-                color: "#fff",
-                boxShadow: `0 4px 14px ${it.color}66, 0 0 0 1px ${it.color}55`,
-                fontFeatureSettings: '"tnum" 1, "ss01" 1',
-              }}
-            >
-              {it.index}
-            </div>
+            {it.kind !== "tag" && (
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums backdrop-blur-xl border-2 shadow-lg"
+                style={{
+                  background: `${it.color}33`,
+                  borderColor: it.color,
+                  color: "#fff",
+                  boxShadow: `0 4px 14px ${it.color}66, 0 0 0 1px ${it.color}55`,
+                  fontFeatureSettings: '"tnum" 1, "ss01" 1',
+                }}
+              >
+                {it.index}
+              </div>
+            )}
             {it.label && (
               <div
                 className="backdrop-blur-xl rounded-full px-2 py-0.5 text-[10px] font-mono tabular-nums whitespace-nowrap"
@@ -766,7 +873,7 @@ function LedgerRow({
         ) : (
           <button onDoubleClick={() => setRenaming(true)} className="text-left w-full">
             <div className="text-[11px] font-semibold truncate" style={{ color }}>
-              {item.label || summary}
+              {summary}
             </div>
             <div className="text-[9px] text-white/45 uppercase tracking-wider">
               {item.mode} · {item.vertices.length} pts{editing ? " · editing" : ""}
@@ -1075,7 +1182,7 @@ function EditHandlesOverlay({
         const node = nodesRef.current.get(i);
         if (!node) return;
         try {
-          const world = Cartesian3.fromDegrees(v.lng, v.lat, v.alt);
+          const world = safeCartesian(viewer, v, 2.4);
           const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
           if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) { node.style.opacity = "0"; return; }
           const win = SceneTransforms.worldToWindowCoordinates(scene, world);
@@ -1118,6 +1225,7 @@ function EditHandlesOverlay({
       vertsRef.current = next;
       moved = true;
       onChange(next);
+      requestSceneRender(viewer);
     };
     const onUp = () => {
       controller.enableInputs = prevEnabled;
@@ -1125,6 +1233,7 @@ function EditHandlesOverlay({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       if (moved) onCommit?.(snapshot);
+      requestSceneRender(viewer);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
