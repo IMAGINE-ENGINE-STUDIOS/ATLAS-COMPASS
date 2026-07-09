@@ -386,6 +386,22 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
 
+    // Double-click on a replacement 3D model → open its transform widget.
+    handler.setInputAction((click: any) => {
+      const picked = viewer.scene.pick(click.position);
+      const eid = picked?.id?.id;
+      if (typeof eid !== "string") return;
+      // Match the entity id back to its osm id via our tracking map.
+      for (const [osmId, entityId] of replacementEntities.current.entries()) {
+        if (entityId === eid) {
+          viewer.trackedEntity = undefined;
+          viewer.selectedEntity = undefined;
+          setEditingOsmId(osmId);
+          return;
+        }
+      }
+    }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (marqueeActiveRef.current) setMarqueeActive(false);
