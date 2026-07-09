@@ -398,6 +398,19 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const cursorRef = useRef<Vertex | null>(null);
   const [cursorTick, setCursorTick] = useState(0);
 
+  // Roof: densified (mesh-snapped) boundary cache — recomputed only when
+  // vertices change so per-frame reads are O(1).
+  const roofSnapRef = useRef<Cartesian3[]>([]);
+  useEffect(() => {
+    if (mode !== "roof") { roofSnapRef.current = []; return; }
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) { roofSnapRef.current = []; return; }
+    if (vertices.length < 2) { roofSnapRef.current = []; return; }
+    // Cheaper step for the live draft; commit rebuilds at high resolution.
+    roofSnapRef.current = densifyRoofBoundary(viewer, vertices, 3, 20);
+    requestSceneRender(viewer);
+  }, [vertices, mode, viewerRef]);
+
   // ── Precise picker
   const pickPoint = useCallback((position: { x: number; y: number }): Vertex | null => {
     const viewer = viewerRef.current;
