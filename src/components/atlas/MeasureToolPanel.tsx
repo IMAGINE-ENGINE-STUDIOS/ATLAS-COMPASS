@@ -677,7 +677,9 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
       } else if ((m.mode === "area" || m.mode === "roof") && pts.length >= 3) {
         const roof = m.mode === "roof";
         const roofPts = roof
-          ? m.vertices.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS))
+          // Densify each edge with sampled mesh heights so the outline
+          // snaps onto the actual roof surface (dormers, ridges, valleys).
+          ? densifyRoofBoundary(viewer, m.vertices)
           : pts;
         ents.push(viewer.entities.add({
           polygon: { hierarchy: new PolygonHierarchy(roofPts), material: color.withAlpha(0.18), perPositionHeight: true },
