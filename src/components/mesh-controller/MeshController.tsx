@@ -1,11 +1,14 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import {
   Move, RotateCcw, Scale, X, Check, ArrowDown,
   Plus, Minus, Scissors, Grid3x3, Square as SquareIcon, Circle as CircleIcon,
-  Pencil, RotateCw, ArrowUp, Waves, Layers, Trash2, Undo2, Redo2,
+  Pencil, RotateCw, ArrowUp, Waves, Layers, Trash2, Undo2, Redo2, Boxes,
 } from "lucide-react";
 import type { Viewer } from "cesium";
-import ModelGizmoOverlay from "@/components/ModelGizmoOverlay";
+import ModelGizmoOverlay from "./MeshControllerGizmo";
+
+// Heavy R3F editor — loaded on demand only when the Mesh tab is opened.
+const MeshEditorModal = lazy(() => import("./MeshEditor/MeshEditorModal"));
 
 export interface TransformData {
   lat: number;
@@ -48,6 +51,15 @@ interface Props {
    *  admin) is enforced by the parent (RLS on the server, ownership check
    *  on local models). */
   onDelete?: () => void | Promise<void>;
+  /** Optional GLB source for the Mesh Editor tab. Accepts a `Blob`, an
+   *  `ArrayBuffer`, or a fetchable URL. When provided the "Mesh" tab is
+   *  enabled; when omitted the tab renders a placeholder note. */
+  meshSource?: Blob | ArrayBuffer | string | null;
+  /** Called with the re-baked GLB after the user hits "Apply" in the mesh
+   *  editor. Parents persist the new bytes (SpaceshipPage → blob store,
+   *  AtlasBuildingsOverlay → upload + patch record) and refresh the
+   *  Cesium entity. */
+  onMeshApply?: (glb: Blob) => void | Promise<void>;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
@@ -115,11 +127,12 @@ export default function ModelTransformWidget({
   modelName, initial, onUpdate, onApply, onClose, onSnapToGround,
   cropRadius = 0, onCropTile, onUncropTile,
   cropBase, onCropBaseChange, onResetTerrain, terrainEditing, onToggleTerrainEditing,
-  viewerRef, onDelete,
+  viewerRef, onDelete, meshSource, onMeshApply,
 }: Props) {
   const [data, setData] = useState<TransformData>(initial);
-  const [tab, setTab] = useState<"position" | "rotation" | "scale">("position");
+  const [tab, setTab] = useState<"position" | "rotation" | "scale" | "mesh">("position");
   const [cropInput, setCropInput] = useState<number>(cropRadius > 0 ? cropRadius : 30);
+  const [meshEditorOpen, setMeshEditorOpen] = useState(false);
 
   // ── Undo / redo for gizmo drag operations.
   // Each entry is a full TransformData snapshot captured on drag START.
@@ -252,6 +265,7 @@ export default function ModelTransformWidget({
     { key: "position" as const, label: "Position", icon: <Move className="w-3 h-3" /> },
     { key: "rotation" as const, label: "Rotation", icon: <RotateCcw className="w-3 h-3" /> },
     { key: "scale" as const, label: "Scale", icon: <Scale className="w-3 h-3" /> },
+    { key: "mesh" as const, label: "Mesh", icon: <Boxes className="w-3 h-3" /> },
   ];
 
   return (
@@ -260,7 +274,7 @@ export default function ModelTransformWidget({
       <ModelGizmoOverlay
         viewerRef={viewerRef}
         transform={data}
-        mode={tab}
+        mode={tab === "mesh" ? "position" : tab}
         onChange={(partial) => update(partial)}
         onDragStart={onGizmoDragStart}
         onDragEnd={onGizmoDragEnd}
