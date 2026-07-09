@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Brush, Upload, Trash2, X, Paintbrush2 } from "lucide-react";
+import { Upload, Trash2, X, Paintbrush2, Droplet, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { SceneObject, FaceOverride, RGBA, ModelObject } from "@/lib/levelTypes";
 import { faceKeyLabel, objectFaceKeys } from "@/lib/face-system";
 import {
@@ -15,6 +14,9 @@ import {
   fileToDataUrl,
   type LibraryTexture,
 } from "@/lib/texture-library";
+
+/** Preset colour chips — mirror the Mesh Editor palette for continuity. */
+const SWATCHES = ["#ff5577", "#3b82f6", "#22d3ee", "#f5f5f5", "#0f172a", "#facc15", "#84cc16", "#a855f7"];
 
 function rgbaToHex(c: RGBA): string {
   const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
@@ -62,6 +64,7 @@ export function FacePaintPanel({
   const [rotation, setRotation] = useState(0);
   const [builtins] = useState<LibraryTexture[]>(() => getBuiltinTextures());
   const [saved, setSaved] = useState<LibraryTexture[]>([]);
+  const [textureTab, setTextureTab] = useState<"gallery" | "saved">("gallery");
   useEffect(() => { setSaved(getSavedTextures(projectId)); }, [projectId]);
 
   const selectionCount = selectedFaces.size;
@@ -131,153 +134,173 @@ export function FacePaintPanel({
   };
 
   return (
-    <div className="space-y-2 border border-border/60 rounded p-2">
+    <div className="space-y-2.5 rounded-xl border border-white/[0.08] bg-gradient-to-br from-black/60 to-black/30 backdrop-blur-md p-2.5 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.6)]">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold flex items-center gap-1">
-          <Paintbrush2 className="w-3.5 h-3.5" /> Face painter
+        <Label className="text-[11px] font-semibold flex items-center gap-1.5 uppercase tracking-wider text-white/80">
+          <Paintbrush2 className="w-3 h-3 text-fuchsia-300" /> Face painter
         </Label>
-        <Button
-          size="sm"
-          variant={active ? "default" : "outline"}
-          className="h-7 px-2 text-[11px]"
+        <button
           disabled={disabled}
           onClick={onToggleActive}
+          className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all ${
+            active
+              ? "bg-gradient-to-r from-fuchsia-500/40 to-cyan-500/30 text-white border border-fuchsia-400/60 shadow-[0_0_18px_-4px_rgba(217,70,239,0.6)]"
+              : "bg-black/60 border border-white/[0.10] text-white/80 hover:bg-white/[0.08]"
+          } disabled:opacity-40 disabled:cursor-not-allowed`}
         >
-          {active ? "Exit paint" : "Paint faces"}
-        </Button>
+          {active ? "Painting" : "Enable"}
+        </button>
       </div>
+
       {active && (
         <>
-          <p className="text-[10px] text-muted-foreground">
-            Click any face to select (green tint). Shift+click to add. {isModel ? "Each click selects the mesh under the cursor." : ""}
+          <p className="text-[10px] text-white/50 leading-snug">
+            Click any face to select. Shift+click to add. {isModel ? "Each click picks the mesh under the cursor." : ""}
           </p>
-          <div className="flex items-center justify-between text-[11px]">
-            <span>{selectionCount} face{selectionCount === 1 ? "" : "s"} selected</span>
+
+          <div className="flex items-center justify-between text-[10px] text-white/75">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {selectionCount} face{selectionCount === 1 ? "" : "s"} selected
+            </span>
             <div className="flex gap-1">
-              <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px]"
-                disabled={selectionCount === 0} onClick={onClearSelection}>
-                <X className="w-3 h-3" /> Clear
-              </Button>
+              <button
+                disabled={selectionCount === 0}
+                onClick={onClearSelection}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-white/70 hover:bg-white/[0.08] disabled:opacity-30"
+              ><X className="w-2.5 h-2.5" /> Clear</button>
+              <button
+                disabled={disabled || selectionCount === 0}
+                onClick={resetSelected}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-white/70 hover:bg-red-500/20 hover:text-red-200 disabled:opacity-30"
+                title="Remove overrides on selected faces"
+              ><Trash2 className="w-2.5 h-2.5" /> Reset</button>
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-            <div>
-              <Label className="text-[10px]">Color</Label>
-              <Input
-                type="color"
-                value={rgbaToHex(color)}
-                disabled={disabled}
-                onChange={(e) => {
-                  const next = hexToRgba(e.target.value, opacity);
-                  setColor(next);
-                  applyOverride({ color: next, opacity });
-                }}
-                className="h-8 w-full p-1"
-              />
-            </div>
-            <Button
-              size="sm" variant="outline" className="h-8 text-[10px] mt-4"
-              disabled={disabled || selectionCount === 0} onClick={resetSelected}
-              title="Remove overrides on selected faces"
-            >
-              <Trash2 className="w-3 h-3" /> Reset
-            </Button>
+          {/* Swatch strip */}
+          <div className="flex items-center gap-1.5">
+            {SWATCHES.map((sw) => {
+              const isActive = rgbaToHex(color).toLowerCase() === sw.toLowerCase();
+              return (
+                <button
+                  key={sw}
+                  onClick={() => {
+                    const next = hexToRgba(sw, opacity);
+                    setColor(next);
+                    applyOverride({ color: next, opacity });
+                  }}
+                  className={`w-5 h-5 rounded-full border transition-transform ${isActive ? "border-white scale-110 ring-2 ring-white/40" : "border-white/20 hover:scale-110"}`}
+                  style={{ background: sw }}
+                  title={sw}
+                />
+              );
+            })}
           </div>
+
+          <label className="flex items-center gap-2 text-[10px] text-white/75">
+            <Droplet className="w-3 h-3 text-white/50" />
+            <Input
+              type="color"
+              value={rgbaToHex(color)}
+              disabled={disabled}
+              onChange={(e) => {
+                const next = hexToRgba(e.target.value, opacity);
+                setColor(next);
+                applyOverride({ color: next, opacity });
+              }}
+              className="h-7 w-9 p-0.5 bg-black/60 border-white/[0.10]"
+            />
+            <span className="flex-1 font-mono text-white/70 text-[10px] px-1.5 py-1 rounded bg-black/60 border border-white/[0.08]">
+              {rgbaToHex(color)}
+            </span>
+          </label>
+
           <div>
-            <Label className="text-[10px]">Opacity {opacity.toFixed(2)}</Label>
+            <div className="flex items-center justify-between text-[10px] text-white/75">
+              <span>Opacity</span>
+              <span className="font-mono text-white/60">{opacity.toFixed(2)}</span>
+            </div>
             <Slider value={[opacity]} min={0} max={1} step={0.05}
               onValueChange={([v]) => { setOpacity(v); applyOverride({ opacity: v }); }} />
           </div>
 
-          <Tabs defaultValue="gallery" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-7">
-              <TabsTrigger value="gallery" className="text-[10px]">Gallery</TabsTrigger>
-              <TabsTrigger value="saved" className="text-[10px]">My textures</TabsTrigger>
-              <TabsTrigger value="upload" className="text-[10px]">Upload</TabsTrigger>
-            </TabsList>
-            <TabsContent value="gallery" className="m-0 pt-2">
-              <TextureGrid
-                items={builtins}
-                activeUrl={textureUrl}
-                onPick={(t) => {
-                  setTextureUrl(t.url);
-                  applyOverride({ textureUrl: t.url, repeat: [repeatX, repeatY], rotation });
+          {/* Texture card */}
+          <div className="rounded-lg border border-white/[0.06] bg-black/40 p-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-widest text-white/50 flex items-center gap-1">
+                <ImageIcon className="w-2.5 h-2.5" /> Texture
+              </span>
+              <div className="flex gap-0.5">
+                {(["gallery", "saved"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTextureTab(t)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ${textureTab === t ? "bg-white/[0.12] text-white" : "text-white/50 hover:text-white/80"}`}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+            <TextureGrid
+              items={textureTab === "gallery" ? builtins : saved}
+              activeUrl={textureUrl}
+              onPick={(t) => {
+                setTextureUrl(t.url);
+                applyOverride({ textureUrl: t.url, repeat: [repeatX, repeatY], rotation });
+              }}
+              onRemove={textureTab === "saved" ? (t) => {
+                removeSavedTexture(projectId, t.id);
+                setSaved(getSavedTextures(projectId));
+              } : undefined}
+              emptyLabel={textureTab === "saved" ? "Upload a texture to save it here." : undefined}
+            />
+            <label className="block">
+              <div className="flex items-center justify-center gap-1 px-2 py-1 rounded bg-black/60 border border-white/[0.08] text-white/80 text-[10px] cursor-pointer hover:bg-white/[0.08]">
+                <Upload className="w-3 h-3" /> Upload JPG/PNG
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={disabled}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload(f);
+                  e.target.value = "";
                 }}
               />
-            </TabsContent>
-            <TabsContent value="saved" className="m-0 pt-2">
-              {saved.length === 0 ? (
-                <p className="text-[10px] text-muted-foreground italic">Upload a texture to save it here.</p>
-              ) : (
-                <TextureGrid
-                  items={saved}
-                  activeUrl={textureUrl}
-                  onPick={(t) => {
-                    setTextureUrl(t.url);
-                    applyOverride({ textureUrl: t.url, repeat: [repeatX, repeatY], rotation });
-                  }}
-                  onRemove={(t) => {
-                    removeSavedTexture(projectId, t.id);
-                    setSaved(getSavedTextures(projectId));
-                  }}
-                />
-              )}
-            </TabsContent>
-            <TabsContent value="upload" className="m-0 pt-2">
-              <label className="block">
-                <Button asChild size="sm" variant="outline" className="w-full h-8 text-[11px]" disabled={disabled}>
-                  <span><Upload className="w-3 h-3 mr-1" /> Upload JPG/PNG</span>
-                </Button>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={disabled}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleUpload(f);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Uploads are saved to your project library.
-              </p>
-            </TabsContent>
-          </Tabs>
+            </label>
+          </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 text-[10px]">
             <div>
-              <Label className="text-[10px]">Repeat X {repeatX.toFixed(2)}</Label>
+              <div className="flex justify-between text-white/70"><span>Repeat X</span><span className="font-mono">{repeatX.toFixed(2)}</span></div>
               <Slider value={[repeatX]} min={0.1} max={10} step={0.1}
                 onValueChange={([v]) => { setRepeatX(v); applyOverride({ repeat: [v, repeatY] }); }} />
             </div>
             <div>
-              <Label className="text-[10px]">Repeat Y {repeatY.toFixed(2)}</Label>
+              <div className="flex justify-between text-white/70"><span>Repeat Y</span><span className="font-mono">{repeatY.toFixed(2)}</span></div>
               <Slider value={[repeatY]} min={0.1} max={10} step={0.1}
                 onValueChange={([v]) => { setRepeatY(v); applyOverride({ repeat: [repeatX, v] }); }} />
             </div>
           </div>
-          <div>
-            <Label className="text-[10px]">Rotation {rotation.toFixed(2)}</Label>
+          <div className="text-[10px]">
+            <div className="flex justify-between text-white/70"><span>Rotation</span><span className="font-mono">{rotation.toFixed(2)}</span></div>
             <Slider value={[rotation]} min={-Math.PI} max={Math.PI} step={0.05}
               onValueChange={([v]) => { setRotation(v); applyOverride({ rotation: v }); }} />
           </div>
 
           {!isModel && allKeys.length > 1 && (
             <details className="text-[10px]">
-              <summary className="cursor-pointer text-muted-foreground">All faces ({allKeys.length})</summary>
-              <div className="flex flex-wrap gap-1 mt-1">
+              <summary className="cursor-pointer text-white/50 hover:text-white/80">All faces ({allKeys.length})</summary>
+              <div className="flex flex-wrap gap-1 mt-1.5">
                 {allKeys.map((k) => (
                   <span
                     key={k}
                     className={`px-1.5 py-0.5 rounded border text-[10px] ${
-                      selectedFaces.has(k) ? "bg-emerald-500/20 border-emerald-500/60" : "border-border/60"
+                      selectedFaces.has(k) ? "bg-emerald-500/20 border-emerald-500/60 text-emerald-100" : "border-white/[0.10] text-white/60"
                     }`}
-                  >
-                    {faceKeyLabel(k)}
-                  </span>
+                  >{faceKeyLabel(k)}</span>
                 ))}
               </div>
             </details>
@@ -289,21 +312,25 @@ export function FacePaintPanel({
 }
 
 function TextureGrid({
-  items, activeUrl, onPick, onRemove,
+  items, activeUrl, onPick, onRemove, emptyLabel,
 }: {
   items: LibraryTexture[];
   activeUrl: string | null;
   onPick: (t: LibraryTexture) => void;
   onRemove?: (t: LibraryTexture) => void;
+  emptyLabel?: string;
 }) {
+  if (items.length === 0 && emptyLabel) {
+    return <p className="text-[10px] text-white/40 italic py-1">{emptyLabel}</p>;
+  }
   return (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="grid grid-cols-4 gap-1">
       {items.map((t) => (
         <div key={t.id} className="relative group">
           <button
             onClick={() => onPick(t)}
-            className={`w-full aspect-square rounded overflow-hidden border ${
-              activeUrl === t.url ? "ring-2 ring-emerald-500 border-emerald-500" : "border-border/60 hover:border-foreground/40"
+            className={`w-full aspect-square rounded overflow-hidden border transition-all ${
+              activeUrl === t.url ? "ring-2 ring-fuchsia-400 border-fuchsia-400" : "border-white/[0.10] hover:border-white/30"
             }`}
             title={t.name}
           >

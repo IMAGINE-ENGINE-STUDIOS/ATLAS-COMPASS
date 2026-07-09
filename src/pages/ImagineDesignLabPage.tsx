@@ -14,21 +14,16 @@ import { Link } from "react-router-dom";
 import {
   Boxes, Paintbrush, Eye, EyeOff, Check, Undo2, Redo2, X, Grid3x3,
   Sparkles, Palette, Upload, Droplet, Search, Layers, Wand2, ChevronLeft,
+  Rocket, AlertCircle, Zap, Ghost, MousePointer2, Command,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useImagineTheme, type ImagineThemeId } from "@/lib/imagineTheme";
 
 /* ------------------------------------------------------------------ */
 /*  Style variants — each one restyles the SAME sub-components below   */
 /* ------------------------------------------------------------------ */
 
-type VariantId =
-  | "glass-fuchsia"
-  | "editorial-mono"
-  | "brutalist-block"
-  | "neon-cyber"
-  | "aurora-glow"
-  | "paper-serif"
-  | "obsidian-gold"
-  | "candy-pop";
+type VariantId = ImagineThemeId;
 
 interface Variant {
   id: VariantId;
@@ -448,10 +443,184 @@ function VariantPreview({ v }: { v: Variant }) {
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Additional themed previews                                         */
+/* ------------------------------------------------------------------ */
+
+/** Compact Face Painter card — the very component we just built. */
+function FacePainterPreview({ v }: { v: Variant }) {
+  const [color, setColor] = useState("#3b82f6");
+  return (
+    <div className={`${v.shell} ${v.font} p-3 space-y-2.5`} style={{ width: 320 }}>
+      <div className="flex items-center justify-between">
+        <span className={`${v.sectionLabel} flex items-center gap-1.5`}>
+          <Paintbrush className="w-3 h-3" /> Face painter
+        </span>
+        <button className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ${v.primary}`}>Painting</button>
+      </div>
+      <p className="text-[10px] opacity-60 leading-snug">Click any face to select. Shift+click to add.</p>
+      <div className="flex items-center justify-between text-[10px] opacity-80">
+        <span className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: v.accentHex }} />
+          3 faces selected
+        </span>
+        <div className="flex gap-1">
+          <span className="px-1.5 py-0.5 rounded text-[10px] opacity-70">Clear</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] opacity-70">Reset</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {["#ff5577", "#3b82f6", "#22d3ee", "#f5f5f5", "#0f172a", "#facc15", "#84cc16", "#a855f7"].map((sw) => (
+          <button key={sw} onClick={() => setColor(sw)}
+            className={`w-5 h-5 rounded-full border ${color === sw ? "scale-110 ring-2 ring-white/40" : ""}`}
+            style={{ background: sw, borderColor: color === sw ? "#fff" : "rgba(255,255,255,0.2)" }} />
+        ))}
+      </div>
+      <div className={`flex items-center gap-2 text-[10px] px-1.5 py-1 rounded ${v.input}`}>
+        <Droplet className="w-3 h-3 opacity-60" />
+        <div className="flex-1 h-1.5 rounded-full relative bg-black/20">
+          <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full" style={{ left: `70%`, background: v.accentHex }} />
+        </div>
+        <span className="font-mono opacity-70">0.70</span>
+      </div>
+      <div className={`${v.subCard} p-2 space-y-1.5`}>
+        <div className="flex items-center justify-between">
+          <span className={`${v.sectionLabel} flex items-center gap-1`}><Layers className="w-2.5 h-2.5" /> Texture</span>
+          <div className="flex gap-0.5">
+            <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider opacity-60">gallery</span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider bg-white/[0.12]">saved</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-1">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className={`aspect-square rounded overflow-hidden border ${i === 3 ? "ring-2" : ""}`}
+              style={{
+                background: `linear-gradient(${i * 45}deg, ${v.accentHex}66, ${v.accentHex}22)`,
+                borderColor: i === 3 ? v.accentHex : "rgba(255,255,255,0.15)",
+              }} />
+          ))}
+        </div>
+        <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] ${v.ghost}`}>
+          <Upload className="w-3 h-3" /> Upload JPG/PNG
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyStatePreview({ v }: { v: Variant }) {
+  return (
+    <div className={`${v.shell} ${v.font} p-8 flex flex-col items-center text-center gap-3`} style={{ width: 420, height: 320 }}>
+      <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${v.accentHex}25`, border: `1px solid ${v.accentHex}55` }}>
+        <Ghost className="w-6 h-6" style={{ color: v.accentHex }} />
+      </div>
+      <p className={v.title}>No experiences yet</p>
+      <p className="text-[11px] opacity-60 max-w-xs">Kick things off by creating a level or importing a package from the Imagine library.</p>
+      <button className={`px-4 py-2 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 ${v.primary}`}>
+        <Rocket className="w-3.5 h-3.5" /> Create your first experience
+      </button>
+    </div>
+  );
+}
+
+function ToolbarPreview({ v }: { v: Variant }) {
+  return (
+    <div className={`${v.shell} ${v.font} p-2 flex items-center gap-2`} style={{ width: 640 }}>
+      <div className={`px-2 py-1 rounded flex items-center gap-1 text-[11px] ${v.chip}`}>
+        <Command className="w-3 h-3" /> Cmd
+      </div>
+      <div className="flex items-center gap-1">
+        {[MousePointer2, Boxes, Paintbrush, Layers, Grid3x3].map((Ic, i) => (
+          <button key={i} className={`w-8 h-8 rounded-md flex items-center justify-center ${i === 2 ? v.primary : v.ghost}`}>
+            <Ic className="w-3.5 h-3.5" />
+          </button>
+        ))}
+      </div>
+      <div className={`flex-1 h-8 rounded-md flex items-center px-2 gap-2 text-[10px] ${v.input}`}>
+        <Search className="w-3 h-3 opacity-50" />
+        <span className="opacity-60">Search components, textures, animations…</span>
+        <span className="ml-auto opacity-40">⌘K</span>
+      </div>
+      <button className={`px-3 py-1.5 rounded-md text-[10px] font-semibold flex items-center gap-1 ${v.primary}`}>
+        <Zap className="w-3 h-3" /> Publish
+      </button>
+    </div>
+  );
+}
+
+function DialogPreview({ v }: { v: Variant }) {
+  return (
+    <div className={`${v.shell} ${v.font}`} style={{ width: 460 }}>
+      <div className={v.accentBar} />
+      <div className={`px-5 py-4 flex items-center gap-3 ${v.header}`}>
+        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${v.accentHex}22`, border: `1px solid ${v.accentHex}55` }}>
+          <AlertCircle className="w-4 h-4" style={{ color: v.accentHex }} />
+        </div>
+        <div>
+          <p className={v.title}>Deploy this level to Atlas?</p>
+          <p className={v.subtitle}>Signed placement · reversible</p>
+        </div>
+      </div>
+      <div className="px-5 py-4 space-y-2">
+        <p className="text-[11px] opacity-70 leading-relaxed">
+          Your experience will be rendered on the earth for anyone who lands within 500m of the target coordinates. You can un-deploy anytime.
+        </p>
+        <div className={`${v.subCard} p-2 flex items-center gap-2 text-[10px]`}>
+          <span className="opacity-60">Placement</span>
+          <span className="font-mono">37.7749 · -122.4194</span>
+        </div>
+      </div>
+      <div className="px-5 py-3 flex items-center justify-end gap-2 border-t border-white/[0.06]">
+        <button className={`px-3 py-1.5 rounded-lg text-xs font-medium ${v.ghost}`}>Cancel</button>
+        <button className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 ${v.primary}`}>
+          <Check className="w-3 h-3" /> Deploy
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component category registry                                         */
+/* ------------------------------------------------------------------ */
+
+type CategoryId = "panel" | "face-painter" | "empty" | "toolbar" | "dialog";
+
+const CATEGORIES: {
+  id: CategoryId;
+  name: string;
+  description: string;
+  size: [number, number];
+  render: (v: Variant) => JSX.Element;
+}[] = [
+  { id: "panel",        name: "Full Panel",   description: "Mesh Editor shell — list, viewport, inspector, footer",
+    size: [1100, 720], render: (v) => <VariantPreview v={v} /> },
+  { id: "face-painter", name: "Face Painter", description: "Compact painter inspector block",
+    size: [320, 520],  render: (v) => <FacePainterPreview v={v} /> },
+  { id: "empty",        name: "Empty State",  description: "First-run empty state for lists",
+    size: [420, 320],  render: (v) => <EmptyStatePreview v={v} /> },
+  { id: "toolbar",      name: "Toolbar",      description: "Top-level tool row with search + primary",
+    size: [640, 56],   render: (v) => <ToolbarPreview v={v} /> },
+  { id: "dialog",       name: "Dialog",       description: "Confirmation dialog with accent + subcard",
+    size: [460, 320],  render: (v) => <DialogPreview v={v} /> },
+];
+
 export default function ImagineDesignLabPage() {
   const [zoom, setZoom] = useState(0.2);
   const [focus, setFocus] = useState<VariantId | null>(null);
+  const [category, setCategory] = useState<CategoryId>("panel");
+  const [activeTheme, setActiveTheme] = useImagineTheme();
   const focused = useMemo(() => VARIANTS.find(v => v.id === focus) ?? null, [focus]);
+  const cat = CATEGORIES.find(c => c.id === category)!;
+  const [w, h] = cat.size;
+
+  const applyTheme = (id: VariantId) => {
+    setActiveTheme(id);
+    const name = VARIANTS.find(v => v.id === id)?.name ?? id;
+    toast.success(`Theme applied — ${name}`, {
+      description: "New components rendered with this theme will pick it up automatically.",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#05070d] text-white">
@@ -471,6 +640,11 @@ export default function ImagineDesignLabPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.05] border border-white/10">
+              <span className="text-[10px] uppercase tracking-widest text-white/50">Active</span>
+              <span className="w-2 h-2 rounded-full" style={{ background: VARIANTS.find(v => v.id === activeTheme)?.accentHex }} />
+              <span className="text-[11px] font-medium">{VARIANTS.find(v => v.id === activeTheme)?.name}</span>
+            </div>
             <label className="flex items-center gap-2 text-[11px] text-white/70">
               Zoom
               <input
@@ -485,48 +659,93 @@ export default function ImagineDesignLabPage() {
       </header>
 
       {/* Intro */}
-      <section className="max-w-[1600px] mx-auto px-6 pt-10 pb-6">
+      <section className="max-w-[1600px] mx-auto px-6 pt-10 pb-4">
         <h1 className="text-4xl font-semibold tracking-tight bg-gradient-to-br from-white via-white to-white/50 bg-clip-text text-transparent">
-          Explore the Imagine Engine at a glance.
+          Design every surface of the Imagine Engine.
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-white/60 leading-relaxed">
-          Each card renders the same Mesh Editor building block — header, component list, viewport,
-          inspector, footer — dressed in a different aesthetic. Snapshots are at {Math.round(zoom * 100)}% so
-          you can compare density, typography, and colour language side-by-side. Click a card to open it full-size.
+          Pick a component category, compare {VARIANTS.length} aesthetics side-by-side at {Math.round(zoom * 100)}% scale,
+          then hit <span className="font-semibold text-white">Apply theme</span> to make it the engine-wide default.
+          Click any card to inspect it full-size.
         </p>
+      </section>
+
+      {/* Category tabs */}
+      <section className="max-w-[1600px] mx-auto px-6 pb-6">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setCategory(c.id)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all ${
+                category === c.id
+                  ? "bg-white text-black"
+                  : "bg-white/[0.05] text-white/70 border border-white/10 hover:bg-white/[0.10]"
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+          <span className="ml-3 text-[10px] text-white/40 hidden md:block">{cat.description}</span>
+        </div>
       </section>
 
       {/* Grid */}
       <section className="max-w-[1600px] mx-auto px-6 pb-24">
         <div
           className="grid gap-6"
-          style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${1100 * zoom + 32}px, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(280, w * zoom + 48)}px, 1fr))` }}
         >
           {VARIANTS.map((v) => (
-            <button
+            <div
               key={v.id}
-              onClick={() => setFocus(v.id)}
-              className={`group text-left rounded-2xl overflow-hidden border border-white/[0.06] ${v.pageBg} p-6 transition-all hover:border-white/20 hover:-translate-y-1 hover:shadow-[0_30px_80px_rgba(0,0,0,0.5)]`}
+              className={`group relative rounded-2xl overflow-hidden border ${activeTheme === v.id ? "border-white/40 ring-1 ring-white/20" : "border-white/[0.06]"} ${v.pageBg} p-5 pb-4 transition-all hover:border-white/20 hover:-translate-y-1 hover:shadow-[0_30px_80px_rgba(0,0,0,0.5)]`}
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-sm font-semibold text-white">{v.name}</p>
+                  <p className="text-sm font-semibold text-white flex items-center gap-1.5">
+                    {v.name}
+                    {activeTheme === v.id && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 uppercase tracking-widest">Active</span>}
+                  </p>
                   <p className="text-[10px] uppercase tracking-widest text-white/50">{v.tag}</p>
                 </div>
                 <div className="w-5 h-5 rounded-full border border-white/20" style={{ background: v.accentHex }} />
               </div>
-              <div
-                className="relative mx-auto"
-                style={{ width: 1100 * zoom, height: 720 * zoom }}
+              <button
+                onClick={() => setFocus(v.id)}
+                className="block w-full text-left"
+                title="Click to inspect full-size"
               >
                 <div
-                  className="absolute top-0 left-0 origin-top-left pointer-events-none"
-                  style={{ transform: `scale(${zoom})` }}
+                  className="relative mx-auto"
+                  style={{ width: w * zoom, height: h * zoom }}
                 >
-                  <VariantPreview v={v} />
+                  <div
+                    className="absolute top-0 left-0 origin-top-left pointer-events-none"
+                    style={{ transform: `scale(${zoom})` }}
+                  >
+                    {cat.render(v)}
+                  </div>
                 </div>
+              </button>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => setFocus(v.id)}
+                  className="text-[10px] text-white/60 hover:text-white uppercase tracking-widest"
+                >Inspect</button>
+                <button
+                  onClick={() => applyTheme(v.id)}
+                  disabled={activeTheme === v.id}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all ${
+                    activeTheme === v.id
+                      ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 cursor-default"
+                      : "bg-gradient-to-r from-fuchsia-500/30 to-cyan-500/25 text-white border border-fuchsia-400/50 hover:brightness-110"
+                  }`}
+                >
+                  {activeTheme === v.id ? "Applied" : "Apply theme"}
+                </button>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </section>
@@ -542,10 +761,14 @@ export default function ImagineDesignLabPage() {
               onClick={() => setFocus(null)}
               className="absolute -top-12 right-0 w-9 h-9 rounded-lg bg-white/[0.08] border border-white/10 flex items-center justify-center hover:bg-white/[0.16]"
             ><X className="w-4 h-4" /></button>
-            <VariantPreview v={focused} />
+            {cat.render(focused)}
             <div className="mt-4 text-center">
               <p className="text-sm font-semibold">{focused.name}</p>
               <p className="text-[10px] uppercase tracking-widest text-white/50">{focused.tag}</p>
+              <button
+                onClick={() => { applyTheme(focused.id); setFocus(null); }}
+                className="mt-3 px-4 py-2 rounded-lg text-xs font-semibold bg-gradient-to-r from-fuchsia-500/30 to-cyan-500/25 text-white border border-fuchsia-400/50 hover:brightness-110"
+              >Apply this theme engine-wide</button>
             </div>
           </div>
         </div>
