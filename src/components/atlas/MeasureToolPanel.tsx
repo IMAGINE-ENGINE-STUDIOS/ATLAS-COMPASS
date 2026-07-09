@@ -554,7 +554,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
     // ── Guide rails from last vertex: continuation, perpendicular, back-ray.
     // Only meaningful for distance/area while user is picking points.
-    if (mode === "distance" || mode === "area") {
+    if (mode === "distance" || mode === "area" || mode === "roof") {
       const makeRay = (offsetDeg: number) => viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
