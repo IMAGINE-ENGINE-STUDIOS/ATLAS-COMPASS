@@ -1180,6 +1180,38 @@ function computeMeasurements(mode: Mode, vertices: Vertex[]): any {
     }
     return { area: sphericalPolygonArea(vertices), perimeter: peri };
   }
+  if (mode === "roof") {
+    if (vertices.length < 3) {
+      return { planar: 0, slant: 0, tiltDeg: 0, perimeter: 0, solar: emptySolar() };
+    }
+    const planar = sphericalPolygonArea(vertices);
+    // True 3D roof area — triangle fan from centroid using ECEF positions.
+    const carts = vertices.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
+    const centroid = new Cartesian3(0, 0, 0);
+    for (const c of carts) Cartesian3.add(centroid, c, centroid);
+    Cartesian3.divideByScalar(centroid, carts.length, centroid);
+    let slant = 0;
+    for (let i = 0; i < carts.length; i++) {
+      const a = carts[i];
+      const b = carts[(i + 1) % carts.length];
+      const ab = Cartesian3.subtract(a, centroid, new Cartesian3());
+      const ac = Cartesian3.subtract(b, centroid, new Cartesian3());
+      const cross = Cartesian3.cross(ab, ac, new Cartesian3());
+      slant += Cartesian3.magnitude(cross) * 0.5;
+    }
+    // Perimeter in 3D (true length along the slope).
+    let peri = 0;
+    for (let i = 0; i < carts.length; i++) {
+      peri += Cartesian3.distance(carts[i], carts[(i + 1) % carts.length]);
+    }
+    // Tilt = angle between roof plane and horizontal, via area ratio.
+    const ratio = planar > 0 ? Math.min(1, planar / Math.max(planar, slant)) : 1;
+    const tiltDeg = Math.acos(ratio) * 180 / Math.PI;
+    // Solar: use mean latitude of vertices.
+    const meanLat = vertices.reduce((s, v) => s + v.lat, 0) / vertices.length;
+    const solar = solarPotential(slant, meanLat, tiltDeg);
+    return { planar, slant, tiltDeg, perimeter: peri, solar };
+  }
   if (vertices.length < 2) return { deltaH: 0, slant: 0, ground: 0 };
   const [a, b] = vertices;
   const ac = Cartesian3.fromDegrees(a.lng, a.lat, a.alt);
@@ -1194,6 +1226,7 @@ function computeMeasurements(mode: Mode, vertices: Vertex[]): any {
 function shortLabel(mode: Mode, m: any, units: Units): string {
   if (mode === "distance") return formatDistance(m.total, units);
   if (mode === "area") return formatArea(m.area, units);
+  if (mode === "roof") return `${formatArea(m.slant, units)} · ${(m.solar?.annualKWh ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh/yr`;
   return `Δ ${formatDistance(m.deltaH, units)}`;
 }
 
