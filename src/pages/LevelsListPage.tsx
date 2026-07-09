@@ -63,11 +63,11 @@ export default function LevelsListPage() {
     const { data, error } = await withTimeout(
       supabase
         .from("levels")
-        .insert({ owner_id: uid, name: "Untitled Level", scene: EMPTY_SCENE as any })
+        .insert({ owner_id: uid, name: "Untitled Experience", scene: EMPTY_SCENE as any })
         .select("id")
         .single(),
       5000,
-      { data: null, error: { message: "Level creation timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
+      { data: null, error: { message: "Experience creation timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
     );
     if (error || !data) {
       toast.error("Backend is unreachable, creating a local draft");
@@ -98,7 +98,7 @@ export default function LevelsListPage() {
         .select("id")
         .single(),
       5000,
-      { data: null, error: { message: "Level creation timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
+      { data: null, error: { message: "Experience creation timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
     );
     if (error || !data) {
       toast.error("Backend unreachable, creating a local draft");
@@ -110,17 +110,17 @@ export default function LevelsListPage() {
   };
 
   const deleteLevel = async (id: string) => {
-    if (!confirm("Delete this level? This cannot be undone.")) return;
+    if (!confirm("Delete this experience? This cannot be undone.")) return;
     if (isLocalLevelId(id)) {
       deleteLocalLevel(id);
       setLevels((prev) => prev.filter((l) => l.id !== id));
-      toast.success("Level deleted");
+      toast.success("Experience deleted");
       return;
     }
     const { error } = await supabase.from("levels").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setLevels((prev) => prev.filter((l) => l.id !== id));
-    toast.success("Level deleted");
+    toast.success("Experience deleted");
   };
 
   return (
@@ -131,20 +131,20 @@ export default function LevelsListPage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <Layers className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-semibold">Levels</h1>
+          <h1 className="text-lg font-semibold">Imagine Engine</h1>
           <div className="ml-auto">
             <div className="flex items-center gap-2">
               <Button asChild size="sm" variant="outline">
                 <Link to="/files"><FilesIcon className="w-4 h-4 mr-1" /> Files</Link>
               </Button>
               <Button onClick={() => setWizardOpen(true)} size="sm" variant="outline" className="border-primary/40">
-                <Sparkles className="w-4 h-4 mr-1 text-primary" /> Level Wizard
+                <Sparkles className="w-4 h-4 mr-1 text-primary" /> Imagine Wizard
               </Button>
               <Button onClick={createObstacleCourse} size="sm" variant="outline">
                 <Footprints className="w-4 h-4 mr-1" /> Obstacle Course
               </Button>
               <Button onClick={createLevel} size="sm">
-                <Plus className="w-4 h-4 mr-1" /> New Level
+                <Plus className="w-4 h-4 mr-1" /> New Experience
               </Button>
             </div>
           </div>
@@ -157,12 +157,12 @@ export default function LevelsListPage() {
         ) : levels.length === 0 ? (
           <Card className="p-10 text-center border-dashed">
             <Layers className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-            <h2 className="text-lg font-semibold mb-1">No levels yet</h2>
+            <h2 className="text-lg font-semibold mb-1">No experiences yet</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Create a Level to design 3D scenes, homes, props or animations — then drop them onto the Atlas.
+              Craft any experience or solution in Imagine Engine — 3D scenes, homes, props, animations — then deploy it to the Atlas as a level or map.
             </p>
             <Button onClick={createLevel}>
-              <Plus className="w-4 h-4 mr-1" /> Create your first Level
+              <Plus className="w-4 h-4 mr-1" /> Create your first Experience
             </Button>
           </Card>
         ) : (
