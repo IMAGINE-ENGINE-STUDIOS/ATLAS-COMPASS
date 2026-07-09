@@ -7460,6 +7460,26 @@ function SpaceshipPage() {
           onResetTerrain={handleResetTerrain}
           terrainEditing={terrainEditing}
           onToggleTerrainEditing={() => setTerrainEditing(v => !v)}
+          onDelete={() => {
+            const id = editingModel.id;
+            // Remove the Cesium entity for this model.
+            try {
+              const v = viewerRef.current;
+              if (v) {
+                const ent = v.entities.getById(`model-${id}`);
+                if (ent) v.entities.remove(ent);
+              }
+            } catch {}
+            // Remove from state + persistent storage. Local models only exist
+            // for the placing user (per-device localStorage), so ownership is
+            // implicit and admins have no cross-device claim to enforce here.
+            setPlacedModels(prev => {
+              const updated = prev.filter(m => m.id !== id);
+              savePlacedModels(updated);
+              return updated;
+            });
+            setEditingModel(null);
+          }}
         />
       )}
       {earthMenu && (
