@@ -27,7 +27,7 @@ import {
   SceneTransforms,
   defined,
 } from "cesium";
-import type { TransformData } from "@/components/ModelTransformWidget";
+import type { TransformData } from "./MeshController";
 
 type Mode = "position" | "rotation" | "scale";
 
