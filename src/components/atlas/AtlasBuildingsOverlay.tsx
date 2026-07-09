@@ -975,6 +975,21 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
             }}
             onClose={() => setEditingOsmId(null)}
             onSnapToGround={(t, cb) => cb({ ...t, alt: 0 })}
+            onDelete={async () => {
+              // Author-only: RLS on `building_records` restricts updates to
+              // the row owner (records are loaded via .eq("user_id", uid), so
+              // this record already belongs to the current user).
+              const v = viewerRef.current;
+              if (v && entityId) {
+                try {
+                  const ent = v.entities.getById(entityId);
+                  if (ent) v.entities.remove(ent);
+                } catch {}
+                replacementEntities.current.delete(editingOsmId!);
+              }
+              await records.clearReplacementModel(editingOsmId!);
+              setEditingOsmId(null);
+            }}
           />
         );
       })()}
