@@ -4,6 +4,8 @@ import {
   Plus, Minus, Scissors, Grid3x3, Square as SquareIcon, Circle as CircleIcon,
   Pencil, RotateCw, ArrowUp, Waves, Layers,
 } from "lucide-react";
+import type { Viewer } from "cesium";
+import ModelGizmoOverlay from "@/components/ModelGizmoOverlay";
 
 export interface TransformData {
   lat: number;
@@ -39,6 +41,9 @@ interface Props {
   onResetTerrain?: () => void;
   terrainEditing?: boolean;
   onToggleTerrainEditing?: () => void;
+  /** Optional Cesium viewer ref — when provided, a 3D gizmo is drawn on the
+   *  model's geometric center and follows the active tab (position/rotation/scale). */
+  viewerRef?: React.MutableRefObject<Viewer | null>;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
@@ -106,6 +111,7 @@ export default function ModelTransformWidget({
   modelName, initial, onUpdate, onApply, onClose, onSnapToGround,
   cropRadius = 0, onCropTile, onUncropTile,
   cropBase, onCropBaseChange, onResetTerrain, terrainEditing, onToggleTerrainEditing,
+  viewerRef,
 }: Props) {
   const [data, setData] = useState<TransformData>(initial);
   const [tab, setTab] = useState<"position" | "rotation" | "scale">("position");
@@ -138,6 +144,15 @@ export default function ModelTransformWidget({
   ];
 
   return (
+    <>
+    {viewerRef && (
+      <ModelGizmoOverlay
+        viewerRef={viewerRef}
+        transform={data}
+        mode={tab}
+        onChange={(partial) => update(partial)}
+      />
+    )}
     <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 w-[289px] max-w-[calc(100vw-2rem)]">
       <div className="bg-black/80 backdrop-blur-2xl border border-white/[0.1] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.06)] overflow-hidden">
         {/* Gradient top accent */}
@@ -404,5 +419,6 @@ export default function ModelTransformWidget({
         </div>
       </div>
     </div>
+    </>
   );
 }

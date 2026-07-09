@@ -7438,6 +7438,7 @@ function SpaceshipPage() {
       {editingModel && (
         <ModelTransformWidget
           modelName={editingModel.name}
+          viewerRef={viewerRef}
           initial={{
             lat: editingModel.lat,
             lng: editingModel.lng,
