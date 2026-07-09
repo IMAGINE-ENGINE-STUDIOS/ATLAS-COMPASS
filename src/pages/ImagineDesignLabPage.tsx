@@ -14,21 +14,16 @@ import { Link } from "react-router-dom";
 import {
   Boxes, Paintbrush, Eye, EyeOff, Check, Undo2, Redo2, X, Grid3x3,
   Sparkles, Palette, Upload, Droplet, Search, Layers, Wand2, ChevronLeft,
+  Rocket, AlertCircle, Zap, Ghost, MousePointer2, Command,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useImagineTheme, type ImagineThemeId } from "@/lib/imagineTheme";
 
 /* ------------------------------------------------------------------ */
 /*  Style variants — each one restyles the SAME sub-components below   */
 /* ------------------------------------------------------------------ */
 
-type VariantId =
-  | "glass-fuchsia"
-  | "editorial-mono"
-  | "brutalist-block"
-  | "neon-cyber"
-  | "aurora-glow"
-  | "paper-serif"
-  | "obsidian-gold"
-  | "candy-pop";
+type VariantId = ImagineThemeId;
 
 interface Variant {
   id: VariantId;
