@@ -604,13 +604,23 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           polyline: { positions: safePolylinePositions(viewer, m.vertices), width: 2.5, material: color, arcType: ArcType.GEODESIC,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
-      } else if (m.mode === "area" && pts.length >= 3) {
+      } else if ((m.mode === "area" || m.mode === "roof") && pts.length >= 3) {
+        const roof = m.mode === "roof";
+        const roofPts = roof
+          ? m.vertices.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS))
+          : pts;
         ents.push(viewer.entities.add({
-          polygon: { hierarchy: new PolygonHierarchy(pts), material: color.withAlpha(0.18), perPositionHeight: true },
+          polygon: { hierarchy: new PolygonHierarchy(roofPts), material: color.withAlpha(0.18), perPositionHeight: true },
         }));
         ents.push(viewer.entities.add({
-          polyline: { positions: safePolylinePositions(viewer, m.vertices, true), width: 2.5, material: color, arcType: ArcType.GEODESIC,
-            depthFailMaterial: color.withAlpha(0.5) },
+          polyline: {
+            positions: roof
+              ? [...roofPts, roofPts[0]]
+              : safePolylinePositions(viewer, m.vertices, true),
+            width: 2.5, material: color,
+            arcType: roof ? ArcType.NONE : ArcType.GEODESIC,
+            depthFailMaterial: color.withAlpha(0.5),
+          },
         }));
       } else if (m.mode === "height" && pts.length === 2) {
         const [a, b] = m.vertices;
