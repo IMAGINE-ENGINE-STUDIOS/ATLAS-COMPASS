@@ -199,6 +199,76 @@ function safeCartesian(viewer: Viewer | null | undefined, v: Vertex, lift = REND
   return Cartesian3.fromDegrees(p.lng, p.lat, p.alt);
 }
 
+/**
+ * Sample the visible mesh (photoreal 3D tiles) altitude at a lng/lat.
+ * Returns `fallback` when neither sampleHeight nor clampToHeight yields a
+ * finite result. Suitable for one-shot use (edge densification on commit);
+ * NOT for per-frame calls.
+ */
+function sampleMeshAlt(viewer: Viewer | null | undefined, lng: number, lat: number, fallback: number): number {
+  if (!viewer || viewer.isDestroyed()) return fallback;
+  const scene: any = viewer.scene;
+  try {
+    if (scene.sampleHeightSupported && typeof scene.sampleHeight === "function") {
+      const h = scene.sampleHeight(Cartographic.fromDegrees(lng, lat, fallback + 200));
+      if (finiteNumber(h)) return h;
+    }
+  } catch {}
+  try {
+    if (typeof scene.clampToHeight === "function") {
+      const c = scene.clampToHeight(Cartesian3.fromDegrees(lng, lat, fallback + 500));
+      if (defined(c)) {
+        const carto = Cartographic.fromCartesian(c);
+        if (finiteNumber(carto.height)) return carto.height;
+      }
+    }
+  } catch {}
+  try {
+    const th = viewer.scene.globe.getHeight(Cartographic.fromDegrees(lng, lat));
+    if (finiteNumber(th)) return th;
+  } catch {}
+  return fallback;
+}
+
+/**
+ * Densify a closed roof outline by sampling the mesh along every edge, so
+ * the polygon / polyline "snaps" to the real 3D surface instead of
+ * straight-lining between clicked corners.
+ */
+function densifyRoofBoundary(
+  viewer: Viewer | null | undefined,
+  verts: Vertex[],
+  stepMeters = 1.5,
+  maxSteps = 48,
+  lift = RENDER_LIFT_METERS,
+): Cartesian3[] {
+  if (verts.length === 0) return [];
+  const out: Cartesian3[] = [];
+  const closed = verts.length >= 3 ? [...verts, verts[0]] : verts;
+  for (let i = 0; i < closed.length; i++) {
+    if (i === 0) {
+      out.push(Cartesian3.fromDegrees(closed[i].lng, closed[i].lat, closed[i].alt + lift));
+      continue;
+    }
+    const a = closed[i - 1];
+    const b = closed[i];
+    const dist = haversine(a, b);
+    const steps = Math.max(1, Math.min(maxSteps, Math.ceil(dist / stepMeters)));
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps;
+      // Linear lng/lat interpolation over short (roof-sized) spans is fine.
+      const lng = a.lng + (b.lng - a.lng) * t;
+      const lat = a.lat + (b.lat - a.lat) * t;
+      const fallback = a.alt + (b.alt - a.alt) * t;
+      const alt = sampleMeshAlt(viewer, lng, lat, fallback);
+      out.push(Cartesian3.fromDegrees(lng, lat, alt + lift));
+    }
+  }
+  // Drop the duplicated closing vertex — polygon hierarchy is implicitly closed.
+  if (verts.length >= 3 && out.length > 1) out.pop();
+  return out;
+}
+
 function interpolateVertex(a: Vertex, b: Vertex, fraction: number): Vertex {
   const geodesic = new EllipsoidGeodesic(
     Cartographic.fromDegrees(a.lng, a.lat),
