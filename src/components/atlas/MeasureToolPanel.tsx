@@ -650,7 +650,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
   // ── Finish → push to ledger
   const finish = useCallback(() => {
-    const need = mode === "area" ? 3 : 2;
+    const need = (mode === "area" || mode === "roof") ? 3 : 2;
     if (vertices.length < need) return;
     const item: SavedMeasurement = {
       id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
