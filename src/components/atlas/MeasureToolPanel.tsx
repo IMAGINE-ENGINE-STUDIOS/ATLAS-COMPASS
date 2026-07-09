@@ -311,7 +311,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { unitsRef.current = units; }, [units]);
   const commitDraftIfValid = useCallback((verts: Vertex[], m: Mode) => {
-    const need = m === "area" ? 3 : 2;
+    const need = (m === "area" || m === "roof") ? 3 : 2;
     if (verts.length < need) return false;
     const item: SavedMeasurement = {
       id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
