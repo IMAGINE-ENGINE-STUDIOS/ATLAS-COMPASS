@@ -34,6 +34,7 @@ export default function LevelsListPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    document.title = "Imagine Engine";
     (async () => {
       const uid = await ensureLevelSession({ allowAnonymous: false });
       setUserId(uid ?? getLocalLevelOwnerId());
