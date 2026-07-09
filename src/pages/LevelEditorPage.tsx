@@ -504,7 +504,7 @@ export default function LevelEditorPage() {
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [name, setName] = useState("Untitled Level");
+  const [name, setName] = useState("Untitled Experience");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [scene, setScene] = useState<LevelScene>(EMPTY_SCENE);
@@ -741,7 +741,7 @@ export default function LevelEditorPage() {
       if (isLocalLevelId(id)) {
         const local = getLocalLevel(id);
         if (!local) {
-          toast.error("Level not found");
+          toast.error("Experience not found");
           navigate("/levels");
           return;
         }
@@ -769,7 +769,7 @@ export default function LevelEditorPage() {
         { data: null, error: { message: "Level request timed out", details: "", hint: "", code: "TIMEOUT" } } as any,
       );
       if (error || !data) {
-        toast.error(error?.message ?? "Level not found");
+        toast.error(error?.message ?? "Experience not found");
         navigate("/levels");
         return;
       }
@@ -2271,7 +2271,7 @@ export default function LevelEditorPage() {
               <TabsTrigger value="object" className="text-[11px]">Object</TabsTrigger>
               <TabsTrigger value="terrain" className="text-[11px]">Terrain</TabsTrigger>
               <TabsTrigger value="anim" className="text-[11px]">Animate</TabsTrigger>
-              <TabsTrigger value="level" className="text-[11px]">Level</TabsTrigger>
+              <TabsTrigger value="level" className="text-[11px]">Experience</TabsTrigger>
             </TabsList>
 
             <TabsContent value="object" className="p-3 space-y-3 m-0">
@@ -2601,7 +2601,7 @@ export default function LevelEditorPage() {
       <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Place Level on Atlas</DialogTitle>
+            <DialogTitle>Deploy to Atlas</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">

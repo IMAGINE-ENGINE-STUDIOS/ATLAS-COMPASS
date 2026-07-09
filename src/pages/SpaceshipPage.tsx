@@ -1307,6 +1307,9 @@ function SpaceshipPage() {
 
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
+  // GLB blob for the currently-editing model, loaded lazily so the Mesh
+  // Editor tab can hand it to the R3F canvas.
+  const [editingModelBlob, setEditingModelBlob] = useState<Blob | null>(null);
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
@@ -3868,6 +3871,23 @@ function SpaceshipPage() {
     window.addEventListener("cesium-model-dblclick", handleModelDblClick);
     return () => window.removeEventListener("cesium-model-dblclick", handleModelDblClick);
   }, [placedModels]);
+
+  // Load the raw GLB bytes for whichever model is being edited so the
+  // Mesh Controller's Mesh Editor tab can hand them to the R3F canvas.
+  useEffect(() => {
+    if (!editingModel) { setEditingModelBlob(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await loadAtlasModelBlob(editingModel.id);
+        if (!cancelled) setEditingModelBlob(blob ?? null);
+      } catch (e) {
+        if (!cancelled) setEditingModelBlob(null);
+        console.warn("[SpaceshipPage] failed loading model blob for editor", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editingModel?.id]);
 
   // Listen for model drag events
   useEffect(() => {
@@ -7102,7 +7122,7 @@ function SpaceshipPage() {
                       {levelPlacements.length > 0 && (
                         <div className="pt-2 mt-1 border-t border-white/10">
                           <div className="flex items-center gap-1.5 px-1 pb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Levels</span>
+                           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Imagine</span>
                             <span className="text-[10px] text-white/60 font-mono">({levelPlacements.length})</span>
                           </div>
                           {levelPlacements.map((lp) => (
@@ -7489,6 +7509,32 @@ function SpaceshipPage() {
               return updated;
             });
             setEditingModel(null);
+          }}
+          meshSource={editingModelBlob}
+          onMeshApply={async (glb) => {
+            const id = editingModel.id;
+            try {
+              // Persist the re-baked GLB under the same model id so
+              // future sessions load the edited version.
+              const fname = (editingModel.fileName?.replace(/\.(glb|gltf)$/i, "") || "model") + ".glb";
+              await saveAtlasModelBlob(id, glb, fname);
+              setEditingModelBlob(glb);
+              // Refresh the Cesium entity by removing + re-placing so
+              // the new URL is picked up.
+              const v = viewerRef.current;
+              if (v) {
+                try {
+                  const ent = v.entities.getById(`model-${id}`);
+                  if (ent) v.entities.remove(ent);
+                } catch {}
+                const m = placedModels.find(pm => pm.id === id);
+                if (m) {
+                  await placeModelOnGlobe(m, URL.createObjectURL(glb));
+                }
+              }
+            } catch (e) {
+              console.warn("[SpaceshipPage] mesh apply failed", e);
+            }
           }}
         />
       )}
