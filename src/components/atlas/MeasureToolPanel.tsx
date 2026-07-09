@@ -1142,6 +1142,25 @@ function ReadoutBlock({ mode, m, units }: { mode: Mode; m: any; units: Units }) 
       </div>
     );
   }
+  if (mode === "roof") {
+    const s = m.solar || emptySolar();
+    return (
+      <div className="space-y-1.5">
+        <Readout label="Slant area (roof)" value={formatArea(m.slant, units)} big />
+        <Readout label="Planar (footprint)" value={formatArea(m.planar, units)} />
+        <Readout label="Tilt" value={`${(m.tiltDeg ?? 0).toFixed(1)}°`} />
+        <Readout label="Perimeter" value={formatDistance(m.perimeter, units)} />
+        <div className="pt-1 mt-1 border-t border-white/10 space-y-1">
+          <div className="text-[9px] text-orange-200/80 uppercase tracking-wider mb-0.5">Solar potential</div>
+          <Readout label="System size" value={`${s.kWp.toFixed(2)} kWp`} />
+          <Readout label="Annual generation" value={`${Math.round(s.annualKWh).toLocaleString()} kWh/yr`} big />
+          <Readout label="Peak sun hours" value={`${s.psh.toFixed(1)} h/day`} />
+          <Readout label="Panels (≈1.7 m²)" value={`${s.panels}`} />
+          <Readout label="CO₂ avoided" value={`${(s.co2Kg / 1000).toFixed(2)} t/yr`} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1.5">
       <Readout label="Δ Elevation" value={formatDistance(m.deltaH, units)} big />
