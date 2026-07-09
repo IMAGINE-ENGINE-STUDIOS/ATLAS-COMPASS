@@ -850,6 +850,22 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
               <ReadoutBlock mode={mode} m={measurements} units={units} />
             </div>
 
+            {mode === "roof" && vertices.length >= 3 && (
+              <button
+                onClick={() => setReportRoof({
+                  slantAreaM2: measurements.slant ?? 0,
+                  planarAreaM2: measurements.planar ?? 0,
+                  perimeterM: measurements.perimeter ?? 0,
+                  tiltDeg: measurements.tiltDeg ?? 0,
+                  vertices,
+                })}
+                className="w-full h-9 rounded-md text-[11px] font-bold tracking-widest uppercase border border-orange-300 bg-gradient-to-b from-orange-500/40 to-orange-500/15 hover:from-orange-500/60 hover:to-orange-500/25 text-orange-50 flex items-center justify-center gap-1.5 transition-all"
+                title="Full engineering-grade solar proposal with NASA POWER climatology"
+              >
+                <FileText className="w-3.5 h-3.5" /> Generate Solar Report
+              </button>
+            )}
+
             {mode === "height" && (
               <div className="flex items-center justify-between rounded-md border border-amber-300/25 bg-amber-400/[0.06] px-2.5 py-1.5">
                 <div className="min-w-0">
