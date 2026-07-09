@@ -1,124 +1,150 @@
-# Mesh Controller + Imagine Engine
+# Comprehensive Solar Report — from Roof Tool
 
-Three coordinated changes:
-1. Extract the existing Transform Editor into a dedicated **Mesh Controller** package.
-2. Add a new **Mesh Editor** feature inside it — a full 3D model editor (materials, textures, face paint, per-mesh visibility, vertex color) that runs *while the model is placed on Earth*.
-3. Rebrand the Levels system to **Imagine Engine** across all user-facing surfaces; keep routes, DB tables, and storage keys stable.
+Turn the roof/solar measurement into a **full solar engineering proposal** on par with what Tesla Solar, Sunrun, Enphase and Aurora Solar produce — powered by real-world irradiance data and exported as a downloadable PDF.
 
 ---
 
-## 1. Mesh Controller extraction
+## What the report will contain
 
-New folder `src/components/mesh-controller/`:
+Every section a solar installer needs to design a system and quote a homeowner.
 
-```text
-mesh-controller/
-  MeshController.tsx          ← ex-ModelTransformWidget (renamed, all existing tabs)
-  MeshControllerGizmo.tsx     ← ex-ModelGizmoOverlay
-  MeshEditor/                 ← NEW mesh editor (see §2)
-    MeshEditorModal.tsx
-    MeshEditorCanvas.tsx      ← R3F canvas
-    MaterialPanel.tsx
-    FacePaintPanel.tsx
-    MeshTreePanel.tsx
-    exportGlb.ts              ← GLTFExporter helper
-  types.ts                    ← TransformData, CropBaseUI, MeshEdits
-  index.ts                    ← barrel exports
-```
+### 1. Site & Roof
+- Address (reverse-geocoded from Nominatim), lat/lng, elevation
+- Roof slant area, planar (footprint) area, perimeter, tilt°, azimuth° (derived from vertex order + true north)
+- Roof shape thumbnail — direct Cesium canvas capture of the polygon
+- Optimal tilt for that latitude (≈ |lat|) — flagged as green/amber/red vs current tilt
 
-- Header sub-label changes from "Transform Editor" to **"Mesh Controller"**.
-- Adds a fourth tab **"Mesh"** next to Position / Rotation / Scale that opens the Mesh Editor.
-- Backward-compat shims kept:
-  - `src/components/ModelTransformWidget.tsx` → re-exports `MeshController` as `default` and re-exports `TransformData` / `CropBaseUI`.
-  - `src/components/ModelGizmoOverlay.tsx` → re-exports `MeshControllerGizmo`.
-- No changes to callers (`SpaceshipPage.tsx`, `AtlasBuildingsOverlay.tsx`) required for compilation.
+### 2. Solar Resource (real data, no fabrication)
+- Monthly GHI / DNI / DIF (kWh/m²/day) from **NASA POWER** (free, no key)
+- Peak sun hours per month + annual average
+- Sun-path summary at summer / equinox / winter solstice (elevation & azimuth at solar noon) via `suncalc`
+- Sky-condition context: clearness index if NASA POWER returns it
+
+### 3. System Design
+- Panel model selector (Tesla 425 W, REC Alpha Pure 430 W, Q.CELLS Q.PEAK 400 W, Silfab 440 W, LG NeON — user picks default)
+- Panels that fit = `floor(slantArea × 0.72 / panelArea)` (72 % usable factor — industry median)
+- DC system size (kWp), AC size after inverter clipping, DC:AC ratio
+- Inverter recommendation (string vs micro-inverter table)
+- String layout guidance (panels/string, strings/MPPT)
+- Battery add-on toggle — Tesla Powerwall 3 vs Enphase IQ Battery 10 sizing suggestion based on annual consumption
+
+### 4. Energy Production
+- Year-1 annual kWh, monthly production **bar chart** (recharts)
+- Panel-plane irradiance from PVGIS (falls back to NASA POWER + tilt correction if PVGIS unavailable)
+- 25-year degradation curve (year-1 output, then –0.5 %/yr) — line chart
+- Utility-bill offset % (user enters average monthly bill or kWh)
+
+### 5. Financials
+- Editable inputs: `$/W installed` (default 2.75), utility rate `$/kWh` (default 0.16), yearly rate escalator (3 %), ITC % (30 %), loan APR / term
+- Gross cost, federal ITC credit, net cost
+- Simple payback (yrs), 25-year net savings, IRR, LCOE ($/kWh)
+- Monthly loan payment vs monthly bill savings (comparison bar)
+- Ballpark permitting & interconnection line item
+
+### 6. Environmental Impact
+- Lifetime CO₂ avoided (t), equivalent trees planted, gasoline cars off the road, US homes powered — same formulas EPA uses (grid intensity from IEA world avg + optional user override)
+
+### 7. Assumptions & Disclaimers
+- Every constant used (fill factor, losses, degradation, grid intensity)
+- Data-source attributions: NASA POWER, PVGIS, Nominatim, SunCalc
+- "Estimates only — final numbers require a site survey" footer
+
+### 8. Deliverable
+- **PDF export** (`jspdf` + `jspdf-autotable`) — multi-page, branded, includes the Cesium screenshot and inline recharts (rendered to PNG via `html-to-image`)
+- **Copy shareable summary** to clipboard (markdown)
+- **Save to Cloud** — writes report metadata to a new `solar_reports` table so the user can re-open past reports from the Atlas measurement ledger
 
 ---
 
-## 2. In-earth Mesh Editor (new)
+## UX
 
-Opens as a full-screen, draggable modal from the new "Mesh" tab of the Mesh Controller. Loads the placed model's GLB blob and gives users the same authoring power as Imagine Engine's model editor, but scoped to the single model sitting on Earth.
-
-Features (ported from `LevelEditorPage`):
-
-| Tool | Source |
-|---|---|
-| Per-mesh visibility toggle + isolate | `useModelMeshNames` walk |
-| Material overrides (color, metalness, roughness, emissive) | `ModelMaterialOverride` |
-| Texture slots (baseColor, normal, roughness, emissive) | `TextureSlot` upload |
-| Face painting (paint per-face vertex colors on hover) | `FacePaintPanel` + `FacePaintContext` |
-| Per-face material override | `faceOverrides` |
-| Undo/redo (dedicated stack for mesh edits) | Same pattern as transform |
-| Live preview against a mini HDRI + turntable | Reuses `HDRIPanel` presets |
-
-Data flow:
-- Edits stored on a new `MeshEdits` object attached to the placed model.
-- On **Apply**, GLTFExporter bakes the edits into a new GLB, replaces the blob at `atlas-model-storage`, and reloads the Cesium entity so the edited model appears in-earth.
-- For `AtlasBuildingsOverlay` replacement models, uploads the re-baked GLB and updates `replacement_glb_url`.
-
----
-
-## 3. Rebrand Levels → Imagine Engine
-
-Rename **user-visible strings only**. Routes (`/levels`, `/level/:id`), DB tables, and storage keys stay untouched.
-
-Renames:
-- `<h1>Levels</h1>` → **"Imagine Engine"**
-- Empty state "No levels yet" → "No experiences yet"
-- "Create a Level to design 3D scenes…" → "Create an experience in Imagine Engine — deploy it to Atlas as a level or map."
-- "New Level" → **"New Experience"**
-- "Level Wizard" → **"Imagine Wizard"**
-- "Untitled Level" → **"Untitled Experience"**
-- Tab label "Level" (inspector) → **"Experience"**
-- Dialog title "Place Level on Atlas" → **"Deploy to Atlas"**
-- SpaceshipPage HUD nav "Levels" chip → **"Imagine"**
-- Toasts "Level deleted", "Level not found" → "Experience deleted", "Experience not found"
-- `LevelWizardModal` internal copy → swept for "Level" → "Experience" / "Imagine"
-- `LevelsListPage` page title → add `document.title = "Imagine Engine"`
-
-Kept as-is (technical identifiers):
-- Route paths `/levels`, `/level/:id`
-- Component / file names (`LevelsListPage`, `LevelEditorPage`, `level_snapshots`, etc.)
-- Type names (`SceneLayer`, `LevelState`, …)
-- Supabase table/column names
+- New **"Generate Solar Report"** primary CTA appears inside the roof readout block once the polygon has ≥ 3 vertices and the user has clicked "End Measurement".
+- Clicking it opens a **draggable full-viewport modal** styled like the Mesh Editor: three-pane layout — left nav (report sections), center preview (live-rendered report with charts), right inputs (panel model, utility rate, financing).
+- Real-time recompute as inputs change.
+- Footer: `Download PDF` · `Save to Cloud` · `Copy summary` · `Close`.
 
 ---
 
 ## Technical section
 
-### Files created
-- `src/components/mesh-controller/MeshController.tsx` — the entire existing widget body, header sub-label "Mesh Controller", extra "Mesh" tab that toggles `meshEditorOpen`.
-- `src/components/mesh-controller/MeshControllerGizmo.tsx` — moved verbatim from `ModelGizmoOverlay.tsx`, `TransformData` import updated.
-- `src/components/mesh-controller/types.ts` — re-exports `TransformData`, `CropBaseUI`, and defines `MeshEdits`.
-- `src/components/mesh-controller/index.ts` — barrel.
-- `src/components/mesh-controller/MeshEditor/MeshEditorModal.tsx` — draggable full-viewport modal, `<Suspense>` R3F canvas + right sidebar with panels.
-- `src/components/mesh-controller/MeshEditor/MeshEditorCanvas.tsx` — R3F scene: `<Canvas>`, `<OrbitControls>`, `<Environment>`, `<primitive object={gltf.scene}/>`, raycast for face paint.
-- `src/components/mesh-controller/MeshEditor/MaterialPanel.tsx`, `FacePaintPanel.tsx`, `MeshTreePanel.tsx` — smaller sub-panels reusing patterns from `src/components/level/*`.
-- `src/components/mesh-controller/MeshEditor/exportGlb.ts` — wraps `GLTFExporter` (three/examples/jsm) into a promise returning `Blob`.
+### New files
+```text
+src/components/atlas/solar-report/
+  SolarReportModal.tsx        ← draggable modal, three-pane layout
+  SolarReportPreview.tsx      ← center pane, renders every section
+  sections/
+    SiteSection.tsx
+    ResourceSection.tsx
+    SystemSection.tsx
+    ProductionSection.tsx
+    FinancialsSection.tsx
+    ImpactSection.tsx
+    AssumptionsSection.tsx
+  charts/
+    MonthlyProductionChart.tsx     ← recharts BarChart
+    DegradationChart.tsx           ← recharts LineChart
+    SunPathChart.tsx               ← lightweight SVG
+  panels/
+    PanelCatalog.ts                ← curated panel database (Tesla, REC, Q.CELLS, Silfab, LG, Longi)
+    InverterCatalog.ts             ← Enphase IQ8, SolarEdge HD-Wave, Tesla inverter
+  api/
+    fetchNasaPower.ts              ← https://power.larc.nasa.gov/api/temporal/climatology/point
+    fetchPvgis.ts                  ← https://re.jrc.ec.europa.eu/api/v5_2/PVcalc
+    reverseGeocode.ts              ← existing Nominatim helper
+    sunPosition.ts                 ← suncalc wrapper
+  export/
+    exportPdf.ts                   ← jsPDF composition
+    exportMarkdown.ts              ← clipboard summary
+  types.ts                         ← ReportInputs, ReportComputed, ProviderCatalog
+```
 
-### Files edited (backward-compat shims)
-- `src/components/ModelTransformWidget.tsx` — becomes 3-line re-export.
-- `src/components/ModelGizmoOverlay.tsx` — becomes 3-line re-export.
+### Files edited
+- `src/components/atlas/MeasureToolPanel.tsx`
+  - Add "Generate Solar Report" button inside the `mode === "roof"` readout block (around line 1257).
+  - Extract `solarPotential()` into `solar-report/api/solarModel.ts` and enrich it to consume monthly PSH from NASA POWER (fall back to the current lat-band table if the API is unreachable — preserving the offline path but marking the report as "using fallback data").
+  - Pass the current `viewer` down so the modal can capture a canvas screenshot.
 
-### Files edited (Imagine Engine rebrand — copy only)
-- `src/pages/LevelsListPage.tsx` — h1, buttons, toasts, empty state, default name, `document.title` set to "Imagine Engine".
-- `src/pages/LevelEditorPage.tsx` — dialog title, inspector tab label, default state name, error toasts.
-- `src/components/level/wizard/LevelWizardModal.tsx` — internal user-facing strings.
-- `src/pages/SpaceshipPage.tsx` — HUD nav chip label "Levels" → "Imagine".
+### New Supabase table (report persistence)
+```sql
+create table public.solar_reports (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  address text,
+  lat double precision not null,
+  lng double precision not null,
+  inputs jsonb not null,
+  computed jsonb not null,
+  thumbnail_url text
+);
+grant select, insert, update, delete on public.solar_reports to authenticated;
+grant all on public.solar_reports to service_role;
+alter table public.solar_reports enable row level security;
+create policy "owner_all" on public.solar_reports
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```
+
+### Dependencies to add
+- `jspdf`, `jspdf-autotable` — PDF composition
+- `html-to-image` — recharts → PNG for embedding in PDF
+- `suncalc` — sun elevation/azimuth (tiny, 3 KB)
+- `recharts` (check first; if not present, add) — charts
+
+### Data sources (all real, no fabrication — matches project memory rule)
+| Data | Endpoint | Auth |
+|---|---|---|
+| Monthly GHI/DNI/DIF | `https://power.larc.nasa.gov/api/temporal/climatology/point` | none |
+| Panel-plane yield | `https://re.jrc.ec.europa.eu/api/v5_2/PVcalc` | none |
+| Address | `https://nominatim.openstreetmap.org/reverse` (already used) | none |
+| Sun position | `suncalc` npm — computed locally from lat/lng/date | n/a |
+
+If a network fetch fails, the report shows a yellow "using fallback climatology" banner rather than silently making up numbers — no simulated data ever presented as real.
 
 ### Files NOT touched
-- `src/App.tsx` routes.
-- Any Supabase schema / migration files.
-- `src/lib/atlas-model-storage.ts`, `useBuildingRecords`, or any hook filenames.
-- `useAtlasLevelLayer` and other technical identifiers.
+- Cesium viewer setup, Atlas main routes, Mesh Controller, Imagine Engine pages.
+- Existing measurement types / ledger persistence — the roof measurement schema is a superset already (`solar` sub-object stays; the report just enriches it with monthly arrays).
 
-### Persistence of mesh edits
-- **SpaceshipPage models**: after Apply, the new baked GLB replaces the blob stored under the same `modelId` in `atlas-model-storage`. The entity is removed and re-added so `model.uri` refreshes.
-- **AtlasBuildingsOverlay replacements**: the baked GLB is uploaded (reuse the upload path used by `onUploadModel`), `replacement_glb_url` is patched, and the Cesium entity is refreshed. RLS already restricts to the row owner.
-
-### Dependencies
-- `three` is already installed (Level editor uses it). `GLTFExporter` and `GLTFLoader` come from `three/examples/jsm/`. No new packages required.
-- `@react-three/fiber` and `@react-three/drei` already present.
-
-### Undo/redo scope
-The existing per-widget undo stack keeps handling transforms. The Mesh Editor gets its own independent stack so mesh edits and transform edits don't collide.
+### Out of scope (explicit)
+- Shading analysis from actual sun-path obstruction (requires ray-cast against 3D tiles — noted in Assumptions as a limitation).
+- Per-panel string routing / DC loss modeling — we suggest inverter+string count but don't lay out cabling.
+- Live utility-rate lookup — user enters their rate (or we default to 0.16 $/kWh with a note).
