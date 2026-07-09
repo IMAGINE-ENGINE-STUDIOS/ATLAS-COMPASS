@@ -419,5 +419,6 @@ export default function ModelTransformWidget({
         </div>
       </div>
     </div>
+    </>
   );
 }
