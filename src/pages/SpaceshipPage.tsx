@@ -1307,6 +1307,9 @@ function SpaceshipPage() {
 
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
+  // GLB blob for the currently-editing model, loaded lazily so the Mesh
+  // Editor tab can hand it to the R3F canvas.
+  const [editingModelBlob, setEditingModelBlob] = useState<Blob | null>(null);
 
   // Uber Direct Delivery panel state
   const [deliveryPanelOpen, setDeliveryPanelOpen] = useState(false);
