@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import {
   Move, RotateCcw, Scale, X, Check, ArrowDown,
   Plus, Minus, Scissors, Grid3x3, Square as SquareIcon, Circle as CircleIcon,
-  Pencil, RotateCw, ArrowUp, Waves, Layers,
+  Pencil, RotateCw, ArrowUp, Waves, Layers, Trash2,
 } from "lucide-react";
 import type { Viewer } from "cesium";
 import ModelGizmoOverlay from "@/components/ModelGizmoOverlay";
@@ -44,6 +44,10 @@ interface Props {
   /** Optional Cesium viewer ref — when provided, a 3D gizmo is drawn on the
    *  model's geometric center and follows the active tab (position/rotation/scale). */
   viewerRef?: React.MutableRefObject<Viewer | null>;
+  /** Delete the model. Rendered only when provided — permission (author or
+   *  admin) is enforced by the parent (RLS on the server, ownership check
+   *  on local models). */
+  onDelete?: () => void | Promise<void>;
 }
 
 function StepInput({ label, value, step, min, max, decimals, onChange }: {
@@ -111,7 +115,7 @@ export default function ModelTransformWidget({
   modelName, initial, onUpdate, onApply, onClose, onSnapToGround,
   cropRadius = 0, onCropTile, onUncropTile,
   cropBase, onCropBaseChange, onResetTerrain, terrainEditing, onToggleTerrainEditing,
-  viewerRef,
+  viewerRef, onDelete,
 }: Props) {
   const [data, setData] = useState<TransformData>(initial);
   const [tab, setTab] = useState<"position" | "rotation" | "scale">("position");
@@ -169,12 +173,26 @@ export default function ModelTransformWidget({
               <p className="text-[9px] text-white/70 uppercase tracking-wider">Transform Editor</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-6 h-6 rounded-md bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-red-500/20 hover:border-red-500/30 transition-all"
-          >
-            <X className="w-3 h-3 text-white/80" />
-          </button>
+          <div className="flex items-center gap-1">
+            {onDelete && (
+              <button
+                onClick={async () => {
+                  if (!confirm(`Delete "${modelName}"? This cannot be undone.`)) return;
+                  try { await onDelete(); } catch (e) { console.warn("[ModelTransformWidget] delete failed", e); }
+                }}
+                title="Delete 3D model (author or admin only)"
+                className="w-6 h-6 rounded-md bg-black/75 border border-red-500/25 flex items-center justify-center text-red-300 hover:bg-red-500/25 hover:border-red-500/50 hover:text-red-200 transition-all"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-6 h-6 rounded-md bg-black/75 border border-white/[0.08] flex items-center justify-center hover:bg-red-500/20 hover:border-red-500/30 transition-all"
+            >
+              <X className="w-3 h-3 text-white/80" />
+            </button>
+          </div>
         </div>
 
         {/* Tab bar */}
