@@ -725,10 +725,11 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           </div>
 
           <div className="p-3 space-y-3 border-b border-white/10 shrink-0">
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               <ModeButton active={mode === "distance"} onClick={() => setMode("distance")} icon={<MousePointer2 className="w-3 h-3" />} label="Distance" color={MODE_COLOR.distance} />
               <ModeButton active={mode === "area"} onClick={() => setMode("area")} icon={<Pentagon className="w-3 h-3" />} label="Area" color={MODE_COLOR.area} />
               <ModeButton active={mode === "height"} onClick={() => setMode("height")} icon={<MoveVertical className="w-3 h-3" />} label="Height" color={MODE_COLOR.height} />
+              <ModeButton active={mode === "roof"} onClick={() => setMode("roof")} icon={<Sun className="w-3 h-3" />} label="Roof / Solar" color={MODE_COLOR.roof} />
             </div>
 
             <div className="flex items-center justify-between">
@@ -768,7 +769,9 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                 {vertices.length === 0
                   ? mode === "height"
                     ? (heightAutoBase ? "Click the top of an object — height is measured automatically" : "Click 2 points (base + top)")
-                    : "Click the globe to add points"
+                    : mode === "roof"
+                      ? "Trace roof corners on the 3D mesh — slant area & solar potential"
+                      : "Click the globe to add points"
                   : `${vertices.length} point${vertices.length === 1 ? "" : "s"} · right-click to undo`}
               </span>
               <div className="flex gap-1">
@@ -785,7 +788,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
             <button
               onClick={finish}
-              disabled={vertices.length < (mode === "area" ? 3 : 2)}
+              disabled={vertices.length < ((mode === "area" || mode === "roof") ? 3 : 2)}
               className="w-full h-9 rounded-md text-[11px] font-bold tracking-widest uppercase border border-sky-300 bg-gradient-to-b from-sky-500/40 to-sky-500/20 hover:from-sky-500/55 hover:to-sky-500/30 text-sky-50 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 transition-all"
             >
               <Check className="w-3.5 h-3.5" /> End Measurement
