@@ -7516,7 +7516,8 @@ function SpaceshipPage() {
             try {
               // Persist the re-baked GLB under the same model id so
               // future sessions load the edited version.
-              await saveAtlasModelBlob(id, glb);
+              const fname = (editingModel.fileName?.replace(/\.(glb|gltf)$/i, "") || "model") + ".glb";
+              await saveAtlasModelBlob(id, glb, fname);
               setEditingModelBlob(glb);
               // Refresh the Cesium entity by removing + re-placing so
               // the new URL is picked up.
