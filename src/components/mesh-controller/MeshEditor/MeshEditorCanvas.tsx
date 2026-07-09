@@ -14,7 +14,7 @@
  * bakes the edits into the emitted GLB.
  */
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, Environment, Grid, Bounds } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -26,6 +26,12 @@ export interface MaterialOverride {
   emissive?: string;
   emissiveIntensity?: number;
   opacity?: number;
+  /** Full-mesh texture map (data URL) applied to the material's map slot. */
+  map?: string;
+  /** UV repeat for the texture map. */
+  repeat?: [number, number];
+  /** UV rotation (radians). */
+  rotation?: number;
 }
 
 interface Props {
@@ -34,17 +40,26 @@ interface Props {
   overrides: Record<string, MaterialOverride>;
   paintActive: boolean;
   paintColor: string;
+  paintOpacity?: number;
+  /** UUID of the currently selected mesh — pulses faint intense blue. */
+  selectedUuid?: string | null;
   environmentPreset: "studio" | "sunset" | "warehouse" | "city" | "dawn" | "night";
   showGrid: boolean;
   onSceneReady: (root: THREE.Object3D, meshes: { name: string; uuid: string }[]) => void;
+  /** Called when the user clicks a mesh in the viewport (not painting). */
+  onPickMesh?: (uuid: string) => void;
 }
 
 function LoadedModel({
-  source, hiddenMeshes, overrides, paintActive, paintColor, onSceneReady,
+  source, hiddenMeshes, overrides, paintActive, paintColor, paintOpacity = 1,
+  selectedUuid, onSceneReady, onPickMesh,
 }: Omit<Props, "environmentPreset" | "showGrid">) {
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
   const groupRef = useRef<THREE.Group>(null);
   const originalMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
+  const textureCache = useRef<Map<string, THREE.Texture>>(new Map());
+  /** Baseline emissive per material — restored when pulse cycles off. */
+  const baselineEmissive = useRef<WeakMap<THREE.Material, { color: THREE.Color; intensity: number }>>(new WeakMap());
 
   // Load GLB from any of the supported source shapes.
   useEffect(() => {
@@ -105,12 +120,66 @@ function LoadedModel({
           std.opacity = ov.opacity;
           std.transparent = ov.opacity < 1;
         }
+        if (ov.map !== undefined) {
+          if (ov.map) {
+            const key = ov.map;
+            let tex = textureCache.current.get(key);
+            if (!tex) {
+              tex = new THREE.TextureLoader().load(key);
+              tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+              tex.colorSpace = THREE.SRGBColorSpace;
+              textureCache.current.set(key, tex);
+            }
+            std.map = tex;
+          } else {
+            std.map = null;
+          }
+        }
+        if (ov.repeat && std.map) std.map.repeat.set(ov.repeat[0], ov.repeat[1]);
+        if (ov.rotation != null && std.map) std.map.rotation = ov.rotation;
         std.needsUpdate = true;
       };
       if (Array.isArray(m.material)) m.material.forEach(applyTo);
       else if (m.material) applyTo(m.material);
     });
   }, [root, hiddenMeshes, overrides]);
+
+  // ── Selection pulse: faint intense blue emissive, ~5s on / 5s off.
+  useFrame(({ clock }) => {
+    if (!root) return;
+    const period = 10; // seconds
+    const phase = (clock.getElapsedTime() % period) / period; // 0..1
+    const on = phase < 0.5;
+    const t = on ? Math.sin(phase * Math.PI * 2) : 0; // 0..1..0 during on-half
+    const intensity = on ? 0.55 + t * 0.35 : 0;
+    const HIGHLIGHT = new THREE.Color("#3b82f6");
+
+    root.traverse((obj) => {
+      if (!(obj as THREE.Mesh).isMesh) return;
+      const mesh = obj as THREE.Mesh;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const isSelected = !!selectedUuid && mesh.uuid === selectedUuid;
+      for (const mat of mats) {
+        if (!mat) continue;
+        const std = mat as THREE.MeshStandardMaterial;
+        if (!std.emissive) continue;
+        if (!baselineEmissive.current.has(std)) {
+          baselineEmissive.current.set(std, {
+            color: std.emissive.clone(),
+            intensity: std.emissiveIntensity ?? 1,
+          });
+        }
+        const base = baselineEmissive.current.get(std)!;
+        if (isSelected) {
+          std.emissive.copy(base.color).lerp(HIGHLIGHT, intensity);
+          std.emissiveIntensity = base.intensity + intensity * 0.8;
+        } else {
+          std.emissive.copy(base.color);
+          std.emissiveIntensity = base.intensity;
+        }
+      }
+    });
+  });
 
   // Face-painting: on pointer-move with paintActive, paint vertex colors
   // on the picked triangle of the hit mesh.
@@ -133,9 +202,11 @@ function LoadedModel({
       }
     }
     const c = new THREE.Color(paintColor);
+    const a = Math.max(0, Math.min(1, paintOpacity));
     const idxs = [e.face.a, e.face.b, e.face.c];
     for (const i of idxs) {
-      colorAttr.setXYZ(i, c.r, c.g, c.b);
+      const r0 = colorAttr.getX(i), g0 = colorAttr.getY(i), b0 = colorAttr.getZ(i);
+      colorAttr.setXYZ(i, r0 * (1 - a) + c.r * a, g0 * (1 - a) + c.g * a, b0 * (1 - a) + c.b * a);
     }
     colorAttr.needsUpdate = true;
   };
@@ -144,7 +215,11 @@ function LoadedModel({
   return (
     <group
       ref={groupRef}
-      onPointerDown={(e) => { if (paintActive) { painting.current = true; paintFace(e); } }}
+      onPointerDown={(e) => {
+        if (paintActive) { painting.current = true; paintFace(e); return; }
+        const mesh = e.object as THREE.Mesh;
+        if (mesh?.isMesh && onPickMesh) { e.stopPropagation(); onPickMesh(mesh.uuid); }
+      }}
       onPointerUp={() => { painting.current = false; }}
       onPointerMove={paintFace}
     >
@@ -161,8 +236,8 @@ function AutoFrame({ trigger }: { trigger: unknown }) {
 }
 
 export default function MeshEditorCanvas({
-  source, hiddenMeshes, overrides, paintActive, paintColor,
-  environmentPreset, showGrid, onSceneReady,
+  source, hiddenMeshes, overrides, paintActive, paintColor, paintOpacity,
+  selectedUuid, environmentPreset, showGrid, onSceneReady, onPickMesh,
 }: Props) {
   const key = useMemo(() => Math.random().toString(36).slice(2), [source]);
   return (
@@ -199,7 +274,10 @@ export default function MeshEditorCanvas({
           overrides={overrides}
           paintActive={paintActive}
           paintColor={paintColor}
+          paintOpacity={paintOpacity}
+          selectedUuid={selectedUuid}
           onSceneReady={onSceneReady}
+          onPickMesh={onPickMesh}
         />
       </Bounds>
       <AutoFrame trigger={source} />
