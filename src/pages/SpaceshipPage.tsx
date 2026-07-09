@@ -7102,7 +7102,7 @@ function SpaceshipPage() {
                       {levelPlacements.length > 0 && (
                         <div className="pt-2 mt-1 border-t border-white/10">
                           <div className="flex items-center gap-1.5 px-1 pb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Levels</span>
+                           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Imagine</span>
                             <span className="text-[10px] text-white/60 font-mono">({levelPlacements.length})</span>
                           </div>
                           {levelPlacements.map((lp) => (

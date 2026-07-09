@@ -177,7 +177,7 @@ export default function LevelWizardModal({
               </Button>
             )}
             <Sparkles className="w-5 h-5 text-primary" />
-            {selected ? `Configure: ${selected.name}` : "Level Wizard"}
+            {selected ? `Configure: ${selected.name}` : "Imagine Wizard"}
           </DialogTitle>
           <DialogDescription>
             {selected
