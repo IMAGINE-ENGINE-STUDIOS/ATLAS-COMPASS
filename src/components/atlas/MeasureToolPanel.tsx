@@ -41,6 +41,7 @@ import {
 import {
   Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2,
   Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil, Redo2,
+  Sun,
 } from "lucide-react";
 
 interface Props {
@@ -48,7 +49,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Mode = "distance" | "area" | "height";
+type Mode = "distance" | "area" | "height" | "roof";
 type Units = "metric" | "imperial";
 
 interface Vertex { lng: number; lat: number; alt: number }
@@ -67,6 +68,7 @@ const MODE_COLOR: Record<Mode, string> = {
   distance: "#38bdf8",
   area: "#a78bfa",
   height: "#fbbf24",
+  roof: "#f97316",
 };
 const RENDER_LIFT_METERS = 0.85;
 // Draft (per-frame CallbackProperty) sampling — keep tiny to avoid stalls.
@@ -309,7 +311,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { unitsRef.current = units; }, [units]);
   const commitDraftIfValid = useCallback((verts: Vertex[], m: Mode) => {
-    const need = m === "area" ? 3 : 2;
+    const need = (m === "area" || m === "roof") ? 3 : 2;
     if (verts.length < need) return false;
     const item: SavedMeasurement = {
       id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -468,12 +470,17 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           depthFailMaterial: color.withAlpha(0.55),
         },
       }));
-    } else if (mode === "area") {
+    } else if (mode === "area" || mode === "roof") {
       ents.push(viewer.entities.add({
         polygon: {
           hierarchy: new CallbackProperty(() =>
             new PolygonHierarchy(
-              withCursor(verticesRef.current, cursorRef.current).map((v) => safeCartesian(viewer, v))
+              withCursor(verticesRef.current, cursorRef.current).map((v) =>
+                mode === "roof"
+                  // Roof: keep the picked altitude of every vertex — the polygon
+                  // is drawn on the actual tilted surface so slant area is real.
+                  ? Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS)
+                  : safeCartesian(viewer, v))
             ), false) as any,
           material: color.withAlpha(0.22),
           outline: false,
@@ -485,11 +492,16 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polyline: {
           positions: new CallbackProperty(() => {
             const vs = withCursor(verticesRef.current, cursorRef.current);
+            if (mode === "roof") {
+              // Straight line-of-sight edges on the mesh; no geodesic resampling.
+              const src = vs.length >= 3 ? [...vs, vs[0]] : vs;
+              return src.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS));
+            }
             return draftPolylinePositions(viewer, vs, vs.length >= 3);
           }, false),
           width: 3,
           material: color,
-          arcType: ArcType.GEODESIC,
+          arcType: mode === "roof" ? ArcType.NONE : ArcType.GEODESIC,
           depthFailMaterial: color.withAlpha(0.55),
         },
       }));
@@ -542,7 +554,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
     // ── Guide rails from last vertex: continuation, perpendicular, back-ray.
     // Only meaningful for distance/area while user is picking points.
-    if (mode === "distance" || mode === "area") {
+    if (mode === "distance" || mode === "area" || mode === "roof") {
       const makeRay = (offsetDeg: number) => viewer.entities.add({
         polyline: {
           positions: new CallbackProperty(() => {
@@ -592,13 +604,23 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           polyline: { positions: safePolylinePositions(viewer, m.vertices), width: 2.5, material: color, arcType: ArcType.GEODESIC,
             depthFailMaterial: color.withAlpha(0.5) },
         }));
-      } else if (m.mode === "area" && pts.length >= 3) {
+      } else if ((m.mode === "area" || m.mode === "roof") && pts.length >= 3) {
+        const roof = m.mode === "roof";
+        const roofPts = roof
+          ? m.vertices.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS))
+          : pts;
         ents.push(viewer.entities.add({
-          polygon: { hierarchy: new PolygonHierarchy(pts), material: color.withAlpha(0.18), perPositionHeight: true },
+          polygon: { hierarchy: new PolygonHierarchy(roofPts), material: color.withAlpha(0.18), perPositionHeight: true },
         }));
         ents.push(viewer.entities.add({
-          polyline: { positions: safePolylinePositions(viewer, m.vertices, true), width: 2.5, material: color, arcType: ArcType.GEODESIC,
-            depthFailMaterial: color.withAlpha(0.5) },
+          polyline: {
+            positions: roof
+              ? [...roofPts, roofPts[0]]
+              : safePolylinePositions(viewer, m.vertices, true),
+            width: 2.5, material: color,
+            arcType: roof ? ArcType.NONE : ArcType.GEODESIC,
+            depthFailMaterial: color.withAlpha(0.5),
+          },
         }));
       } else if (m.mode === "height" && pts.length === 2) {
         const [a, b] = m.vertices;
@@ -628,7 +650,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
   // ── Finish → push to ledger
   const finish = useCallback(() => {
-    const need = mode === "area" ? 3 : 2;
+    const need = (mode === "area" || mode === "roof") ? 3 : 2;
     if (vertices.length < need) return;
     const item: SavedMeasurement = {
       id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -703,10 +725,11 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           </div>
 
           <div className="p-3 space-y-3 border-b border-white/10 shrink-0">
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               <ModeButton active={mode === "distance"} onClick={() => setMode("distance")} icon={<MousePointer2 className="w-3 h-3" />} label="Distance" color={MODE_COLOR.distance} />
               <ModeButton active={mode === "area"} onClick={() => setMode("area")} icon={<Pentagon className="w-3 h-3" />} label="Area" color={MODE_COLOR.area} />
               <ModeButton active={mode === "height"} onClick={() => setMode("height")} icon={<MoveVertical className="w-3 h-3" />} label="Height" color={MODE_COLOR.height} />
+              <ModeButton active={mode === "roof"} onClick={() => setMode("roof")} icon={<Sun className="w-3 h-3" />} label="Roof / Solar" color={MODE_COLOR.roof} />
             </div>
 
             <div className="flex items-center justify-between">
@@ -746,7 +769,9 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
                 {vertices.length === 0
                   ? mode === "height"
                     ? (heightAutoBase ? "Click the top of an object — height is measured automatically" : "Click 2 points (base + top)")
-                    : "Click the globe to add points"
+                    : mode === "roof"
+                      ? "Trace roof corners on the 3D mesh — slant area & solar potential"
+                      : "Click the globe to add points"
                   : `${vertices.length} point${vertices.length === 1 ? "" : "s"} · right-click to undo`}
               </span>
               <div className="flex gap-1">
@@ -763,7 +788,7 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
 
             <button
               onClick={finish}
-              disabled={vertices.length < (mode === "area" ? 3 : 2)}
+              disabled={vertices.length < ((mode === "area" || mode === "roof") ? 3 : 2)}
               className="w-full h-9 rounded-md text-[11px] font-bold tracking-widest uppercase border border-sky-300 bg-gradient-to-b from-sky-500/40 to-sky-500/20 hover:from-sky-500/55 hover:to-sky-500/30 text-sky-50 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 transition-all"
             >
               <Check className="w-3.5 h-3.5" /> End Measurement
@@ -1117,6 +1142,25 @@ function ReadoutBlock({ mode, m, units }: { mode: Mode; m: any; units: Units }) 
       </div>
     );
   }
+  if (mode === "roof") {
+    const s = m.solar || emptySolar();
+    return (
+      <div className="space-y-1.5">
+        <Readout label="Slant area (roof)" value={formatArea(m.slant, units)} big />
+        <Readout label="Planar (footprint)" value={formatArea(m.planar, units)} />
+        <Readout label="Tilt" value={`${(m.tiltDeg ?? 0).toFixed(1)}°`} />
+        <Readout label="Perimeter" value={formatDistance(m.perimeter, units)} />
+        <div className="pt-1 mt-1 border-t border-white/10 space-y-1">
+          <div className="text-[9px] text-orange-200/80 uppercase tracking-wider mb-0.5">Solar potential</div>
+          <Readout label="System size" value={`${s.kWp.toFixed(2)} kWp`} />
+          <Readout label="Annual generation" value={`${Math.round(s.annualKWh).toLocaleString()} kWh/yr`} big />
+          <Readout label="Peak sun hours" value={`${s.psh.toFixed(1)} h/day`} />
+          <Readout label="Panels (≈1.7 m²)" value={`${s.panels}`} />
+          <Readout label="CO₂ avoided" value={`${(s.co2Kg / 1000).toFixed(2)} t/yr`} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1.5">
       <Readout label="Δ Elevation" value={formatDistance(m.deltaH, units)} big />
@@ -1155,6 +1199,38 @@ function computeMeasurements(mode: Mode, vertices: Vertex[]): any {
     }
     return { area: sphericalPolygonArea(vertices), perimeter: peri };
   }
+  if (mode === "roof") {
+    if (vertices.length < 3) {
+      return { planar: 0, slant: 0, tiltDeg: 0, perimeter: 0, solar: emptySolar() };
+    }
+    const planar = sphericalPolygonArea(vertices);
+    // True 3D roof area — triangle fan from centroid using ECEF positions.
+    const carts = vertices.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt));
+    const centroid = new Cartesian3(0, 0, 0);
+    for (const c of carts) Cartesian3.add(centroid, c, centroid);
+    Cartesian3.divideByScalar(centroid, carts.length, centroid);
+    let slant = 0;
+    for (let i = 0; i < carts.length; i++) {
+      const a = carts[i];
+      const b = carts[(i + 1) % carts.length];
+      const ab = Cartesian3.subtract(a, centroid, new Cartesian3());
+      const ac = Cartesian3.subtract(b, centroid, new Cartesian3());
+      const cross = Cartesian3.cross(ab, ac, new Cartesian3());
+      slant += Cartesian3.magnitude(cross) * 0.5;
+    }
+    // Perimeter in 3D (true length along the slope).
+    let peri = 0;
+    for (let i = 0; i < carts.length; i++) {
+      peri += Cartesian3.distance(carts[i], carts[(i + 1) % carts.length]);
+    }
+    // Tilt = angle between roof plane and horizontal, via area ratio.
+    const ratio = planar > 0 ? Math.min(1, planar / Math.max(planar, slant)) : 1;
+    const tiltDeg = Math.acos(ratio) * 180 / Math.PI;
+    // Solar: use mean latitude of vertices.
+    const meanLat = vertices.reduce((s, v) => s + v.lat, 0) / vertices.length;
+    const solar = solarPotential(slant, meanLat, tiltDeg);
+    return { planar, slant, tiltDeg, perimeter: peri, solar };
+  }
   if (vertices.length < 2) return { deltaH: 0, slant: 0, ground: 0 };
   const [a, b] = vertices;
   const ac = Cartesian3.fromDegrees(a.lng, a.lat, a.alt);
@@ -1169,6 +1245,7 @@ function computeMeasurements(mode: Mode, vertices: Vertex[]): any {
 function shortLabel(mode: Mode, m: any, units: Units): string {
   if (mode === "distance") return formatDistance(m.total, units);
   if (mode === "area") return formatArea(m.area, units);
+  if (mode === "roof") return `${formatArea(m.slant, units)} · ${(m.solar?.annualKWh ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh/yr`;
   return `Δ ${formatDistance(m.deltaH, units)}`;
 }
 
@@ -1209,6 +1286,50 @@ function sphericalPolygonArea(verts: { lng: number; lat: number }[]): number {
              (2 + Math.sin(CesiumMath.toRadians(p1.lat)) + Math.sin(CesiumMath.toRadians(p2.lat)));
   }
   return Math.abs(total * R * R / 2);
+}
+
+// ── Solar potential ────────────────────────────────────────────────────────
+// Simple, transparent PV yield model for early-stage roof qualification.
+// Inputs: roof slant area (m²), latitude (deg), tilt (deg).
+// Assumptions (industry rules of thumb):
+//   • Peak Sun Hours (PSH) interpolated by |lat| — global tilt-optimised avg.
+//   • Usable roof fraction 70 % (setbacks, obstructions, azimuth losses).
+//   • Module efficiency 20 % → 200 Wp per m² of module.
+//   • Performance ratio 0.80 (inverter, wiring, soiling, temperature).
+//   • Grid emission factor 0.40 kgCO₂/kWh (world avg, IEA 2023).
+// Tilt sanity: north/south hemispheres — no orientation input yet, so we
+// apply a mild derate above 45° tilt (steep roofs collect less unless
+// azimuth is optimal).
+export interface SolarEstimate {
+  psh: number;         // peak sun hours per day (kWh/m²/day)
+  usableArea: number;  // m² after 70 % fill factor
+  kWp: number;         // installed peak DC power
+  annualKWh: number;   // net yearly generation
+  panels: number;      // module count (1.7 m² each)
+  co2Kg: number;       // CO₂ avoided per year (kg)
+}
+function emptySolar(): SolarEstimate {
+  return { psh: 0, usableArea: 0, kWp: 0, annualKWh: 0, panels: 0, co2Kg: 0 };
+}
+function pshForLatitude(lat: number): number {
+  const a = Math.abs(lat);
+  if (a < 20) return 5.6;
+  if (a < 30) return 5.2;
+  if (a < 40) return 4.6;
+  if (a < 50) return 3.9;
+  if (a < 60) return 3.1;
+  return 2.3;
+}
+function solarPotential(slantAreaM2: number, lat: number, tiltDeg: number): SolarEstimate {
+  if (!Number.isFinite(slantAreaM2) || slantAreaM2 <= 0) return emptySolar();
+  const psh = pshForLatitude(lat);
+  const usableArea = slantAreaM2 * 0.70;
+  const kWp = usableArea * 0.20;                        // 200 Wp / m²
+  const tiltDerate = tiltDeg > 45 ? Math.max(0.75, 1 - (tiltDeg - 45) / 90) : 1;
+  const annualKWh = kWp * psh * 365 * 0.80 * tiltDerate;
+  const panels = Math.max(0, Math.floor(usableArea / 1.7));
+  const co2Kg = annualKWh * 0.40;
+  return { psh, usableArea, kWp, annualKWh, panels, co2Kg };
 }
 
 // ── Live cursor label: floating pill anchored to the pointer with live
