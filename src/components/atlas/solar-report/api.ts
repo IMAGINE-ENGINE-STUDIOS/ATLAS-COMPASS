@@ -1,5 +1,5 @@
 import type { NasaPowerMonthly, SunPathSample } from "./types";
-import SunCalc from "suncalc";
+import * as SunCalc from "suncalc";
 
 // ── NASA POWER — free, no-key, monthly climatology at any lat/lng ────────
 // https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=ALLSKY_SFC_SW_DWN,ALLSKY_SFC_SW_DNI,ALLSKY_SFC_SW_DIFF,T2M,ALLSKY_KT&community=RE&longitude=...&latitude=...&format=JSON
