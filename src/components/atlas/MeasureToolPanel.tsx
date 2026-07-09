@@ -558,12 +558,17 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polygon: {
           hierarchy: new CallbackProperty(() =>
             new PolygonHierarchy(
-              withCursor(verticesRef.current, cursorRef.current).map((v) =>
-                mode === "roof"
-                  // Roof: keep the picked altitude of every vertex — the polygon
-                  // is drawn on the actual tilted surface so slant area is real.
-                  ? Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS)
-                  : safeCartesian(viewer, v))
+              mode === "roof"
+                // Snap to mesh: use the cached densified boundary; when a
+                // cursor is active append it so the rubber-band segment also
+                // reads correctly (single straight span to cursor).
+                ? (roofSnapRef.current.length > 0
+                    ? (cursorRef.current
+                        ? [...roofSnapRef.current, Cartesian3.fromDegrees(cursorRef.current.lng, cursorRef.current.lat, cursorRef.current.alt + RENDER_LIFT_METERS)]
+                        : roofSnapRef.current)
+                    : withCursor(verticesRef.current, cursorRef.current).map(
+                        (v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS)))
+                : withCursor(verticesRef.current, cursorRef.current).map((v) => safeCartesian(viewer, v))
             ), false) as any,
           material: color.withAlpha(0.22),
           outline: false,
@@ -576,7 +581,15 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           positions: new CallbackProperty(() => {
             const vs = withCursor(verticesRef.current, cursorRef.current);
             if (mode === "roof") {
-              // Straight line-of-sight edges on the mesh; no geodesic resampling.
+              // Mesh-snapped outline: reuse the densified boundary and close it.
+              const snap = roofSnapRef.current;
+              if (snap.length >= 2) {
+                const cur = cursorRef.current;
+                const withCur = cur
+                  ? [...snap, Cartesian3.fromDegrees(cur.lng, cur.lat, cur.alt + RENDER_LIFT_METERS)]
+                  : snap;
+                return vs.length >= 3 ? [...withCur, withCur[0]] : withCur;
+              }
               const src = vs.length >= 3 ? [...vs, vs[0]] : vs;
               return src.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS));
             }
