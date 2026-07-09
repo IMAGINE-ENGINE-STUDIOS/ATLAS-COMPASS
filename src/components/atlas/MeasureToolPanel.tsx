@@ -976,6 +976,13 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           </div>
         </div>
       </div>
+      {reportRoof && (
+        <SolarReportModal
+          viewer={viewerRef.current}
+          roof={reportRoof}
+          onClose={() => setReportRoof(null)}
+        />
+      )}
     </>
   );
 }
