@@ -958,6 +958,7 @@ export default function AtlasBuildingsOverlay({ viewerRef, active }: Props) {
         return (
           <ModelTransformWidget
             modelName={rec.name ?? rec.tag ?? "Replacement Model"}
+            viewerRef={viewerRef}
             initial={initial}
             onUpdate={(t) => {
               if (viewer && entityId) applyEntityTransform(viewer, entityId, t);
