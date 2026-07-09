@@ -2991,6 +2991,16 @@ function SpaceshipPage() {
     handler.setInputAction((click: any) => {
       viewer.trackedEntity = undefined;
       viewer.selectedEntity = undefined;
+      // If a placed 3D model is under the cursor, open its transform
+      // widget instead of firing the brush / placement pipeline.
+      try {
+        const picked = viewer.scene.pick(click.position);
+        if (picked?.id?.id && typeof picked.id.id === "string" && picked.id.id.startsWith("model-")) {
+          const modelId = picked.id.id.replace("model-", "");
+          window.dispatchEvent(new CustomEvent("cesium-model-dblclick", { detail: { id: modelId } }));
+          return;
+        }
+      } catch {}
       const loc = pickWorldLoc(click.position);
       if (!loc) return;
       const screen = { x: click.position?.x ?? 0, y: click.position?.y ?? 0 };

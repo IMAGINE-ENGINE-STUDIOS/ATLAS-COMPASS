@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Move, RotateCcw, Scale, X, Check, ArrowDown,
   Plus, Minus, Scissors, Grid3x3, Square as SquareIcon, Circle as CircleIcon,
-  Pencil, RotateCw, ArrowUp, Waves, Layers, Trash2,
+  Pencil, RotateCw, ArrowUp, Waves, Layers, Trash2, Undo2, Redo2,
 } from "lucide-react";
 import type { Viewer } from "cesium";
 import ModelGizmoOverlay from "@/components/ModelGizmoOverlay";
@@ -121,6 +121,113 @@ export default function ModelTransformWidget({
   const [tab, setTab] = useState<"position" | "rotation" | "scale">("position");
   const [cropInput, setCropInput] = useState<number>(cropRadius > 0 ? cropRadius : 30);
 
+  // ── Undo / redo for gizmo drag operations.
+  // Each entry is a full TransformData snapshot captured on drag START.
+  const undoStack = useRef<TransformData[]>([]);
+  const redoStack = useRef<TransformData[]>([]);
+  const dragSnapshot = useRef<TransformData | null>(null);
+  const [historyTick, setHistoryTick] = useState(0);
+  const bumpHistory = () => setHistoryTick(v => v + 1);
+
+  const applySnapshot = useCallback((snap: TransformData) => {
+    setData(snap);
+    onUpdate(snap);
+  }, [onUpdate]);
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.current.length === 0) return;
+    const prev = undoStack.current.pop()!;
+    redoStack.current.push(data);
+    applySnapshot(prev);
+    bumpHistory();
+  }, [data, applySnapshot]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.current.length === 0) return;
+    const next = redoStack.current.pop()!;
+    undoStack.current.push(data);
+    applySnapshot(next);
+    bumpHistory();
+  }, [data, applySnapshot]);
+
+  const onGizmoDragStart = useCallback(() => {
+    dragSnapshot.current = { ...data };
+  }, [data]);
+
+  const onGizmoDragEnd = useCallback(() => {
+    const snap = dragSnapshot.current;
+    dragSnapshot.current = null;
+    if (!snap) return;
+    // Only record if the transform actually changed during the drag.
+    setData(cur => {
+      const changed = (["lat","lng","alt","heading","pitch","roll","scale"] as const)
+        .some(k => Math.abs((snap as any)[k] - (cur as any)[k]) > 1e-9);
+      if (changed) {
+        undoStack.current.push(snap);
+        // Cap history length so we don't grow forever.
+        if (undoStack.current.length > 100) undoStack.current.shift();
+        redoStack.current = [];
+        bumpHistory();
+      }
+      return cur;
+    });
+  }, []);
+
+  // Keyboard: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const tgt = e.target as HTMLElement | null;
+      if (tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); handleUndo(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); handleRedo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleUndo, handleRedo]);
+
+  // ── Draggable window: header is the drag handle. `pos` is null until the
+  // user first drags — then we switch from the default centered layout to
+  // absolute coordinates.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragState = useRef<{ startX: number; startY: number; origX: number; origY: number; el: HTMLElement | null } | null>(null);
+  const startWindowDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Ignore drags that start on interactive header controls.
+    if ((e.target as HTMLElement).closest("button,input,select,textarea,a")) return;
+    const parent = (e.currentTarget.closest("[data-transform-widget]") as HTMLElement) ?? null;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    dragState.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top, el: parent };
+    // Ensure we snap to absolute coords on first drag.
+    if (!pos) setPos({ x: rect.left, y: rect.top });
+    const move = (ev: PointerEvent) => {
+      const s = dragState.current; if (!s) return;
+      const nx = s.origX + (ev.clientX - s.startX);
+      const ny = s.origY + (ev.clientY - s.startY);
+      // Keep inside viewport.
+      const w = s.el?.offsetWidth ?? 289;
+      const h = s.el?.offsetHeight ?? 200;
+      setPos({
+        x: Math.max(4, Math.min(window.innerWidth - w - 4, nx)),
+        y: Math.max(4, Math.min(window.innerHeight - h - 4, ny)),
+      });
+    };
+    const up = () => {
+      dragState.current = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
+  const canUndo = undoStack.current.length > 0;
+  const canRedo = redoStack.current.length > 0;
+  void historyTick;
+
   useEffect(() => {
     if (cropRadius > 0) setCropInput(cropRadius);
   }, [cropRadius]);
@@ -155,15 +262,29 @@ export default function ModelTransformWidget({
         transform={data}
         mode={tab}
         onChange={(partial) => update(partial)}
+        onDragStart={onGizmoDragStart}
+        onDragEnd={onGizmoDragEnd}
       />
     )}
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 w-[289px] max-w-[calc(100vw-2rem)]">
+    <div
+      data-transform-widget
+      className={
+        pos
+          ? "fixed z-50 w-[289px] max-w-[calc(100vw-2rem)]"
+          : "absolute bottom-20 left-1/2 -translate-x-1/2 z-50 w-[289px] max-w-[calc(100vw-2rem)]"
+      }
+      style={pos ? { left: pos.x, top: pos.y } : undefined}
+    >
       <div className="bg-black/80 backdrop-blur-2xl border border-white/[0.1] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.06)] overflow-hidden">
         {/* Gradient top accent */}
         <div className="h-[2px] bg-gradient-to-r from-cyan-500/60 via-purple-500/40 to-cyan-500/60" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
+        <div
+          onPointerDown={startWindowDrag}
+          className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06] cursor-move select-none"
+          title="Drag to move this window"
+        >
           <div className="flex items-center gap-1.5 min-w-0">
             <div className="w-5 h-5 rounded-md bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
               <span className="text-xs">🏗️</span>
@@ -174,6 +295,22 @@ export default function ModelTransformWidget({
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Undo gizmo change (Ctrl+Z)"
+              className="w-6 h-6 rounded-md bg-black/75 border border-white/[0.08] flex items-center justify-center text-white/80 hover:bg-white/[0.12] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Undo2 className="w-3 h-3" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Redo gizmo change (Ctrl+Shift+Z)"
+              className="w-6 h-6 rounded-md bg-black/75 border border-white/[0.08] flex items-center justify-center text-white/80 hover:bg-white/[0.12] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Redo2 className="w-3 h-3" />
+            </button>
             {onDelete && (
               <button
                 onClick={async () => {
