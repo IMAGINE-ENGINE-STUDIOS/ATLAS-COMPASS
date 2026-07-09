@@ -41,8 +41,9 @@ import {
 import {
   Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2,
   Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil, Redo2,
-  Sun,
+  Sun, FileText,
 } from "lucide-react";
+import SolarReportModal from "./solar-report/SolarReportModal";
 
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
