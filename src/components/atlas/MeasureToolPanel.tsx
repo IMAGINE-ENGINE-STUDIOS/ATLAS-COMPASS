@@ -41,6 +41,7 @@ import {
 import {
   Ruler, X, MousePointer2, Pentagon, MoveVertical, Trash2, Undo2,
   Check, Eye, EyeOff, Target, ChevronDown, ChevronRight, Pencil, Redo2,
+  Sun,
 } from "lucide-react";
 
 interface Props {
@@ -48,7 +49,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Mode = "distance" | "area" | "height";
+type Mode = "distance" | "area" | "height" | "roof";
 type Units = "metric" | "imperial";
 
 interface Vertex { lng: number; lat: number; alt: number }
@@ -67,6 +68,7 @@ const MODE_COLOR: Record<Mode, string> = {
   distance: "#38bdf8",
   area: "#a78bfa",
   height: "#fbbf24",
+  roof: "#f97316",
 };
 const RENDER_LIFT_METERS = 0.85;
 // Draft (per-frame CallbackProperty) sampling — keep tiny to avoid stalls.
