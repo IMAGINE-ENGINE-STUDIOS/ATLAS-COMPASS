@@ -36,6 +36,11 @@ interface Props {
   transform: TransformData;
   mode: Mode;
   onChange: (partial: Partial<TransformData>) => void;
+  /** Fired when a gizmo drag begins. Parents snapshot pre-drag state
+   *  here so undo can restore it. */
+  onDragStart?: () => void;
+  /** Fired on pointerup / pointercancel — the drag settled. */
+  onDragEnd?: () => void;
 }
 
 const AXES = [
@@ -44,7 +49,7 @@ const AXES = [
   { key: "up", color: "#3b82f6", label: "U" },     // +Alt (Blue / Z)
 ] as const;
 
-export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange }: Props) {
+export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange, onDragStart, onDragEnd }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const nodesRef = useRef<Record<string, HTMLDivElement | null>>({});
   const stateRef = useRef({ transform, mode });
@@ -138,6 +143,7 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
       const ctrl = viewer.scene.screenSpaceCameraController;
       const prevEnabled = ctrl.enableInputs;
       ctrl.enableInputs = false;
+      try { onDragStart?.(); } catch {}
       const move = (ev: PointerEvent) => handler(ev);
       const up = () => {
         ctrl.enableInputs = prevEnabled;
@@ -145,6 +151,7 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
         onEnd?.();
+        try { onDragEnd?.(); } catch {}
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
