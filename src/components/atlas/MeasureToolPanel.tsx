@@ -470,12 +470,17 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
           depthFailMaterial: color.withAlpha(0.55),
         },
       }));
-    } else if (mode === "area") {
+    } else if (mode === "area" || mode === "roof") {
       ents.push(viewer.entities.add({
         polygon: {
           hierarchy: new CallbackProperty(() =>
             new PolygonHierarchy(
-              withCursor(verticesRef.current, cursorRef.current).map((v) => safeCartesian(viewer, v))
+              withCursor(verticesRef.current, cursorRef.current).map((v) =>
+                mode === "roof"
+                  // Roof: keep the picked altitude of every vertex — the polygon
+                  // is drawn on the actual tilted surface so slant area is real.
+                  ? Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS)
+                  : safeCartesian(viewer, v))
             ), false) as any,
           material: color.withAlpha(0.22),
           outline: false,
@@ -487,11 +492,16 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
         polyline: {
           positions: new CallbackProperty(() => {
             const vs = withCursor(verticesRef.current, cursorRef.current);
+            if (mode === "roof") {
+              // Straight line-of-sight edges on the mesh; no geodesic resampling.
+              const src = vs.length >= 3 ? [...vs, vs[0]] : vs;
+              return src.map((v) => Cartesian3.fromDegrees(v.lng, v.lat, v.alt + RENDER_LIFT_METERS));
+            }
             return draftPolylinePositions(viewer, vs, vs.length >= 3);
           }, false),
           width: 3,
           material: color,
-          arcType: ArcType.GEODESIC,
+          arcType: mode === "roof" ? ArcType.NONE : ArcType.GEODESIC,
           depthFailMaterial: color.withAlpha(0.55),
         },
       }));
