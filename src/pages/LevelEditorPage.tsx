@@ -65,6 +65,7 @@ import {
   CAD_FORMATS,
 } from "@/lib/model-import";
 import { GLTFLoader } from "three-stdlib";
+import * as THREE from "three";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
 import DynamicObjectGallery from "@/components/level/dynamics/DynamicObjectGallery";
@@ -1293,9 +1294,38 @@ export default function LevelEditorPage() {
   const cadFileRef = useRef<HTMLInputElement>(null);
   const [cadConverting, setCadConverting] = useState(false);
 
-  const addImportedAsObject = (
+  /**
+   * Load an imported GLB, measure its world-space bounding box, and return
+   * the offset that will center the model horizontally at world origin with
+   * its base resting on y=0 — matching how models are framed when a scene
+   * loads them for the first time. Falls back to the origin on any error so
+   * uploads never break because of measurement failure.
+   */
+  const measureModelCenter = async (
+    url: string,
+  ): Promise<[number, number, number]> => {
+    try {
+      const buf = await (await fetch(url)).arrayBuffer();
+      const loader = new GLTFLoader();
+      const gltf = await new Promise<any>((res, rej) =>
+        loader.parse(buf, "", res, rej),
+      );
+      const box = new THREE.Box3().setFromObject(gltf.scene);
+      if (!isFinite(box.min.x) || !isFinite(box.max.x)) return [0, 0, 0];
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      // Shift so XZ center → origin, and the model's base sits on y = 0.
+      return [-center.x, -box.min.y, -center.z];
+    } catch (e) {
+      console.warn("[LevelEditor] measureModelCenter failed", e);
+      return [0, 0, 0];
+    }
+  };
+
+  const addImportedAsObject = async (
     imported: { url: string; sourceFormat: string; fileName: string },
   ) => {
+    const position = await measureModelCenter(imported.url);
     const obj: ModelObject = {
       id: newId("obj"),
       kind: "model",
@@ -1303,7 +1333,7 @@ export default function LevelEditorPage() {
       url: imported.url,
       fileName: imported.fileName,
       sourceFormat: imported.sourceFormat,
-      position: [0, 0, 0],
+      position,
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
       visible: true,
@@ -1321,7 +1351,7 @@ export default function LevelEditorPage() {
     }
     try {
       const imported = await importModelFile(file);
-      addImportedAsObject(imported);
+      await addImportedAsObject(imported);
       toast.success(`Imported ${file.name}`);
     } catch (e: any) {
       toast.error(e?.message || "Failed to import model");
@@ -1342,7 +1372,7 @@ export default function LevelEditorPage() {
       const imported = await convertCadViaAps(file, (fn, opts) =>
         supabase.functions.invoke(fn, opts) as any,
       );
-      addImportedAsObject(imported);
+      await addImportedAsObject(imported);
       toast.success(`Imported ${file.name}`, { id: tid });
     } catch (e: any) {
       toast.error(e?.message || "Conversion failed", { id: tid });
