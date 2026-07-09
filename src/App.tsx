@@ -24,6 +24,7 @@ import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";
 import FilesPage from "@/pages/FilesPage";
+import ImagineDesignLabPage from "@/pages/ImagineDesignLabPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,9 @@ const App = () => (
 
           {/* Files — sharing, friends, matchmaking */}
           <Route path="/files" element={<FilesPage />} />
+
+          {/* Imagine Engine design sandbox */}
+          <Route path="/imagine-lab" element={<ImagineDesignLabPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
