@@ -1288,6 +1288,50 @@ function sphericalPolygonArea(verts: { lng: number; lat: number }[]): number {
   return Math.abs(total * R * R / 2);
 }
 
+// ── Solar potential ────────────────────────────────────────────────────────
+// Simple, transparent PV yield model for early-stage roof qualification.
+// Inputs: roof slant area (m²), latitude (deg), tilt (deg).
+// Assumptions (industry rules of thumb):
+//   • Peak Sun Hours (PSH) interpolated by |lat| — global tilt-optimised avg.
+//   • Usable roof fraction 70 % (setbacks, obstructions, azimuth losses).
+//   • Module efficiency 20 % → 200 Wp per m² of module.
+//   • Performance ratio 0.80 (inverter, wiring, soiling, temperature).
+//   • Grid emission factor 0.40 kgCO₂/kWh (world avg, IEA 2023).
+// Tilt sanity: north/south hemispheres — no orientation input yet, so we
+// apply a mild derate above 45° tilt (steep roofs collect less unless
+// azimuth is optimal).
+export interface SolarEstimate {
+  psh: number;         // peak sun hours per day (kWh/m²/day)
+  usableArea: number;  // m² after 70 % fill factor
+  kWp: number;         // installed peak DC power
+  annualKWh: number;   // net yearly generation
+  panels: number;      // module count (1.7 m² each)
+  co2Kg: number;       // CO₂ avoided per year (kg)
+}
+function emptySolar(): SolarEstimate {
+  return { psh: 0, usableArea: 0, kWp: 0, annualKWh: 0, panels: 0, co2Kg: 0 };
+}
+function pshForLatitude(lat: number): number {
+  const a = Math.abs(lat);
+  if (a < 20) return 5.6;
+  if (a < 30) return 5.2;
+  if (a < 40) return 4.6;
+  if (a < 50) return 3.9;
+  if (a < 60) return 3.1;
+  return 2.3;
+}
+function solarPotential(slantAreaM2: number, lat: number, tiltDeg: number): SolarEstimate {
+  if (!Number.isFinite(slantAreaM2) || slantAreaM2 <= 0) return emptySolar();
+  const psh = pshForLatitude(lat);
+  const usableArea = slantAreaM2 * 0.70;
+  const kWp = usableArea * 0.20;                        // 200 Wp / m²
+  const tiltDerate = tiltDeg > 45 ? Math.max(0.75, 1 - (tiltDeg - 45) / 90) : 1;
+  const annualKWh = kWp * psh * 365 * 0.80 * tiltDerate;
+  const panels = Math.max(0, Math.floor(usableArea / 1.7));
+  const co2Kg = annualKWh * 0.40;
+  return { psh, usableArea, kWp, annualKWh, panels, co2Kg };
+}
+
 // ── Live cursor label: floating pill anchored to the pointer with live
 // distance from the last vertex to the cursor while measuring.
 function CursorMeasureLabel({
