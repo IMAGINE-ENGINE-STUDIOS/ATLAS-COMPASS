@@ -3872,6 +3872,23 @@ function SpaceshipPage() {
     return () => window.removeEventListener("cesium-model-dblclick", handleModelDblClick);
   }, [placedModels]);
 
+  // Load the raw GLB bytes for whichever model is being edited so the
+  // Mesh Controller's Mesh Editor tab can hand them to the R3F canvas.
+  useEffect(() => {
+    if (!editingModel) { setEditingModelBlob(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await loadAtlasModelBlob(editingModel.id);
+        if (!cancelled) setEditingModelBlob(blob ?? null);
+      } catch (e) {
+        if (!cancelled) setEditingModelBlob(null);
+        console.warn("[SpaceshipPage] failed loading model blob for editor", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editingModel?.id]);
+
   // Listen for model drag events
   useEffect(() => {
     const handleModelMoved = (e: Event) => {
