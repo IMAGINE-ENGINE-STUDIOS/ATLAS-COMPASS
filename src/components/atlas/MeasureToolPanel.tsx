@@ -355,6 +355,11 @@ export default function MeasureToolPanel({ viewerRef, onClose }: Props) {
   const [ledger, setLedger] = useState<SavedMeasurement[]>(() => loadLedger());
   const [expanded, setExpanded] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Solar report modal — opens with the current roof draft or a saved roof entry.
+  const [reportRoof, setReportRoof] = useState<null | {
+    slantAreaM2: number; planarAreaM2: number; perimeterM: number; tiltDeg: number;
+    vertices: Vertex[];
+  }>(null);
   // Height mode: single-click measures top→ground automatically.
   const [heightAutoBase, setHeightAutoBase] = useState<boolean>(() =>
     localStorage.getItem("atlas.measure.heightAutoBase") !== "0");
