@@ -7493,6 +7493,31 @@ function SpaceshipPage() {
             });
             setEditingModel(null);
           }}
+          meshSource={editingModelBlob}
+          onMeshApply={async (glb) => {
+            const id = editingModel.id;
+            try {
+              // Persist the re-baked GLB under the same model id so
+              // future sessions load the edited version.
+              await saveAtlasModelBlob(id, glb);
+              setEditingModelBlob(glb);
+              // Refresh the Cesium entity by removing + re-placing so
+              // the new URL is picked up.
+              const v = viewerRef.current;
+              if (v) {
+                try {
+                  const ent = v.entities.getById(`model-${id}`);
+                  if (ent) v.entities.remove(ent);
+                } catch {}
+                const m = placedModels.find(pm => pm.id === id);
+                if (m) {
+                  await placeModelOnGlobe(m, URL.createObjectURL(glb));
+                }
+              }
+            } catch (e) {
+              console.warn("[SpaceshipPage] mesh apply failed", e);
+            }
+          }}
         />
       )}
       {earthMenu && (
