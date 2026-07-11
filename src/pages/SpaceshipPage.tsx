@@ -4339,7 +4339,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
               CesiumMath.toRadians(movedModel.roll || 0),
             );
             entity.position = pos as any;
-            entity.orientation = Transforms.headingPitchRollQuaternion(pos, hpr) as any;
+            entity.orientation = Transforms.headingPitchRollQuaternion(
+              pos,
+              hpr,
+              moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+            ) as any;
           }
         }
         setEditingModel(current => current?.id === id ? { ...current, lat, lng, alt } : current);
