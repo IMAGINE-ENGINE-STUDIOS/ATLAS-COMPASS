@@ -1007,7 +1007,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // and skip every Earth-only data load (Google Photoreal, OSM Buildings,
   // Ion Realistic, Overpass discovery, POIs, placed models, level layer).
   const moonModeRef = useRef(moonMode);
-  useEffect(() => { moonModeRef.current = moonMode; }, [moonMode]);
+  useEffect(() => {
+    moonModeRef.current = moonMode;
+    (window as any).__atlasMoonMode = moonMode;
+    return () => { (window as any).__atlasMoonMode = false; };
+  }, [moonMode]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
