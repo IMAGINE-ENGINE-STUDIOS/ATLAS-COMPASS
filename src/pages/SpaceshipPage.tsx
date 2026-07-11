@@ -209,6 +209,43 @@ const atlasTilesetKeyForMode = (mode: AtlasViewMode): AtlasTilesetKey => {
   return "_osmTileset";
 };
 
+/**
+ * Build the polygon vertices for the brush "footprint" decal at (lng,lat).
+ * Returns a flat [lng,lat,lng,lat,…] array for Cesium.Cartesian3.fromDegreesArray.
+ * `radiusM` is the distance from center to the farthest vertex, in meters.
+ */
+const buildBrushPolygonDegrees = (
+  lng: number,
+  lat: number,
+  radiusM: number,
+  shape: "square" | "hex" | "tile",
+  tileBoundsRect?: { north: number; south: number; east: number; west: number },
+): number[] => {
+  if (shape === "tile" && tileBoundsRect) {
+    const { north, south, east, west } = tileBoundsRect;
+    return [west, north, east, north, east, south, west, south];
+  }
+  const mPerDegLat = 111320;
+  const mPerDegLng = Math.max(1, 111320 * Math.cos((lat * Math.PI) / 180));
+  const dLat = radiusM / mPerDegLat;
+  const dLng = radiusM / mPerDegLng;
+  if (shape === "square") {
+    return [
+      lng - dLng, lat + dLat,
+      lng + dLng, lat + dLat,
+      lng + dLng, lat - dLat,
+      lng - dLng, lat - dLat,
+    ];
+  }
+  // hex — flat-top hexagon
+  const pts: number[] = [];
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI / 3) * i;
+    pts.push(lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat);
+  }
+  return pts;
+};
+
 const advanceAtlasMapSerial = (viewer: any) => {
   viewer.__atlasMapSerial = (viewer.__atlasMapSerial || 0) + 1;
   return viewer.__atlasMapSerial;
@@ -1242,7 +1279,33 @@ function SpaceshipPage() {
   //   stamp   — load a model once, click to stamp many times
   //   tiles   — Web Mercator XYZ tile selection (grid/rect/lasso)
   type BrushSubMode = "reticle" | "area" | "stamp" | "tiles";
-  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>(savedUI.brushSubMode ?? "stamp");
+  // Legacy sub-modes (reticle, area) are folded into the new unified panel as
+  // inline actions; only `stamp` (default) and `tiles` remain user-visible.
+  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>(() => {
+    const raw = savedUI.brushSubMode as BrushSubMode | undefined;
+    return raw === "tiles" ? "tiles" : "stamp";
+  });
+  // Brush indicator shape (Stamp mode). Tile mode overrides to a tile-shaped
+  // decal computed from the hovered Web-Mercator tile bounds.
+  type BrushShape = "circle" | "square" | "hex";
+  const [brushShape, setBrushShape] = useState<BrushShape>(() =>
+    (savedUI.brushShape as BrushShape) ?? "circle",
+  );
+  // Physical radius of the brush footprint on the ground, in meters.
+  const [brushRadiusM, setBrushRadiusM] = useState<number>(() =>
+    Number(savedUI.brushRadiusM) || 25,
+  );
+  const brushShapeRef = useRef<BrushShape>(brushShape);
+  const brushRadiusRef = useRef<number>(brushRadiusM);
+  useEffect(() => { brushShapeRef.current = brushShape; }, [brushShape]);
+  useEffect(() => { brushRadiusRef.current = brushRadiusM; }, [brushRadiusM]);
+  // Live cursor position of the brush (updated in the mouse-move handler).
+  // Effects below read this ref to redraw the indicator when the user changes
+  // shape/radius without moving the mouse.
+  const brushCursorRef = useRef<{ lng: number; lat: number } | null>(null);
+  // Whether the brush indicator should currently be visible (kept in a ref so
+  // the callback below can read the latest value without re-binding).
+  const brushIndicatorEnabledRef = useRef<boolean>(false);
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
@@ -1306,6 +1369,57 @@ function SpaceshipPage() {
   const lassoEntityRef = useRef<any>(null);
   const tilesToolRef = useRef<TilesToolExt>("grid");
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
+
+  // Redraw/reposition the brush footprint decal. Called from the mouse-move
+  // handler AND from the shape/radius/mode effects (so the shape refreshes
+  // even when the cursor is stationary). Circle uses the ellipse entity,
+  // square/hex use the polygon entity, and Tile mode overrides the polygon
+  // to the exact hovered Web-Mercator tile bounds. Both entities render as
+  // `ClassificationType.BOTH` decals so they always paint on top of the map
+  // tiles (terrain AND 3D Tilesets) — never below them.
+  const updateBrushIndicator = useCallback((viewer: any, lng?: number, lat?: number) => {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    const circle = viewer.__brushCircleEntity;
+    const poly = viewer.__brushPolyEntity;
+    if (!circle || !poly) return;
+    const cursor = (typeof lng === "number" && typeof lat === "number")
+      ? { lng, lat }
+      : brushCursorRef.current;
+    if (cursor) brushCursorRef.current = cursor;
+    if (!cursor) { circle.show = false; poly.show = false; return; }
+
+    const sub = brushSubModeRef.current;
+    const shape = brushShapeRef.current;
+    const radius = brushRadiusRef.current;
+    const wantIndicator = brushIndicatorEnabledRef.current;
+
+    if (sub === "tiles") {
+      const z = Math.max(6, Math.min(22, Math.round(tileZoom)));
+      const { x, y } = lngLatToTile(cursor.lat, cursor.lng, z);
+      const b = tileBounds(x, y, z);
+      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b);
+      poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+      poly.show = wantIndicator;
+      circle.show = false;
+      return;
+    }
+
+    if (shape === "circle") {
+      circle.position = Cartesian3.fromDegrees(cursor.lng, cursor.lat, 0) as any;
+      if (circle.ellipse) {
+        circle.ellipse.semiMajorAxis = radius as any;
+        circle.ellipse.semiMinorAxis = radius as any;
+      }
+      circle.show = wantIndicator;
+      poly.show = false;
+      return;
+    }
+
+    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape);
+    poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+    poly.show = wantIndicator;
+    circle.show = false;
+  }, [tileZoom]);
 
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
@@ -1533,6 +1647,7 @@ function SpaceshipPage() {
       localStorage.setItem("atlas_ui", JSON.stringify({
         showBuildings, viewMode, hudVisible,
         brushMode, brushPanelOpen, brushSubMode,
+        brushShape, brushRadiusM,
         tilesTool, tileZoom, tileZoomAuto,
         showBusinessIcons, showLiveTraffic, geoCategory,
         showMarketplacePins,
@@ -1542,6 +1657,7 @@ function SpaceshipPage() {
   }, [
     showBuildings, viewMode, hudVisible,
     brushMode, brushPanelOpen, brushSubMode,
+    brushShape, brushRadiusM,
     tilesTool, tileZoom, tileZoomAuto,
     showBusinessIcons, showLiveTraffic, geoCategory,
     showMarketplacePins,
@@ -2832,23 +2948,47 @@ function SpaceshipPage() {
     // (Vexcel 3D Cities, Japan 3D Buildings / PLATEAU, user-added assets).
     restoreEnabledIonLayers(viewer).catch(() => {});
 
-    // Create brush indicator entity (hidden by default)
-    const brushEntity = viewer.entities.add({
-      id: "brush-indicator",
+    // Create brush indicator — two entities that render as DECALS across both
+    // the terrain surface AND every 3D Tileset above it (Google Photoreal,
+    // OSM Buildings, Vexcel, PLATEAU…). `classificationType: BOTH` means the
+    // shape is projected onto whatever geometry is on top, so it is ALWAYS
+    // visible above the tiles and can never be occluded by a building.
+    //   • `brushCircleEntity`  — ellipse, used for the "circle" shape.
+    //   • `brushPolyEntity`    — polygon, used for square / hex shapes AND
+    //                            for the tile-shaped indicator in Tile mode.
+    const brushCircleEntity = viewer.entities.add({
+      id: "brush-indicator-circle",
       position: Cartesian3.fromDegrees(0, 0, 0),
       show: false,
       ellipse: {
-        semiMajorAxis: 50,
-        semiMinorAxis: 50,
-        material: Color.fromCssColorString("#00ff88").withAlpha(0.3),
+        semiMajorAxis: 25,
+        semiMinorAxis: 25,
+        material: Color.fromCssColorString("#00ff88").withAlpha(0.22),
         outline: true,
-        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.8),
+        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.95),
         outlineWidth: 3,
-        height: 0,
-        heightReference: 1, // CLAMP_TO_GROUND
+        classificationType: ClassificationType.BOTH,
       } as any,
     });
-    brushIndicatorRef.current = brushEntity;
+    const brushPolyEntity = viewer.entities.add({
+      id: "brush-indicator-poly",
+      show: false,
+      polygon: {
+        hierarchy: Cartesian3.fromDegreesArray([0, 0, 0, 0, 0, 0]) as any,
+        material: Color.fromCssColorString("#00ff88").withAlpha(0.22),
+        outline: true,
+        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.95),
+        outlineWidth: 3,
+        classificationType: ClassificationType.BOTH,
+      } as any,
+    });
+    // Back-compat: `brushIndicatorRef` still points at the "current" indicator
+    // so the mouse-move handler that assigns `.position` keeps working for
+    // the circle. The polygon shape is repositioned via its `hierarchy` in
+    // the shape-update effect below.
+    brushIndicatorRef.current = brushCircleEntity;
+    (viewer as any).__brushCircleEntity = brushCircleEntity;
+    (viewer as any).__brushPolyEntity = brushPolyEntity;
 
     // Area-mode circle entity (hidden by default; lives over the painted zone)
     const areaEntity = viewer.entities.add({
@@ -2932,8 +3072,10 @@ function SpaceshipPage() {
             alt: carto.height,
           });
           // Only update brush indicator when no placement dialog is open
-          if (brushIndicatorRef.current && !pendingPlacementRef.current) {
-            brushIndicatorRef.current.position = cartesian as any;
+          if (!pendingPlacementRef.current) {
+            const lng = CesiumMath.toDegrees(carto.longitude);
+            const lat = CesiumMath.toDegrees(carto.latitude);
+            updateBrushIndicator(viewer, lng, lat);
           }
         }
       }
@@ -3982,19 +4124,20 @@ function SpaceshipPage() {
     return subscribeSelection(repaint);
   }, [tagsVersion]);
 
-  // Brush mode indicator visibility
+  // Brush indicator visibility + reactive re-draw. The indicator is a
+  // ClassificationType.BOTH decal on Stamp (circle/square/hex) AND on Tile
+  // (hovered tile bounds). It stays on top of every tileset — never under.
   useEffect(() => {
-    if (brushIndicatorRef.current) {
-      // Show the cursor reticle only when actively painting (not when
-      // browsing the placed-models list with brushMode off, and not while
-      // the area / tiles sub-modes draw their own overlays).
-      brushIndicatorRef.current.show =
-        brushMode && brushSubMode !== "area" && brushSubMode !== "tiles";
-    }
+    // Any time the mode, shape, radius, sub-mode, or tile zoom changes,
+    // refresh the shape at the last cursor position so the user sees the
+    // update immediately.
+    brushIndicatorEnabledRef.current = brushMode;
+    const viewer = viewerRef.current;
+    if (viewer) updateBrushIndicator(viewer);
     if (areaEntityRef.current) {
       areaEntityRef.current.show = brushMode && brushSubMode === "area" && !!areaCenter;
     }
-  }, [brushMode, brushSubMode, areaCenter]);
+  }, [brushMode, brushSubMode, brushShape, brushRadiusM, tileZoom, areaCenter, updateBrushIndicator]);
 
   // ── Tiles-mode: render selected tile polygons on the globe ──
   useEffect(() => {
@@ -5219,11 +5362,14 @@ function SpaceshipPage() {
     const stamp = stampModelRef.current;
     if (!stamp) return;
     const modelId = crypto.randomUUID();
-    // Snap to ground precisely.
+    // Snap to ground precisely — 0mm above, 0mm below. First try the
+    // synchronous `sampleHeight`; if the tile isn't loaded yet we fall back
+    // to terrain, then re-snap asynchronously with `sampleHeightMostDetailed`
+    // once the tile finishes streaming so the model sits flush.
     let surfaceAlt = loc.alt;
-    try {
-      const viewer = viewerRef.current;
-      if (viewer) {
+    const viewer = viewerRef.current;
+    if (viewer) {
+      try {
         const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
         const sampled = viewer.scene.sampleHeight(carto);
         if (typeof sampled === "number" && !isNaN(sampled)) surfaceAlt = sampled;
@@ -5231,8 +5377,8 @@ function SpaceshipPage() {
           const terrainH = viewer.scene.globe.getHeight(carto);
           if (typeof terrainH === "number" && !isNaN(terrainH)) surfaceAlt = terrainH;
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     const newModel: PlacedModel = {
       id: modelId,
@@ -5255,13 +5401,33 @@ function SpaceshipPage() {
       savePlacedModels(updated);
       return updated;
     });
+    // Precise async re-snap once the highest-detail tile at this coordinate
+    // has loaded. This eliminates the "half-buried / hovering" look on
+    // Photoreal 3D tiles that stream in a few frames after the click.
+    if (viewer) {
+      const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+      (viewer.scene as any).sampleHeightMostDetailed?.([carto])
+        .then((arr: any[]) => {
+          const h = arr?.[0]?.height;
+          if (typeof h !== "number" || !isFinite(h)) return;
+          if (Math.abs(h - surfaceAlt) < 0.02) return; // already flush
+          setPlacedModels(prev => {
+            const updated = prev.map(m => m.id === modelId ? { ...m, alt: h } : m);
+            savePlacedModels(updated);
+            const ent = viewer.entities.getById(`model-${modelId}`);
+            if (ent) applyModelTransformToEntity(ent, { ...newModel, alt: h });
+            return updated;
+          });
+        })
+        .catch(() => {});
+    }
     // Also persist a per-instance copy of the blob so it survives reloads.
     try {
       const resp = await fetch(stamp.blobUrl);
       const blob = await resp.blob();
       await saveAtlasModelBlob(modelId, blob, stamp.fileName);
     } catch {}
-  }, [placeModelOnGlobe, placedModels.length]);
+  }, [applyModelTransformToEntity, placeModelOnGlobe, placedModels.length]);
 
   const clearStampModel = useCallback(() => {
     stampModelRef.current = null;
@@ -6316,547 +6482,467 @@ function SpaceshipPage() {
             )}
           
 
-          {/* ── TILE BRUSH PANEL (Placed Models) ── */}
-          
-            {brushPanelOpen && !pendingPlacement && (
-              <div
-                className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-72"
-              >
-                <GlassPanel className="p-3">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <Paintbrush className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-sm font-bold text-white">Targeting Brush</span>
-                      <span className="text-[10px] text-white/70 font-mono">({placedModels.length})</span>
-                    </div>
-                    <button onClick={() => { setBrushPanelOpen(false); setBrushMode(false); }}>
-                      <X className="w-3.5 h-3.5 text-white/75 hover:text-white" />
-                    </button>
+          {/* ── GROUND BRUSH · Unified Stamp / Tile panel ─────────────────
+              One panel, two tools:
+                Stamp (default) — shape + radius, ground-snapped model drop.
+                Tile            — hovered Web-Mercator tile decal + select.
+              The brush footprint decal always renders ABOVE the tiles
+              (ClassificationType.BOTH) so users never lose it under a
+              building. Placed models are precisely re-snapped to the surface
+              once the highest-detail tile at the click point resolves. */}
+          {brushPanelOpen && !pendingPlacement && (
+            <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-[320px]">
+              <GlassPanel className="p-3">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Paintbrush className="w-3.5 h-3.5 text-emerald-300" />
+                    <span className="text-sm font-bold text-white">Ground Brush</span>
+                    <span className="text-[10px] text-white/60 font-mono tabular-nums">
+                      · {placedModels.length}
+                    </span>
                   </div>
+                  <button
+                    onClick={() => { setBrushPanelOpen(false); setBrushMode(false); }}
+                    className="text-white/60 hover:text-white"
+                    title="Close brush"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-                  {/* Unified action selector — every section below is always visible;
-                      this row only decides what a double-click on the globe does. */}
-                  <div className="bg-black/60 border border-white/[0.06] rounded-lg p-1.5 mb-2.5">
-                    <p className="text-[8px] text-white/50 uppercase tracking-wider mb-1 px-1">
-                      Double-click action
-                    </p>
-                    <div className="grid grid-cols-4 gap-1">
-                      {(["reticle", "area", "stamp", "tiles"] as const).map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => setBrushSubMode(m)}
-                          className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                            brushSubMode === m
-                              ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
-                              : "text-white/60 hover:text-white border border-transparent bg-white/[0.02]"
-                          }`}
-                          title={
-                            m === "reticle" ? "Lock a target" :
-                            m === "area" ? "Set area center" :
-                            m === "stamp" ? "Stamp 3D model" :
-                            "Pick map tile"
-                          }
-                        >
-                          {m === "reticle" ? "Target" : m === "area" ? "Area" : m === "stamp" ? "Stamp" : "Tile"}
-                        </button>
-                      ))}
-                    </div>
+                {/* Live cursor readout + inline "save POI here" */}
+                <div className="rounded-lg bg-black/55 border border-white/[0.06] px-2.5 py-1.5 mb-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[8px] uppercase tracking-[0.14em] text-white/45 mb-0.5">Cursor</p>
+                    {cursorInfo ? (
+                      <p className="text-[10.5px] font-mono tabular-nums text-white/85 truncate">
+                        {cursorInfo.lat.toFixed(5)}°, {cursorInfo.lng.toFixed(5)}° · {formatAlt(cursorInfo.alt)}
+                      </p>
+                    ) : (
+                      <p className="text-[10.5px] text-white/35">Move over the globe…</p>
+                    )}
                   </div>
+                  <button
+                    onClick={() => {
+                      if (!cursorInfo) return;
+                      setNamingPOI({ lat: cursorInfo.lat, lng: cursorInfo.lng, alt: cursorInfo.alt });
+                      setPoiName(""); setPoiDescription("");
+                    }}
+                    disabled={!cursorInfo}
+                    title="Save this point as a POI"
+                    className="shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-400/25 text-[9.5px] font-semibold uppercase tracking-wider text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-30"
+                  >
+                    <MapPin className="w-2.5 h-2.5" /> POI
+                  </button>
+                </div>
 
-                  {/* ── Reticle / Target ── (always visible) */}
-                  <div className="space-y-2.5 mb-2.5">
-                    <SectionHeader
-                      label="Target"
-                      accent="emerald"
-                      active={brushSubMode === "reticle"}
-                      onActivate={() => setBrushSubMode("reticle")}
-                    />
-                    <div className="space-y-2.5">
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
-                        <p className="text-[10px] text-emerald-400/80 leading-relaxed">
-                          Move the mouse to read live coordinates. <span className="font-bold">Double-click</span> to lock target.
+                {/* Tool selector — two options only */}
+                <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-black/55 border border-white/[0.06] mb-2.5">
+                  {([
+                    { id: "stamp", label: "Stamp", Icon: Paintbrush, tint: "emerald" },
+                    { id: "tiles", label: "Tile",  Icon: SquareIcon, tint: "violet"  },
+                  ] as const).map((opt) => {
+                    const active = brushSubMode === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => setBrushSubMode(opt.id as BrushSubMode)}
+                        className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                          active
+                            ? opt.tint === "emerald"
+                              ? "bg-emerald-500/25 text-emerald-200 border border-emerald-400/40"
+                              : "bg-violet-500/25 text-violet-200 border border-violet-400/40"
+                            : "text-white/60 hover:text-white border border-transparent"
+                        }`}
+                      >
+                        <opt.Icon className="w-3 h-3" /> {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* ── STAMP MODE ─────────────────────────────────── */}
+                {brushSubMode === "stamp" && (
+                  <div className="space-y-2.5">
+                    {/* Shape row */}
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/45 mb-1">Brush shape</p>
+                      <div className="grid grid-cols-3 gap-1">
+                        {([
+                          { id: "circle", label: "Circle", glyph: "◯" },
+                          { id: "square", label: "Square", glyph: "▢" },
+                          { id: "hex",    label: "Hex",    glyph: "⬢" },
+                        ] as const).map((s) => {
+                          const active = brushShape === s.id;
+                          return (
+                            <button
+                              key={s.id}
+                              onClick={() => setBrushShape(s.id)}
+                              className={`flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                                active
+                                  ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/35"
+                                  : "bg-white/[0.03] text-white/60 hover:text-white border border-white/10"
+                              }`}
+                              title={`${s.label} footprint`}
+                            >
+                              <span className="text-base leading-none">{s.glyph}</span>
+                              <span className="text-[10px] uppercase tracking-wider">{s.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Radius slider */}
+                    <div className="rounded-lg bg-black/55 border border-white/[0.06] p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">Radius</p>
+                        <p className="text-[11px] font-mono tabular-nums text-emerald-200">
+                          {brushRadiusM >= 1000
+                            ? `${(brushRadiusM / 1000).toFixed(2)} km`
+                            : `${brushRadiusM} m`}
                         </p>
                       </div>
-                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
-                        <p className="text-[9px] text-white/70 uppercase tracking-wider mb-1.5">Cursor</p>
-                        {cursorInfo ? (
-                          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono text-white/85">
-                            <div><span className="text-[8px] text-white/60 block">LAT</span>{cursorInfo.lat.toFixed(6)}°</div>
-                            <div><span className="text-[8px] text-white/60 block">LNG</span>{cursorInfo.lng.toFixed(6)}°</div>
-                            <div><span className="text-[8px] text-white/60 block">ALT</span>{formatAlt(cursorInfo.alt)}</div>
-                          </div>
+                      <input
+                        type="range" min={5} max={5000} step={5}
+                        value={brushRadiusM}
+                        onChange={(e) => setBrushRadiusM(parseInt(e.target.value))}
+                        className="w-full accent-emerald-400"
+                      />
+                    </div>
+
+                    {/* Model chip */}
+                    <div className={`rounded-lg p-2.5 flex items-center gap-2.5 border ${
+                      stampModelInfo
+                        ? "bg-emerald-500/10 border-emerald-400/30"
+                        : "bg-white/[0.03] border-dashed border-white/15"
+                    }`}>
+                      <Box className={`w-4 h-4 shrink-0 ${stampModelInfo ? "text-emerald-300" : "text-white/40"}`} />
+                      <div className="flex-1 min-w-0">
+                        {stampModelInfo ? (
+                          <>
+                            <p className="text-[11px] text-white font-medium truncate">{stampModelInfo.name}</p>
+                            <p className="text-[9px] text-white/55 truncate">{stampModelInfo.fileName}</p>
+                          </>
                         ) : (
-                          <p className="text-[11px] text-white/40">Move mouse over the globe…</p>
+                          <>
+                            <p className="text-[11px] text-white/85">No model loaded</p>
+                            <p className="text-[9px] text-white/50">Double-click the globe to upload one</p>
+                          </>
                         )}
                       </div>
-                      {reticleTarget && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">
-                          <p className="text-[9px] text-emerald-300 uppercase tracking-wider mb-1.5">Locked Target</p>
-                          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono text-white/90 mb-2.5">
-                            <div><span className="text-[8px] text-white/60 block">LAT</span>{reticleTarget.lat.toFixed(6)}°</div>
-                            <div><span className="text-[8px] text-white/60 block">LNG</span>{reticleTarget.lng.toFixed(6)}°</div>
-                            <div><span className="text-[8px] text-white/60 block">ALT</span>{formatAlt(reticleTarget.alt)}</div>
-                          </div>
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => {
-                                if (!reticleTarget) return;
-                                setNamingPOI(reticleTarget);
-                                setPoiName("");
-                                setPoiDescription("");
-                              }}
-                              className="flex-1 px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-md text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors"
-                            >
-                              Save POI
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (!reticleTarget) return;
-                                navigator.clipboard?.writeText(`${reticleTarget.lat.toFixed(6)}, ${reticleTarget.lng.toFixed(6)}`);
-                              }}
-                              className="px-2.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/80 hover:text-white transition-colors"
-                            >
-                              Copy
-                            </button>
-                            <button
-                              onClick={() => setReticleTarget(null)}
-                              className="px-2.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/60 hover:text-white transition-colors"
-                              title="Clear lock"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ── Area (always visible) ── */}
-                  <div className="space-y-2.5 mb-2.5">
-                    <SectionHeader
-                      label="Area · Scan · Export"
-                      accent="cyan"
-                      active={brushSubMode === "area"}
-                      onActivate={() => setBrushSubMode("area")}
-                    />
-                    <div className="space-y-2.5">
-                      <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-lg p-2.5">
-                        <p className="text-[10px] text-cyan-300/80 leading-relaxed">
-                          <span className="font-bold">Double-click</span> the globe to set the area center. Adjust radius below, then Scan.
-                        </p>
-                      </div>
-                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-[9px] text-white/70 uppercase tracking-wider">Radius</p>
-                          <p className="text-[11px] text-white/85 font-mono">
-                            {areaRadiusM >= 1000 ? `${(areaRadiusM/1000).toFixed(2)} km` : `${areaRadiusM} m`}
-                          </p>
-                        </div>
-                        <input
-                          type="range" min={10} max={5000} step={10}
-                          value={areaRadiusM}
-                          onChange={(e) => setAreaRadiusM(parseInt(e.target.value))}
-                          className="w-full accent-cyan-400"
-                        />
-                        <p className="text-[9px] text-white/50 mt-1">
-                          Area: {(Math.PI * areaRadiusM * areaRadiusM / 1e6).toFixed(3)} km²
-                        </p>
-                      </div>
-                      {areaCenter ? (
-                        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-2.5">
-                          <p className="text-[9px] text-cyan-300 uppercase tracking-wider mb-1.5">Center</p>
-                          <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono text-white/90 mb-2.5">
-                            <div><span className="text-[8px] text-white/60 block">LAT</span>{areaCenter.lat.toFixed(6)}°</div>
-                            <div><span className="text-[8px] text-white/60 block">LNG</span>{areaCenter.lng.toFixed(6)}°</div>
-                          </div>
-                          <div className="flex gap-1.5 mb-1.5">
-                            <button
-                              disabled={areaScanning}
-                              onClick={async () => {
-                                if (!areaCenter) return;
-                                setAreaScanning(true);
-                                setAreaScanResults([]);
-                                try {
-                                  const controller = new AbortController();
-                                  const results = await runOverpassAround("", areaCenter, areaRadiusM / 1000, controller.signal);
-                                  setAreaScanResults(results.slice(0, 50));
-                                } finally {
-                                  setAreaScanning(false);
-                                }
-                              }}
-                              className="flex-1 px-2.5 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-md text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
-                            >
-                              {areaScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (!areaCenter) return;
-                                // Build a 64-vertex circle GeoJSON polygon
-                                const pts: [number, number][] = [];
-                                const R = 6378137;
-                                const lat0 = areaCenter.lat * Math.PI/180;
-                                const lng0 = areaCenter.lng * Math.PI/180;
-                                const d = areaRadiusM / R;
-                                for (let i = 0; i <= 64; i++) {
-                                  const brg = (i / 64) * 2 * Math.PI;
-                                  const lat = Math.asin(Math.sin(lat0)*Math.cos(d) + Math.cos(lat0)*Math.sin(d)*Math.cos(brg));
-                                  const lng = lng0 + Math.atan2(Math.sin(brg)*Math.sin(d)*Math.cos(lat0), Math.cos(d) - Math.sin(lat0)*Math.sin(lat));
-                                  pts.push([lng * 180/Math.PI, lat * 180/Math.PI]);
-                                }
-                                const geojson = {
-                                  type: "Feature",
-                                  properties: { radius_m: areaRadiusM, center: [areaCenter.lng, areaCenter.lat] },
-                                  geometry: { type: "Polygon", coordinates: [pts] },
-                                };
-                                const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/geo+json" });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement("a");
-                                a.href = url; a.download = `area-${Date.now()}.geojson`; a.click();
-                                URL.revokeObjectURL(url);
-                              }}
-                              className="px-2.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/80 hover:text-white transition-colors"
-                            >
-                              GeoJSON
-                            </button>
-                            <button
-                              onClick={() => { setAreaCenter(null); setAreaScanResults([]); }}
-                              className="px-1.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/60 hover:text-white transition-colors"
-                              title="Clear area"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                          {areaScanResults.length > 0 && (
-                            <div className="max-h-36 overflow-y-auto space-y-1 mt-1.5">
-                              {areaScanResults.map((r, i) => (
-                                <div key={i} className="px-1.5 py-1 rounded-md bg-black/40 hover:bg-black/60 transition-colors">
-                                  <p className="text-[11px] text-white/90 truncate">{r.name}</p>
-                                  <p className="text-[9px] text-white/50 font-mono">
-                                    {r.type}{r.distance != null ? ` · ${(r.distance/1000).toFixed(2)} km` : ""}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-center py-3 text-[11px] text-white/40">
-                          Double-click globe to set center
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ── Stamp (always visible) ── */}
-                  <div className="space-y-2.5 mb-2.5">
-                    <SectionHeader
-                      label="Stamp 3D Model"
-                      accent="emerald"
-                      active={brushSubMode === "stamp"}
-                      onActivate={() => setBrushSubMode("stamp")}
-                    />
-                    <div className="space-y-2.5">
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
-                        <p className="text-[10px] text-emerald-400/80 leading-relaxed">
-                          {stampModelInfo
-                            ? <><span className="font-bold">Double-click</span> the globe to stamp another copy — no dialog. Clear the model below to switch.</>
-                            : <><span className="font-bold">Double-click</span> the globe to open the upload dialog. After your first placement, every double-click stamps another instance.</>
-                          }
-                        </p>
-                      </div>
                       {stampModelInfo && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5 flex items-center gap-2.5">
-                          <Box className="w-4 h-4 text-emerald-400 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] text-white truncate font-medium">{stampModelInfo.name}</p>
-                            <p className="text-[9px] text-white/60 truncate">{stampModelInfo.fileName}</p>
+                        <button
+                          onClick={clearStampModel}
+                          className="px-1.5 py-1 rounded-md text-[10px] text-white/70 hover:text-white border border-white/10 hover:bg-black/40"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Min-spacing (only really relevant when stamping repeatedly) */}
+                    <div className="rounded-lg bg-black/55 border border-white/[0.06] p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">Min spacing</p>
+                        <p className="text-[11px] font-mono tabular-nums text-white/85">
+                          {stampSpacingM === 0 ? "off" : `${stampSpacingM} m`}
+                        </p>
+                      </div>
+                      <input
+                        type="range" min={0} max={500} step={5}
+                        value={stampSpacingM}
+                        onChange={(e) => setStampSpacingM(parseInt(e.target.value))}
+                        className="w-full accent-emerald-400"
+                      />
+                    </div>
+
+                    {/* Inline utility: Scan POIs inside the current radius */}
+                    <button
+                      disabled={!cursorInfo || areaScanning}
+                      onClick={async () => {
+                        if (!cursorInfo) return;
+                        setAreaScanning(true);
+                        setAreaScanResults([]);
+                        setAreaCenter({ lat: cursorInfo.lat, lng: cursorInfo.lng });
+                        try {
+                          const ctrl = new AbortController();
+                          const results = await runOverpassAround(
+                            "",
+                            { lat: cursorInfo.lat, lng: cursorInfo.lng },
+                            brushRadiusM / 1000,
+                            ctrl.signal,
+                          );
+                          setAreaScanResults(results.slice(0, 50));
+                        } finally { setAreaScanning(false); }
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
+                    >
+                      {areaScanning
+                        ? <><Loader2 className="w-3 h-3 animate-spin" /> Scanning…</>
+                        : <><Search className="w-3 h-3" /> Scan POIs in radius</>}
+                    </button>
+                    {areaScanResults.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto space-y-0.5 rounded-lg bg-black/45 border border-white/[0.06] p-1">
+                        {areaScanResults.map((r, i) => (
+                          <div key={i} className="px-1.5 py-1 rounded hover:bg-white/5">
+                            <p className="text-[11px] text-white/85 truncate">{r.name}</p>
+                            <p className="text-[9px] text-white/45 font-mono">
+                              {r.type}{r.distance != null ? ` · ${(r.distance / 1000).toFixed(2)} km` : ""}
+                            </p>
                           </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-[9.5px] text-white/45 leading-snug px-0.5">
+                      Double-click the globe to stamp. Models snap flush to the tile surface — no float, no bury.
+                    </p>
+                  </div>
+                )}
+
+                {/* ── TILE MODE ──────────────────────────────────── */}
+                {brushSubMode === "tiles" && (
+                  <div className="space-y-2.5">
+                    {/* Zoom (tile size) */}
+                    <div className="rounded-lg bg-black/55 border border-white/[0.06] p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">Tile zoom</p>
                           <button
-                            onClick={clearStampModel}
-                            className="px-1.5 py-1 rounded-md text-[10px] text-white/70 hover:text-white border border-white/[0.08] hover:bg-black/60 transition-colors"
+                            onClick={() => setTileZoomAuto((v) => !v)}
+                            className={`px-1.5 py-0.5 rounded-md text-[8.5px] font-semibold uppercase tracking-wider border transition-colors ${
+                              tileZoomAuto
+                                ? "bg-violet-500/20 text-violet-200 border-violet-400/40"
+                                : "text-white/60 border-white/10 hover:text-white hover:border-white/25"
+                            }`}
                           >
-                            Clear
+                            {tileZoomAuto ? "Auto" : "Manual"}
                           </button>
                         </div>
-                      )}
-                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-[9px] text-white/70 uppercase tracking-wider">Min spacing</p>
-                          <p className="text-[11px] text-white/85 font-mono">
-                            {stampSpacingM === 0 ? "off" : `${stampSpacingM} m`}
-                          </p>
-                        </div>
-                        <input
-                          type="range" min={0} max={500} step={5}
-                          value={stampSpacingM}
-                          onChange={(e) => setStampSpacingM(parseInt(e.target.value))}
-                          className="w-full accent-emerald-400"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── Tiles / Map-Tile Selection (always visible) ── */}
-                  <div className="space-y-2.5 mb-2.5">
-                    <SectionHeader
-                      label="Map Tiles"
-                      accent="violet"
-                      active={brushSubMode === "tiles"}
-                      onActivate={() => setBrushSubMode("tiles")}
-                    />
-                    <div className="space-y-2.5">
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5">
-                        <p className="text-[10px] text-emerald-400/80 leading-relaxed">
-                          Select <span className="font-bold">Web Mercator XYZ map tiles</span> (the actual tiles the Earth is built from).
-                          Choose a tool, then double-click the globe.
+                        <p className="text-[11px] font-mono tabular-nums text-violet-200">
+                          z{tileZoom} · ~{tileSizeMeters(cursorInfo?.lat ?? 0, tileZoom).toFixed(1)} m
                         </p>
                       </div>
+                      <input
+                        type="range" min={6} max={22} step={1}
+                        value={tileZoom} disabled={tileZoomAuto}
+                        onChange={(e) => setTileZoom(parseInt(e.target.value))}
+                        className="w-full accent-violet-400 disabled:opacity-40"
+                      />
+                    </div>
 
-                      {/* Tool picker */}
-                      <div className="grid grid-cols-4 gap-1 p-1 bg-black/60 border border-white/[0.06] rounded-lg">
-                        {(["grid", "rectangle", "lasso", "terrain"] as const).map(t => (
+                    {/* Pick mode */}
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/45 mb-1">Pick mode</p>
+                      <div className="grid grid-cols-3 gap-1">
+                        {(["grid", "rectangle", "lasso"] as const).map((t) => (
                           <button
                             key={t}
                             onClick={() => { setTilesTool(t); setRectStart(null); setLassoPoints([]); }}
                             className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
                               tilesTool === t
-                                ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/30"
-                                : "text-white/60 hover:text-white border border-transparent"
+                                ? "bg-violet-500/20 text-violet-200 border border-violet-400/40"
+                                : "text-white/60 hover:text-white border border-white/10 bg-white/[0.02]"
                             }`}
+                            title={
+                              t === "grid" ? "Click a tile to toggle" :
+                              t === "rectangle" ? "Two corners → rectangle of tiles" :
+                              "Draw a polygon → tiles inside"
+                            }
                           >
                             {t}
                           </button>
                         ))}
                       </div>
+                    </div>
 
-                      {/* Zoom (tile size) */}
-                      <div className="bg-black/65 border border-white/[0.06] rounded-lg p-2.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-[9px] text-white/70 uppercase tracking-wider">Tile zoom (z)</p>
-                            <button
-                              onClick={() => setTileZoomAuto((v) => !v)}
-                              className={`px-1.5 py-0.5 rounded-md text-[8px] font-semibold uppercase tracking-wider border transition-colors ${
-                                tileZoomAuto
-                                  ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/30"
-                                  : "text-white/60 border-white/10 hover:text-white hover:border-white/20"
-                              }`}
-                              title="Auto-match the current basemap zoom (recommended)"
-                            >
-                              {tileZoomAuto ? "Auto · Synced" : "Manual"}
-                            </button>
-                          </div>
-                          <p className="text-[11px] text-white/85 font-mono">
-                            z{tileZoom} · ~{tileSizeMeters(cursorInfo?.lat ?? 0, tileZoom).toFixed(1)} m
-                          </p>
+                    {tilesTool === "rectangle" && rectStart && (
+                      <div className="rounded-lg bg-amber-500/10 border border-amber-400/30 p-1.5 text-[10px] text-amber-200">
+                        First corner set. Double-click the opposite corner.
+                        <button onClick={() => setRectStart(null)} className="ml-1.5 underline">cancel</button>
+                      </div>
+                    )}
+                    {tilesTool === "lasso" && (
+                      <div className="rounded-lg bg-amber-500/10 border border-amber-400/30 p-1.5 text-[10px] text-amber-200 flex items-center justify-between gap-1.5">
+                        <span>{lassoPoints.length} vertex{lassoPoints.length === 1 ? "" : "es"}</span>
+                        <div className="flex gap-1">
+                          <button
+                            disabled={lassoPoints.length < 3}
+                            onClick={() => {
+                              const lats = lassoPoints.map(p => p.lat);
+                              const lngs = lassoPoints.map(p => p.lng);
+                              const nw = lngLatToTile(Math.max(...lats), Math.min(...lngs), tileZoom);
+                              const se = lngLatToTile(Math.min(...lats), Math.max(...lngs), tileZoom);
+                              const next = new Set(selectedTiles);
+                              for (let xi = Math.min(nw.x, se.x); xi <= Math.max(nw.x, se.x); xi++) {
+                                for (let yi = Math.min(nw.y, se.y); yi <= Math.max(nw.y, se.y); yi++) {
+                                  const b = tileBounds(xi, yi, tileZoom);
+                                  const cLat = (b.north + b.south) / 2;
+                                  const cLng = (b.east + b.west) / 2;
+                                  if (pointInPoly(cLat, cLng, lassoPoints)) next.add(tileKey(tileZoom, xi, yi));
+                                }
+                              }
+                              setSelectedTiles(next);
+                              setLassoPoints([]);
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-violet-500/25 border border-violet-400/40 text-violet-100 disabled:opacity-40"
+                          >Close</button>
+                          <button onClick={() => setLassoPoints([])} className="px-1.5 py-0.5 rounded bg-black/50 border border-white/10 text-white/70">Clear</button>
                         </div>
-                        <input
-                          type="range" min={6} max={22} step={1}
-                          value={tileZoom}
-                          disabled={tileZoomAuto}
-                          onChange={(e) => setTileZoom(parseInt(e.target.value))}
-                          className="w-full accent-emerald-400 disabled:opacity-40"
-                        />
-                        <p className="text-[9px] text-white/50 mt-1">
-                          {tileZoomAuto
-                            ? "Auto follows the basemap — tiles you pick match what Google/OSM is drawing right now."
-                            : "Manual: higher z = smaller tiles. z18 ≈ building; z14 ≈ neighborhood; z10 ≈ city."}
+                      </div>
+                    )}
+
+                    {/* Selection summary + batch actions */}
+                    <div className="rounded-lg bg-violet-500/8 border border-violet-400/25 p-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[9px] uppercase tracking-[0.14em] text-violet-200">Selection</p>
+                        <p className="text-[11px] font-mono tabular-nums text-white/90">
+                          {selectedTiles.size} tile{selectedTiles.size === 1 ? "" : "s"}
                         </p>
                       </div>
-
-                      {/* Tool-specific hint / lasso close */}
-                      {tilesTool === "rectangle" && rectStart && (
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-1.5 text-[10px] text-amber-300">
-                          First corner set at {rectStart.lat.toFixed(4)}, {rectStart.lng.toFixed(4)}. Double-click the opposite corner.
-                          <button onClick={() => setRectStart(null)} className="ml-1.5 underline">cancel</button>
-                        </div>
-                      )}
-                      {tilesTool === "lasso" && (
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-1.5 text-[10px] text-amber-300 flex items-center justify-between gap-1.5">
-                          <span>{lassoPoints.length} vertex{lassoPoints.length === 1 ? "" : "es"}</span>
-                          <div className="flex gap-1">
-                            <button
-                              disabled={lassoPoints.length < 3}
-                              onClick={() => {
-                                // Compute tile bbox of polygon, then select tiles whose centers are inside.
-                                const lats = lassoPoints.map(p => p.lat);
-                                const lngs = lassoPoints.map(p => p.lng);
-                                const nw = lngLatToTile(Math.max(...lats), Math.min(...lngs), tileZoom);
-                                const se = lngLatToTile(Math.min(...lats), Math.max(...lngs), tileZoom);
-                                const next = new Set(selectedTiles);
-                                for (let xi = Math.min(nw.x, se.x); xi <= Math.max(nw.x, se.x); xi++) {
-                                  for (let yi = Math.min(nw.y, se.y); yi <= Math.max(nw.y, se.y); yi++) {
-                                    const b = tileBounds(xi, yi, tileZoom);
-                                    const cLat = (b.north + b.south) / 2;
-                                    const cLng = (b.east + b.west) / 2;
-                                    if (pointInPoly(cLat, cLng, lassoPoints)) next.add(tileKey(tileZoom, xi, yi));
-                                  }
-                                }
-                                setSelectedTiles(next);
-                                setLassoPoints([]);
-                              }}
-                              className="px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-500/30 text-emerald-200 disabled:opacity-40"
-                            >
-                              Close & select
-                            </button>
-                            <button onClick={() => setLassoPoints([])} className="px-1.5 py-0.5 rounded bg-black/60 border border-white/10 text-white/70">
-                              clear
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Selection summary + batch actions */}
-                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <p className="text-[9px] text-emerald-300 uppercase tracking-wider">Selection</p>
-                          <p className="text-[11px] text-white/90 font-mono">{selectedTiles.size} tile{selectedTiles.size === 1 ? "" : "s"}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                          <button
-                            disabled={selectedTiles.size === 0 || tilesScanning}
-                            onClick={async () => {
-                              if (selectedTiles.size === 0) return;
-                              setTilesScanning(true);
-                              setTilesScanResults([]);
-                              try {
-                                // Union bounds; query Overpass via center+radius covering bbox diagonal.
-                                let n = -90, s = 90, e = -180, w = 180;
-                                selectedTiles.forEach(k => {
-                                  const { z, x, y } = parseTileKey(k);
-                                  const b = tileBounds(x, y, z);
-                                  n = Math.max(n, b.north); s = Math.min(s, b.south);
-                                  e = Math.max(e, b.east);  w = Math.min(w, b.west);
-                                });
-                                const center = { lat: (n + s) / 2, lng: (e + w) / 2 };
-                                const diagKm = geoHaversine(n, w, s, e);
-                                const radiusKm = Math.max(0.05, diagKm / 2);
-                                const ctrl = new AbortController();
-                                const results = await runOverpassAround("", center, radiusKm, ctrl.signal);
-                                // Filter to results actually inside selected tiles
-                                const filtered = results.filter(r => {
-                                  const { x, y } = lngLatToTile(r.lat, r.lng, tileZoom);
-                                  return selectedTiles.has(tileKey(tileZoom, x, y));
-                                });
-                                setTilesScanResults(filtered.slice(0, 80));
-                              } finally {
-                                setTilesScanning(false);
-                              }
-                            }}
-                            className="px-1.5 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-md text-[11px] text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
-                          >
-                            {tilesScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
-                          </button>
-                          <button
-                            disabled={selectedTiles.size === 0 || !stampModelRef.current}
-                            title={!stampModelRef.current ? "Load a model in Stamp mode first" : "Stamp model at each tile center"}
-                            onClick={async () => {
-                              for (const k of selectedTiles) {
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          disabled={selectedTiles.size === 0 || tilesScanning}
+                          onClick={async () => {
+                            if (selectedTiles.size === 0) return;
+                            setTilesScanning(true);
+                            setTilesScanResults([]);
+                            try {
+                              let n = -90, s = 90, e = -180, w = 180;
+                              selectedTiles.forEach(k => {
                                 const { z, x, y } = parseTileKey(k);
                                 const b = tileBounds(x, y, z);
-                                const lat = (b.north + b.south) / 2;
-                                const lng = (b.east + b.west) / 2;
-                                let alt = 0;
-                                const v = viewerRef.current;
-                                if (v) {
-                                  try {
-                                    const carto = Cartographic.fromDegrees(lng, lat);
-                                    const h = v.scene.sampleHeight(carto);
-                                    if (typeof h === "number" && !isNaN(h)) alt = h;
-                                    else {
-                                      const th = v.scene.globe.getHeight(carto);
-                                      if (typeof th === "number" && !isNaN(th)) alt = th;
-                                    }
-                                  } catch {}
-                                }
-                                await stampModelAt({ lat, lng, alt });
-                              }
-                            }}
-                            className="px-1.5 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-md text-[11px] text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
-                          >
-                            Stamp each
-                          </button>
-                          <button
-                            disabled={selectedTiles.size === 0}
-                            onClick={() => {
-                              const features = Array.from(selectedTiles).map(k => {
-                                const { z, x, y } = parseTileKey(k);
-                                const b = tileBounds(x, y, z);
-                                const ring: [number, number][] = [
-                                  [b.west, b.north], [b.east, b.north],
-                                  [b.east, b.south], [b.west, b.south],
-                                  [b.west, b.north],
-                                ];
-                                return {
-                                  type: "Feature",
-                                  properties: { z, x, y, tile: k },
-                                  geometry: { type: "Polygon", coordinates: [ring] },
-                                };
+                                n = Math.max(n, b.north); s = Math.min(s, b.south);
+                                e = Math.max(e, b.east);  w = Math.min(w, b.west);
                               });
-                              const fc = { type: "FeatureCollection", features };
-                              const blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url; a.download = `tiles-z${tileZoom}-${Date.now()}.geojson`; a.click();
-                              URL.revokeObjectURL(url);
-                            }}
-                            className="px-1.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/80 hover:text-white transition-colors disabled:opacity-40"
-                          >
-                            Export GeoJSON
-                          </button>
-                          <button
-                            disabled={selectedTiles.size === 0}
-                            onClick={() => { setSelectedTiles(new Set()); setTilesScanResults([]); }}
-                            className="px-1.5 py-1 bg-black/70 border border-white/[0.08] rounded-md text-[11px] text-white/60 hover:text-white transition-colors disabled:opacity-40"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                        {tilesScanResults.length > 0 && (
-                          <div className="max-h-36 overflow-y-auto space-y-1 mt-1.5">
-                            {tilesScanResults.map((r, i) => (
-                              <div key={i} className="px-1.5 py-1 rounded-md bg-black/40 hover:bg-black/60 transition-colors">
-                                <p className="text-[11px] text-white/90 truncate">{r.name}</p>
-                                <p className="text-[9px] text-white/50 font-mono">{r.type}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              const center = { lat: (n + s) / 2, lng: (e + w) / 2 };
+                              const radiusKm = Math.max(0.05, geoHaversine(n, w, s, e) / 2);
+                              const ctrl = new AbortController();
+                              const results = await runOverpassAround("", center, radiusKm, ctrl.signal);
+                              const filtered = results.filter(r => {
+                                const { x, y } = lngLatToTile(r.lat, r.lng, tileZoom);
+                                return selectedTiles.has(tileKey(tileZoom, x, y));
+                              });
+                              setTilesScanResults(filtered.slice(0, 80));
+                            } finally { setTilesScanning(false); }
+                          }}
+                          className="px-1.5 py-1 rounded-md text-[11px] font-medium bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
+                        >
+                          {tilesScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
+                        </button>
+                        <button
+                          disabled={selectedTiles.size === 0 || !stampModelRef.current}
+                          title={!stampModelRef.current ? "Load a model in Stamp mode first" : "Stamp model at each tile center"}
+                          onClick={async () => {
+                            for (const k of selectedTiles) {
+                              const { z, x, y } = parseTileKey(k);
+                              const b = tileBounds(x, y, z);
+                              const lat = (b.north + b.south) / 2;
+                              const lng = (b.east + b.west) / 2;
+                              let alt = 0;
+                              const v = viewerRef.current;
+                              if (v) {
+                                try {
+                                  const carto = Cartographic.fromDegrees(lng, lat);
+                                  const h = v.scene.sampleHeight(carto);
+                                  if (typeof h === "number" && !isNaN(h)) alt = h;
+                                  else {
+                                    const th = v.scene.globe.getHeight(carto);
+                                    if (typeof th === "number" && !isNaN(th)) alt = th;
+                                  }
+                                } catch {}
+                              }
+                              await stampModelAt({ lat, lng, alt });
+                            }
+                          }}
+                          className="px-1.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-30"
+                        >
+                          Stamp each
+                        </button>
+                        <button
+                          disabled={selectedTiles.size === 0}
+                          onClick={() => {
+                            const features = Array.from(selectedTiles).map(k => {
+                              const { z, x, y } = parseTileKey(k);
+                              const b = tileBounds(x, y, z);
+                              const ring: [number, number][] = [
+                                [b.west, b.north], [b.east, b.north],
+                                [b.east, b.south], [b.west, b.south],
+                                [b.west, b.north],
+                              ];
+                              return { type: "Feature", properties: { z, x, y, tile: k }, geometry: { type: "Polygon", coordinates: [ring] } };
+                            });
+                            const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features }, null, 2)], { type: "application/geo+json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url; a.download = `tiles-z${tileZoom}-${Date.now()}.geojson`; a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="px-1.5 py-1 rounded-md text-[11px] bg-black/50 border border-white/10 text-white/80 hover:text-white disabled:opacity-30"
+                        >
+                          Export
+                        </button>
+                        <button
+                          disabled={selectedTiles.size === 0}
+                          onClick={() => { setSelectedTiles(new Set()); setTilesScanResults([]); }}
+                          className="px-1.5 py-1 rounded-md text-[11px] bg-black/50 border border-white/10 text-white/70 hover:text-white disabled:opacity-30"
+                        >
+                          Clear
+                        </button>
                       </div>
+                      {tilesScanResults.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto space-y-0.5 mt-1.5">
+                          {tilesScanResults.map((r, i) => (
+                            <div key={i} className="px-1.5 py-1 rounded bg-black/40 hover:bg-black/60">
+                              <p className="text-[11px] text-white/85 truncate">{r.name}</p>
+                              <p className="text-[9px] text-white/45 font-mono">{r.type}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  {/* Placed models list (shared across all modes) */}
-                  <div className="mt-2.5 pt-2.5 border-t border-white/[0.06]">
-                    <p className="text-[9px] text-white/60 uppercase tracking-wider mb-1.5">Placed models ({placedModels.length})</p>
+                    <p className="text-[9.5px] text-white/45 leading-snug px-0.5">
+                      The brush footprint follows the hovered tile bounds. Always drawn on top of the map.
+                    </p>
+                  </div>
+                )}
+
+                {/* Placed models list — collapsible footer */}
+                <div className="mt-2.5 pt-2.5 border-t border-white/[0.06]">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">
+                      Placed models · {placedModels.length}
+                    </p>
+                  </div>
                   {placedModels.length === 0 ? (
-                    <div className="text-center py-5">
-                      <Box className="w-7 h-7 text-white/10 mx-auto mb-1.5" />
-                      <p className="text-xs text-white/70">No models placed yet</p>
-                    </div>
+                    <p className="text-[10.5px] text-white/40 text-center py-2">
+                      Nothing placed yet.
+                    </p>
                   ) : (
-                    <div className="max-h-56 overflow-y-auto space-y-1">
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
                       {placedModels.map((model) => (
-                        <div key={model.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-black/70 group transition-colors">
-                          <Box className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <div key={model.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 group">
+                          <Box className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{model.name}</p>
-                            <p className="text-[10px] text-white/70 font-mono">
+                            <p className="text-[11px] font-medium text-white truncate">{model.name}</p>
+                            <p className="text-[9.5px] text-white/50 font-mono truncate">
                               {model.lat.toFixed(4)}, {model.lng.toFixed(4)} · {model.scale}x
                             </p>
-                            <p className="text-[10px] text-white/85 truncate">{model.fileName}</p>
                           </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => flyToModel(model)}
-                              className="p-1 rounded-md text-white/85 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                              className="p-1 rounded text-white/70 hover:text-emerald-300 hover:bg-emerald-500/10"
                               title="Fly to"
                             >
                               <Move className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => deleteModel(model.id)}
-                              className="p-1 rounded-md text-white/85 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="p-1 rounded text-white/70 hover:text-red-400 hover:bg-red-500/10"
                               title="Delete"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -6866,11 +6952,10 @@ function SpaceshipPage() {
                       ))}
                     </div>
                   )}
-                  </div>
-                </GlassPanel>
-              </div>
-            )}
-          
+                </div>
+              </GlassPanel>
+            </div>
+          )}
 
           {/* POI Detail View */}
           
