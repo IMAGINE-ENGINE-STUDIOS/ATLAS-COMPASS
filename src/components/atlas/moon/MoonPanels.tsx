@@ -182,7 +182,7 @@ export default function MoonPanels({ viewer }: Props) {
       <MoonMissionEntities
         viewer={viewer}
         visible={missionsVisible}
-        filterKinds={filterKinds.size ? (filterKinds as unknown as Set<string>) : null}
+        allowedIds={filteredIds}
         onSelect={setSelectedMission}
       />
 
