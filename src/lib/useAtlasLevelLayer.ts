@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "./atlasLevelGeo";
 import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
+import { ellipsoidForWorld } from "@/lib/planets/ellipsoids";
 
 export interface LevelPlacement {
   id: string;
@@ -59,7 +60,7 @@ export function useAtlasLevelLayer(
   viewerRef: React.MutableRefObject<Viewer | null>,
   isLoaded: boolean,
   onOpenLevel: (placement: LevelPlacement) => void,
-  world: "earth" | "moon" = "earth",
+  world: string = "earth",
 ) {
   const [placements, setPlacements] = useState<LevelPlacement[]>([]);
 
@@ -79,7 +80,7 @@ export function useAtlasLevelLayer(
     };
     load();
     const channel = supabase
-      .channel("atlas-level-placements")
+      .channel(`atlas-level-placements:${world}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "atlas_level_placements" }, load)
       .subscribe();
     const onRefresh = () => load();
@@ -96,7 +97,7 @@ export function useAtlasLevelLayer(
     if (!isLoaded) return;
     const viewer = viewerRef.current;
     if (!viewer) return;
-    const ellipsoid = world === "moon" ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    const ellipsoid = ellipsoidForWorld(world);
 
     const added: any[] = [];
     for (const p of placements) {
@@ -181,8 +182,8 @@ export function useAtlasLevelLayer(
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     const flyTo = (p: LevelPlacement) => {
       try {
-        if (world === "moon") {
-          flyToMoonCoord(viewer, p.lng, p.lat, { altitude: 1200, duration: 1.0 });
+        if (world !== "earth") {
+          flyToMoonCoord(viewer, p.lng, p.lat, { altitude: 1200, duration: 1.0, ellipsoid });
           return;
         }
         const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2, ellipsoid);
