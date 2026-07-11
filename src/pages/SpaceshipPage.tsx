@@ -7898,8 +7898,21 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                       {moonMode ? "Moon" : "Mode"}
                     </p>
                     {moonMode ? (
-                      <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-slate-100">
-                        <Satellite className="w-2.5 h-2.5" /> NASA LOLA
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent("moon:toggle-panel", { detail: "layers" }))}
+                          className="flex items-center gap-1 px-2 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-[10px] font-semibold text-slate-100 transition-colors"
+                          title="NASA Moon datasets & LOD"
+                        >
+                          <Layers className="w-2.5 h-2.5" /> Layers
+                        </button>
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent("moon:toggle-panel", { detail: "missions" }))}
+                          className="flex items-center gap-1 px-2 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-[10px] font-semibold text-slate-100 transition-colors"
+                          title="Lunar missions, landers, rovers, orbiters"
+                        >
+                          <Satellite className="w-2.5 h-2.5" /> Missions
+                        </button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
