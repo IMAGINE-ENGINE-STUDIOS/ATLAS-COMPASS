@@ -36,7 +36,6 @@ const MarsPage = lazy(() =>
     },
   })),
 );
-const PlanetPage = lazy(() => import("@/pages/PlanetPage"));
 const PlanetAtlasPage = lazy(() => import("@/pages/PlanetAtlasPage"));
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
