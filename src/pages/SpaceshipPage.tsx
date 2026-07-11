@@ -2977,8 +2977,10 @@ function SpaceshipPage() {
             alt: carto.height,
           });
           // Only update brush indicator when no placement dialog is open
-          if (brushIndicatorRef.current && !pendingPlacementRef.current) {
-            brushIndicatorRef.current.position = cartesian as any;
+          if (!pendingPlacementRef.current) {
+            const lng = CesiumMath.toDegrees(carto.longitude);
+            const lat = CesiumMath.toDegrees(carto.latitude);
+            updateBrushIndicator(viewer, lng, lat);
           }
         }
       }
