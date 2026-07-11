@@ -3015,7 +3015,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       });
       return (viewer as any)._googleDirectLoading;
     };
-    applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+    if (!isMoon) {
+      applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+    } else {
+      // Ensure the Moon globe stays visible regardless of the persisted Earth
+      // view mode (Google/OSM/etc) — the mode carousel doesn't apply here.
+      viewer.scene.globe.show = true;
+    }
     if (isMoon) {
       // Skip every Earth tileset ensure. The moon world only shows the
       // Cesium ion Moon terrain — no Google Photoreal, no OSM, no ion
