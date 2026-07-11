@@ -24,6 +24,7 @@ export interface MarsLayerDef {
   maximumLevel: number;
   credit: string;
   description: string;
+  bbox?: [number, number, number, number];
   defaultVisible?: boolean;
   defaultAlpha?: number;
 }
@@ -86,6 +87,51 @@ export const MARS_LAYERS: MarsLayerDef[] = [
     description:
       "High-resolution grayscale mosaic from MRO's Context Camera (~5 m/px).",
   },
+  // ── HiRISE / CTX landing-site ROIs (25 cm/px – 5 m/px) ──
+  {
+    id: "hirise_gale_curiosity",
+    title: "Curiosity · Gale Crater (HiRISE 25 cm)",
+    category: "basemap",
+    wmtsLayer: "Mars_MRO_HiRISE_Mosaic_MSL_Gale_25cm",
+    ext: "jpg",
+    maximumLevel: 14,
+    credit: "NASA / JPL / UArizona · HiRISE Gale Crater mosaic",
+    description: "Ultra-high-resolution HiRISE mosaic of the MSL Curiosity landing region.",
+    bbox: [137.0, -5.5, 137.9, -4.4],
+  },
+  {
+    id: "hirise_jezero_perseverance",
+    title: "Perseverance · Jezero Crater (HiRISE 25 cm)",
+    category: "basemap",
+    wmtsLayer: "Mars_MRO_HiRISE_Mosaic_M20_Jezero_25cm",
+    ext: "jpg",
+    maximumLevel: 14,
+    credit: "NASA / JPL / UArizona · HiRISE Jezero mosaic",
+    description: "Ultra-high-resolution HiRISE mosaic of the Mars 2020 Perseverance landing region.",
+    bbox: [77.0, 17.9, 78.2, 18.8],
+  },
+  {
+    id: "hirise_meridiani_opportunity",
+    title: "Opportunity · Meridiani Planum (HiRISE)",
+    category: "basemap",
+    wmtsLayer: "Mars_MRO_HiRISE_Mosaic_MER_B_Meridiani_50cm",
+    ext: "jpg",
+    maximumLevel: 13,
+    credit: "NASA / JPL / UArizona · HiRISE Meridiani mosaic",
+    description: "HiRISE mosaic of the MER-B Opportunity landing region in Meridiani Planum.",
+    bbox: [-6.5, -2.5, -5.5, -1.5],
+  },
+  {
+    id: "hirise_elysium_insight",
+    title: "InSight · Elysium Planitia (HiRISE)",
+    category: "basemap",
+    wmtsLayer: "Mars_MRO_HiRISE_Mosaic_InSight_50cm",
+    ext: "jpg",
+    maximumLevel: 13,
+    credit: "NASA / JPL / UArizona · HiRISE InSight mosaic",
+    description: "HiRISE mosaic of the InSight lander region on Elysium Planitia.",
+    bbox: [135.0, 4.0, 136.0, 4.8],
+  },
 ];
 
 const TREK_BASE = "https://trek.nasa.gov/tiles/Mars/EQ";
@@ -94,7 +140,7 @@ export function createMarsImageryProvider(
   def: MarsLayerDef,
 ): WebMapTileServiceImageryProvider {
   const url = `${TREK_BASE}/${def.wmtsLayer}/1.0.0/default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.${def.ext}`;
-  return new WebMapTileServiceImageryProvider({
+  const opts: any = {
     url,
     layer: def.wmtsLayer,
     style: "default",
@@ -103,7 +149,9 @@ export function createMarsImageryProvider(
     maximumLevel: def.maximumLevel,
     tilingScheme: new GeographicTilingScheme(),
     credit: new Credit(def.credit, true),
-  } as any);
+  };
+  if (def.bbox) opts.rectangle = Rectangle.fromDegrees(...def.bbox);
+  return new WebMapTileServiceImageryProvider(opts);
 }
 
 /** Punch up NASA raw imagery for a cinematic Atlas readout. */

@@ -41,8 +41,16 @@ import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
 import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
+import PlanetLayerPanel from "@/components/atlas/PlanetLayerPanel";
+import { hasPlanetLayerCatalog } from "@/lib/planets/trekCatalogs";
 import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
 import { MARS_LAYERS, createMarsImageryProvider, tuneMarsImageryLayer } from "@/lib/mars/marsProviders";
+import { createMolaMarsTerrainProvider } from "@/lib/mars/MolaTerrainProvider";
+import {
+  getPlanetLayerCatalog,
+  createPlanetImageryProvider,
+  tunePlanetImageryLayer,
+} from "@/lib/planets/trekCatalogs";
 import { MARS_ELLIPSOID, ellipsoidForPlanet } from "@/lib/planets/ellipsoids";
 import { findPlanet, type PlanetId } from "@/lib/planets/config";
 import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
@@ -3066,27 +3074,47 @@ function SpaceshipPage({
       viewer.scene.globe.enableLighting = false;
       viewer.scene.sun && (viewer.scene.sun.show = false);
       if (genericPlanetRef.current && genericPlanetEntry) {
-        // Generic planet — no NASA Trek WMTS available.  Drape the
-        // highest-res NASA-derived albedo texture as a single equirect
-        // tile so the ellipsoid gains a real photographic surface.
+        // Generic planet — prefer a real NASA / USGS WMTS tile pyramid
+        // when one is published (Mercury, Venus, Vesta, Ceres…). Fall back
+        // to the single-tile albedo skin for bodies with no public surface
+        // catalog (gas giants, Sun).
         try {
           viewer.imageryLayers.removeAll(true);
-          const provider = new (SingleTileImageryProvider as any)({
-            url: genericPlanetEntry.textureUrl,
-            tilingScheme: new GeographicTilingScheme(),
-            rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
-          });
-          const layer = new ImageryLayer(provider, {});
-          layer.brightness = 1.05;
-          layer.saturation = 1.15;
-          viewer.imageryLayers.add(layer);
+          const catalog = getPlanetLayerCatalog(activeWorldId);
+          if (catalog && catalog.length) {
+            const defaults = catalog.filter((l) => l.defaultVisible);
+            const toMount = defaults.length ? defaults : [catalog[0]];
+            (viewer as any).__planetImagery = {};
+            toMount.forEach((def) => {
+              const provider = createPlanetImageryProvider(def);
+              const layer = new ImageryLayer(provider, {});
+              tunePlanetImageryLayer(layer, def);
+              layer.alpha = def.defaultAlpha ?? 1;
+              viewer.imageryLayers.add(layer);
+              (viewer as any).__planetImagery[def.id] = layer;
+            });
+          } else {
+            const provider = new (SingleTileImageryProvider as any)({
+              url: genericPlanetEntry.textureUrl,
+              tilingScheme: new GeographicTilingScheme(),
+              rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+            });
+            const layer = new ImageryLayer(provider, {});
+            layer.brightness = 1.05;
+            layer.saturation = 1.15;
+            viewer.imageryLayers.add(layer);
+          }
         } catch (err) {
           console.warn("[Atlas planet] imagery failed", err);
         }
       } else if (marsModeRef.current) {
-        // Mars world — NASA Mars Trek imagery. Terrain stays as the ellipsoid
-        // surface (Cesium has no bundled Mars terrain provider); LOLA math
-        // would be wrong here so we skip it.
+        // Mars world — NASA Mars Trek imagery + MOLA-derived terrain so
+        // Olympus Mons and Valles Marineris show real 3D relief.
+        try {
+          viewer.terrainProvider = createMolaMarsTerrainProvider();
+        } catch (err) {
+          console.warn("[Atlas mars] MOLA terrain failed", err);
+        }
         try {
           viewer.imageryLayers.removeAll(true);
           const defaults = MARS_LAYERS.filter((l) => l.defaultVisible);
@@ -3103,12 +3131,25 @@ function SpaceshipPage({
           console.warn("[Atlas mars] imagery failed", err);
         }
       } else {
-        // NASA LOLA-derived terrain for the Moon (no Cesium ion).
-        try {
-          viewer.terrainProvider = createLolaMoonTerrainProvider();
-        } catch (err) {
-          console.warn("[Atlas moon] LOLA terrain failed", err);
-        }
+        // Moon: prefer Cesium ion's real LOLA-derived quantized-mesh
+        // terrain (asset 2684829). Fall back to the hillshade-luminance
+        // provider if the ion asset fails (offline, revoked token, etc).
+        (async () => {
+          try {
+            const ionTerrain = await CesiumTerrainProvider.fromIonAssetId(2684829);
+            if (!viewer.isDestroyed()) {
+              viewer.terrainProvider = ionTerrain;
+              viewer.scene.requestRender?.();
+            }
+          } catch (err) {
+            console.warn("[Atlas moon] ion terrain failed, falling back to LOLA hillshade", err);
+            try {
+              viewer.terrainProvider = createLolaMoonTerrainProvider();
+            } catch (err2) {
+              console.warn("[Atlas moon] LOLA fallback failed", err2);
+            }
+          }
+        })();
         try {
           viewer.imageryLayers.removeAll(true);
           const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
@@ -6125,8 +6166,22 @@ function SpaceshipPage({
       {isLoaded && !marsMode && (moonMode ? <EarthPill /> : <MoonPill />)}
 
       {/* Moon-only HUD: NASA layers + missions catalog. */}
-      {isLoaded && moonMode && !marsMode && viewerRef.current && (
+      {isLoaded && activeWorldId === "moon" && viewerRef.current && (
         <MoonPanels viewer={viewerRef.current} />
+      )}
+
+      {/* Layer/info pill for every other non-Earth world (Mars, Mercury,
+          Venus, Vesta, Ceres get a real layer picker; gas giants and the
+          Sun get an honest "reference sphere" note). */}
+      {isLoaded && activeWorldId !== "earth" && activeWorldId !== "moon" && viewerRef.current && (
+        <PlanetLayerPanel
+          viewer={viewerRef.current}
+          worldId={activeWorldId}
+          worldName={activeWorldName}
+          isReferenceSphere={
+            activeWorldId !== "mars" && !hasPlanetLayerCatalog(activeWorldId)
+          }
+        />
       )}
 
       <style>{`@keyframes atlasEmergencyPulse {
