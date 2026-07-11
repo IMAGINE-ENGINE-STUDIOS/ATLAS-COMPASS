@@ -3119,13 +3119,13 @@ function SpaceshipPage({
           console.warn("[Atlas planet] imagery failed", err);
         }
       } else if (marsModeRef.current) {
-        // Mars world — NASA Mars Trek imagery + MOLA-derived terrain so
-        // Olympus Mons and Valles Marineris show real 3D relief.
-        try {
-          viewer.terrainProvider = createMolaMarsTerrainProvider();
-        } catch (err) {
-          console.warn("[Atlas mars] MOLA terrain failed", err);
-        }
+        // Mars world — NASA Mars Trek imagery on the Mars ellipsoid.
+        // NOTE: custom MOLA-heightmap terrain is disabled because Cesium's
+        // tile-normal pipeline throws `DeveloperError: normalized result is
+        // not a number` when the derived heightmap produces degenerate
+        // triangles at close zoom, halting all rendering. Until we have a
+        // real quantized-mesh DEM for Mars, we keep the ellipsoid smooth
+        // and rely on the MOLA color-shaded imagery for topographic feel.
         try {
           viewer.imageryLayers.removeAll(true);
           const defaults = MARS_LAYERS.filter((l) => l.defaultVisible);
