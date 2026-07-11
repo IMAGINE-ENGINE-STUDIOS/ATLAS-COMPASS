@@ -1367,6 +1367,57 @@ function SpaceshipPage() {
   const tilesToolRef = useRef<TilesToolExt>("grid");
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
+  // Redraw/reposition the brush footprint decal. Called from the mouse-move
+  // handler AND from the shape/radius/mode effects (so the shape refreshes
+  // even when the cursor is stationary). Circle uses the ellipse entity,
+  // square/hex use the polygon entity, and Tile mode overrides the polygon
+  // to the exact hovered Web-Mercator tile bounds. Both entities render as
+  // `ClassificationType.BOTH` decals so they always paint on top of the map
+  // tiles (terrain AND 3D Tilesets) — never below them.
+  const updateBrushIndicator = useCallback((viewer: any, lng?: number, lat?: number) => {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    const circle = viewer.__brushCircleEntity;
+    const poly = viewer.__brushPolyEntity;
+    if (!circle || !poly) return;
+    const cursor = (typeof lng === "number" && typeof lat === "number")
+      ? { lng, lat }
+      : brushCursorRef.current;
+    if (cursor) brushCursorRef.current = cursor;
+    if (!cursor) { circle.show = false; poly.show = false; return; }
+
+    const sub = brushSubModeRef.current;
+    const shape = brushShapeRef.current;
+    const radius = brushRadiusRef.current;
+    const wantIndicator = !!brushIndicatorRef.__enabled;
+
+    if (sub === "tiles") {
+      const z = Math.max(6, Math.min(22, Math.round(tileZoom)));
+      const { x, y } = lngLatToTile(cursor.lat, cursor.lng, z);
+      const b = tileBounds(x, y, z);
+      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b);
+      poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+      poly.show = wantIndicator;
+      circle.show = false;
+      return;
+    }
+
+    if (shape === "circle") {
+      circle.position = Cartesian3.fromDegrees(cursor.lng, cursor.lat, 0) as any;
+      if (circle.ellipse) {
+        circle.ellipse.semiMajorAxis = radius as any;
+        circle.ellipse.semiMinorAxis = radius as any;
+      }
+      circle.show = wantIndicator;
+      poly.show = false;
+      return;
+    }
+
+    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape);
+    poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+    poly.show = wantIndicator;
+    circle.show = false;
+  }, [tileZoom]);
+
   // Model transform editing state
   const [editingModel, setEditingModel] = useState<PlacedModel | null>(null);
   // GLB blob for the currently-editing model, loaded lazily so the Mesh
