@@ -27,6 +27,8 @@ export interface MoonFlyOpts {
   heading?: number;
   /** Pitch in degrees (negative = looking down). */
   pitch?: number;
+  /** Override the target ellipsoid (defaults to the Moon). */
+  ellipsoid?: Ellipsoid;
 }
 
 /** Fly the camera to a selenographic coordinate on the Moon. */
@@ -37,17 +39,20 @@ export function flyToMoonCoord(
   opts: MoonFlyOpts = {}
 ) {
   if (!viewer || viewer.isDestroyed?.()) return;
+  const ellipsoid = opts.ellipsoid
+    ?? (viewer as any).__atlasNonEarthEllipsoid
+    ?? Ellipsoid.MOON;
   const altitude = Math.max(
     MOON_MIN_SAFE_ALTITUDE_M,
     Math.min(MOON_MAX_SAFE_ALTITUDE_M, opts.altitude ?? 180_000),
   );
   const duration = opts.duration ?? 1.6;
 
-  // Put the camera directly above the target in Moon coordinates and look
-  // nadir. This avoids Cesium's Earth-biased fly-to offsets and prevents POI
-  // arrivals from ending inside the Moon or at a tangent angle facing space.
-  const target = Cartesian3.fromDegrees(lon, lat, 0, Ellipsoid.MOON);
-  const destination = Cartesian3.fromDegrees(lon, lat, altitude, Ellipsoid.MOON);
+  // Put the camera directly above the target in the target planet's
+  // coordinate frame and look nadir. Avoids Cesium's Earth-biased fly-to
+  // offsets that end inside the planet or at a tangent angle.
+  const target = Cartesian3.fromDegrees(lon, lat, 0, ellipsoid);
+  const destination = Cartesian3.fromDegrees(lon, lat, altitude, ellipsoid);
   const normal = Cartesian3.normalize(target, new Cartesian3());
   const direction = Cartesian3.negate(normal, new Cartesian3());
   const pole = Math.abs(normal.z) > 0.96 ? Cartesian3.UNIT_Y : Cartesian3.UNIT_Z;
