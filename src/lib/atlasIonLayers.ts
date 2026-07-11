@@ -565,3 +565,120 @@ export const listEnabledIonLayerIssues = (): Array<{ entry: IonLayerEntry; valid
     .map((entry) => ({ entry, validation: getIonLayerValidation(entry.id) }))
     .filter(({ validation }) => validation.status !== "ok");
 };
+
+// ─── Base-tileset clipping ─────────────────────────────────────────────────
+// When a higher-resolution community tileset (Vexcel, NYC 3D, Aerometrex,
+// Melbourne photogrammetry, Vricon, etc.) is enabled, we cut a hole in the
+// underlying Google Photoreal / OSM tilesets so their coarser mesh does not
+// z-fight or bleed through the overlay. We approximate each overlay's
+// footprint with the bounding sphere's ground rectangle (padded slightly)
+// and feed those rectangles as ClippingPolygons to the base tilesets.
+
+const SKIP_CLIP_LAYER_IDS = new Set([
+  "google-photoreal",     // this IS the base tileset
+  "cesium-osm-buildings",
+  "cesium-osm-buildings-cwb",
+  "cesium-moon",
+  "cesium-mars",
+]);
+
+const rectangleFromTileset = (ts: Cesium3DTileset): { west: number; south: number; east: number; north: number } | null => {
+  try {
+    const bv: any = (ts as any).root?.boundingVolume ?? (ts as any).boundingVolume;
+    const rect = bv?.rectangle;
+    if (rect) {
+      return {
+        west: rect.west, south: rect.south, east: rect.east, north: rect.north,
+      };
+    }
+    const sphere = ts.boundingSphere;
+    if (!sphere) return null;
+    const carto = Cartographic.fromCartesian(sphere.center);
+    const latRad = carto.latitude;
+    const dLat = sphere.radius / 111_320;
+    const cos = Math.max(Math.cos(latRad), 0.01);
+    const dLng = sphere.radius / (111_320 * cos);
+    return {
+      west: carto.longitude - CMath.toRadians(CMath.toDegrees(dLng)),
+      south: latRad - CMath.toRadians(CMath.toDegrees(dLat)),
+      east: carto.longitude + CMath.toRadians(CMath.toDegrees(dLng)),
+      north: latRad + CMath.toRadians(CMath.toDegrees(dLat)),
+    };
+  } catch { return null; }
+};
+
+const rectanglePolygonPositions = (r: { west: number; south: number; east: number; north: number }) => {
+  // Slight inset so the polygon boundary stays inside the tileset bounds
+  // (avoids fringing seams at the edge of the cut).
+  const pad = 1e-8;
+  const west = r.west + pad, east = r.east - pad;
+  const south = r.south + pad, north = r.north - pad;
+  const w = CMath.toDegrees(west), e = CMath.toDegrees(east);
+  const s = CMath.toDegrees(south), n = CMath.toDegrees(north);
+  return [
+    Cartesian3.fromDegrees(w, s),
+    Cartesian3.fromDegrees(e, s),
+    Cartesian3.fromDegrees(e, n),
+    Cartesian3.fromDegrees(w, n),
+  ];
+};
+
+const collectBaseTilesets = (viewer: any): Cesium3DTileset[] => {
+  const out: Cesium3DTileset[] = [];
+  for (const key of ["_googleDirectTileset", "_realisticTileset", "_osmTileset"]) {
+    const t = viewer?.[key];
+    if (t && !t.isDestroyed?.()) out.push(t);
+  }
+  // Include any 3DTILES the discovery loader added if they cover the globe
+  // (Google Photoreal 2275207 / OSM 96188).
+  const detail: any[] = viewer?._ionDetailOverlays ?? [];
+  for (const t of detail) {
+    if (!t || t.isDestroyed?.()) continue;
+    const name: string = (t as any)._ionAssetName ?? "";
+    if (/OSM Buildings|Photorealistic/i.test(name)) out.push(t);
+  }
+  return out;
+};
+
+/**
+ * Rebuild the ClippingPolygonCollection on every base tileset from the set
+ * of currently-visible community overlays. Safe to call repeatedly.
+ */
+export const refreshBaseTilesetClipping = async (viewer: Viewer) => {
+  if (!viewer || (viewer as any).isDestroyed?.()) return;
+  const overlays = Array.from(bag(viewer).entries())
+    .filter(([id, ts]) => !SKIP_CLIP_LAYER_IDS.has(id) && ts && ts.show && !(ts as any).isDestroyed?.());
+
+  const polygons: ClippingPolygon[] = [];
+  for (const [, ts] of overlays) {
+    const rect = rectangleFromTileset(ts);
+    if (!rect) continue;
+    // Skip absurdly large rectangles (countrywide PLATEAU covers all of
+    // Japan — clipping the base globe against that whole region would erase
+    // most of the map). Only clip when overlay is smaller than ~150 km.
+    const spanLat = (rect.north - rect.south) * 6_378_137;
+    const spanLng = (rect.east - rect.west) * 6_378_137 * Math.cos((rect.north + rect.south) / 2);
+    if (spanLat > 150_000 || spanLng > 150_000) continue;
+    try {
+      polygons.push(new ClippingPolygon({ positions: rectanglePolygonPositions(rect) }));
+    } catch {}
+  }
+
+  const bases = collectBaseTilesets(viewer as any);
+  for (const base of bases) {
+    try {
+      if (polygons.length === 0) {
+        (base as any).clippingPolygons = undefined;
+      } else {
+        const collection = new ClippingPolygonCollection({
+          polygons: polygons.map((p) => new ClippingPolygon({ positions: (p as any).positions })),
+          inverse: false,
+        });
+        (base as any).clippingPolygons = collection;
+      }
+    } catch (err) {
+      console.warn("[atlasIonLayers] clipping polygons unsupported on tileset", err);
+    }
+  }
+  (viewer as any).scene?.requestRender?.();
+};
