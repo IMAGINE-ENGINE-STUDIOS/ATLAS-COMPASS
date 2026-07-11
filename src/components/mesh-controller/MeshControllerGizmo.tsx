@@ -61,7 +61,10 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const scene = viewer.scene;
-    const ellipsoid = (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    const nonEarth = (viewer as any).__atlasNonEarthEllipsoid as Ellipsoid | null | undefined;
+    const ellipsoid = (viewer as any).__moonMode
+      ? (nonEarth ?? Ellipsoid.MOON)
+      : Ellipsoid.WGS84;
 
     const sync = () => {
       if (!viewer || viewer.isDestroyed()) return;
@@ -166,7 +169,8 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
   const applyAxisMeters = (axis: "east" | "north" | "up", meters: number) => {
     const t = stateRef.current.transform;
     const viewer = viewerRef.current;
-    const R = (viewer as any)?.__moonMode ? Ellipsoid.MOON.maximumRadius : 6371008.8;
+    const nonEarthR = ((viewer as any)?.__atlasNonEarthEllipsoid as Ellipsoid | null | undefined)?.maximumRadius;
+    const R = (viewer as any)?.__moonMode ? (nonEarthR ?? Ellipsoid.MOON.maximumRadius) : 6371008.8;
     if (axis === "up") {
       onChange({ alt: (t.alt || 0) + meters });
       return;
@@ -216,7 +220,8 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
       cart = scene.camera.pickEllipsoid({ x, y } as any, scene.globe.ellipsoid);
     }
     if (!defined(cart)) return;
-    const c = Cartographic.fromCartesian(cart!, (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84);
+    const nonEarth2 = (viewer as any).__atlasNonEarthEllipsoid as Ellipsoid | null | undefined;
+    const c = Cartographic.fromCartesian(cart!, (viewer as any).__moonMode ? (nonEarth2 ?? Ellipsoid.MOON) : Ellipsoid.WGS84);
     onChange({
       lat: CesiumMath.toDegrees(c.latitude),
       lng: CesiumMath.toDegrees(c.longitude),
