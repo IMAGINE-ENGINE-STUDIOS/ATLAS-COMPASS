@@ -258,15 +258,6 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <div className="text-[9px] uppercase tracking-[0.15em] text-white/40 px-1">{title}</div>
-      <div className="space-y-1">{children}</div>
-    </div>
-  );
-}
-
 function Row({
   entry, enabled, assetIdOverride, onToggle, onFly, onRemove, onSetAssetId,
 }: {
