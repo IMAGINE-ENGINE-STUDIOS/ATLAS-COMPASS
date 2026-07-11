@@ -11,23 +11,22 @@
  * localStorage — see `src/lib/atlasIonLayers.ts`.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronUp, Eye, EyeOff, Key, Layers, Loader2, Locate, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, ChevronUp, Eye, EyeOff, Layers, Loader2, Locate, Plus, RefreshCw, Search, Shield, Trash2, X } from "lucide-react";
 import { type Viewer } from "cesium";
 import {
   addCustomIonLayer,
+  acceptIonTerms,
   flyToIonLayer,
   ensureIonLayer,
-  getAssetIdOverride,
   getIonLayerValidation,
   getIonLayerEnabled,
   ION_LAYER_CATALOG,
   type IonAssetValidation,
+  isIonTermsAccepted,
   listCustomIonLayers,
   onIonValidationChange,
   removeCustomIonLayer,
   removeIonLayerPrimitive,
-  resolveAssetId,
-  setAssetIdOverride,
   setIonLayerEnabled,
   validateEnabledIonLayers,
   validateIonLayer,
@@ -46,6 +45,8 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
   const [newName, setNewName] = useState("");
   const [tab, setTab] = useState<"japan" | "vexcel" | "custom">("japan");
   const [search, setSearch] = useState("");
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(isIonTermsAccepted());
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,16 +76,14 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
   const toggle = async (e: IonLayerEntry) => {
     const v = viewerRef.current; if (!v) return;
     const next = !getIonLayerEnabled(e.id);
-    // Placeholder Vexcel entries: prompt for an ion asset ID before enabling.
-    if (next && e.needsAssetId && !getAssetIdOverride(e.id)) {
-      const raw = window.prompt(
-        `Enter your Cesium ion asset ID for ${e.name}.\n\n` +
-        `Vexcel 3D Cities is per-account: add the asset from Cesium ion → ` +
-        `Asset Depot, then paste its numeric ID here (saved for future sessions).`,
-      );
-      const id = Number(raw?.trim());
-      if (!Number.isFinite(id) || id <= 0) return;
-      setAssetIdOverride(e.id, id);
+    // Gate first activation behind a one-time Cesium ion terms acceptance.
+    if (next && !termsAccepted) { setTermsOpen(true); return; }
+    // Vexcel fly-to-only entries (no asset ID): just fly the camera.
+    if (next && (!e.assetId || e.assetId <= 0)) {
+      setIonLayerEnabled(e.id, false);
+      await flyToIonLayer(v, e);
+      setTick((t) => t + 1);
+      return;
     }
     setIonLayerEnabled(e.id, next);
     if (next) {
@@ -99,6 +98,12 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
       v.scene.requestRender?.();
     }
     setTick((t) => t + 1);
+  };
+
+  const confirmTerms = () => {
+    acceptIonTerms();
+    setTermsAccepted(true);
+    setTermsOpen(false);
   };
 
   const fly = async (e: IonLayerEntry) => {
@@ -158,6 +163,13 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
             </div>
             <div className="flex items-center gap-1">
               <button
+                onClick={() => setTermsOpen(true)}
+                title={termsAccepted ? "Cesium ion terms accepted" : "Review Cesium ion terms"}
+                className={`p-1 rounded hover:bg-white/10 ${termsAccepted ? "text-emerald-300" : "text-amber-300"}`}
+              >
+                <Shield className="w-3 h-3" />
+              </button>
+              <button
                 onClick={revalidateAll}
                 title="Re-validate all enabled layers"
                 className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-fuchsia-300"
@@ -169,6 +181,32 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
               </button>
             </div>
           </div>
+
+          {termsOpen && (
+            <div className="px-3 py-2.5 bg-amber-500/10 border-b border-amber-400/30 text-[11px] text-amber-100 space-y-2">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <Shield className="w-3.5 h-3.5" /> Cesium ion asset terms
+              </div>
+              <p className="text-[10px] leading-snug text-amber-100/90">
+                Streaming Ion layers uses commercial datasets (Google Photoreal, Vexcel, Nearmap, Aerometrex, Vricon, MLIT PLATEAU). By continuing you accept
+                the <a href="https://cesium.com/legal/terms-of-service/" target="_blank" rel="noreferrer" className="underline">Cesium ion Terms of Service</a> and each provider's attribution &amp; usage terms.
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={confirmTerms}
+                  className="flex-1 px-2 py-1 rounded bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/40 text-[10px] font-semibold"
+                >
+                  I agree — enable layers
+                </button>
+                <button
+                  onClick={() => setTermsOpen(false)}
+                  className="px-2 py-1 rounded bg-white/[0.05] border border-white/10 text-white/70 text-[10px]"
+                >
+                  Not now
+                </button>
+              </div>
+            </div>
+          )}
 
           {enabledEntries.length > 0 && (
             <div className={`px-3 py-1.5 text-[10px] flex items-center gap-1.5 border-b border-white/10 ${
@@ -234,23 +272,10 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
                 key={e.id}
                 entry={e}
                 enabled={getIonLayerEnabled(e.id)}
-                assetIdOverride={getAssetIdOverride(e.id)}
                 validation={getIonLayerValidation(e.id)}
                 onToggle={() => toggle(e)}
                 onFly={() => fly(e)}
                 onValidate={() => { void validateIonLayer(e, { force: true }); }}
-                onSetAssetId={() => {
-                  const raw = window.prompt(
-                    `Set ion asset ID for ${e.name}`,
-                    String(resolveAssetId(e) || ""),
-                  );
-                  const id = Number(raw?.trim());
-                  if (Number.isFinite(id) && id > 0) {
-                    setAssetIdOverride(e.id, id);
-                    void validateIonLayer(e, { force: true });
-                    setTick((t) => t + 1);
-                  }
-                }}
                 onRemove={e.id.startsWith("custom-") ? () => remove(e) : undefined}
               />
             ))}
