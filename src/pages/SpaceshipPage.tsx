@@ -2774,7 +2774,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     viewer.scene.globe.enableLighting = false;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
-    viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
+    // Moon: fall back to a lunar grey so the disc is always visible even
+    // when NASA Trek tiles haven't streamed in yet (prevents the "Moon
+    // disappears while the camera moves" flash). Earth keeps the deep
+    // space color as fallback since tiles cover the visible frustum.
+    viewer.scene.globe.baseColor = isMoon
+      ? Color.fromCssColorString("#8f8b83")
+      : Color.fromCssColorString("#0a0a1a");
 
     // Outer-atmosphere sky glow
     if (viewer.scene.skyAtmosphere) {
