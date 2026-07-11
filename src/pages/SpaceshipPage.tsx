@@ -5680,6 +5680,9 @@ function SpaceshipPage() {
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
+      {/* Circular Moon cropout — top-center jump button to the Moon world. */}
+      {isLoaded && <MoonPill />}
+
       <style>{`@keyframes atlasEmergencyPulse {
         0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.75), 0 0 18px rgba(239,68,68,0.55); transform: scale(1); }
         50%     { box-shadow: 0 0 0 14px rgba(239,68,68,0), 0 0 28px rgba(239,68,68,0.9); transform: scale(1.06); }
