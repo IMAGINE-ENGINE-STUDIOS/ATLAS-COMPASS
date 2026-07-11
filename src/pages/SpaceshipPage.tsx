@@ -3204,7 +3204,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const cartesian = viewer.scene.pickPosition(movement.endPosition) 
           || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
         if (defined(cartesian)) {
-          const carto = Cartographic.fromCartesian(cartesian);
+          const carto = Cartographic.fromCartesian(
+            cartesian,
+            isMoon ? Ellipsoid.MOON : undefined
+          );
           setCursorInfo({
             lat: CesiumMath.toDegrees(carto.latitude),
             lng: CesiumMath.toDegrees(carto.longitude),
