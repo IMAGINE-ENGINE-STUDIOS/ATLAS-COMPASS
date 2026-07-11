@@ -39,7 +39,7 @@ import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import LPRPanel from "@/components/atlas/lpr/LPRPanel";
 import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
-import { MoonPill } from "@/components/atlas/MoonPill";
+import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
 import {
