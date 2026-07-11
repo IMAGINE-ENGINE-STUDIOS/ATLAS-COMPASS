@@ -7440,7 +7440,10 @@ function SpaceshipPage() {
                   <div className="w-px h-5 sm:h-7 bg-white/10" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">Mode</p>
-                    <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
+                    <div className="flex items-center gap-1.5">
+                      <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
+                      <AtlasCommunityLayersPill viewerRef={viewerRef} isLoaded={isLoaded} />
+                    </div>
                   </div>
                 </div>
               </GlassPanel>
