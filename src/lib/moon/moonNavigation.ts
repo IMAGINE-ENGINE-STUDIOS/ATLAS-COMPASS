@@ -15,7 +15,7 @@ import {
   Matrix4,
 } from "cesium";
 
-export const MOON_MIN_SAFE_ALTITUDE_M = 3_000;
+export const MOON_MIN_SAFE_ALTITUDE_M = 20;
 export const MOON_MAX_SAFE_ALTITUDE_M = 450_000_000;
 
 export interface MoonFlyOpts {
