@@ -9,6 +9,7 @@ import { Layers, Rocket, X, ExternalLink, Search } from "lucide-react";
 import {
   MOON_LAYERS,
   createMoonImageryProvider,
+  tuneMoonImageryLayer,
   type MoonLayerDef,
 } from "@/lib/moon/trekProviders";
 import {
@@ -190,6 +191,7 @@ export default function MoonPanels({ viewer }: Props) {
         try {
           const provider = createMoonImageryProvider(def);
           layer = new ImageryLayer(provider, {});
+          tuneMoonImageryLayer(layer, def);
           viewer.imageryLayers.add(layer);
           bag[def.id] = layer;
         } catch (err) {
@@ -197,6 +199,7 @@ export default function MoonPanels({ viewer }: Props) {
           return;
         }
       }
+      tuneMoonImageryLayer(layer, def);
       layer.alpha = wanted.alpha;
     });
     try { viewer.scene.requestRender(); } catch {}

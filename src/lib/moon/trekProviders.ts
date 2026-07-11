@@ -13,6 +13,7 @@ import {
   WebMapTileServiceImageryProvider,
   GeographicTilingScheme,
   Credit,
+  ImageryLayer,
   Rectangle,
   Math as CesiumMath,
 } from "cesium";
@@ -196,6 +197,16 @@ export function createMoonImageryProvider(
     opts.rectangle = Rectangle.fromDegrees(...def.bbox);
   }
   return new WebMapTileServiceImageryProvider(opts);
+}
+
+/** Make raw NASA lunar tiles readable in an unlit command-center view. */
+export function tuneMoonImageryLayer(layer: ImageryLayer, def: MoonLayerDef) {
+  const isPhoto = def.id === "lro_wac_303ppd" || def.id === "kaguya_tc_ortho";
+  const isElevation = def.category === "elevation";
+  layer.brightness = isPhoto ? 1.85 : isElevation ? 1.35 : 1.25;
+  layer.contrast = isPhoto ? 1.18 : 1.08;
+  layer.gamma = isPhoto ? 0.72 : 0.86;
+  layer.saturation = def.category === "composition" ? 1.2 : 1.0;
 }
 
 export function findMoonLayer(id: string): MoonLayerDef | undefined {

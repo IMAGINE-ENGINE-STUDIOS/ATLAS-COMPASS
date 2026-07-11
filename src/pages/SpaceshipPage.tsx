@@ -45,8 +45,14 @@ import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
 import {
   MOON_LAYERS,
   createMoonImageryProvider,
+  tuneMoonImageryLayer,
 } from "@/lib/moon/trekProviders";
-import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
+import {
+  flyToMoonCoord,
+  installMoonCameraGuard,
+  MOON_MAX_SAFE_ALTITUDE_M,
+  MOON_MIN_SAFE_ALTITUDE_M,
+} from "@/lib/moon/moonNavigation";
 import { restoreEnabledIonLayers } from "@/lib/atlasIonLayers";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
@@ -2729,24 +2735,30 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // the underside of terrain while orbiting.
     (ssec0 as any).enableCollisionDetection = true;
     ssec0.minimumZoomDistance = 1.5;
+    let removeMoonCameraGuard: (() => void) | null = null;
     if (isMoon) {
-      // Moon: allow the user to zoom in tightly to the surface. The custom
-      // LOLA-derived terrain provider fetches tiles asynchronously, so we
-      // disable collision detection (a partially-loaded terrain tile can
-      // otherwise push the camera many kilometres above the surface).
-      (ssec0 as any).enableCollisionDetection = false;
-      ssec0.minimumZoomDistance = 0.5;
-      // Keep the maximum zoom-out finite so users don't fly infinitely away
-      // from a body the size of the Moon and lose orientation.
-      ssec0.maximumZoomDistance = 40_000_000;
+      // Moon: keep Cesium-native controls, but enforce a safe orbital camera.
+      // Right-drag tilt was able to clip below the Moon or point fully into
+      // space; this keeps the lunar disc visible while preserving zoom depth.
+      (ssec0 as any).enableCollisionDetection = true;
+      ssec0.minimumZoomDistance = MOON_MIN_SAFE_ALTITUDE_M;
+      ssec0.maximumZoomDistance = MOON_MAX_SAFE_ALTITUDE_M;
+      ssec0.minimumCollisionTerrainHeight = MOON_MIN_SAFE_ALTITUDE_M;
+      ssec0.maximumMovementRatio = 0.12;
+      // Avoid tangent/night-side right-drag tilts that turn the viewport into
+      // black space. Lunar orbit still pans with left-drag and zooms normally.
+      ssec0.enableTilt = false;
+      ssec0.tiltEventTypes = [] as any;
     }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
-    ssec0.tiltEventTypes = [
-      CameraEventType.RIGHT_DRAG,
-      CameraEventType.MIDDLE_DRAG,
-      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
-      CameraEventType.PINCH,
-    ] as any;
+    if (!isMoon) {
+      ssec0.tiltEventTypes = [
+        CameraEventType.RIGHT_DRAG,
+        CameraEventType.MIDDLE_DRAG,
+        { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
+        CameraEventType.PINCH,
+      ] as any;
+    }
     ssec0.zoomEventTypes = [
       CameraEventType.WHEEL,
       CameraEventType.PINCH,
@@ -2754,7 +2766,9 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     ssec0.lookEventTypes = [
       { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.SHIFT },
     ] as any;
-    ssec0.inertiaSpin = 0.6;
+    ssec0.inertiaSpin = isMoon ? 0.2 : 0.6;
+    ssec0.inertiaTranslate = isMoon ? 0.2 : ssec0.inertiaTranslate;
+    ssec0.inertiaZoom = isMoon ? 0.25 : ssec0.inertiaZoom;
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
     // Global ESC + click-on-empty-globe → restore first-person (clear any
@@ -2839,12 +2853,12 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     if (isMoon) {
       // Fewer tiles on first paint = much faster time-to-visible-moon.
       // Refinement happens naturally as the user zooms.
-      viewer.scene.globe.maximumScreenSpaceError = 16;
-      viewer.scene.globe.preloadSiblings = false;
+      viewer.scene.globe.maximumScreenSpaceError = 10;
+      viewer.scene.globe.preloadSiblings = true;
       viewer.scene.globe.preloadAncestors = true;
-      viewer.scene.globe.tileCacheSize = 800;
+      viewer.scene.globe.tileCacheSize = 1600;
     }
-    viewer.scene.globe.depthTestAgainstTerrain = true;
+    viewer.scene.globe.depthTestAgainstTerrain = !isMoon;
     // Do not draw Cesium terrain/imagery behind photoreal modes. Google 3D
     // must be standalone so seams cannot reveal a second map underneath.
     viewer.scene.globe.show =
@@ -2853,6 +2867,9 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       viewModeRef.current === "mapbox" ||
       !showBuildingsRef.current;
     keepAtlasRenderingDuringBoot(viewer, 15000);
+    if (isMoon) {
+      removeMoonCameraGuard = installMoonCameraGuard(viewer);
+    }
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
       try {
@@ -2913,15 +2930,15 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     if (isMoon) {
       viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false);
       viewer.scene.globe.showGroundAtmosphere = false;
-      // Fully transparent base — the imagery layers (or nothing at all)
-      // define what the user sees. No plain grey sphere sits behind the
-      // NASA datasets. Mission and orbiter pins remain visible against
-      // deep space when no imagery layer is enabled.
-      viewer.scene.globe.baseColor = Color.TRANSPARENT;
+      // Keep a lunar fallback disc under NASA Trek imagery. Transparent here
+      // made the Moon vanish whenever imagery tiles were delayed/cancelled
+      // during right-drag movement.
+      viewer.scene.globe.baseColor = Color.fromCssColorString("#8f8b83");
       (viewer.scene.globe as any).translucency && ((viewer.scene.globe as any).translucency.enabled = false);
-      viewer.scene.globe.enableLighting = true;
-      // Show Cesium's built-in Sun so the imagery is realistically lit.
-      viewer.scene.sun && (viewer.scene.sun.show = true);
+      // Moon datasets must read as map/albedo layers, not disappear into an
+      // unlit night-side hemisphere while orbiting with right-drag.
+      viewer.scene.globe.enableLighting = false;
+      viewer.scene.sun && (viewer.scene.sun.show = false);
       // NASA LOLA-derived terrain (no Cesium ion). Renders convincing
       // 3D relief from public LRO/LOLA hillshade tiles.
       try {
@@ -2940,6 +2957,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         defaults.forEach((def) => {
           const provider = createMoonImageryProvider(def);
           const layer = new ImageryLayer(provider, {});
+          tuneMoonImageryLayer(layer, def);
           layer.alpha = def.defaultAlpha ?? 1;
           viewer.imageryLayers.add(layer);
           (viewer as any).__moonImagery[def.id] = layer;
@@ -3504,6 +3522,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
       try { removeAltListener?.(); } catch {}
       try { removePerfListener?.(); } catch {}
+      try { removeMoonCameraGuard?.(); } catch {}
       // Release the module-level Viewer ref held by the shared scheduler
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
