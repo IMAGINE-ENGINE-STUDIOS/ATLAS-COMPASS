@@ -1450,6 +1450,29 @@ function SpaceshipPage({
   const undoStackRef = useRef<PlacedModel[][]>([]);
   const redoStackRef = useRef<PlacedModel[][]>([]);
   const [historyTick, setHistoryTick] = useState(0);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (viewer && !viewer.isDestroyed()) {
+      placedModelsRef.current.forEach((m) => {
+        const ent = viewer.entities.getById(`model-${m.id}`);
+        if (ent) viewer.entities.remove(ent);
+      });
+      pois.forEach((p) => {
+        const ent = viewer.entities.getById(`poi-${p.id}`);
+        if (ent) viewer.entities.remove(ent);
+      });
+    }
+    const nextModels = loadPlacedModels(activeWorldId);
+    const nextPois = loadPOIs(activeWorldId);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setHistoryTick((t) => t + 1);
+    setPlacedModels(nextModels);
+    setPois(nextPois);
+    setSelectedPOI(null);
+    setEditingModel(null);
+    setSelectedLevelPlacement(null);
+  }, [activeWorldId]);
   const HISTORY_LIMIT = 50;
   const snapshotPlaced = (arr: PlacedModel[]): PlacedModel[] =>
     arr.map((m) => ({ ...m, cropBase: m.cropBase ? { ...m.cropBase } : undefined }));
