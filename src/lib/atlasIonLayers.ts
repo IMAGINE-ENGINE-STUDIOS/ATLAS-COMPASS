@@ -211,6 +211,24 @@ export const ION_LAYER_CATALOG: IonLayerEntry[] = [
 ];
 
 const STORAGE_KEY = "atlas.ionLayers.v2";
+const TERMS_KEY = "atlas.ionLayers.termsAcceptedAt";
+
+/**
+ * Cesium ion / asset provider terms gate.
+ * Users must accept the same terms exposed by Cesium ion (Google Photoreal,
+ * Vexcel, Nearmap, Aerometrex, Vricon, MLIT PLATEAU) before we stream any
+ * commercial or attribution-required tileset. A single acceptance covers the
+ * entire catalog and is persisted locally.
+ */
+export const isIonTermsAccepted = (): boolean => {
+  try { return !!localStorage.getItem(TERMS_KEY); } catch { return false; }
+};
+export const acceptIonTerms = () => {
+  try { localStorage.setItem(TERMS_KEY, new Date().toISOString()); } catch {}
+};
+export const revokeIonTerms = () => {
+  try { localStorage.removeItem(TERMS_KEY); } catch {}
+};
 
 interface Persisted {
   enabled: Record<string, boolean>;
