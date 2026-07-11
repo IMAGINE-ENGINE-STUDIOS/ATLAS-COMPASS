@@ -56,6 +56,31 @@ export default function MoonPanels({ viewer }: Props) {
   });
   const [openPanel, setOpenPanel] = useState<null | "layers" | "missions">(null);
 
+  // Allow the Atlas HUD console (bottom pill area) to toggle the same
+  // panels so the user has ONE console instead of duplicated top-right
+  // pills. The pill layer top-right is hidden below when moonMode is on.
+  useEffect(() => {
+    const onToggle = (e: Event) => {
+      const detail = (e as CustomEvent).detail as "layers" | "missions" | null;
+      if (!detail) { setOpenPanel(null); return; }
+      setOpenPanel((cur) => (cur === detail ? null : detail));
+    };
+    window.addEventListener("moon:toggle-panel", onToggle as EventListener);
+    return () => window.removeEventListener("moon:toggle-panel", onToggle as EventListener);
+  }, []);
+
+  // Broadcast counts + open state so the HUD console can render matching
+  // badges without duplicating filter/layer state.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("moon:panel-state", {
+      detail: {
+        openPanel,
+        layerCount: Object.keys(layerState).length,
+        missionCount: MOON_MISSIONS.length,
+      },
+    }));
+  }, [openPanel, layerState]);
+
   const [filterKinds, setFilterKinds] = useState<Set<MoonMissionKind>>(new Set());
   const [filterAgencies, setFilterAgencies] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
