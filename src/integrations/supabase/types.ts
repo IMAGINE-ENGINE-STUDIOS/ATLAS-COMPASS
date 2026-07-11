@@ -443,6 +443,7 @@ export type Database = {
           polygon: Json | null
           tile_set: Json
           updated_at: string
+          world: string
           zoom: number
         }
         Insert: {
@@ -455,6 +456,7 @@ export type Database = {
           polygon?: Json | null
           tile_set?: Json
           updated_at?: string
+          world?: string
           zoom?: number
         }
         Update: {
@@ -467,6 +469,7 @@ export type Database = {
           polygon?: Json | null
           tile_set?: Json
           updated_at?: string
+          world?: string
           zoom?: number
         }
         Relationships: []
@@ -1461,6 +1464,7 @@ export type Database = {
           storage_path: string | null
           units: string | null
           updated_at: string
+          world: string
         }
         Insert: {
           bbox?: Json | null
@@ -1475,6 +1479,7 @@ export type Database = {
           storage_path?: string | null
           units?: string | null
           updated_at?: string
+          world?: string
         }
         Update: {
           bbox?: Json | null
@@ -1489,6 +1494,7 @@ export type Database = {
           storage_path?: string | null
           units?: string | null
           updated_at?: string
+          world?: string
         }
         Relationships: []
       }

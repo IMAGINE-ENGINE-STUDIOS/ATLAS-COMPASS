@@ -1111,6 +1111,9 @@ function SpaceshipPage({
     (window as any).__atlasPlanetId = planetId ?? null;
     (window as any).__atlasWorldId = activeWorldId;
     (window as any).__atlasNonEarthEllipsoid = moonMode ? nonEarthEllipsoidRef.current : null;
+    try {
+      window.dispatchEvent(new CustomEvent("atlas:world-changed", { detail: { world: activeWorldId } }));
+    } catch {}
     return () => {
       (window as any).__atlasMoonMode = false;
       (window as any).__atlasMarsMode = false;

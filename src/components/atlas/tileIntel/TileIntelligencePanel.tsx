@@ -75,7 +75,15 @@ export default function TileIntelligencePanel({ onClose, initialGeofenceId }: Pr
     })();
     const onH = () => setHeatmaps(listHeatmaps());
     window.addEventListener("atlas:heatmaps-changed", onH);
-    return () => window.removeEventListener("atlas:heatmaps-changed", onH);
+    const onWorld = async () => {
+      const [g, d] = await Promise.all([listGeofences(), listDatasets()]);
+      setGeofences(g); setDatasets(d);
+    };
+    window.addEventListener("atlas:world-changed", onWorld);
+    return () => {
+      window.removeEventListener("atlas:heatmaps-changed", onH);
+      window.removeEventListener("atlas:world-changed", onWorld);
+    };
   }, []);
 
   useEffect(() => { if (initialGeofenceId) setTab("rules"); }, [initialGeofenceId]);

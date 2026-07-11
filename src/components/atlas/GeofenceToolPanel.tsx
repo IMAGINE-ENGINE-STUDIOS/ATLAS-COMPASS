@@ -61,6 +61,9 @@ export default function GeofenceToolPanel({ viewerRef, onClose }: Props) {
   // Load persisted
   useEffect(() => {
     listGeofences().then(setGeofences).catch(() => setGeofences([]));
+    const onWorld = () => { listGeofences().then(setGeofences).catch(() => setGeofences([])); };
+    window.addEventListener("atlas:world-changed", onWorld);
+    return () => window.removeEventListener("atlas:world-changed", onWorld);
   }, []);
 
   const pickLngLat = useCallback((position: { x: number; y: number }): LngLat | null => {
