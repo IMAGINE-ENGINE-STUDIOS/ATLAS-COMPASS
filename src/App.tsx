@@ -20,6 +20,7 @@ import DeliveryPage from "@/pages/DeliveryPage";
 // and R3F, which we don't want blocking the initial paint of lighter routes
 // like /landing, /files, or the admin dashboard. (P15)
 const SpaceshipPage = lazy(() => import("@/pages/SpaceshipPage"));
+const MoonPage = lazy(() => import("@/pages/moon/MoonPage"));
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";
@@ -42,6 +43,7 @@ const App = () => (
           <Route path="/" element={<SpaceshipPage />} />
           <Route path="/atlas" element={<SpaceshipPage />} />
           <Route path="/explore" element={<SpaceshipPage />} />
+          <Route path="/moon" element={<MoonPage />} />
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/icons" element={<IconsPage />} />
 

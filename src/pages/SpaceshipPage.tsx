@@ -39,6 +39,7 @@ import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import LPRPanel from "@/components/atlas/lpr/LPRPanel";
 import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
+import { MoonPill } from "@/components/atlas/MoonPill";
 import { restoreEnabledIonLayers } from "@/lib/atlasIonLayers";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
@@ -5678,6 +5679,9 @@ function SpaceshipPage() {
 
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
+
+      {/* Circular Moon cropout — top-center jump button to the Moon world. */}
+      {isLoaded && <MoonPill />}
 
       <style>{`@keyframes atlasEmergencyPulse {
         0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.75), 0 0 18px rgba(239,68,68,0.55); transform: scale(1); }
