@@ -1315,7 +1315,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // Whether the brush indicator should currently be visible (kept in a ref so
   // the callback below can read the latest value without re-binding).
   const brushIndicatorEnabledRef = useRef<boolean>(false);
-  const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
+  // On the Moon we start with a clean world — no Earth-authored models are
+  // hydrated (they'd sit at Earth lat/lng coords that don't map onto the
+  // lunar globe). New models placed on the Moon stay only in-session for
+  // now until per-world persistence lands.
+  const [placedModels, setPlacedModels] = useState<PlacedModel[]>(
+    moonMode ? [] : loadPlacedModels,
+  );
   // ── Undo / Redo for stamp + tile placements ──
   // We snapshot the `placedModels` array before any mutation that changes the
   // set of placed items (add via stamp/tile, terrain pad, delete). Async
