@@ -5380,6 +5380,8 @@ function SpaceshipPage() {
   const stampModelAt = useCallback(async (loc: { lat: number; lng: number; alt: number }) => {
     const stamp = stampModelRef.current;
     if (!stamp) return;
+    // Snapshot BEFORE mutating so undo restores the exact pre-stamp state.
+    pushPlacementHistory();
     const modelId = crypto.randomUUID();
     // Snap to ground precisely — 0mm above, 0mm below. First try the
     // synchronous `sampleHeight`; if the tile isn't loaded yet we fall back
@@ -5446,7 +5448,7 @@ function SpaceshipPage() {
       const blob = await resp.blob();
       await saveAtlasModelBlob(modelId, blob, stamp.fileName);
     } catch {}
-  }, [applyModelTransformToEntity, placeModelOnGlobe, placedModels.length]);
+  }, [applyModelTransformToEntity, placeModelOnGlobe, placedModels.length, pushPlacementHistory]);
 
   const clearStampModel = useCallback(() => {
     stampModelRef.current = null;
@@ -5456,6 +5458,7 @@ function SpaceshipPage() {
 
   // Drop an editable terrain pad — no GLB, just a circular cropBase the user can sculpt.
   const stampTerrainAt = useCallback((loc: { lat: number; lng: number; alt: number }) => {
+    pushPlacementHistory();
     const viewer = viewerRef.current;
     let surfaceAlt = loc.alt;
     if (viewer) {
@@ -5520,7 +5523,7 @@ function SpaceshipPage() {
     });
     setEditingModel(newModel);
     setTerrainEditing(true);
-  }, [placedModels]);
+  }, [placedModels, pushPlacementHistory]);
 
   const deleteModel = useCallback(async (id: string) => {
     pushPlacementHistory();
