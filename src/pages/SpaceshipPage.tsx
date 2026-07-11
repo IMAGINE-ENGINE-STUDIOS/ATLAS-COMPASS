@@ -5752,6 +5752,7 @@ function SpaceshipPage({
         scale: modelScale,
         createdAt: Date.now(),
         category: modelCategory,
+        world: currentAtlasWorldId(),
       };
 
       modelUrlsRef.current.set(newModel.id, blobUrl);
@@ -5827,6 +5828,7 @@ function SpaceshipPage({
       scale: stamp.baseScale,
       createdAt: Date.now(),
       category: stamp.category,
+      world: currentAtlasWorldId(),
     };
     modelUrlsRef.current.set(newModel.id, stamp.blobUrl);
     placeModelOnGlobe(newModel, stamp.blobUrl);
@@ -5900,6 +5902,7 @@ function SpaceshipPage({
       scale: 1,
       createdAt: Date.now(),
       category: "terrain-pad",
+      world: currentAtlasWorldId(),
       cropRadius: radius,
       cropBase: DEFAULT_CROP_BASE(radius),
     };
@@ -5908,7 +5911,7 @@ function SpaceshipPage({
       try {
         viewer.entities.add({
           id: `model-${id}`,
-          position: Cartesian3.fromDegrees(loc.lng, loc.lat, surfaceAlt + 1) as any,
+          position: Cartesian3.fromDegrees(loc.lng, loc.lat, surfaceAlt + 1, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)) as any,
           point: {
             pixelSize: 10,
             color: Color.fromCssColorString("#10b981"),
