@@ -5980,10 +5980,10 @@ function SpaceshipPage({
       )}
 
       {/* Circular cropout — top-center jump button. Moon on Earth, Earth on Moon. */}
-      {isLoaded && (moonMode ? <EarthPill /> : <MoonPill />)}
+      {isLoaded && !marsMode && (moonMode ? <EarthPill /> : <MoonPill />)}
 
       {/* Moon-only HUD: NASA layers + missions catalog. */}
-      {isLoaded && moonMode && viewerRef.current && (
+      {isLoaded && moonMode && !marsMode && viewerRef.current && (
         <MoonPanels viewer={viewerRef.current} />
       )}
 
