@@ -1,67 +1,91 @@
-## Goal
+# Solar System Simulator — Cesium Moon Fix + Multi-Phase Build
 
-Close the fidelity gap between Earth and the other worlds by wiring in every real, public GIS pyramid that exists, and adding paid Cesium ion terrain where NASA Trek falls short. No fake data.
+## Part A — Fix Cesium Moon (immediate, ships first)
 
-## What I will build
+Asset `2684829` (**Cesium Moon**) is a **3D Tileset**, not quantized-mesh terrain. Loading it via `CesiumTerrainProvider.fromIonAssetId` returns 404s for every terrain tile and blanks the globe. Real fix:
 
-### 1. Trek pyramids for terrestrial rocky bodies
+- Keep the LOLA-hillshade `CustomHeightmapTerrainProvider` as the ellipsoid tessellator (already restored).
+- Add asset `2684829` as an optional **Cesium3DTileset** overlay:
+  - Load with `Cesium3DTileset.fromIonAssetId(2684829)`, add to `viewer.scene.primitives`.
+  - When active, set `viewer.scene.globe.show = false` (photorealistic tiles replace the globe surface — matches Google Moon fidelity).
+  - Layer toggle in `PlanetLayerPanel` → "Photoreal 3D (Cesium Moon)".
+- Perf guards: `maximumScreenSpaceError = 24` at start, `cacheBytes = 512 MiB`, `preloadWhenHidden = false`, `skipLevelOfDetail = true`, `dynamicScreenSpaceError = true`. Dispose (`.destroy()`) on layer toggle off / world switch.
 
-Add a real WMTS layer catalog for every body USGS/NASA publishes a public tile pyramid for. These use the same `WebMapTileServiceImageryProvider` + `GeographicTilingScheme` pattern that already powers Moon and Mars, so behavior (pan, zoom, tile refinement) matches those worlds exactly.
+Same pattern applies to any planet Cesium ion later ships a 3D tileset for (Mars ion asset when available).
 
-- `src/lib/planets/mercuryProviders.ts` — MESSENGER MDIS basemap (166 m/px, zoom 8), MESSENGER color, MLA topography.
-- `src/lib/planets/venusProviders.ts` — Magellan C3-MDIR radar mosaic (75 m/px, zoom 7), Magellan topography.
-- `src/lib/planets/vestaProviders.ts` — Dawn FC HAMO clear-filter mosaic.
-- `src/lib/planets/ceresProviders.ts` — Dawn FC HAMO mosaic.
+## Part B — Multi-Phase Solar System Build
 
-`SpaceshipPage.tsx` currently drapes generic planets with a single 1K JPG via `SingleTileImageryProvider`. I will branch that block: if the planet has a trek catalog, load its default WMTS layers; otherwise (Jupiter/Saturn/Uranus/Neptune/Sun) keep the single-tile skin — those have no surface to tile.
+Goal: a solar-system-scale astronomical tool + GIS + simulation platform. Every planet behaves like Atlas Earth: real ephemeris positions, real rotation, real orbits, tileable surface imagery/terrain, POIs, model placement.
 
-### 2. Real Mars terrain (MOLA DEM)
+### Phase 1 — Ephemeris & scene graph (foundation)
+- Extend `supabase/functions/solar-ephemeris` to return positions **and** rotation state (pole RA/Dec + prime meridian W) per body, from JPL Horizons at "now" (cached 60s server side, refreshed client side every 30s).
+- New `src/lib/solar/ephemerisStore.ts`: single source of truth, tick loop, subscribers.
+- Uses IAU 2015 rotational elements for per-body body-fixed frames.
+- Moons of each planet included (Phobos, Deimos, Io, Europa, Ganymede, Callisto, Titan, Enceladus, etc.).
 
-Currently Mars is a flat ellipsoid under imagery — no relief. Add `src/lib/mars/MolaTerrainProvider.ts` using the same `CustomHeightmapTerrainProvider` pattern as `LolaTerrainProvider.ts`, but sourcing real MOLA elevation from the NASA Trek MOLA color-shaded hillshade at 463 m/px. Amplitude clamped so Olympus Mons and Valles Marineris show real relief without breaking wheel-zoom collision.
+### Phase 2 — Multi-scale renderer
+Three synchronised camera scales, only one active at a time (zero overlap = no perf hit):
+1. **System view** — R3F scene at 1 unit = 1 Gm. Renders Sun + planets + moons as instanced spheres with real distances (log-scaled toggle), true orbital paths sampled from ephemeris, and real axial tilts. Reuses existing landing/space background pattern, no Cesium.
+2. **Planet approach** — same R3F scene but scaled around the focused body, camera dolly transitions.
+3. **Surface (Atlas)** — existing Cesium viewer, spawned only when altitude < ~10× radius. Hard unmount when leaving.
 
-Wire it in `SpaceshipPage.tsx` inside the `marsModeRef.current` branch — replace the "terrain stays as the ellipsoid surface" comment with the provider assignment. Camera-clamp/keyboard-nav files already read the correct ellipsoid, so no changes there.
+Perf: system view is a single `<Canvas>` with ~200 objects; Atlas is unmounted whenever not on surface. No two heavy renderers alive at once.
 
-### 3. HiRISE landing-site ROIs on Mars
+### Phase 3 — Per-planet tile stacks
+Uniform provider interface `PlanetSurfaceProviders` returning `{ terrain, imageryLayers[] }`:
+- **Earth**: existing Google 3D Tiles / Cesium World Terrain (unchanged).
+- **Moon**: LOLA hillshade terrain + LRO WAC / Kaguya imagery + optional Cesium Moon 3D Tiles overlay (Part A).
+- **Mars**: MOLA color-hillshade imagery (already), + CTX Mosaic (Murray Lab WMTS), + HiRISE ROI overlays for landing sites; ellipsoid smooth (custom MOLA terrain deferred until quantized-mesh source exists).
+- **Mercury**: MESSENGER MDIS WMTS (already in trekCatalogs).
+- **Venus**: Magellan C3-MDIR mosaic (USGS Astropedia WMTS).
+- **Jupiter / Saturn / Uranus / Neptune**: reference sphere with NASA cloud-top mosaic + storm-band UV overlay; explicitly labelled "no surface GIS".
+- **Sun**: SDO composite (existing sphere viewer, kept separate).
+- Major moons (Io/Europa/Ganymede/Callisto/Titan/Enceladus/Triton): USGS Astrogeology WMTS where published; ellipsoid + albedo texture otherwise.
 
-Extend the Mars layer catalog with high-zoom (level 12+) HiRISE / CTX ROI mosaics NASA publishes for the famous rover sites:
-- Curiosity — Gale Crater
-- Perseverance — Jezero Crater
-- Opportunity — Meridiani Planum
-- Viking 1 & 2, InSight
+Perf: providers created lazily on world switch, `viewer.imageryLayers.removeAll(true)` before add, `maximumLevel` clamped by device pixel ratio, browser-cached via `public/tiles-sw.js`.
 
-Same pattern as the existing Apollo 11/17 NAC ROIs on the Moon — bounded rectangle, loads only when the camera is inside it.
+### Phase 4 — Rotation, orbits, lighting
+- Apply body-fixed frame rotation per tick (Cesium: `viewer.clock` locked to real time; scene lit from Sun's true direction via `Sun` primitive or `DirectionalLight`).
+- System view: instanced ring geometry for orbits, per-body sphere with real axial tilt + rotation.
+- Real "today" positions: verify with an on-screen readout ("Mars 07/12/2026 → RA/Dec …").
 
-### 4. Cesium ion Moon & Mars assets
+### Phase 5 — Per-planet POIs, datasets, model placement
+- Reuse existing POI schema; add `world_id` column (nullable defaults to `earth`).
+  ```sql
+  ALTER TABLE public.atlas_pois ADD COLUMN IF NOT EXISTS world_id text NOT NULL DEFAULT 'earth';
+  CREATE INDEX IF NOT EXISTS atlas_pois_world_idx ON public.atlas_pois(world_id);
+  ```
+- Same for model placements and selection groups. RLS unchanged, still keyed by owner.
+- Per-world dataset registry (mission catalogs, geology units, gravity, magnetic anomaly, etc.) in `src/data/worlds/<id>/`.
+- Unified search bar scoped to active world.
 
-Google does not publish Moon or Mars 3D Tiles (their proprietary Google Earth Moon/Mars is a separate closed product). The closest real equivalents are on Cesium ion:
+### Phase 6 — Simulation layer
+- Orbital propagation for user-placed satellites (SGP4 for Earth, two-body for other worlds).
+- Ground tracks + coverage cones drawn as Cesium entities.
+- Time controller (already have `viewer.clock`): scrub past/future, planets/moons follow.
 
-- **Cesium Moon Terrain** (asset `2684829`) — real LOLA-derived quantized-mesh DEM. Replaces the current hillshade-luminance-derived Moon terrain so lunar relief becomes scientifically accurate.
-- **Any Mars 3D Tiles / terrain assets** the connected ion account grants (the token already lists assets via `/v1/assets`). If present, they load on top of MOLA base terrain, matching how `_ionDetailOverlays` already streams Ion Earth city meshes.
+### Phase 7 — Polish
+- Distance HUD ("Mars ↔ Earth: 341.2 Gm, light-time 18m 57s").
+- Screenshot menu extended to system view.
+- Landing page teaser: "Explore the Solar System, exactly as it is right now."
 
-I will honestly label this in the UI: "Cesium ion terrain" / "NASA Trek", not "Google Moon".
-
-### 5. Layer picker parity
-
-The existing Moon layer picker (`MoonPanels.tsx`) already lets the user toggle Trek layers and set alpha. I will make it generic — one `PlanetLayerPanel` component driven by the active world's layer catalog — so Mercury, Venus, Vesta, Ceres, and Mars all get the same layer-toggle experience Moon has today.
-
-### 6. UI honesty for the gas giants
-
-Jupiter, Saturn, Uranus, Neptune, Sun stay as single-tile skins because no surface pyramid exists. I'll add a small pill on those worlds: "No surface GIS available — cloud-top reference sphere." Same treatment for the Sun.
+## Perf budget (non-negotiable)
+- Only one heavy renderer mounted at a time (R3F system OR Cesium surface).
+- Ephemeris polling ≤ 1 request / 30s, cached server-side.
+- Cesium 3D Tiles: `cacheBytes` capped, `dynamicScreenSpaceError` on, disposed on unmount.
+- Tile requests routed through existing service worker (`public/tiles-sw.js`) for cross-session caching.
+- No new global effects; every subscriber pattern uses a single store tick to avoid re-render storms.
 
 ## Technical notes
+- Files touched in Part A: `src/pages/SpaceshipPage.tsx`, `src/components/atlas/PlanetLayerPanel.tsx`, new `src/lib/moon/cesiumMoon3DTiles.ts`.
+- New in Phase 1: `supabase/functions/solar-ephemeris/index.ts` (extend), `src/lib/solar/ephemerisStore.ts`, `src/lib/solar/iauRotation.ts`.
+- New in Phase 2: `src/pages/SolarSystemPage.tsx`, `src/components/solar/SystemScene.tsx`.
+- Phase 3: `src/lib/planets/providers/*.ts` (one file per world).
+- Phase 5 migration adds `world_id` columns; RLS + GRANTs re-verified.
 
-- All Trek endpoints are keyless and CORS-enabled. No secrets required.
-- Cesium ion Moon Terrain (2684829) is free on the current token. Any premium Mars assets depend on the connected ion account and will silently no-op if unavailable.
-- All the world-scoped data isolation from prior turns (models, POIs, levels, splats, datasets, geofences) already keys off `activeWorldId`, so the new planets automatically get isolated storage — nothing to change there.
-- No database migration needed for this work.
-
-## Files touched
-
-- New: `src/lib/planets/mercuryProviders.ts`, `venusProviders.ts`, `vestaProviders.ts`, `ceresProviders.ts`, `src/lib/mars/MolaTerrainProvider.ts`, `src/components/atlas/PlanetLayerPanel.tsx`.
-- Edited: `src/pages/SpaceshipPage.tsx` (planet branch + ion Moon terrain + MOLA wire-up), `src/lib/mars/marsProviders.ts` (HiRISE ROIs), `src/components/atlas/moon/MoonPanels.tsx` (generalized), `src/lib/planets/config.ts` (flag which planets have tile catalogs).
-
-## Out of scope
-
-- Google Photorealistic 3D Tiles for Moon/Mars — does not exist publicly.
-- Terrain for gas giants — no surface exists.
-- Custom HiRISE DEMs beyond what Trek publishes — those are per-site GeoTIFFs, not a global pyramid.
+## Suggested delivery order
+1. Part A (Moon 3D Tiles fix, ships alongside plan approval).
+2. Phase 1 + 2 (system view + real orbits) — biggest visible payoff.
+3. Phase 3 (per-planet tile stacks).
+4. Phase 5 (POIs/models per world).
+5. Phase 4/6/7 (rotation refinement, sim, polish).
