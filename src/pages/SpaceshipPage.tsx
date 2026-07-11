@@ -1031,35 +1031,54 @@ async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<a
 function SpaceshipPage({
   moonMode: _moonModeProp = false,
   marsMode = false,
-}: { moonMode?: boolean; marsMode?: boolean } = {}) {
+  planetId,
+}: { moonMode?: boolean; marsMode?: boolean; planetId?: PlanetId } = {}) {
+  // Resolve mode from planetId (single source of truth when provided).
+  const resolvedMars = marsMode || planetId === "mars";
+  const resolvedMoon = _moonModeProp || planetId === "moon";
+  const isGenericPlanet =
+    !!planetId && !["earth", "moon", "mars"].includes(planetId);
+  const genericPlanetEntry = isGenericPlanet ? findPlanet(planetId!) : undefined;
   // Non-Earth gating: every existing `moonMode` check must also fire for
   // Mars (Mars world hides the same Earth-only data loads: Google Photoreal,
   // OSM Buildings, Overpass, POIs, live traffic, etc.).  We alias the prop
   // internally so the ~200 existing `moonMode` sites keep working.
-  const moonMode = _moonModeProp || marsMode;
+  const moonMode = resolvedMoon || resolvedMars || isGenericPlanet;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const marsModeEff = resolvedMars;
   // Route-driven "world" flag: when true we render the same Atlas HUD but
   // over a Moon- or Mars-sized globe with NASA Trek imagery and skips every
   // Earth-only data load.  `marsMode` swaps the ellipsoid and imagery to
   // the Mars Trek stack while keeping the same HUD, controls, and tooling.
   const moonModeRef = useRef(moonMode);
-  const marsModeRef = useRef(marsMode);
+  const marsModeRef = useRef(resolvedMars);
+  const genericPlanetRef = useRef(isGenericPlanet);
+  const planetIdRef = useRef<PlanetId | undefined>(planetId);
   // Active non-Earth ellipsoid — Moon by default, Mars when `marsMode`.
   // All in-file placement/coordinate math reads from this ref so a single
   // switch swaps the entire coordinate system between the two worlds.
-  const nonEarthEllipsoidRef = useRef<Ellipsoid>(marsMode ? MARS_ELLIPSOID : Ellipsoid.MOON);
+  const nonEarthEllipsoidRef = useRef<Ellipsoid>(
+    planetId ? ellipsoidForPlanet(planetId) : (resolvedMars ? MARS_ELLIPSOID : Ellipsoid.MOON),
+  );
   useEffect(() => {
     moonModeRef.current = moonMode;
-    marsModeRef.current = marsMode;
-    nonEarthEllipsoidRef.current = marsMode ? MARS_ELLIPSOID : Ellipsoid.MOON;
+    marsModeRef.current = resolvedMars;
+    genericPlanetRef.current = isGenericPlanet;
+    planetIdRef.current = planetId;
+    nonEarthEllipsoidRef.current = planetId
+      ? ellipsoidForPlanet(planetId)
+      : (resolvedMars ? MARS_ELLIPSOID : Ellipsoid.MOON);
     (window as any).__atlasMoonMode = moonMode;
-    (window as any).__atlasMarsMode = marsMode;
+    (window as any).__atlasMarsMode = resolvedMars;
+    (window as any).__atlasPlanetId = planetId ?? null;
     (window as any).__atlasNonEarthEllipsoid = moonMode ? nonEarthEllipsoidRef.current : null;
     return () => {
       (window as any).__atlasMoonMode = false;
       (window as any).__atlasMarsMode = false;
+      (window as any).__atlasPlanetId = null;
       (window as any).__atlasNonEarthEllipsoid = null;
     };
-  }, [moonMode, marsMode]);
+  }, [moonMode, resolvedMars, isGenericPlanet, planetId]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
