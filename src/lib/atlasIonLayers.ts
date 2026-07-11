@@ -46,7 +46,9 @@ export interface IonLayerEntry {
  * override — see {@link setAssetIdOverride}). Every entry has a `flyTo` so
  * users can jump the camera even before the tileset is wired.
  */
-const JAPAN_COUNTRYWIDE_ASSET = 2602753;
+// Verified against the user's Cesium ion "My Assets" list.
+const JAPAN_COUNTRYWIDE_ASSET = 2602291;
+const VEXCEL_SYDNEY_ASSET = 2644092;
 
 // Vexcel 3D Cities catalog — every entry shares the same tileset shape
 // (per-account asset). Users add their own ion asset ID once and it is
@@ -139,8 +141,11 @@ const JAPAN_CITIES: Array<{ id: string; name: string; lat: number; lng: number }
   { id: "japan-okayama",   name: "Okayama",         lat: 34.6551, lng: 133.9195 },
 ];
 
+// Curated 3D Tiles assets available in the connected Cesium ion account.
+// Every entry ships with a real asset ID + fly-to preset so users can enable
+// and jump to any of them without ever pasting a numeric ID.
 export const ION_LAYER_CATALOG: IonLayerEntry[] = [
-  // Japan countrywide master + per-city presets (all reuse master asset).
+  // Japan PLATEAU — one countrywide tileset reused by ward/city fly-to presets.
   {
     id: "japan-3d-buildings",
     name: "Japan 3D Buildings (PLATEAU)",
@@ -158,21 +163,72 @@ export const ION_LAYER_CATALOG: IonLayerEntry[] = [
     builtin: true,
     flyTo: { lat: c.lat, lng: c.lng, heightM: 2500 },
   })),
-  ...VEXCEL_METROS.map<IonLayerEntry>((c) => ({
-    id: c.id,
-    name: `Vexcel — ${c.name}`,
+
+  // Vexcel 3D Cities — Sydney is the fully-integrated tileset in this account.
+  // The remaining metros act as fly-to presets over Google Photoreal until an
+  // additional Vexcel asset is added to the account.
+  {
+    id: "vexcel-sydney",
+    name: "Vexcel — Sydney",
     group: "vexcel",
-    assetId: c.id === "vexcel-graz" ? 2465692 : 0,
-    description: c.id === "vexcel-graz"
-      ? "Vexcel Data Program sample city"
-      : "Vexcel 3D Cities · needs ion asset ID",
+    assetId: VEXCEL_SYDNEY_ASSET,
+    description: "Vexcel 3D Cities · Sydney",
     builtin: true,
-    flyTo: { lat: c.lat, lng: c.lng, heightM: 2000 },
-    needsAssetId: c.id !== "vexcel-graz",
-  })),
+    flyTo: { lat: -33.8688, lng: 151.2093, heightM: 2000 },
+  },
+  ...VEXCEL_METROS
+    .filter((c) => c.id !== "vexcel-sydney")
+    .map<IonLayerEntry>((c) => ({
+      id: c.id,
+      name: `Vexcel — ${c.name}`,
+      group: "vexcel",
+      assetId: 0,
+      description: "Vexcel 3D Cities · fly-to preset (uses Google Photoreal)",
+      builtin: true,
+      flyTo: { lat: c.lat, lng: c.lng, heightM: 2000 },
+      needsAssetId: false,
+    })),
+
+  // Cesium curated global tilesets (available in every account).
+  { id: "cesium-osm-buildings",  name: "Cesium OSM Buildings",        group: "custom", assetId: 96188,   description: "Global OSM 3D buildings", builtin: true },
+  { id: "cesium-osm-buildings-cwb", name: "Cesium OSM Buildings — CWB", group: "custom", assetId: 2521176, description: "OSM buildings (CWB build)", builtin: true },
+  { id: "google-photoreal",      name: "Google Photorealistic 3D Tiles", group: "custom", assetId: 2275207, description: "Global photoreal mesh (Google)", builtin: true },
+
+  // High-res city tilesets in the account.
+  { id: "nyc-3d-buildings",      name: "New York City 3D Buildings",   group: "custom", assetId: 75343,   description: "NYC building footprints", builtin: true, flyTo: { lat: 40.7128, lng: -74.0060, heightM: 1500 } },
+  { id: "aerometrex-sf",         name: "Aerometrex — San Francisco",   group: "custom", assetId: 1415196, description: "High-res photogrammetry + street level", builtin: true, flyTo: { lat: 37.7749, lng: -122.4194, heightM: 1500 } },
+  { id: "aerometrex-denver",     name: "Aerometrex — Denver",          group: "custom", assetId: 354307,  description: "High-res photogrammetry + street level", builtin: true, flyTo: { lat: 39.7392, lng: -104.9903, heightM: 1500 } },
+  { id: "nearmap-boston",        name: "Nearmap — Boston",             group: "custom", assetId: 354759,  description: "Nearmap photogrammetry", builtin: true, flyTo: { lat: 42.3601, lng: -71.0589, heightM: 1500 } },
+  { id: "melbourne-photogram",   name: "Melbourne Photogrammetry",     group: "custom", assetId: 69380,   description: "Melbourne CBD photogrammetry", builtin: true, flyTo: { lat: -37.8136, lng: 144.9631, heightM: 1500 } },
+  { id: "melbourne-point-cloud", name: "Melbourne Point Cloud",        group: "custom", assetId: 43978,   description: "LiDAR point cloud", builtin: true, flyTo: { lat: -37.8136, lng: 144.9631, heightM: 1500 } },
+  { id: "montreal-point-cloud",  name: "Montréal Point Cloud",         group: "custom", assetId: 28945,   description: "LiDAR point cloud", builtin: true, flyTo: { lat: 45.5017, lng: -73.5673, heightM: 1500 } },
+  { id: "vricon-wa-state",       name: "Vricon 3D Surface — WA State", group: "custom", assetId: 57590,   description: "Vricon 3D surface model", builtin: true, flyTo: { lat: 47.7511, lng: -120.7401, heightM: 5000 } },
+  { id: "vricon-wa-dc",          name: "Vricon 3D Surface — WA DC",    group: "custom", assetId: 57588,   description: "Vricon 3D surface model", builtin: true, flyTo: { lat: 38.9072, lng: -77.0369, heightM: 2500 } },
+
+  // Planetary bodies.
+  { id: "cesium-moon", name: "Cesium Moon", group: "custom", assetId: 2684829, description: "Lunar 3D tileset", builtin: true },
+  { id: "cesium-mars", name: "Cesium Mars", group: "custom", assetId: 3644333, description: "Martian 3D tileset", builtin: true },
 ];
 
 const STORAGE_KEY = "atlas.ionLayers.v2";
+const TERMS_KEY = "atlas.ionLayers.termsAcceptedAt";
+
+/**
+ * Cesium ion / asset provider terms gate.
+ * Users must accept the same terms exposed by Cesium ion (Google Photoreal,
+ * Vexcel, Nearmap, Aerometrex, Vricon, MLIT PLATEAU) before we stream any
+ * commercial or attribution-required tileset. A single acceptance covers the
+ * entire catalog and is persisted locally.
+ */
+export const isIonTermsAccepted = (): boolean => {
+  try { return !!localStorage.getItem(TERMS_KEY); } catch { return false; }
+};
+export const acceptIonTerms = () => {
+  try { localStorage.setItem(TERMS_KEY, new Date().toISOString()); } catch {}
+};
+export const revokeIonTerms = () => {
+  try { localStorage.removeItem(TERMS_KEY); } catch {}
+};
 
 interface Persisted {
   enabled: Record<string, boolean>;
