@@ -1261,7 +1261,7 @@ function SpaceshipPage({
     // No tile snap — drop the ghost at the EXACT clicked lng/lat so the
     // user gets pixel-accurate placement.
     const size = sizeM;
-    const ellipsoid = moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    const ellipsoid = (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84);
     const center = Cartesian3.fromDegrees(loc.lng, loc.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2, ellipsoid);
     const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading ?? 0), 0, 0);
     const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr, ellipsoid);
@@ -1467,12 +1467,12 @@ function SpaceshipPage({
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
   const cartesianFromDegrees = useCallback((lng: number, lat: number, height = 0) => (
-    Cartesian3.fromDegrees(lng, lat, height, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84)
+    Cartesian3.fromDegrees(lng, lat, height, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84))
   ), []);
   const cartesianArrayFromDegrees = useCallback((coords: number[]) => {
     const out: Cartesian3[] = [];
     for (let i = 0; i < coords.length - 1; i += 2) {
-      out.push(Cartesian3.fromDegrees(coords[i], coords[i + 1], 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84));
+      out.push(Cartesian3.fromDegrees(coords[i], coords[i + 1], 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)));
     }
     return out;
   }, []);
@@ -1504,7 +1504,7 @@ function SpaceshipPage({
       const z = Math.max(1, Math.min(moonModeRef.current ? 12 : 22, Math.round(tileZoom)));
       const { x, y } = lngLatToTile(cursor.lat, cursor.lng, z);
       const b = tileBounds(x, y, z);
-      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b, moonModeRef.current ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius);
+      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b, (moonModeRef.current ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius));
       poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
       poly.show = wantIndicator;
       circle.show = false;
@@ -1522,7 +1522,7 @@ function SpaceshipPage({
       return;
     }
 
-    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape, undefined, moonModeRef.current ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius);
+    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape, undefined, (moonModeRef.current ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius));
     poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
     poly.show = wantIndicator;
     circle.show = false;
@@ -1591,7 +1591,7 @@ function SpaceshipPage({
       if (typeof height === "number" && isFinite(height)) {
         // +0.5m lift so the billboard's base sits ABOVE the tile surface,
         // never co-planar with (or below) it.
-        entity.position = Cartesian3.fromDegrees(lng, lat, height + 0.5, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+        entity.position = Cartesian3.fromDegrees(lng, lat, height + 0.5, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
       }
       entity.show = true;
       viewer.scene.requestRender?.();
@@ -1988,7 +1988,7 @@ function SpaceshipPage({
         const cam = viewer.camera;
         const carto = Cartographic.fromCartesian(
           cam.position,
-          moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+          (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
         );
         if (!carto) return;
         const lat = CesiumMath.toDegrees(carto.latitude);
@@ -4350,7 +4350,7 @@ function SpaceshipPage({
         if (movedModel && viewerRef.current) {
           const entity = viewerRef.current.entities.getById(`model-${id}`);
           if (entity) {
-        const pos = Cartesian3.fromDegrees(movedModel.lng, movedModel.lat, movedModel.alt || 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+        const pos = Cartesian3.fromDegrees(movedModel.lng, movedModel.lat, movedModel.alt || 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
             const hpr = new HeadingPitchRoll(
               CesiumMath.toRadians(movedModel.heading || 0),
               CesiumMath.toRadians(movedModel.pitch || 0),
@@ -4360,7 +4360,7 @@ function SpaceshipPage({
             entity.orientation = Transforms.headingPitchRollQuaternion(
               pos,
               hpr,
-              moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+              (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
             ) as any;
           }
         }
@@ -4937,7 +4937,7 @@ function SpaceshipPage({
 
   /* ── Tile Brush / 3D Model Placement ── */
   const applyModelTransformToEntity = useCallback((entity: any, model: Pick<PlacedModel, "lat" | "lng" | "alt" | "heading" | "pitch" | "roll" | "scale">) => {
-      const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+      const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
     entity.position = position as any;
     if (entity.model) {
       (entity.model as any).heightReference = 0;
@@ -4952,7 +4952,7 @@ function SpaceshipPage({
       entity.orientation = Transforms.headingPitchRollQuaternion(
         position,
         hpr,
-        moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+        (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
       ) as any;
   }, []);
 
@@ -4965,7 +4965,7 @@ function SpaceshipPage({
       const theta = (i / segments) * Math.PI * 2;
       const dLat = (radiusMeters * Math.sin(theta)) / metersPerDegLat;
       const dLng = (radiusMeters * Math.cos(theta)) / Math.max(1, metersPerDegLng);
-      positions.push(Cartesian3.fromDegrees(lng + dLng, lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84));
+      positions.push(Cartesian3.fromDegrees(lng + dLng, lat + dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)));
     }
     return new ClippingPolygon({ positions });
   }, []);
@@ -4997,10 +4997,10 @@ function SpaceshipPage({
       const dLat = half / metersPerDegLat;
       const dLng = half / Math.max(1, metersPerDegLng);
       const corners = [
-        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat - dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
-        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat - dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
-        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
-        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat - dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat - dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat + dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat + dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
       ];
       polygons.push(new ClippingPolygon({ positions: corners }));
     }
@@ -5271,7 +5271,7 @@ function SpaceshipPage({
     const screenToCell = (screenPos: { x: number; y: number }) => {
       const world = pickWorld(screenPos);
       if (!world) return null;
-      const c = Cartographic.fromCartesian(world, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+      const c = Cartographic.fromCartesian(world, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
       const lat = CesiumMath.toDegrees(c.latitude);
       const lng = CesiumMath.toDegrees(c.longitude);
       const cb = editingModel.cropBase!;
