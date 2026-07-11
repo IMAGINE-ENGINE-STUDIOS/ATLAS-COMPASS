@@ -2767,6 +2767,14 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       document.removeEventListener("fullscreenchange", onResize);
     };
     viewer.scene.globe.maximumScreenSpaceError = 8;
+    if (isMoon) {
+      // Fewer tiles on first paint = much faster time-to-visible-moon.
+      // Refinement happens naturally as the user zooms.
+      viewer.scene.globe.maximumScreenSpaceError = 16;
+      viewer.scene.globe.preloadSiblings = false;
+      viewer.scene.globe.preloadAncestors = true;
+      viewer.scene.globe.tileCacheSize = 800;
+    }
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Do not draw Cesium terrain/imagery behind photoreal modes. Google 3D
     // must be standalone so seams cannot reveal a second map underneath.
