@@ -451,7 +451,6 @@ export default function PlayableCharacter({
   const sampleEarthHeight = (lngDeg: number, latDeg: number): number | null => {
     const viewer = (window as any).__cesiumViewer;
     if (!viewer || viewer.isDestroyed?.()) return null;
-    const ellipsoid = viewer.__moonMode ? CesiumEllipsoid.MOON : CesiumEllipsoid.WGS84;
     const cache = navCache.current;
     const now = performance.now();
     const key = `${Math.round(lngDeg * 200000)}|${Math.round(latDeg * 200000)}`;

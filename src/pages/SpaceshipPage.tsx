@@ -236,13 +236,15 @@ const buildBrushPolygonDegrees = (
   radiusM: number,
   shape: "square" | "hex" | "tile",
   tileBoundsRect?: { north: number; south: number; east: number; west: number },
+  ellipsoidRadiusM = Ellipsoid.WGS84.maximumRadius,
 ): number[] => {
   if (shape === "tile" && tileBoundsRect) {
     const { north, south, east, west } = tileBoundsRect;
     return [west, north, east, north, east, south, west, south];
   }
-  const mPerDegLat = 111320;
-  const mPerDegLng = Math.max(1, 111320 * Math.cos((lat * Math.PI) / 180));
+  const metersPerDegree = (2 * Math.PI * ellipsoidRadiusM) / 360;
+  const mPerDegLat = metersPerDegree;
+  const mPerDegLng = Math.max(1, metersPerDegree * Math.cos((lat * Math.PI) / 180));
   const dLat = radiusM / mPerDegLat;
   const dLng = radiusM / mPerDegLng;
   if (shape === "square") {
@@ -1092,11 +1094,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // one coordinate system so the user can walk in and out of levels.
   const { placements: levelPlacements } = useAtlasLevelLayer(
     viewerRef,
-    // Skip loading Earth-anchored level placements when we're on the Moon.
-    isLoaded && !moonMode,
+    isLoaded,
     useCallback((p: LevelPlacement) => {
       setSelectedLevelPlacement(p);
     }, []),
+    moonMode ? "moon" : "earth",
   );
   // Inspector panel: clicking a placed Level opens this floating panel
   // with info, control bars (heading/scale/altitude), Main Character
@@ -1286,6 +1288,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       altitude: p.loc.alt,
       heading: p.heading ?? 0,
       scale: 1,
+      world: moonModeRef.current ? "moon" : "earth",
     });
     if (error) { toast.error(`Failed: ${error.message}`); return; }
     window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
@@ -1293,10 +1296,14 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     setPendingLevelPlacement(null);
     // Fly the camera to the new placement so the user sees the cube immediately.
     try {
-      viewerRef.current?.camera.flyTo({
-        destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
-        duration: 1.2,
-      });
+      if (moonModeRef.current) {
+        flyToMoonCoord(viewerRef.current, p.loc.lng, p.loc.lat, { altitude: 1200, duration: 1.2 });
+      } else {
+        viewerRef.current?.camera.flyTo({
+          destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500, Ellipsoid.WGS84),
+          duration: 1.2,
+        });
+      }
     } catch {}
   }, [pendingLevelPlacement]);
   const [poiName, setPoiName] = useState("");
@@ -1472,7 +1479,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const z = Math.max(1, Math.min(moonModeRef.current ? 12 : 22, Math.round(tileZoom)));
       const { x, y } = lngLatToTile(cursor.lat, cursor.lng, z);
       const b = tileBounds(x, y, z);
-      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b);
+      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b, moonModeRef.current ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius);
       poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
       poly.show = wantIndicator;
       circle.show = false;
@@ -1490,7 +1497,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       return;
     }
 
-    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape);
+    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape, undefined, moonModeRef.current ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius);
     poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
     poly.show = wantIndicator;
     circle.show = false;
@@ -5878,7 +5885,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
   const flyToModel = useCallback((model: PlacedModel) => {
     if (!viewerRef.current) return;
-    flyCameraToTarget(viewerRef.current, model, { range: 1400, pitchDeg: -32, radius: 80, duration: 1.6 });
+    flyCameraToTarget(viewerRef.current, model, { range: moonModeRef.current ? 900 : 1400, pitchDeg: -32, radius: 80, duration: 1.6 });
   }, []);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -5966,6 +5973,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
             }
             setEditingModel(m as PlacedModel);
           }}
+          ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
+          horizonRadius={moonMode ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius}
         />
       )}
 
@@ -5978,6 +5987,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         isLoaded={isLoaded}
         placements={levelPlacements}
         onPlayingChange={handleLevelPlayingChange}
+        ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
       />
 
       {/* Gaussian Splat landmarks — high-fidelity overlays at specific
@@ -6003,6 +6013,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         viewerRef={viewerRef}
         spawn={freePlaySpawn}
         onExit={() => setFreePlaySpawn(null)}
+        ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
       />
 
       {/* Level Inspector — opens when the user clicks a placed Level on
@@ -6021,6 +6032,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         <AtlasTagsOverlay
           viewer={viewerRef.current}
           tags={atlasTags}
+          ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
+          horizonRadius={moonMode ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius}
           onSelect={(t) => {
             if (t.kind === "biz") {
               const data = businessDataRef.current.get(t.id);
@@ -8102,6 +8115,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
               }
               const result = await importMapToAtlas(file, {
                 lat: l.lat, lng: l.lng, alt: groundAlt,
+                world: moonModeRef.current ? "moon" : "earth",
               });
               toast.success(`MAP "${result.name}" imported.`);
             } catch (err: any) {
@@ -8145,6 +8159,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                   lat: l.lat, lng: l.lng,
                   altitude: Math.max(0, l.alt),
                   heading: 0, scale: 1,
+                  world: moonModeRef.current ? "moon" : "earth",
                 });
                 window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
               })();
