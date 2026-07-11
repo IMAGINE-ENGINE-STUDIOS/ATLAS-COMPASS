@@ -79,82 +79,6 @@ const MERCURY_LAYERS: PlanetLayerDef[] = [
     description:
       "Enhanced-color composite from MDIS revealing compositional variations across Mercury.",
   },
-  {
-    id: "messenger_mla_topo",
-    title: "MLA Topography",
-    category: "elevation",
-    wmtsLayer: "Mercury_Messenger_USGS_DEM_Global_665m_v2",
-    urlTemplate: trekUrl(
-      "Mercury",
-      "Mercury_Messenger_USGS_DEM_Global_665m_v2",
-      "jpg",
-    ),
-    ext: "jpg",
-    maximumLevel: 5,
-    credit: "NASA / JHUAPL · MLA global DEM",
-    description:
-      "Color-shaded elevation from the Mercury Laser Altimeter (MLA) global DEM.",
-  },
-];
-
-// ─── Venus (NASA / USGS · Magellan radar) ──────────────────────
-const VENUS_LAYERS: PlanetLayerDef[] = [
-  {
-    id: "magellan_c3_mdir",
-    title: "Magellan C3-MDIR Radar Mosaic (75 m)",
-    category: "basemap",
-    wmtsLayer: "Venus_Magellan_C3-MDIR_Colorized_Global_Mosaic_4641m",
-    urlTemplate: trekUrl(
-      "Venus",
-      "Venus_Magellan_C3-MDIR_Colorized_Global_Mosaic_4641m",
-      "jpg",
-    ),
-    ext: "jpg",
-    maximumLevel: 6,
-    credit: "NASA / JPL · Magellan C3-MDIR colorized radar mosaic",
-    description:
-      "Global colorized SAR radar mosaic from the Magellan mission — the only high-resolution view of the Venusian surface, hidden beneath permanent clouds.",
-    defaultVisible: true,
-    defaultAlpha: 1,
-  },
-  {
-    id: "magellan_topography",
-    title: "Magellan Topography",
-    category: "elevation",
-    wmtsLayer: "Venus_Magellan_Topography_Global_4641m",
-    urlTemplate: trekUrl(
-      "Venus",
-      "Venus_Magellan_Topography_Global_4641m",
-      "jpg",
-    ),
-    ext: "jpg",
-    maximumLevel: 5,
-    credit: "NASA / JPL · Magellan global topography",
-    description:
-      "Color-coded elevation derived from Magellan altimetry, revealing tesserae, coronae, and volcanic plains.",
-  },
-];
-
-// ─── Vesta (NASA / USGS · Dawn Framing Camera HAMO) ────────────
-const VESTA_LAYERS: PlanetLayerDef[] = [
-  {
-    id: "dawn_fc_hamo",
-    title: "Dawn FC HAMO Mosaic",
-    category: "basemap",
-    wmtsLayer: "Vesta_Dawn_FC_HAMO_Mosaic_Global_74m",
-    urlTemplate: trekUrl(
-      "Vesta",
-      "Vesta_Dawn_FC_HAMO_Mosaic_Global_74m",
-      "jpg",
-    ),
-    ext: "jpg",
-    maximumLevel: 7,
-    credit: "NASA / JPL / DLR · Dawn Framing Camera HAMO",
-    description:
-      "Global clear-filter mosaic of the asteroid 4 Vesta from Dawn's HAMO orbit (~74 m/px).",
-    defaultVisible: true,
-    defaultAlpha: 1,
-  },
 ];
 
 // ─── Ceres (NASA / USGS · Dawn Framing Camera HAMO) ────────────
@@ -186,8 +110,6 @@ const CERES_LAYERS: PlanetLayerDef[] = [
  */
 const CATALOGS: Record<string, PlanetLayerDef[]> = {
   mercury: MERCURY_LAYERS,
-  venus: VENUS_LAYERS,
-  vesta: VESTA_LAYERS,
   ceres: CERES_LAYERS,
 };
 
