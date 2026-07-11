@@ -2853,7 +2853,6 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       viewer.scene.globe.enableLighting = true;
       // Show Cesium's built-in Sun so the imagery is realistically lit.
       viewer.scene.sun && (viewer.scene.sun.show = true);
-      viewer.scene.skyBox && (viewer.scene.skyBox.show = true);
       // NASA LOLA-derived terrain (no Cesium ion). Renders convincing
       // 3D relief from public LRO/LOLA hillshade tiles.
       try {
