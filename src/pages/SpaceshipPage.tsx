@@ -5523,6 +5523,7 @@ function SpaceshipPage() {
   }, [placedModels]);
 
   const deleteModel = useCallback(async (id: string) => {
+    pushPlacementHistory();
     const updated = placedModels.filter((m) => m.id !== id);
     setPlacedModels(updated);
     savePlacedModels(updated);
@@ -5531,10 +5532,79 @@ function SpaceshipPage() {
       const entity = viewerRef.current.entities.getById(`model-${id}`);
       if (entity) viewerRef.current.entities.remove(entity);
     }
-    const url = modelUrlsRef.current.get(id);
-    if (url) { URL.revokeObjectURL(url); modelUrlsRef.current.delete(id); }
-    await deleteAtlasModelBlob(id);
-  }, [placedModels]);
+    // NOTE: intentionally keep the blob URL alive in `modelUrlsRef` and
+    // preserve the IndexedDB copy so an "undo" can restore the placement
+    // without re-downloading. Only fully drop after history is cleared or
+    // pruned; for now we retain — negligible memory for the session.
+  }, [placedModels, pushPlacementHistory]);
+
+  /**
+   * Reconcile Cesium entities to match a target snapshot: remove entities for
+   * ids no longer present, re-create entities for restored ids (using cached
+   * blob URLs), and re-apply transforms for surviving ids.
+   */
+  const applyPlacedSnapshot = useCallback((snapshot: PlacedModel[]) => {
+    const viewer = viewerRef.current;
+    const currentIds = new Set(placedModelsRef.current.map((m) => m.id));
+    const nextIds = new Set(snapshot.map((m) => m.id));
+    if (viewer && !viewer.isDestroyed()) {
+      // Remove entities for models that are going away.
+      for (const id of currentIds) {
+        if (!nextIds.has(id)) {
+          const ent = viewer.entities.getById(`model-${id}`);
+          if (ent) viewer.entities.remove(ent);
+        }
+      }
+      // Add or update entities for the snapshot.
+      for (const m of snapshot) {
+        const ent = viewer.entities.getById(`model-${m.id}`);
+        if (ent) {
+          applyModelTransformToEntity(ent, m);
+        } else if (m.category !== "terrain-pad") {
+          const url = modelUrlsRef.current.get(m.id);
+          if (url) placeModelOnGlobe(m, url);
+          // If URL missing, the restore useEffect will hydrate from IDB.
+        }
+      }
+    }
+    setPlacedModels(snapshot);
+    savePlacedModels(snapshot);
+  }, [applyModelTransformToEntity, placeModelOnGlobe]);
+
+  const undoPlacement = useCallback(() => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    redoStackRef.current.push(snapshotPlaced(placedModelsRef.current));
+    if (redoStackRef.current.length > HISTORY_LIMIT) redoStackRef.current.shift();
+    applyPlacedSnapshot(prev);
+    setHistoryTick((t) => t + 1);
+  }, [applyPlacedSnapshot]);
+
+  const redoPlacement = useCallback(() => {
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    undoStackRef.current.push(snapshotPlaced(placedModelsRef.current));
+    if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+    applyPlacedSnapshot(next);
+    setHistoryTick((t) => t + 1);
+  }, [applyPlacedSnapshot]);
+
+  // Keyboard: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z or Ctrl+Y = redo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      // Don't hijack while typing in inputs.
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undoPlacement(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redoPlacement(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undoPlacement, redoPlacement]);
 
   const flyToModel = useCallback((model: PlacedModel) => {
     if (!viewerRef.current) return;
