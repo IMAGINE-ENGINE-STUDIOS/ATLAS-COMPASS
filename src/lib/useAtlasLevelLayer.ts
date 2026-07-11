@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   ArcType, Cartesian2, Cartesian3, Color, CallbackProperty, HeadingPitchRange, HeightReference,
-  Ellipsoid,
   LabelStyle, Math as CesiumMath, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined, VerticalOrigin, type Viewer,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
-import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "./atlasLevelGeo";
+import { DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "./atlasLevelGeo";
 import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
 import { ellipsoidForWorld } from "@/lib/planets/ellipsoids";
 
