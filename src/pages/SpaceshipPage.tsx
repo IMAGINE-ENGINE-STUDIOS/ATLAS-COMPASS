@@ -85,6 +85,7 @@ import {
   HeightReference,
   CameraEventType, KeyboardEventModifier,
   UrlTemplateImageryProvider, ImageryLayer,
+  SingleTileImageryProvider, GeographicTilingScheme, Rectangle,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useIsMobile } from "@/hooks/use-mobile";
