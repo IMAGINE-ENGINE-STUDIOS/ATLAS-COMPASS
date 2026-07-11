@@ -10,6 +10,12 @@ import {
 } from "three-stdlib";
 import DxfParser from "dxf-parser";
 
+/**
+ * Re-export USDZ helpers here so callers can `import { downloadAsUsdz }`
+ * from a single module alongside the existing importers.
+ */
+export { gltfUrlToUsdz, downloadAsUsdz, downloadBlob } from "./usdz-export";
+
 export interface ImportedModel {
   /** glb data URL ready to feed into useGLTF. */
   url: string;
@@ -269,4 +275,47 @@ export async function convertCadViaAps(
   const group = new OBJLoader().parse(objText);
   const url = await sceneOrGroupToGLB(group);
   return { url, sourceFormat: ext, fileName: file.name };
+}
+
+/**
+ * DWG pipeline. Tries the open-source `dwg-convert` edge function
+ * (ODA File Converter / LibreDWG worker) first. Two possible payloads
+ * are accepted from the worker:
+ *   - `{ glbBase64 }` — direct glTF binary, imported as-is.
+ *   - `{ dxfBase64 }` — DXF text, parsed through the existing DXF
+ *     path so we stay on one renderer.
+ * On 501 (worker not configured) or any error we fall back to the
+ * paid-but-reliable Autodesk Platform Services path.
+ */
+export async function convertDwg(
+  file: File,
+  invoke: (fnName: string, opts: { body: any }) => Promise<{ data: any; error: any }>,
+): Promise<ImportedModel> {
+  const ext = extOf(file.name);
+  const buf = await readArrayBuffer(file);
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const b64 = btoa(bin);
+
+  try {
+    const { data, error } = await invoke("dwg-convert", {
+      body: { fileName: file.name, fileBase64: b64 },
+    });
+    if (error) throw new Error(error.message || "DWG worker failed");
+    if (data?.glbBase64) {
+      return { url: `data:model/gltf-binary;base64,${data.glbBase64}`, sourceFormat: ext, fileName: file.name };
+    }
+    if (data?.dxfBase64) {
+      const dxfText = atob(data.dxfBase64);
+      const parsed = new DxfParser().parseSync(dxfText);
+      const group = dxfToGroup(parsed);
+      return { url: await sceneOrGroupToGLB(group), sourceFormat: ext, fileName: file.name };
+    }
+    // Unexpected shape → fall through to APS.
+    throw new Error(data?.error || "DWG worker returned no usable output");
+  } catch (workerErr) {
+    // Fall back to Autodesk Platform Services (already integrated).
+    return convertCadViaAps(file, invoke);
+  }
 }
