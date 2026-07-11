@@ -2732,6 +2732,17 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       viewer.scene.skyAtmosphere.brightnessShift = 0.05;
     }
 
+    // Show the real Moon in Earth's sky using Cesium's built-in Moon
+    // (`Simon1994PlanetaryPositions` — accurate ephemeris). This puts the
+    // Moon at its exact real distance from Earth in the same scene, and
+    // means the Moon and Earth are in ONE shared coordinate space.
+    if (!isMoon && viewer.scene.moon) {
+      try {
+        viewer.scene.moon.show = true;
+        viewer.scene.moon.onlySunLighting = true;
+      } catch {}
+    }
+
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
@@ -2844,8 +2855,15 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     if (isMoon) {
       viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false);
       viewer.scene.globe.showGroundAtmosphere = false;
-      viewer.scene.globe.baseColor = Color.fromCssColorString("#8a8578");
+      // Fully transparent base — the imagery layers (or nothing at all)
+      // define what the user sees. No plain grey sphere sits behind the
+      // NASA datasets. Mission and orbiter pins remain visible against
+      // deep space when no imagery layer is enabled.
+      viewer.scene.globe.baseColor = Color.TRANSPARENT;
+      (viewer.scene.globe as any).translucency && ((viewer.scene.globe as any).translucency.enabled = false);
       viewer.scene.globe.enableLighting = true;
+      // Show Cesium's built-in Sun so the imagery is realistically lit.
+      viewer.scene.sun && (viewer.scene.sun.show = true);
       // NASA LOLA-derived terrain (no Cesium ion). Renders convincing
       // 3D relief from public LRO/LOLA hillshade tiles.
       try {
