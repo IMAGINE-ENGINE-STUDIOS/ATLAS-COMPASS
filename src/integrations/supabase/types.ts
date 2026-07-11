@@ -33,6 +33,7 @@ export type Database = {
           surrounding_terrain: Json | null
           terrain_expand_feet: number
           updated_at: string
+          world: string
         }
         Insert: {
           altitude?: number
@@ -52,6 +53,7 @@ export type Database = {
           surrounding_terrain?: Json | null
           terrain_expand_feet?: number
           updated_at?: string
+          world?: string
         }
         Update: {
           altitude?: number
@@ -71,6 +73,7 @@ export type Database = {
           surrounding_terrain?: Json | null
           terrain_expand_feet?: number
           updated_at?: string
+          world?: string
         }
         Relationships: [
           {
