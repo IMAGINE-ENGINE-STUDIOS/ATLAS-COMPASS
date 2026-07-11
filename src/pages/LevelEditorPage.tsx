@@ -2897,6 +2897,20 @@ export default function LevelEditorPage() {
       />
 
       <ShareDialog open={!!shareTarget} onOpenChange={(v) => !v && setShareTarget(null)} file={shareTarget} />
+
+      <CadImportSettingsDialog
+        open={!!pendingImport}
+        fileName={pendingImport?.file.name ?? null}
+        isCad={pendingImport?.isCad ?? false}
+        onCancel={() => setPendingImport(null)}
+        onConfirm={(settings) => {
+          const pi = pendingImport;
+          setPendingImport(null);
+          if (!pi) return;
+          if (pi.isCad) void runCadImport(pi.file, settings);
+          else void runNativeImport(pi.file, settings);
+        }}
+      />
     </div>
   );
 }
