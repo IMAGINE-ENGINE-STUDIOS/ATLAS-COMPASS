@@ -2955,46 +2955,57 @@ function SpaceshipPage({
     if (isMoon) {
       viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false);
       viewer.scene.globe.showGroundAtmosphere = false;
-      // Keep a lunar fallback disc under NASA Trek imagery. Transparent here
-      // made the Moon vanish whenever imagery tiles were delayed/cancelled
-      // during right-drag movement.
-      viewer.scene.globe.baseColor = Color.fromCssColorString("#8f8b83");
+      // Keep a rocky fallback disc under NASA Trek imagery so the planet
+      // never vanishes if tiles are delayed. Colour matches the world.
+      viewer.scene.globe.baseColor = Color.fromCssColorString(
+        marsModeRef.current ? "#8b3a17" : "#8f8b83",
+      );
       (viewer.scene.globe as any).translucency && ((viewer.scene.globe as any).translucency.enabled = false);
-      // Moon datasets must read as map/albedo layers, not disappear into an
-      // unlit night-side hemisphere while orbiting with right-drag.
+      // Non-Earth datasets read as map/albedo layers — no lighting, no sun.
       viewer.scene.globe.enableLighting = false;
       viewer.scene.sun && (viewer.scene.sun.show = false);
-      // NASA LOLA-derived terrain (no Cesium ion). Renders convincing
-      // 3D relief from public LRO/LOLA hillshade tiles.
-      try {
-        viewer.terrainProvider = createLolaMoonTerrainProvider();
-      } catch (err) {
-        console.warn("[Atlas moon] LOLA terrain failed", err);
+      if (marsModeRef.current) {
+        // Mars world — NASA Mars Trek imagery. Terrain stays as the ellipsoid
+        // surface (Cesium has no bundled Mars terrain provider); LOLA math
+        // would be wrong here so we skip it.
+        try {
+          viewer.imageryLayers.removeAll(true);
+          const defaults = MARS_LAYERS.filter((l) => l.defaultVisible);
+          (viewer as any).__marsImagery = (viewer as any).__marsImagery || {};
+          defaults.forEach((def) => {
+            const provider = createMarsImageryProvider(def);
+            const layer = new ImageryLayer(provider, {});
+            tuneMarsImageryLayer(layer, def);
+            layer.alpha = def.defaultAlpha ?? 1;
+            viewer.imageryLayers.add(layer);
+            (viewer as any).__marsImagery[def.id] = layer;
+          });
+        } catch (err) {
+          console.warn("[Atlas mars] imagery failed", err);
+        }
+      } else {
+        // NASA LOLA-derived terrain for the Moon (no Cesium ion).
+        try {
+          viewer.terrainProvider = createLolaMoonTerrainProvider();
+        } catch (err) {
+          console.warn("[Atlas moon] LOLA terrain failed", err);
+        }
+        try {
+          viewer.imageryLayers.removeAll(true);
+          const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
+          (viewer as any).__moonImagery = (viewer as any).__moonImagery || {};
+          defaults.forEach((def) => {
+            const provider = createMoonImageryProvider(def);
+            const layer = new ImageryLayer(provider, {});
+            tuneMoonImageryLayer(layer, def);
+            layer.alpha = def.defaultAlpha ?? 1;
+            viewer.imageryLayers.add(layer);
+            (viewer as any).__moonImagery[def.id] = layer;
+          });
+        } catch (err) {
+          console.warn("[Atlas moon] imagery failed", err);
+        }
       }
-
-      // Mount default NASA imagery layer (LRO WAC Global Mosaic — the
-      // photorealistic base). Additional layers are toggled from the
-      // Moon Layers pill. Remove any default Bing base first.
-      try {
-        viewer.imageryLayers.removeAll(true);
-        const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
-        (viewer as any).__moonImagery = (viewer as any).__moonImagery || {};
-        defaults.forEach((def) => {
-          const provider = createMoonImageryProvider(def);
-          const layer = new ImageryLayer(provider, {});
-          tuneMoonImageryLayer(layer, def);
-          layer.alpha = def.defaultAlpha ?? 1;
-          viewer.imageryLayers.add(layer);
-          (viewer as any).__moonImagery[def.id] = layer;
-        });
-      } catch (err) {
-        console.warn("[Atlas moon] imagery failed", err);
-      }
-
-      // NOTE: Cesium ion asset 2684829 is not accessible under the current
-      // ion token (returns 404). Moon surface is rendered from LOLA terrain
-      // + NASA Trek imagery layers above. Do not re-add without a valid
-      // ion asset id / token.
     } else {
       createWorldTerrainAsync({
         requestWaterMask: false,
