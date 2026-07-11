@@ -3378,7 +3378,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const dt = now - __lastFrameT;
       __lastFrameT = now;
       const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position).height; } catch { return 0; } })();
-      if (alt > 23000) {
+      // Moon-scale altitude threshold is much larger than Earth's due to
+      // Cartographic.fromCartesian returning distance from the ellipsoid
+      // surface (Moon radius is 1/4 of Earth's).
+      const farAlt = isMoon ? 200_000 : 23_000;
+      if (alt > farAlt) {
         applyPerfProfile("far");
         return;
       }
