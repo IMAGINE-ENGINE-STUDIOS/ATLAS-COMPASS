@@ -70,6 +70,11 @@ import { GLTFLoader } from "three-stdlib";
 import * as THREE from "three";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
+import {
+  CadImportSettingsDialog,
+  UNIT_TO_METERS,
+  type CadImportSettings,
+} from "@/components/level/CadImportSettingsDialog";
 import DynamicObjectGallery from "@/components/level/dynamics/DynamicObjectGallery";
 import FileContextMenu, { type FileLike } from "@/components/shared/FileContextMenu";
 import ShareDialog from "@/components/sharing/ShareDialog";
