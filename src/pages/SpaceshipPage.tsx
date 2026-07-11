@@ -40,6 +40,12 @@ import LPRPanel from "@/components/atlas/lpr/LPRPanel";
 import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
 import { MoonPill } from "@/components/atlas/MoonPill";
+import MoonPanels from "@/components/atlas/moon/MoonPanels";
+import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
+import {
+  MOON_LAYERS,
+  createMoonImageryProvider,
+} from "@/lib/moon/trekProviders";
 import { restoreEnabledIonLayers } from "@/lib/atlasIonLayers";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
