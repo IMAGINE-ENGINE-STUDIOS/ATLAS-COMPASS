@@ -5,7 +5,7 @@
  * Atlas glass aesthetic.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Layers, Rocket, X, ExternalLink } from "lucide-react";
+import { Layers, Rocket, X, ExternalLink, Search } from "lucide-react";
 import {
   MOON_LAYERS,
   createMoonImageryProvider,
@@ -52,8 +52,44 @@ export default function MoonPanels({ viewer }: Props) {
   const [openPanel, setOpenPanel] = useState<null | "layers" | "missions">(null);
 
   const [filterKinds, setFilterKinds] = useState<Set<MoonMissionKind>>(new Set());
+  const [filterAgencies, setFilterAgencies] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  // Time period sliders: [startYear, endYear]
+  const yearBounds = useMemo(() => {
+    const years = MOON_MISSIONS.map((m) => Number(m.date.slice(0, 4)));
+    return [Math.min(...years), Math.max(...years)] as const;
+  }, []);
+  const [yearRange, setYearRange] = useState<[number, number]>(yearBounds);
   const [missionsVisible, setMissionsVisible] = useState(true);
   const [selectedMission, setSelectedMission] = useState<MoonMission | null>(null);
+
+  const allAgencies = useMemo(() => {
+    const s = new Set<string>();
+    MOON_MISSIONS.forEach((m) => s.add(m.agency));
+    return Array.from(s).sort();
+  }, []);
+
+  // Single source of truth for what missions are visible in both the list
+  // and the on-globe pins.
+  const filteredMissions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return MOON_MISSIONS.filter((m) => {
+      if (filterKinds.size && !filterKinds.has(m.kind)) return false;
+      if (filterAgencies.size && !filterAgencies.has(m.agency)) return false;
+      const y = Number(m.date.slice(0, 4));
+      if (y < yearRange[0] || y > yearRange[1]) return false;
+      if (q) {
+        const hay = `${m.name} ${m.agency} ${m.description} ${m.id}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [filterKinds, filterAgencies, searchQuery, yearRange]);
+
+  const filteredIds = useMemo(
+    () => new Set(filteredMissions.map((m) => m.id)),
+    [filteredMissions]
+  );
 
   // Sync ImageryLayer instances with layerState.
   useEffect(() => {
@@ -113,6 +149,22 @@ export default function MoonPanels({ viewer }: Props) {
       return next;
     });
   };
+  const toggleAgency = (a: string) => {
+    setFilterAgencies((prev) => {
+      const next = new Set(prev);
+      if (next.has(a)) next.delete(a); else next.add(a);
+      return next;
+    });
+  };
+  const resetFilters = () => {
+    setFilterKinds(new Set());
+    setFilterAgencies(new Set());
+    setSearchQuery("");
+    setYearRange(yearBounds);
+  };
+  const activeFilterCount =
+    filterKinds.size + filterAgencies.size + (searchQuery ? 1 : 0) +
+    ((yearRange[0] !== yearBounds[0] || yearRange[1] !== yearBounds[1]) ? 1 : 0);
 
   const flyToMission = (m: MoonMission) => {
     if (!viewer) return;
