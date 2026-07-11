@@ -524,6 +524,9 @@ function loadPlacedModels(): PlacedModel[] {
 }
 
 function savePlacedModels(models: PlacedModel[]) {
+  // Guarded by callers: on the Moon we intentionally skip Earth-model
+  // persistence so a moon-session doesn't stomp the user's Earth models.
+  if ((window as any).__atlasMoonMode) return;
   localStorage.setItem(MODELS_STORAGE_KEY, JSON.stringify(models));
 }
 
@@ -1004,7 +1007,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // and skip every Earth-only data load (Google Photoreal, OSM Buildings,
   // Ion Realistic, Overpass discovery, POIs, placed models, level layer).
   const moonModeRef = useRef(moonMode);
-  useEffect(() => { moonModeRef.current = moonMode; }, [moonMode]);
+  useEffect(() => {
+    moonModeRef.current = moonMode;
+    (window as any).__atlasMoonMode = moonMode;
+    return () => { (window as any).__atlasMoonMode = false; };
+  }, [moonMode]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
@@ -1065,7 +1072,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // one coordinate system so the user can walk in and out of levels.
   const { placements: levelPlacements } = useAtlasLevelLayer(
     viewerRef,
-    isLoaded,
+    // Skip loading Earth-anchored level placements when we're on the Moon.
+    isLoaded && !moonMode,
     useCallback((p: LevelPlacement) => {
       setSelectedLevelPlacement(p);
     }, []),
@@ -1314,7 +1322,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // Whether the brush indicator should currently be visible (kept in a ref so
   // the callback below can read the latest value without re-binding).
   const brushIndicatorEnabledRef = useRef<boolean>(false);
-  const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
+  // On the Moon we start with a clean world — no Earth-authored models are
+  // hydrated (they'd sit at Earth lat/lng coords that don't map onto the
+  // lunar globe). New models placed on the Moon stay only in-session for
+  // now until per-world persistence lands.
+  const [placedModels, setPlacedModels] = useState<PlacedModel[]>(
+    moonMode ? [] : loadPlacedModels,
+  );
   // ── Undo / Redo for stamp + tile placements ──
   // We snapshot the `placedModels` array before any mutation that changes the
   // set of placed items (add via stamp/tile, terrain pad, delete). Async
@@ -2739,7 +2753,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Do not draw Cesium terrain/imagery behind photoreal modes. Google 3D
     // must be standalone so seams cannot reveal a second map underneath.
-    viewer.scene.globe.show = viewModeRef.current === "osm" || viewModeRef.current === "mapbox" || !showBuildingsRef.current;
+    viewer.scene.globe.show =
+      isMoon ||
+      viewModeRef.current === "osm" ||
+      viewModeRef.current === "mapbox" ||
+      !showBuildingsRef.current;
     keepAtlasRenderingDuringBoot(viewer, 15000);
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
@@ -2997,7 +3015,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       });
       return (viewer as any)._googleDirectLoading;
     };
-    applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+    if (!isMoon) {
+      applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
+    } else {
+      // Ensure the Moon globe stays visible regardless of the persisted Earth
+      // view mode (Google/OSM/etc) — the mode carousel doesn't apply here.
+      viewer.scene.globe.show = true;
+    }
     if (isMoon) {
       // Skip every Earth tileset ensure. The moon world only shows the
       // Cesium ion Moon terrain — no Google Photoreal, no OSM, no ion
@@ -3096,16 +3120,27 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       }
     } catch {}
     if (!restoredCamera) {
-      viewer.camera.setView({
-        destination: isMoon
-          ? Cartesian3.fromDegrees(0, 0, 4_000_000, Ellipsoid.MOON)
-          : Cartesian3.fromDegrees(0, 20, 20000000),
-        orientation: {
-          heading: CesiumMath.toRadians(0),
-          pitch: CesiumMath.toRadians(-90),
-          roll: 0,
-        },
-      });
+      if (isMoon) {
+        // Frame the full Moon disc immediately. flyToBoundingSphere fits the
+        // entire lunar body to the viewport regardless of aspect ratio, so
+        // the Moon is visible + centered on the very first paint (no need to
+        // wait for terrain to finish streaming).
+        const moonR = Ellipsoid.MOON.maximumRadius;
+        const moonSphere = new BoundingSphere(Cartesian3.ZERO, moonR);
+        viewer.camera.flyToBoundingSphere(moonSphere, {
+          duration: 0,
+          offset: new HeadingPitchRange(0, CesiumMath.toRadians(-25), moonR * 3.2),
+        });
+      } else {
+        viewer.camera.setView({
+          destination: Cartesian3.fromDegrees(0, 20, 20000000),
+          orientation: {
+            heading: CesiumMath.toRadians(0),
+            pitch: CesiumMath.toRadians(-90),
+            roll: 0,
+          },
+        });
+      }
     }
 
     // Mouse move handler for coordinates + brush indicator
@@ -4604,6 +4639,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const handler = () => {
       const v = viewerRef.current;
       if (!v || v.isDestroyed()) return;
+      if (moonModeRef.current) return;
       applyAtlasMapVisibility(v, viewModeRef.current, showBuildingsRef.current);
     };
     window.addEventListener("atlas:earth-intel-changed", handler);
@@ -4613,6 +4649,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+    if (moonModeRef.current) return;
     // Purge every tileset that isn't the active mode so only ONE layer streams.
     if (viewMode !== "google") {
       destroyAtlasTileset(viewer, "_googleDirectTileset");
@@ -4692,6 +4729,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // Load saved POIs onto globe when viewer is ready
   useEffect(() => {
     if (!isLoaded || !viewerRef.current) return;
+    // Moon world: skip loading Earth-anchored POIs onto the lunar globe.
+    if (moonMode) return;
     pois.forEach(addPOIToGlobe);
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
