@@ -1416,6 +1416,9 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   const [tileZoom, setTileZoom] = useState<number>(savedUI.tileZoom ?? 18);
   // When true, tile zoom auto-follows the basemap (matches what the camera is currently rendering).
   const [tileZoomAuto, setTileZoomAuto] = useState<boolean>(savedUI.tileZoomAuto ?? true);
+  useEffect(() => {
+    if (moonMode && tileZoom > 12) setTileZoom(12);
+  }, [moonMode, tileZoom]);
   const [selectedTiles, setSelectedTiles] = useState<Set<TileKey>>(new Set());
   const [rectStart, setRectStart] = useState<{ lat: number; lng: number } | null>(null);
   const [lassoPoints, setLassoPoints] = useState<{ lat: number; lng: number }[]>([]);
@@ -1461,7 +1464,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const wantIndicator = brushIndicatorEnabledRef.current;
 
     if (sub === "tiles") {
-      const z = Math.max(6, Math.min(22, Math.round(tileZoom)));
+      const z = Math.max(1, Math.min(moonModeRef.current ? 12 : 22, Math.round(tileZoom)));
       const { x, y } = lngLatToTile(cursor.lat, cursor.lng, z);
       const b = tileBounds(x, y, z);
       const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b);
@@ -7031,7 +7034,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                     <div className="rounded-lg bg-black/55 border border-white/[0.06] p-2.5">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5">
-                          <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">Tile zoom</p>
+                        <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">{moonMode ? "Lunar tile level" : "Tile zoom"}</p>
                           <button
                             onClick={() => setTileZoomAuto((v) => !v)}
                             className={`px-1.5 py-0.5 rounded-md text-[8.5px] font-semibold uppercase tracking-wider border transition-colors ${
@@ -7048,7 +7051,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                         </p>
                       </div>
                       <input
-                        type="range" min={6} max={22} step={1}
+                        type="range" min={moonMode ? 1 : 6} max={moonMode ? 12 : 22} step={1}
                         value={tileZoom} disabled={tileZoomAuto}
                         onChange={(e) => setTileZoom(parseInt(e.target.value))}
                         className="w-full accent-violet-400 disabled:opacity-40"
