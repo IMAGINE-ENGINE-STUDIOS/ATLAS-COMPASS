@@ -998,7 +998,13 @@ async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<a
 }
 
 /* ── Main Spaceship Component ── */
-function SpaceshipPage() {
+function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
+  // Route-driven "world" flag: when true we render the same Atlas HUD but
+  // over a Moon-sized globe with Cesium ion Moon Terrain (asset 2684829)
+  // and skip every Earth-only data load (Google Photoreal, OSM Buildings,
+  // Ion Realistic, Overpass discovery, POIs, placed models, level layer).
+  const moonModeRef = useRef(moonMode);
+  useEffect(() => { moonModeRef.current = moonMode; }, [moonMode]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
