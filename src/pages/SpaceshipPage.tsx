@@ -43,7 +43,8 @@ import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
 import { MARS_LAYERS, createMarsImageryProvider, tuneMarsImageryLayer } from "@/lib/mars/marsProviders";
-import { MARS_ELLIPSOID } from "@/lib/planets/ellipsoids";
+import { MARS_ELLIPSOID, ellipsoidForPlanet } from "@/lib/planets/ellipsoids";
+import { findPlanet, type PlanetId } from "@/lib/planets/config";
 import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
 import {
   MOON_LAYERS,
