@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   ArcType, Cartesian2, Cartesian3, Color, CallbackProperty, HeadingPitchRange, HeightReference,
+  Ellipsoid,
   LabelStyle, Math as CesiumMath, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined, VerticalOrigin, type Viewer,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 import { snapToLevelTile, DEFAULT_LEVEL_SIZE_M, LEVEL_HEIGHT_M } from "./atlasLevelGeo";
+import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
 
 export interface LevelPlacement {
   id: string;
@@ -29,6 +31,7 @@ export interface LevelPlacement {
   package_sha256?: string | null;
   /** Path inside the private `level-packages` storage bucket. */
   package_storage_path?: string | null;
+  world?: "earth" | "moon" | string;
   levels?: { id: string; name: string; description: string | null } | null;
 }
 
@@ -56,6 +59,7 @@ export function useAtlasLevelLayer(
   viewerRef: React.MutableRefObject<Viewer | null>,
   isLoaded: boolean,
   onOpenLevel: (placement: LevelPlacement) => void,
+  world: "earth" | "moon" = "earth",
 ) {
   const [placements, setPlacements] = useState<LevelPlacement[]>([]);
 
@@ -67,9 +71,10 @@ export function useAtlasLevelLayer(
         .from("atlas_level_placements")
         .select(
           "id,level_id,lat,lng,altitude,heading,scale,terrain_expand_feet,surrounding_terrain," +
-          "manifest_snapshot,package_id,package_version,package_sha256,package_storage_path," +
+          "manifest_snapshot,package_id,package_version,package_sha256,package_storage_path,world," +
           "levels(id,name,description)"
-        );
+        )
+        .eq("world", world);
       if (!cancelled) setPlacements((data ?? []) as any);
     };
     load();
@@ -84,13 +89,14 @@ export function useAtlasLevelLayer(
       supabase.removeChannel(channel);
       window.removeEventListener("atlas-level-placements-refresh", onRefresh);
     };
-  }, []);
+  }, [world]);
 
   // render entities + double-click handler
   useEffect(() => {
     if (!isLoaded) return;
     const viewer = viewerRef.current;
     if (!viewer) return;
+    const ellipsoid = world === "moon" ? Ellipsoid.MOON : Ellipsoid.WGS84;
 
     const added: any[] = [];
     for (const p of placements) {
@@ -110,7 +116,7 @@ export function useAtlasLevelLayer(
       // user gets close (see AtlasLevelsR3FOverlay).
       const boxEnt = viewer.entities.add({
         id: `level-placement-${p.id}-box`,
-        position: Cartesian3.fromDegrees(p.lng, p.lat, baseAlt + boxHeight / 2) as any,
+        position: Cartesian3.fromDegrees(p.lng, p.lat, baseAlt + boxHeight / 2, ellipsoid) as any,
         box: {
           dimensions: new Cartesian3(size, size, boxHeight) as any,
           material: Color.fromCssColorString("#34d399").withAlpha(0.55) as any,
@@ -127,8 +133,8 @@ export function useAtlasLevelLayer(
         id: `level-placement-${p.id}-beacon`,
         polyline: {
           positions: [
-            Cartesian3.fromDegrees(p.lng, p.lat, baseAlt),
-            Cartesian3.fromDegrees(p.lng, p.lat, beaconTop),
+            Cartesian3.fromDegrees(p.lng, p.lat, baseAlt, ellipsoid),
+            Cartesian3.fromDegrees(p.lng, p.lat, beaconTop, ellipsoid),
           ] as any,
           width: 3,
           material: Color.fromCssColorString("#34d399").withAlpha(0.9) as any,
@@ -144,7 +150,7 @@ export function useAtlasLevelLayer(
       // instead of a floating tag hovering hundreds of meters in the sky.
       const label = viewer.entities.add({
         id: `level-placement-${p.id}-label`,
-        position: Cartesian3.fromDegrees(p.lng, p.lat, 0) as any,
+        position: Cartesian3.fromDegrees(p.lng, p.lat, 0, ellipsoid) as any,
         label: {
           text: `▣ ${p.levels?.name ?? "Level"}`,
           font: "bold 14px Inter, sans-serif",
@@ -175,7 +181,11 @@ export function useAtlasLevelLayer(
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     const flyTo = (p: LevelPlacement) => {
       try {
-        const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2);
+        if (world === "moon") {
+          flyToMoonCoord(viewer, p.lng, p.lat, { altitude: 1200, duration: 1.0 });
+          return;
+        }
+        const center = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + LEVEL_HEIGHT_M / 2, ellipsoid);
         viewer.camera.flyToBoundingSphere(
           { center, radius: DEFAULT_LEVEL_SIZE_M * 0.9 } as any,
           {
@@ -223,7 +233,7 @@ export function useAtlasLevelLayer(
       }
       handler.destroy();
     };
-  }, [placements, isLoaded, viewerRef, onOpenLevel]);
+  }, [placements, isLoaded, viewerRef, onOpenLevel, world]);
 
   return { placements };
 }

@@ -16,6 +16,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
+  Ellipsoid,
   Matrix4 as CesiumMatrix4,
   Math as CesiumMath,
   Transforms,
@@ -47,10 +48,12 @@ function FreePlayInstance({
   viewer,
   spawn,
   scene,
+  ellipsoid,
 }: {
   viewer: Viewer;
   spawn: FreePlaySpawn;
   scene: LevelScene;
+  ellipsoid: Ellipsoid;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   // Ground lift is held in a ref (not state) so height refinements from
@@ -88,8 +91,8 @@ function FreePlayInstance({
   // ENU translation below.
   const { ecefBase, enuRot, up } = useMemo(() => {
     const baseAlt = spawn.alt ?? 0;
-    const origin = Cartesian3.fromDegrees(spawn.lng, spawn.lat, baseAlt);
-    const m = Transforms.eastNorthUpToFixedFrame(origin);
+    const origin = Cartesian3.fromDegrees(spawn.lng, spawn.lat, baseAlt, ellipsoid);
+    const m = Transforms.eastNorthUpToFixedFrame(origin, ellipsoid);
     const arr = CesiumMatrix4.toArray(m, []) as number[];
     const rot = new THREE.Matrix4().fromArray(arr);
     // Extract the ENU "up" axis (column 2 in the 4x4) so we can offset
@@ -101,7 +104,7 @@ function FreePlayInstance({
       enuRot: rot,
       up: upVec,
     };
-  }, [spawn.lat, spawn.lng, spawn.alt]);
+  }, [spawn.lat, spawn.lng, spawn.alt, ellipsoid]);
 
   const scratch = useRef({
     out: new THREE.Matrix4(),
@@ -218,10 +221,12 @@ export default function AtlasFreePlayOverlay({
   viewerRef,
   spawn,
   onExit,
+  ellipsoid = Ellipsoid.WGS84,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   spawn: FreePlaySpawn | null;
   onExit: () => void;
+  ellipsoid?: Ellipsoid;
 }) {
   // Synthesize a one-character scene with the soldier (or whatever was
   // chosen) as the playable, walking directly on the Earth.
@@ -283,7 +288,7 @@ export default function AtlasFreePlayOverlay({
     // Park the Cesium camera into a third-person pose; the playable's
     // PlayCameraPose callback takes over on the first frame.
     try {
-      const eye = Cartesian3.fromDegrees(spawn.lng, spawn.lat, (spawn.alt ?? 0) + 8);
+      const eye = Cartesian3.fromDegrees(spawn.lng, spawn.lat, (spawn.alt ?? 0) + 8, ellipsoid);
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
       viewer.camera.setView({
         destination: eye,
@@ -303,7 +308,7 @@ export default function AtlasFreePlayOverlay({
       c.enableLook = prev.look;
       if (typeof window !== "undefined") window.__atlasLevelPlaying = false;
     };
-  }, [spawn, viewerRef]);
+  }, [spawn, viewerRef, ellipsoid]);
 
   // Esc to exit free-play.
   useEffect(() => {
@@ -327,7 +332,7 @@ export default function AtlasFreePlayOverlay({
           <CameraSync viewer={viewer} />
           <hemisphereLight args={["#cfe6ff", "#3d5c3d", 0.6]} />
           <directionalLight position={[100, 200, 100]} intensity={1.2} />
-          <FreePlayInstance viewer={viewer} spawn={spawn} scene={scene} />
+          <FreePlayInstance viewer={viewer} spawn={spawn} scene={scene} ellipsoid={ellipsoid} />
         </Canvas>
       </div>
       <button

@@ -11,6 +11,7 @@
 import {
   Cartesian3,
   Cartographic,
+  Ellipsoid,
   Math as CesiumMath,
   type Viewer,
 } from "cesium";
@@ -23,7 +24,8 @@ export function clampEyeAboveTerrain(
   marginMeters: number = 0.6,
 ): Cartesian3 {
   try {
-    Cartographic.fromCartesian(new Cartesian3(eye.x, eye.y, eye.z), undefined, _carto);
+    const ellipsoid = (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    Cartographic.fromCartesian(new Cartesian3(eye.x, eye.y, eye.z), ellipsoid, _carto);
     const scene = viewer.scene;
     // Prefer the actual rendered surface (3D Tiles + globe), fall back to globe.
     let surfaceH: number | null = null;
@@ -34,7 +36,7 @@ export function clampEyeAboveTerrain(
       if (typeof gh === "number" && Number.isFinite(gh)) surfaceH = gh;
     }
     if (surfaceH !== null && _carto.height < surfaceH + marginMeters) {
-      return Cartesian3.fromRadians(_carto.longitude, _carto.latitude, surfaceH + marginMeters);
+      return Cartesian3.fromRadians(_carto.longitude, _carto.latitude, surfaceH + marginMeters, ellipsoid);
     }
   } catch {}
   return new Cartesian3(eye.x, eye.y, eye.z);

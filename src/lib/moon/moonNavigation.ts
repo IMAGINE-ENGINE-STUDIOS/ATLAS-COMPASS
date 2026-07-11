@@ -15,7 +15,7 @@ import {
   Matrix4,
 } from "cesium";
 
-export const MOON_MIN_SAFE_ALTITUDE_M = 20;
+export const MOON_MIN_SAFE_ALTITUDE_M = 1.5;
 export const MOON_MAX_SAFE_ALTITUDE_M = 450_000_000;
 
 export interface MoonFlyOpts {
@@ -37,7 +37,10 @@ export function flyToMoonCoord(
   opts: MoonFlyOpts = {}
 ) {
   if (!viewer || viewer.isDestroyed?.()) return;
-  const altitude = Math.max(opts.altitude ?? 180_000, 120_000);
+  const altitude = Math.max(
+    MOON_MIN_SAFE_ALTITUDE_M,
+    Math.min(MOON_MAX_SAFE_ALTITUDE_M, opts.altitude ?? 180_000),
+  );
   const duration = opts.duration ?? 1.6;
 
   // Put the camera directly above the target in Moon coordinates and look
@@ -112,6 +115,7 @@ export function installMoonCameraGuard(viewer: any): () => void {
 
   const correct = (forceAimAtMoon = false) => {
     if (correcting || viewer.isDestroyed?.()) return;
+    if (typeof window !== "undefined" && (window as any).__atlasLevelPlaying) return;
     const now = performance.now();
     if (!forceAimAtMoon && now - lastCheck < 100) return;
     lastCheck = now;

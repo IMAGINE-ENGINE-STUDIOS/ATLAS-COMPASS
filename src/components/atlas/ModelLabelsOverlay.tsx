@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Cartesian3, SceneTransforms, type Viewer } from "cesium";
+import { Cartesian3, Ellipsoid, SceneTransforms, type Viewer } from "cesium";
 import {
   UtensilsCrossed, Coffee, Store, Hotel, Fuel, Stethoscope,
   Landmark, Box,
@@ -77,6 +77,8 @@ interface Props {
   models: PlacedModelLike[];
   onSelect?: (model: PlacedModelLike) => void;
   clusterDistancePx?: number;
+  ellipsoid?: Ellipsoid;
+  horizonRadius?: number;
 }
 
 /**
@@ -85,7 +87,14 @@ interface Props {
  * - Two or more nearby models of the same category collapse into a row of
  *   circular thumbnails so the user can easily identify each instance.
  */
-export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDistancePx = 70 }: Props) {
+export default function ModelLabelsOverlay({
+  viewer,
+  models,
+  onSelect,
+  clusterDistancePx = 70,
+  ellipsoid = Ellipsoid.WGS84,
+  horizonRadius = EARTH_RADIUS_M,
+}: Props) {
   // Cluster membership only changes when models change or the camera settles —
   // it stays stable mid-flight so labels can't visually swap groups every frame.
   const [clusters, setClusters] = useState<Cluster[]>([]);
@@ -101,8 +110,8 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
       const screen: (ScreenPos & { cellX: number; cellY: number })[] = [];
       for (const m of models) {
         try {
-          const world = Cartesian3.fromDegrees(m.lng, m.lat, (m.alt || 0) + 12);
-          const win = isWorldPointInFrontViewport(viewer, world);
+          const world = Cartesian3.fromDegrees(m.lng, m.lat, (m.alt || 0) + 12, ellipsoid);
+          const win = isWorldPointInFrontViewport(viewer, world, 24, horizonRadius);
           if (!win) continue;
           screen.push({
             id: m.id,
@@ -169,7 +178,7 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
         anchorAlt: c.anchorAlt,
       })));
     };
-  }, [viewer, models, clusterDistancePx]);
+  }, [viewer, models, clusterDistancePx, ellipsoid, horizonRadius]);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
@@ -191,8 +200,8 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
         if (!node) continue;
         let x = 0, y = 0;
         try {
-          const world = Cartesian3.fromDegrees(cluster.anchorLng, cluster.anchorLat, cluster.anchorAlt + 12);
-          const win = isWorldPointInFrontViewport(viewer, world, 32);
+          const world = Cartesian3.fromDegrees(cluster.anchorLng, cluster.anchorLat, cluster.anchorAlt + 12, ellipsoid);
+          const win = isWorldPointInFrontViewport(viewer, world, 32, horizonRadius);
           if (!win) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
           x = win.x; y = win.y;
         } catch { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
@@ -205,7 +214,7 @@ export default function ModelLabelsOverlay({ viewer, models, onSelect, clusterDi
     sync();
     const remove = viewer.scene.postRender.addEventListener(sync);
     return () => { remove(); };
-  }, [viewer, clusters]);
+  }, [viewer, clusters, ellipsoid, horizonRadius]);
 
   if (!viewer) return null;
 

@@ -28,6 +28,7 @@ export interface ImportTarget {
   lat: number;
   lng: number;
   alt: number;
+  world?: "earth" | "moon";
 }
 
 export interface ImportResult {
@@ -126,6 +127,7 @@ async function persistMap(map: MapFile, target: ImportTarget): Promise<ImportRes
       altitude: Math.max(0, anchor.alt),
       heading: anchor.heading ?? 0,
       scale: anchor.scale && anchor.scale > 0 ? anchor.scale : 1,
+      world: target.world ?? "earth",
     })
     .select("id")
     .single();

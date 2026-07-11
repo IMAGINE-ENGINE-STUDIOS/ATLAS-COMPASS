@@ -23,6 +23,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
+  Ellipsoid,
   Matrix4 as CesiumMatrix4,
   Math as CesiumMath,
   Transforms,
@@ -54,10 +55,12 @@ function PlacedLevel({
   viewer,
   placement,
   playing,
+  ellipsoid,
 }: {
   viewer: Viewer;
   placement: LevelPlacement;
   playing: boolean;
+  ellipsoid: Ellipsoid;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<LevelScene | null>(null);
@@ -107,8 +110,9 @@ function PlacedLevel({
       placement.lng,
       placement.lat,
       baseAlt,
+      ellipsoid,
     );
-    const m = Transforms.eastNorthUpToFixedFrame(origin);
+    const m = Transforms.eastNorthUpToFixedFrame(origin, ellipsoid);
     const arr = CesiumMatrix4.toArray(m, []) as number[]; // column-major
     const rot = new THREE.Matrix4().fromArray(arr);
     rot.setPosition(0, 0, 0); // keep rotation only
@@ -116,7 +120,7 @@ function PlacedLevel({
       ecef: new THREE.Vector3(origin.x, origin.y, origin.z),
       enuRot: rot,
     };
-  }, [placement.lat, placement.lng, placement.altitude, groundLift]);
+  }, [placement.lat, placement.lng, placement.altitude, groundLift, ellipsoid]);
 
   const headingRad = -((placement.heading ?? 0) * Math.PI) / 180;
   const placementScale = placement.scale > 0 ? placement.scale : 1;
@@ -236,11 +240,13 @@ export default function AtlasLevelsR3FOverlay({
   isLoaded,
   placements,
   onPlayingChange,
+  ellipsoid = Ellipsoid.WGS84,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
   isLoaded: boolean;
   placements: LevelPlacement[];
   onPlayingChange?: (id: string | null) => void;
+  ellipsoid?: Ellipsoid;
 }) {
   // Defer mounting the heavy R3F overlay so the globe + green placeholder
   // boxes paint first. Keeps initial Atlas load snappy.
@@ -283,7 +289,7 @@ export default function AtlasLevelsR3FOverlay({
       const dir = viewer.camera.directionWC;
       const next = new Set<string>();
       for (const p of placements) {
-        const o = Cartesian3.fromDegrees(p.lng, p.lat, p.altitude ?? 0);
+        const o = Cartesian3.fromDegrees(p.lng, p.lat, p.altitude ?? 0, ellipsoid);
         const dx = o.x - cam.x, dy = o.y - cam.y, dz = o.z - cam.z;
         const d2 = dx * dx + dy * dy + dz * dz;
         if (d2 > PROX_M * PROX_M) continue;
@@ -301,7 +307,7 @@ export default function AtlasLevelsR3FOverlay({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [ready, placements, viewerRef]);
+  }, [ready, placements, viewerRef, ellipsoid]);
 
   // Sync the shared hiddenLevelIds set so Cesium's green box fades out
   // exactly when the R3F scene fades in (CallbackProperty re-reads each
@@ -361,7 +367,7 @@ export default function AtlasLevelsR3FOverlay({
       // across the level so the surrounding city stays visible as a backdrop
       // while the R3F PlayableCharacter owns the play view. Slightly behind
       // and above the level origin, looking forward.
-      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 8);
+      const eye = Cartesian3.fromDegrees(p.lng, p.lat, (p.altitude ?? 0) + 8, ellipsoid);
       viewer.camera.lookAtTransform(CesiumMatrix4.IDENTITY);
       viewer.camera.setView({
         destination: eye,
@@ -375,7 +381,7 @@ export default function AtlasLevelsR3FOverlay({
     setNearIds((prev) => new Set(prev).add(p.id));
     setPlayingId(p.id);
     setPendingPlayId(null);
-  }, [pendingPlayId, placements, viewerRef]);
+  }, [pendingPlayId, placements, viewerRef, ellipsoid]);
 
   useEffect(() => {
     if (pendingPlayId && nearIds.has(pendingPlayId)) {
@@ -476,6 +482,7 @@ export default function AtlasLevelsR3FOverlay({
               viewer={viewer}
               placement={p}
               playing={playingId === p.id}
+              ellipsoid={ellipsoid}
             />
           ))}
         </Canvas>
