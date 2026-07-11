@@ -70,6 +70,11 @@ import { GLTFLoader } from "three-stdlib";
 import * as THREE from "three";
 import { FacePaintPanel } from "@/components/level/FacePaintPanel";
 import TerrainGallery from "@/components/level/terrain/TerrainGallery";
+import {
+  CadImportSettingsDialog,
+  UNIT_TO_METERS,
+  type CadImportSettings,
+} from "@/components/level/CadImportSettingsDialog";
 import DynamicObjectGallery from "@/components/level/dynamics/DynamicObjectGallery";
 import FileContextMenu, { type FileLike } from "@/components/shared/FileContextMenu";
 import ShareDialog from "@/components/sharing/ShareDialog";
@@ -1295,6 +1300,7 @@ export default function LevelEditorPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const cadFileRef = useRef<HTMLInputElement>(null);
   const [cadConverting, setCadConverting] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{ file: File; isCad: boolean } | null>(null);
 
   /**
    * Load an imported GLB, measure its world-space bounding box, and return
@@ -1326,8 +1332,25 @@ export default function LevelEditorPage() {
 
   const addImportedAsObject = async (
     imported: { url: string; sourceFormat: string; fileName: string },
+    settings?: CadImportSettings,
   ) => {
-    const position = await measureModelCenter(imported.url);
+    const recenter = settings?.recenter ?? true;
+    const dropToFloor = settings?.dropToFloor ?? true;
+    let position: [number, number, number] = [0, 0, 0];
+    if (recenter || dropToFloor) {
+      const measured = await measureModelCenter(imported.url);
+      position = [
+        recenter ? measured[0] : 0,
+        dropToFloor ? measured[1] : 0,
+        recenter ? measured[2] : 0,
+      ];
+    }
+    // Source units → meters, times user's uniform multiplier.
+    const unitFactor = settings ? UNIT_TO_METERS[settings.units] : 1;
+    const s = (settings?.scale ?? 1) * unitFactor;
+    // Z-up source → Y-up: rotate -90° around X.
+    const rotation: [number, number, number] =
+      settings?.upAxis === "z" ? [-Math.PI / 2, 0, 0] : [0, 0, 0];
     const obj: ModelObject = {
       id: newId("obj"),
       kind: "model",
@@ -1336,14 +1359,14 @@ export default function LevelEditorPage() {
       fileName: imported.fileName,
       sourceFormat: imported.sourceFormat,
       position,
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1],
+      rotation,
+      scale: [s, s, s],
       visible: true,
     };
     addObject(obj);
   };
 
-  const onUploadModel = async (file: File) => {
+  const runNativeImport = async (file: File, settings: CadImportSettings) => {
     const ext = extOf(file.name);
     if (!isNativeFormat(ext)) {
       toast.error(
@@ -1353,14 +1376,14 @@ export default function LevelEditorPage() {
     }
     try {
       const imported = await importModelFile(file);
-      await addImportedAsObject(imported);
+      await addImportedAsObject(imported, settings);
       toast.success(`Imported ${file.name}`);
     } catch (e: any) {
       toast.error(e?.message || "Failed to import model");
     }
   };
 
-  const onUploadCad = async (file: File) => {
+  const runCadImport = async (file: File, settings: CadImportSettings) => {
     const ext = extOf(file.name);
     if (!isCadFormat(ext)) {
       toast.error(
@@ -1377,9 +1400,9 @@ export default function LevelEditorPage() {
         supabase.functions.invoke(fn, opts) as any;
       const imported =
         ext === "dwg"
-          ? await convertDwg(file, invoke)
+          ? await convertDwg(file, invoke, { format: settings.outputFormat })
           : await convertCadViaAps(file, invoke);
-      await addImportedAsObject(imported);
+      await addImportedAsObject(imported, settings);
       toast.success(`Imported ${file.name}`, { id: tid });
     } catch (e: any) {
       toast.error(e?.message || "Conversion failed", { id: tid });
@@ -1387,6 +1410,11 @@ export default function LevelEditorPage() {
       setCadConverting(false);
     }
   };
+
+  /** Entry points wired to the file inputs — they queue the file and
+   *  open the import-settings dialog before touching the pipeline. */
+  const onUploadModel = (file: File) => setPendingImport({ file, isCad: false });
+  const onUploadCad = (file: File) => setPendingImport({ file, isCad: true });
 
   /* ---------- place on atlas ---------- */
 
@@ -2869,6 +2897,20 @@ export default function LevelEditorPage() {
       />
 
       <ShareDialog open={!!shareTarget} onOpenChange={(v) => !v && setShareTarget(null)} file={shareTarget} />
+
+      <CadImportSettingsDialog
+        open={!!pendingImport}
+        fileName={pendingImport?.file.name ?? null}
+        isCad={pendingImport?.isCad ?? false}
+        onCancel={() => setPendingImport(null)}
+        onConfirm={(settings) => {
+          const pi = pendingImport;
+          setPendingImport(null);
+          if (!pi) return;
+          if (pi.isCad) void runCadImport(pi.file, settings);
+          else void runNativeImport(pi.file, settings);
+        }}
+      />
     </div>
   );
 }
