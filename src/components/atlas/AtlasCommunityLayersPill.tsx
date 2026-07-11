@@ -11,21 +11,26 @@
  * localStorage — see `src/lib/atlasIonLayers.ts`.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronUp, Eye, EyeOff, Key, Layers, Locate, Plus, Search, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, ChevronUp, Eye, EyeOff, Key, Layers, Loader2, Locate, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { type Viewer } from "cesium";
 import {
   addCustomIonLayer,
   flyToIonLayer,
   ensureIonLayer,
   getAssetIdOverride,
+  getIonLayerValidation,
   getIonLayerEnabled,
   ION_LAYER_CATALOG,
+  type IonAssetValidation,
   listCustomIonLayers,
+  onIonValidationChange,
   removeCustomIonLayer,
   removeIonLayerPrimitive,
   resolveAssetId,
   setAssetIdOverride,
   setIonLayerEnabled,
+  validateEnabledIonLayers,
+  validateIonLayer,
   type IonLayerEntry,
 } from "@/lib/atlasIonLayers";
 
@@ -57,6 +62,10 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
     };
   }, [open]);
 
+  // Re-render whenever any layer validation status changes (so the row dots
+  // update while an async check is running).
+  useEffect(() => onIonValidationChange(() => setTick((t) => t + 1)), []);
+
   const entries: IonLayerEntry[] = useMemo(
     () => [...ION_LAYER_CATALOG, ...listCustomIonLayers()],
     [tick],
@@ -78,8 +87,12 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
       setAssetIdOverride(e.id, id);
     }
     setIonLayerEnabled(e.id, next);
-    if (next) await ensureIonLayer(v, e, true);
-    else {
+    if (next) {
+      // Validate + stream in parallel. If validation fails the row shows red
+      // and streaming will also fail — user sees the reason inline.
+      void validateIonLayer(e, { force: true });
+      await ensureIonLayer(v, e, true);
+    } else {
       const map: Map<string, any> | undefined = (v as any).__ionCommunityTilesets;
       const ts = map?.get(e.id);
       if (ts) ts.show = false;
@@ -108,7 +121,10 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
     const entry = addCustomIonLayer(newName.trim(), assetId);
     setIonLayerEnabled(entry.id, true);
     const v = viewerRef.current;
-    if (v) await ensureIonLayer(v, entry, true);
+    if (v) {
+      void validateIonLayer(entry, { force: true });
+      await ensureIonLayer(v, entry, true);
+    }
     setNewId(""); setNewName("");
     setTick((t) => t + 1);
   };
@@ -123,6 +139,14 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
   const custom = entries.filter((e) => e.id.startsWith("custom-") && matches(e));
   const shownList = tab === "japan" ? japan : tab === "vexcel" ? vexcel : custom;
 
+  const enabledEntries = entries.filter((e) => getIonLayerEnabled(e.id));
+  const enabledIssues = enabledEntries.filter((e) => getIonLayerValidation(e.id).status !== "ok");
+
+  const revalidateAll = async () => {
+    await validateEnabledIonLayers();
+    setTick((t) => t + 1);
+  };
+
   return (
     <div ref={wrapRef} className="relative select-none">
       {open && (
@@ -132,10 +156,33 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
               <Layers className="w-3.5 h-3.5 text-fuchsia-300" />
               <span className="text-[11px] uppercase tracking-wider font-semibold">Ion 3D Layers</span>
             </div>
-            <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-white/10 text-white/60">
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={revalidateAll}
+                title="Re-validate all enabled layers"
+                className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-fuchsia-300"
+              >
+                <RefreshCw className="w-3 h-3" />
+              </button>
+              <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-white/10 text-white/60">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
+
+          {enabledEntries.length > 0 && (
+            <div className={`px-3 py-1.5 text-[10px] flex items-center gap-1.5 border-b border-white/10 ${
+              enabledIssues.length === 0
+                ? "bg-emerald-500/10 text-emerald-200"
+                : "bg-amber-500/10 text-amber-200"
+            }`}>
+              {enabledIssues.length === 0 ? (
+                <><Check className="w-3 h-3" /> All {enabledEntries.length} enabled layer{enabledEntries.length > 1 ? "s" : ""} validated · safe to place models</>
+              ) : (
+                <><AlertCircle className="w-3 h-3" /> {enabledIssues.length} of {enabledEntries.length} layer{enabledEntries.length > 1 ? "s" : ""} not usable — check red rows before placing</>
+              )}
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="flex items-center gap-1 px-2 pt-2">
@@ -188,8 +235,10 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
                 entry={e}
                 enabled={getIonLayerEnabled(e.id)}
                 assetIdOverride={getAssetIdOverride(e.id)}
+                validation={getIonLayerValidation(e.id)}
                 onToggle={() => toggle(e)}
                 onFly={() => fly(e)}
+                onValidate={() => { void validateIonLayer(e, { force: true }); }}
                 onSetAssetId={() => {
                   const raw = window.prompt(
                     `Set ion asset ID for ${e.name}`,
@@ -198,6 +247,7 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
                   const id = Number(raw?.trim());
                   if (Number.isFinite(id) && id > 0) {
                     setAssetIdOverride(e.id, id);
+                    void validateIonLayer(e, { force: true });
                     setTick((t) => t + 1);
                   }
                 }}
@@ -259,24 +309,39 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
 }
 
 function Row({
-  entry, enabled, assetIdOverride, onToggle, onFly, onRemove, onSetAssetId,
+  entry, enabled, assetIdOverride, validation, onToggle, onFly, onRemove, onSetAssetId, onValidate,
 }: {
   entry: IonLayerEntry;
   enabled: boolean;
   assetIdOverride?: number;
+  validation: IonAssetValidation;
   onToggle: () => void;
   onFly: () => void;
   onRemove?: () => void;
   onSetAssetId?: () => void;
+  onValidate?: () => void;
 }) {
   const effectiveAssetId = assetIdOverride ?? entry.assetId;
   const unconfigured = entry.needsAssetId && !assetIdOverride;
+  const status = validation.status;
+  const statusMeta = {
+    ok:        { color: "bg-emerald-400",  label: "Validated" },
+    error:     { color: "bg-red-500",      label: validation.error || "Failed" },
+    checking:  { color: "bg-amber-400 animate-pulse", label: "Checking…" },
+    unchecked: { color: "bg-white/25",     label: "Not yet validated" },
+  }[status];
   return (
     <div className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border transition-colors ${
+      enabled && status === "error" ? "bg-red-500/10 border-red-400/40" :
       enabled ? "bg-fuchsia-500/10 border-fuchsia-400/30" :
       unconfigured ? "bg-amber-500/[0.04] border-amber-400/15 hover:bg-amber-500/[0.08]"
       : "bg-white/[0.03] border-white/10 hover:bg-white/[0.06]"
     }`}>
+      {/* Status dot */}
+      <span
+        title={statusMeta.label}
+        className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusMeta.color}`}
+      />
       <button
         onClick={onToggle}
         title={unconfigured ? "Click to set ion asset ID + enable" : enabled ? "Hide layer" : "Show layer"}
@@ -286,12 +351,31 @@ function Row({
       </button>
       <div className="min-w-0 flex-1">
         <div className="text-[11px] font-medium truncate">{entry.name}</div>
-        <div className="text-[9px] text-white/45 truncate">
+        <div className={`text-[9px] truncate ${status === "error" && enabled ? "text-red-300" : "text-white/45"}`}>
           {unconfigured
             ? "Needs your ion asset ID · click key"
-            : (entry.description ?? `ion asset ${effectiveAssetId}`)}
+            : status === "error" && enabled
+              ? validation.error
+              : (entry.description ?? `ion asset ${effectiveAssetId}`)}
         </div>
       </div>
+      {onValidate && !unconfigured && (
+        <button
+          onClick={onValidate}
+          title={status === "ok" ? "Re-validate asset ID" : "Validate asset ID against Cesium ion"}
+          className="p-1 rounded text-white/40 hover:text-emerald-300 hover:bg-white/5"
+        >
+          {status === "checking" ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : status === "ok" ? (
+            <Check className="w-3.5 h-3.5 text-emerald-300" />
+          ) : status === "error" ? (
+            <AlertCircle className="w-3.5 h-3.5 text-red-300" />
+          ) : (
+            <RefreshCw className="w-3.5 h-3.5" />
+          )}
+        </button>
+      )}
       {onSetAssetId && (
         <button
           onClick={onSetAssetId}
