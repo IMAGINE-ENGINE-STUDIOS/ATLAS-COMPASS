@@ -41,6 +41,8 @@ import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
 import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
+import PlanetLayerPanel from "@/components/atlas/PlanetLayerPanel";
+import { hasPlanetLayerCatalog } from "@/lib/planets/trekCatalogs";
 import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
 import { MARS_LAYERS, createMarsImageryProvider, tuneMarsImageryLayer } from "@/lib/mars/marsProviders";
 import { createMolaMarsTerrainProvider } from "@/lib/mars/MolaTerrainProvider";
@@ -6164,8 +6166,22 @@ function SpaceshipPage({
       {isLoaded && !marsMode && (moonMode ? <EarthPill /> : <MoonPill />)}
 
       {/* Moon-only HUD: NASA layers + missions catalog. */}
-      {isLoaded && moonMode && !marsMode && viewerRef.current && (
+      {isLoaded && activeWorldId === "moon" && viewerRef.current && (
         <MoonPanels viewer={viewerRef.current} />
+      )}
+
+      {/* Layer/info pill for every other non-Earth world (Mars, Mercury,
+          Venus, Vesta, Ceres get a real layer picker; gas giants and the
+          Sun get an honest "reference sphere" note). */}
+      {isLoaded && activeWorldId !== "earth" && activeWorldId !== "moon" && viewerRef.current && (
+        <PlanetLayerPanel
+          viewer={viewerRef.current}
+          worldId={activeWorldId}
+          worldName={activeWorldName}
+          isReferenceSphere={
+            activeWorldId !== "mars" && !hasPlanetLayerCatalog(activeWorldId)
+          }
+        />
       )}
 
       <style>{`@keyframes atlasEmergencyPulse {
