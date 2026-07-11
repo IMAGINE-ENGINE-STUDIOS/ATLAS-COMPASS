@@ -74,6 +74,8 @@ async function fetchBody(body: Body, jd: number) {
   return parseVector(body, String(json?.result ?? ''));
 }
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -92,7 +94,19 @@ Deno.serve(async (req) => {
     }
 
     const jd = julianNow();
-    const fetched = await Promise.all(BODIES.map((body) => fetchBody(body, jd)));
+    const fetched = [];
+    // Horizons can reject bursty parallel traffic with transient 503s. Query
+    // sequentially with a tiny gap so every vector still comes from the live
+    // NASA/JPL service without hammering it.
+    for (const body of BODIES) {
+      try {
+        fetched.push(await fetchBody(body, jd));
+      } catch (_firstErr) {
+        await wait(180);
+        fetched.push(await fetchBody(body, jd));
+      }
+      await wait(80);
+    }
     const body = JSON.stringify({
       source: 'NASA/JPL Horizons',
       center: 'Earth body center',
