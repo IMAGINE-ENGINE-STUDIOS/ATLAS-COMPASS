@@ -3335,7 +3335,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if (viewer.isDestroyed()) return;
       const now = performance.now();
       if (now - __lastAltEmit < 250) return;
-      const carto = Cartographic.fromCartesian(viewer.camera.position);
+      const carto = Cartographic.fromCartesian(
+        viewer.camera.position,
+        isMoon ? Ellipsoid.MOON : undefined
+      );
       const h = carto.height;
       if (Math.abs(h - __lastAltVal) < 0.5) return;
       __lastAltEmit = now;
