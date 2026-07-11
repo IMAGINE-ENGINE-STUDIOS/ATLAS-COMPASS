@@ -8343,10 +8343,13 @@ class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
   }
 }
 
-export default function AtlasPage({ moonMode = false }: { moonMode?: boolean } = {}) {
+export default function AtlasPage({
+  moonMode = false,
+  marsMode = false,
+}: { moonMode?: boolean; marsMode?: boolean } = {}) {
   return (
     <AtlasErrorBoundary>
-      <SpaceshipPage moonMode={moonMode} />
+      <SpaceshipPage moonMode={moonMode} marsMode={marsMode} />
     </AtlasErrorBoundary>
   );
 }
