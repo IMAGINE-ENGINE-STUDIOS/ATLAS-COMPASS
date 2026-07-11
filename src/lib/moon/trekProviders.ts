@@ -56,7 +56,7 @@ export const MOON_LAYERS: MoonLayerDef[] = [
     category: "basemap",
     wmtsLayer: "LRO_WAC_Mosaic_Global_303ppd_v02",
     ext: "jpg",
-    maximumLevel: 7,
+    maximumLevel: 9,
     credit: "NASA / GSFC / LROC / ASU · LRO WAC Global Mosaic",
     description:
       "Grayscale photographic mosaic of the entire Moon at 100 m/px, from the Lunar Reconnaissance Orbiter Camera Wide Angle Camera.",
@@ -69,7 +69,7 @@ export const MOON_LAYERS: MoonLayerDef[] = [
     category: "basemap",
     wmtsLayer: "LRO_WAC_ClrShade_Global_128ppd_v04",
     ext: "jpg",
-    maximumLevel: 6,
+    maximumLevel: 8,
     credit: "NASA / LOLA / LROC · Color shaded relief",
     description:
       "Colorized shaded relief blending LOLA elevation with LRO WAC imagery — the closest thing to a photographic Moon.",
@@ -81,7 +81,7 @@ export const MOON_LAYERS: MoonLayerDef[] = [
     category: "elevation",
     wmtsLayer: "LRO_LOLA_ClrShade_Global_128ppd_v04",
     ext: "jpg",
-    maximumLevel: 6,
+    maximumLevel: 8,
     credit: "NASA / GSFC / LOLA · Color hillshade",
     description:
       "LOLA-derived color-coded elevation from the Lunar Orbiter Laser Altimeter. Purple = low, red = high.",
