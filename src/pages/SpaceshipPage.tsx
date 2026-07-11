@@ -461,6 +461,7 @@ interface CursorInfo {
 
 interface POI {
   id: string;
+  world?: string;
   name: string;
   description: string;
   notes: string;
@@ -472,6 +473,7 @@ interface POI {
 
 interface PlacedModel {
   id: string;
+  world?: string;
   name: string;
   fileName: string;
   lat: number;
@@ -522,31 +524,60 @@ const POI_STORAGE_KEY = "nexus-spaceship-pois";
 const MODELS_STORAGE_KEY = "nexus-spaceship-models";
 const MOON_MODELS_STORAGE_KEY = "nexus-spaceship-moon-models";
 
-function loadPOIs(): POI[] {
+const normalizeAtlasWorldId = (world?: string | null) => (
+  (world || "earth").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) || "earth"
+);
+
+const poiStorageKeyForWorld = (world?: string | null) => {
+  const w = normalizeAtlasWorldId(world);
+  return w === "earth" ? POI_STORAGE_KEY : `${POI_STORAGE_KEY}:${w}`;
+};
+
+const modelStorageKeyForWorld = (world?: string | null) => {
+  const w = normalizeAtlasWorldId(world);
+  if (w === "earth") return MODELS_STORAGE_KEY;
+  if (w === "moon") return MOON_MODELS_STORAGE_KEY;
+  return `${MODELS_STORAGE_KEY}:${w}`;
+};
+
+const currentAtlasWorldId = () => normalizeAtlasWorldId((window as any).__atlasWorldId ?? ((window as any).__atlasMoonMode ? "moon" : "earth"));
+
+const cameraStorageKeyForWorld = (world?: string | null) => {
+  const w = normalizeAtlasWorldId(world);
+  return w === "earth" ? "atlas_camera" : `atlas_camera:${w}`;
+};
+
+function loadPOIs(world = "earth"): POI[] {
   try {
-    const stored = localStorage.getItem(POI_STORAGE_KEY);
+    const w = normalizeAtlasWorldId(world);
+    const stored = localStorage.getItem(poiStorageKeyForWorld(w));
     if (!stored) return [];
     return JSON.parse(stored).map((p: any) => ({
       ...p,
+      world: p.world ?? w,
       description: p.description || "",
       notes: p.notes || "",
     }));
   } catch { return []; }
 }
 
-function savePOIs(pois: POI[]) {
-  localStorage.setItem(POI_STORAGE_KEY, JSON.stringify(pois));
+function savePOIs(pois: POI[], world = currentAtlasWorldId()) {
+  const w = normalizeAtlasWorldId(world);
+  localStorage.setItem(poiStorageKeyForWorld(w), JSON.stringify(pois.map((p) => ({ ...p, world: p.world ?? w }))));
 }
 
-function loadPlacedModels(isMoon = false): PlacedModel[] {
+function loadPlacedModels(worldOrMoon: string | boolean = "earth"): PlacedModel[] {
   try {
-    const stored = localStorage.getItem(isMoon ? MOON_MODELS_STORAGE_KEY : MODELS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const world = typeof worldOrMoon === "boolean" ? (worldOrMoon ? "moon" : "earth") : worldOrMoon;
+    const w = normalizeAtlasWorldId(world);
+    const stored = localStorage.getItem(modelStorageKeyForWorld(w));
+    return stored ? JSON.parse(stored).map((m: any) => ({ ...m, world: m.world ?? w })) : [];
   } catch { return []; }
 }
 
-function savePlacedModels(models: PlacedModel[]) {
-  localStorage.setItem((window as any).__atlasMoonMode ? MOON_MODELS_STORAGE_KEY : MODELS_STORAGE_KEY, JSON.stringify(models));
+function savePlacedModels(models: PlacedModel[], world = currentAtlasWorldId()) {
+  const w = normalizeAtlasWorldId(world);
+  localStorage.setItem(modelStorageKeyForWorld(w), JSON.stringify(models.map((m) => ({ ...m, world: m.world ?? w }))));
 }
 
 /* ── Preset Locations ── */
