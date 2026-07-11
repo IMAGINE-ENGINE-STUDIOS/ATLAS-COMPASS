@@ -3077,7 +3077,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
     // Restore last camera viewport if available, else open at full global view.
     let restoredCamera = false;
-    try {
+    // Moon world: don't restore Earth-cached camera (would be inside the Moon).
+    if (!isMoon) try {
       const saved = localStorage.getItem("atlas_camera");
       if (saved) {
         const s = JSON.parse(saved);
@@ -3096,7 +3097,9 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     } catch {}
     if (!restoredCamera) {
       viewer.camera.setView({
-        destination: Cartesian3.fromDegrees(0, 20, 20000000),
+        destination: isMoon
+          ? Cartesian3.fromDegrees(0, 0, 4_000_000, Ellipsoid.MOON)
+          : Cartesian3.fromDegrees(0, 20, 20000000),
         orientation: {
           heading: CesiumMath.toRadians(0),
           pitch: CesiumMath.toRadians(-90),
