@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Cartesian3, SceneTransforms, type Viewer } from "cesium";
+import { Cartesian3, Ellipsoid, SceneTransforms, type Viewer } from "cesium";
 import { Star } from "lucide-react";
 import { MODEL_CATEGORIES, getCategory } from "./ModelLabelsOverlay";
 import { isSelected, subscribeSelection } from "@/lib/atlasSelection";
 
 const EARTH_RADIUS_M = 6371000;
 
-function isWorldPointInFrontViewport(viewer: Viewer, world: Cartesian3, margin = 24) {
+function isWorldPointInFrontViewport(viewer: Viewer, world: Cartesian3, margin = 24, horizonRadius = EARTH_RADIUS_M) {
   const camera = viewer.camera;
   const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
   if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) return null;
   // Reject anchors hidden by the far side of the planet. Without this, Cesium's
   // window projection can place labels for points behind the globe over the view.
-  if (Cartesian3.dot(world, camera.positionWC) < EARTH_RADIUS_M * EARTH_RADIUS_M) return null;
+  if (Cartesian3.dot(world, camera.positionWC) < horizonRadius * horizonRadius) return null;
   const win = SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
   if (!win) return null;
   const canvas = viewer.scene.canvas;
@@ -33,7 +33,7 @@ function faviconFor(website?: string): string | null {
 }
 
 export interface AtlasTag {
-  kind: "biz" | "poi" | "market";
+  kind: "biz" | "poi" | "market" | "moon-mission" | "moon-probe";
   id: string;
   name: string;
   lat: number;
@@ -60,6 +60,8 @@ interface Props {
   clusterDistancePx?: number;
   /** Minimum members for a cluster to be rendered. Singles stay as billboards. */
   minMembers?: number;
+  ellipsoid?: Ellipsoid;
+  horizonRadius?: number;
 }
 
 /**
@@ -70,6 +72,8 @@ interface Props {
 export default function AtlasTagsOverlay({
   viewer, tags, onSelect,
   clusterDistancePx = 64, minMembers = 1,
+  ellipsoid = Ellipsoid.WGS84,
+  horizonRadius = EARTH_RADIUS_M,
 }: Props) {
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [, forceRerender] = useState(0);
@@ -83,8 +87,8 @@ export default function AtlasTagsOverlay({
     const visible: { tag: AtlasTag; x: number; y: number; cellX: number; cellY: number }[] = [];
     for (const t of tags) {
       try {
-        const world = Cartesian3.fromDegrees(t.lng, t.lat, (t.alt || 0) + 8);
-        const win = isWorldPointInFrontViewport(viewer, world);
+        const world = Cartesian3.fromDegrees(t.lng, t.lat, (t.alt || 0) + 8, ellipsoid);
+        const win = isWorldPointInFrontViewport(viewer, world, 24, horizonRadius);
         if (!win) continue;
         visible.push({
           tag: t,
@@ -157,7 +161,7 @@ export default function AtlasTagsOverlay({
           anchorAlt: c.anchorAlt,
         })),
     );
-  }, [viewer, tags, clusterDistancePx, minMembers]);
+  }, [viewer, tags, clusterDistancePx, minMembers, ellipsoid, horizonRadius]);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
@@ -195,8 +199,8 @@ export default function AtlasTagsOverlay({
         if (!node) continue;
         let x = 0, y = 0;
         try {
-          const world = Cartesian3.fromDegrees(c.anchorLng, c.anchorLat, c.anchorAlt + 8);
-          const win = isWorldPointInFrontViewport(viewer, world, 32);
+          const world = Cartesian3.fromDegrees(c.anchorLng, c.anchorLat, c.anchorAlt + 8, ellipsoid);
+          const win = isWorldPointInFrontViewport(viewer, world, 32, horizonRadius);
           if (!win) { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
           x = win.x; y = win.y;
         } catch { node.style.opacity = "0"; node.style.pointerEvents = "none"; continue; }
@@ -208,7 +212,7 @@ export default function AtlasTagsOverlay({
     sync();
     const remove = viewer.scene.postRender.addEventListener(sync);
     return () => { remove(); };
-  }, [viewer, clusters]);
+  }, [viewer, clusters, ellipsoid, horizonRadius]);
 
   if (!viewer) return null;
 

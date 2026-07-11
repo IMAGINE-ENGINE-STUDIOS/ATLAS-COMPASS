@@ -46,6 +46,7 @@ import {
   MOON_LAYERS,
   createMoonImageryProvider,
 } from "@/lib/moon/trekProviders";
+import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
 import { restoreEnabledIonLayers } from "@/lib/atlasIonLayers";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
@@ -505,6 +506,7 @@ const DEFAULT_CROP_BASE = (radiusMeters: number): CropBase => {
 
 const POI_STORAGE_KEY = "nexus-spaceship-pois";
 const MODELS_STORAGE_KEY = "nexus-spaceship-models";
+const MOON_MODELS_STORAGE_KEY = "nexus-spaceship-moon-models";
 
 function loadPOIs(): POI[] {
   try {
@@ -522,18 +524,15 @@ function savePOIs(pois: POI[]) {
   localStorage.setItem(POI_STORAGE_KEY, JSON.stringify(pois));
 }
 
-function loadPlacedModels(): PlacedModel[] {
+function loadPlacedModels(isMoon = false): PlacedModel[] {
   try {
-    const stored = localStorage.getItem(MODELS_STORAGE_KEY);
+    const stored = localStorage.getItem(isMoon ? MOON_MODELS_STORAGE_KEY : MODELS_STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch { return []; }
 }
 
 function savePlacedModels(models: PlacedModel[]) {
-  // Guarded by callers: on the Moon we intentionally skip Earth-model
-  // persistence so a moon-session doesn't stomp the user's Earth models.
-  if ((window as any).__atlasMoonMode) return;
-  localStorage.setItem(MODELS_STORAGE_KEY, JSON.stringify(models));
+  localStorage.setItem((window as any).__atlasMoonMode ? MOON_MODELS_STORAGE_KEY : MODELS_STORAGE_KEY, JSON.stringify(models));
 }
 
 /* ── Preset Locations ── */
@@ -951,6 +950,16 @@ function flyCameraToTarget(
   viewer.trackedEntity = undefined;
   viewer.selectedEntity = undefined;
 
+  if ((viewer as any).__moonMode) {
+    flyToMoonCoord(viewer, target.lng, target.lat, {
+      altitude: options.range ?? 1800,
+      heading: options.headingDeg ?? 0,
+      pitch: options.pitchDeg ?? -38,
+      duration: options.duration ?? 1.6,
+    });
+    return;
+  }
+
   const targetAltitude = Math.max(target.alt ?? 0, 0) + 8;
   const center = Cartesian3.fromDegrees(target.lng, target.lat, targetAltitude);
   const sphere = new BoundingSphere(center, options.radius ?? 80);
@@ -1280,7 +1289,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // Fly the camera to the new placement so the user sees the cube immediately.
     try {
       viewerRef.current?.camera.flyTo({
-        destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500),
+        destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
         duration: 1.2,
       });
     } catch {}
@@ -1333,7 +1342,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // lunar globe). New models placed on the Moon stay only in-session for
   // now until per-world persistence lands.
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(
-    moonMode ? [] : loadPlacedModels,
+    () => loadPlacedModels(moonMode),
   );
   // ── Undo / Redo for stamp + tile placements ──
   // We snapshot the `placedModels` array before any mutation that changes the
@@ -1417,6 +1426,17 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   const tilesToolRef = useRef<TilesToolExt>("grid");
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
+  const cartesianFromDegrees = useCallback((lng: number, lat: number, height = 0) => (
+    Cartesian3.fromDegrees(lng, lat, height, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84)
+  ), []);
+  const cartesianArrayFromDegrees = useCallback((coords: number[]) => {
+    const out: Cartesian3[] = [];
+    for (let i = 0; i < coords.length - 1; i += 2) {
+      out.push(Cartesian3.fromDegrees(coords[i], coords[i + 1], 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84));
+    }
+    return out;
+  }, []);
+
   // Redraw/reposition the brush footprint decal. Called from the mouse-move
   // handler AND from the shape/radius/mode effects (so the shape refreshes
   // even when the cursor is stationary). Circle uses the ellipse entity,
@@ -1445,14 +1465,14 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const { x, y } = lngLatToTile(cursor.lat, cursor.lng, z);
       const b = tileBounds(x, y, z);
       const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b);
-      poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+      poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
       poly.show = wantIndicator;
       circle.show = false;
       return;
     }
 
     if (shape === "circle") {
-      circle.position = Cartesian3.fromDegrees(cursor.lng, cursor.lat, 0) as any;
+      circle.position = cartesianFromDegrees(cursor.lng, cursor.lat, 0) as any;
       if (circle.ellipse) {
         circle.ellipse.semiMajorAxis = radius as any;
         circle.ellipse.semiMinorAxis = radius as any;
@@ -1463,7 +1483,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     }
 
     const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape);
-    poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+    poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
     poly.show = wantIndicator;
     circle.show = false;
   }, [tileZoom]);
@@ -1523,13 +1543,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed() || !entity) return;
     entity.show = false;
-    const carto = Cartographic.fromDegrees(lng, lat);
+    const carto = Cartographic.fromDegrees(lng, lat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
     const reveal = (height: number | null) => {
       if (!viewer || viewer.isDestroyed()) return;
       if (typeof height === "number" && isFinite(height)) {
         // +0.5m lift so the billboard's base sits ABOVE the tile surface,
         // never co-planar with (or below) it.
-        entity.position = Cartesian3.fromDegrees(lng, lat, height + 0.5);
+        entity.position = Cartesian3.fromDegrees(lng, lat, height + 0.5, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
       }
       entity.show = true;
       viewer.scene.requestRender?.();
@@ -1731,8 +1751,20 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  /* ── Web Mercator XYZ tile math (matches OSM / slippy tiles) ── */
+  /* ── Tile math ─────────────────────────────────────────────────────────────
+     Earth uses Web Mercator XYZ. Moon uses NASA Trek's lunar geographic grid
+     (2×1 root tiles, equirectangular lat/lon), so tile selection aligns with
+     the Moon imagery/LOLA layers instead of Earth slippy-map math. */
   const lngLatToTile = (lat: number, lng: number, z: number) => {
+    if (moonModeRef.current) {
+      const xCount = 2 ** (z + 1);
+      const yCount = 2 ** z;
+      const clampedLat = Math.max(-89.999999, Math.min(89.999999, lat));
+      const normLng = ((lng + 180) % 360 + 360) % 360;
+      const x = Math.floor((normLng / 360) * xCount);
+      const y = Math.floor(((90 - clampedLat) / 180) * yCount);
+      return { x: Math.max(0, Math.min(xCount - 1, x)), y: Math.max(0, Math.min(yCount - 1, y)) };
+    }
     const n = Math.pow(2, z);
     const x = Math.floor(((lng + 180) / 360) * n);
     const latRad = (lat * Math.PI) / 180;
@@ -1742,6 +1774,14 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     return { x: Math.max(0, Math.min(n - 1, x)), y: Math.max(0, Math.min(n - 1, y)) };
   };
   const tileToLngLat = (x: number, y: number, z: number) => {
+    if (moonModeRef.current) {
+      const xCount = 2 ** (z + 1);
+      const yCount = 2 ** z;
+      return {
+        lng: (x / xCount) * 360 - 180,
+        lat: 90 - (y / yCount) * 180,
+      };
+    }
     const n = Math.pow(2, z);
     const lng = (x / n) * 360 - 180;
     const latRad = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n)));
@@ -1753,7 +1793,9 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     return { north: nw.lat, west: nw.lng, south: se.lat, east: se.lng };
   };
   const tileSizeMeters = (lat: number, z: number) =>
-    (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, z);
+    moonModeRef.current
+      ? (2 * Math.PI * Ellipsoid.MOON.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / Math.pow(2, z + 1)
+      : (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, z);
   const tileKey = (z: number, x: number, y: number): string => `${z}/${x}/${y}`;
   const parseTileKey = (k: string) => {
     const [z, x, y] = k.split("/").map(Number);
@@ -1902,17 +1944,22 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const compute = () => {
       try {
         const cam = viewer.camera;
-        const carto = cam.positionCartographic;
+        const carto = Cartographic.fromCartesian(
+          cam.position,
+          moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+        );
         if (!carto) return;
         const lat = CesiumMath.toDegrees(carto.latitude);
-        const height = Math.max(1, carto.height); // meters above ellipsoid
+        const height = Math.max(1, carto.height); // meters above active ellipsoid
         const canvasH = viewer.scene.canvas.clientHeight || viewer.scene.canvas.height || 800;
         const fovy = (cam.frustum as any).fovy ?? Math.PI / 3;
         // meters per screen pixel at the camera nadir distance
         const mpp = (2 * height * Math.tan(fovy / 2)) / canvasH;
         if (!isFinite(mpp) || mpp <= 0) return;
-        const z = Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / mpp);
-        const clamped = Math.max(1, Math.min(22, Math.round(z)));
+        const z = moonModeRef.current
+          ? Math.log2((2 * Math.PI * Ellipsoid.MOON.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / (512 * mpp))
+          : Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / mpp);
+        const clamped = Math.max(1, Math.min(moonModeRef.current ? 12 : 22, Math.round(z)));
         setTileZoom((prev) => (prev === clamped ? prev : clamped));
       } catch {
         // ignore transient camera reads
@@ -3293,7 +3340,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const cartesian = viewer.scene.pickPosition(screenPos)
         || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
       if (!defined(cartesian)) return null;
-      const carto = Cartographic.fromCartesian(cartesian);
+      const carto = Cartographic.fromCartesian(
+        cartesian,
+        isMoon ? Ellipsoid.MOON : Ellipsoid.WGS84,
+      );
       return {
         lat: CesiumMath.toDegrees(carto.latitude),
         lng: CesiumMath.toDegrees(carto.longitude),
@@ -3406,7 +3456,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const now = performance.now();
       const dt = now - __lastFrameT;
       __lastFrameT = now;
-      const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position).height; } catch { return 0; } })();
+      const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position, isMoon ? Ellipsoid.MOON : Ellipsoid.WGS84).height; } catch { return 0; } })();
       // Moon-scale altitude threshold is much larger than Earth's due to
       // Cartographic.fromCartesian returning distance from the ellipsoid
       // surface (Moon radius is 1/4 of Earth's).
@@ -3445,6 +3495,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+    if (moonMode) return;
 
     // Cleanup
     cargoEntitiesRef.current.forEach((e) => {
@@ -3548,7 +3599,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     return () => {
       clickHandler.destroy();
     };
-  }, [showCargoRoutes, cargoFilter, cargoTypeFilter]);
+  }, [showCargoRoutes, cargoFilter, cargoTypeFilter, moonMode]);
 
   // ── Business/Store Icons on Globe ──
   const bizLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3557,6 +3608,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+    if (moonMode) return;
 
     // Clear existing business entities
     businessEntitiesRef.current.forEach(e => {
@@ -3741,11 +3793,12 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       removeListener();
       if (bizLoadTimerRef.current) clearTimeout(bizLoadTimerRef.current);
     };
-  }, [showBusinessIcons, geoCategory]);
+  }, [showBusinessIcons, geoCategory, moonMode]);
 
   // ── Auto-refresh search results after camera drifts outside searched area
   // and stays still for 2 seconds. Only active when a category search is live.
   useEffect(() => {
+    if (moonMode) return;
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const onMoveEnd = () => {
@@ -3778,12 +3831,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       removeStart();
       if (autoRefreshTimerRef.current) { clearTimeout(autoRefreshTimerRef.current); autoRefreshTimerRef.current = null; }
     };
-  }, [loadCategoryBusinessesInstant]);
+  }, [loadCategoryBusinessesInstant, moonMode]);
 
   // ── Always-active click handler for business pin entities ──
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+    if (moonMode) return;
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((click: any) => {
       const picked = viewer.scene.pick(click.position);
@@ -3799,7 +3853,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
     return () => { handler.destroy(); };
-  }, [isLoaded]);
+  }, [isLoaded, moonMode]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -3814,7 +3868,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     if (aisWebSocketRef.current) { aisWebSocketRef.current.close(); aisWebSocketRef.current = null; }
     liveShipsRef.current.clear();
 
-    if (!showLiveTraffic) { setLiveTrafficStats({ planes: 0, ships: 0 }); return; }
+    if (moonMode || !showLiveTraffic) { setLiveTrafficStats({ planes: 0, ships: 0 }); return; }
 
     /* ── Aircraft from OpenSky ── */
     // B3: A slow network could otherwise let a 2nd interval tick fire while
@@ -4039,7 +4093,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if (aisWebSocketRef.current) { aisWebSocketRef.current.close(); aisWebSocketRef.current = null; }
       aircraftAbort?.abort();
     };
-  }, [showLiveTraffic]);
+  }, [showLiveTraffic, moonMode]);
 
   // Listen for double-click events from Cesium
   useEffect(() => {
@@ -4055,7 +4109,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const v = viewerRef.current;
         if (v) {
           try {
-            const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+          const carto = Cartographic.fromDegrees(loc.lng, loc.lat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
             const sampled = v.scene.sampleHeight(carto);
             if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
             else {
@@ -4074,7 +4128,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const viewer = viewerRef.current;
         if (viewer) {
           try {
-            const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+            const carto = Cartographic.fromDegrees(loc.lng, loc.lat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
             const sampled = viewer.scene.sampleHeight(carto);
             if (typeof sampled === "number" && !isNaN(sampled)) tileAlt = sampled;
             else {
@@ -4089,7 +4143,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         if (sub === "reticle") {
           setReticleTarget(snappedLoc);
           if (brushIndicatorRef.current && viewer) {
-            brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
+            brushIndicatorRef.current.position = cartesianFromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
           }
           return;
         }
@@ -4150,7 +4204,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         // Otherwise open the placement dialog so the user picks/uploads a model.
         setPendingPlacement(snappedLoc);
         if (brushIndicatorRef.current && viewer) {
-          brushIndicatorRef.current.position = Cartesian3.fromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
+          brushIndicatorRef.current.position = cartesianFromDegrees(snappedLoc.lng, snappedLoc.lat, snappedLoc.alt) as any;
         }
       }
       // Note: the earth context menu no longer opens on double-click —
@@ -4223,7 +4277,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         if (movedModel && viewerRef.current) {
           const entity = viewerRef.current.entities.getById(`model-${id}`);
           if (entity) {
-            const pos = Cartesian3.fromDegrees(movedModel.lng, movedModel.lat, movedModel.alt || 0);
+        const pos = Cartesian3.fromDegrees(movedModel.lng, movedModel.lat, movedModel.alt || 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
             const hpr = new HeadingPitchRoll(
               CesiumMath.toRadians(movedModel.heading || 0),
               CesiumMath.toRadians(movedModel.pitch || 0),
@@ -4344,7 +4398,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const ent = viewer.entities.add({
         id: `tile-${k}`,
         polygon: {
-          hierarchy: Cartesian3.fromDegreesArray(ring) as any,
+          hierarchy: cartesianArrayFromDegrees(ring) as any,
           material: Color.fromCssColorString("#10b981").withAlpha(0.22),
           outline: true,
           outlineColor: Color.fromCssColorString("#34d399").withAlpha(0.9),
@@ -4354,7 +4408,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       });
       map.set(k, ent);
     });
-  }, [selectedTiles, brushMode, brushSubMode, isLoaded]);
+  }, [selectedTiles, brushMode, brushSubMode, isLoaded, cartesianArrayFromDegrees]);
 
   // ── Tiles-mode: render lasso outline (in-progress polygon) ──
   useEffect(() => {
@@ -4366,7 +4420,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     }
     if (!(brushMode && brushSubMode === "tiles" && tilesTool === "lasso" && lassoPoints.length > 0)) return;
     const pts = lassoPoints.concat(lassoPoints.length > 2 ? [lassoPoints[0]] : []);
-    const positions = Cartesian3.fromDegreesArray(pts.flatMap(p => [p.lng, p.lat]));
+    const positions = cartesianArrayFromDegrees(pts.flatMap(p => [p.lng, p.lat]));
     lassoEntityRef.current = viewer.entities.add({
       id: "lasso-outline",
       polyline: {
@@ -4376,20 +4430,20 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         clampToGround: true,
       } as any,
     });
-  }, [lassoPoints, tilesTool, brushMode, brushSubMode]);
+  }, [lassoPoints, tilesTool, brushMode, brushSubMode, cartesianArrayFromDegrees]);
 
   // Keep the area-indicator entity in sync with center + radius
   useEffect(() => {
     const ent = areaEntityRef.current;
     if (!ent) return;
     if (areaCenter) {
-      ent.position = Cartesian3.fromDegrees(areaCenter.lng, areaCenter.lat, 0) as any;
+      ent.position = cartesianFromDegrees(areaCenter.lng, areaCenter.lat, 0) as any;
       if (ent.ellipse) {
         ent.ellipse.semiMajorAxis = areaRadiusM as any;
         ent.ellipse.semiMinorAxis = areaRadiusM as any;
       }
     }
-  }, [areaCenter, areaRadiusM]);
+  }, [areaCenter, areaRadiusM, cartesianFromDegrees]);
 
   // Marketplace pins — add/remove product billboard entities
   useEffect(() => {
@@ -4402,7 +4456,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     });
     marketplaceEntitiesRef.current = [];
 
-    if (!showMarketplacePins) return;
+    if (moonMode || !showMarketplacePins) return;
 
     const products = fetchMarketplaceProducts();
     products.forEach(p => {
@@ -4437,7 +4491,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     return () => handler.destroy();
-  }, [showMarketplacePins, isLoaded]);
+  }, [showMarketplacePins, isLoaded, moonMode]);
 
   /* ── Traffic camera pins (Intelligence layer) ── */
   useEffect(() => {
@@ -4449,7 +4503,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     });
     cameraEntitiesRef.current = [];
 
-    if (!intelligenceOpen || mapCameras.length === 0) return;
+    if (moonMode || !intelligenceOpen || mapCameras.length === 0) return;
 
     // Keep Intelligence cheap: camera pins compete with Realistic / Google 3D
     // tiles. Render a small nearby batch and avoid forcing high-detail tile
@@ -4486,11 +4540,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     return () => handler.destroy();
-  }, [mapCameras, intelligenceOpen, isLoaded]);
+  }, [mapCameras, intelligenceOpen, isLoaded, moonMode]);
 
   /* ── Refetch Intelligence cameras when the user pans/zooms the globe ── */
   useEffect(() => {
-    if (!intelligenceOpen) return;
+    if (moonMode || !intelligenceOpen) return;
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     let t: any = null;
@@ -4503,7 +4557,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if (t) clearTimeout(t);
       remove();
     };
-  }, [intelligenceOpen, isLoaded]);
+  }, [intelligenceOpen, isLoaded, moonMode]);
 
   /* ── Search-result pins on the globe (every dropdown item = a pin) ── */
   useEffect(() => {
@@ -4516,7 +4570,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     });
     searchResultEntitiesRef.current = [];
 
-    if (!searchOpen || unifiedResults.length === 0) return;
+    if (moonMode || !searchOpen || unifiedResults.length === 0) return;
 
     const colorByType: Record<string, string> = {
       Restaurant: "rgba(245,158,11,",
@@ -4562,7 +4616,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       searchResultEntitiesRef.current.push(entity);
       clampPinToSurface(entity, r.lng, r.lat);
     });
-  }, [unifiedResults, searchOpen, hoveredResultIdx, isLoaded]);
+  }, [unifiedResults, searchOpen, hoveredResultIdx, isLoaded, moonMode]);
 
   /* ── Search input handler: presets + unified OSM search ── */
   const handleSearch = useCallback((query: string) => {

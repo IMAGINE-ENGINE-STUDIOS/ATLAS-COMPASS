@@ -21,8 +21,10 @@ import {
 import MoonMissionEntities from "./MoonMissionEntities";
 import LiveOrbits from "./LiveOrbits";
 import EarthInMoonSky from "./EarthInMoonSky";
-import { ImageryLayer } from "cesium";
+import { Ellipsoid, ImageryLayer } from "cesium";
 import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
+import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
+import { LUNAR_ORBITERS, inertialToLatLonAlt, propagate } from "@/lib/moon/liveOrbits";
 
 interface Props {
   viewer: any;
@@ -65,6 +67,8 @@ export default function MoonPanels({ viewer }: Props) {
   const [yearRange, setYearRange] = useState<[number, number]>(yearBounds);
   const [missionsVisible, setMissionsVisible] = useState(true);
   const [selectedMission, setSelectedMission] = useState<MoonMission | null>(null);
+  const [moonLodSse, setMoonLodSse] = useState(6);
+  const [liveOrbitTags, setLiveOrbitTags] = useState<AtlasTag[]>([]);
 
   const allAgencies = useMemo(() => {
     const s = new Set<string>();
@@ -93,6 +97,52 @@ export default function MoonPanels({ viewer }: Props) {
     () => new Set(filteredMissions.map((m) => m.id)),
     [filteredMissions]
   );
+
+  const missionTags = useMemo<AtlasTag[]>(() => filteredMissions.map((m) => ({
+    kind: "moon-mission",
+    id: `moon-mission-${m.id}`,
+    name: m.name,
+    lat: m.lat,
+    lng: m.lon,
+    alt: 1200,
+    categoryId: m.status === "active" ? "shop" : m.kind === "planned" ? "other" : "landmark",
+    emoji: m.kind === "orbiter" ? "🛰️" : m.kind === "rover" ? "◈" : "☾",
+  })), [filteredMissions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const emit = () => {
+      const now = Date.now();
+      const tags = LUNAR_ORBITERS.map((o) => {
+        const ll = inertialToLatLonAlt(propagate(o, now), now);
+        return {
+          kind: "moon-probe" as const,
+          id: `moon-probe-${o.id}`,
+          name: o.name,
+          lat: ll.lat,
+          lng: ll.lon,
+          alt: ll.alt,
+          categoryId: "other",
+          emoji: "▲",
+        };
+      });
+      if (!cancelled) setLiveOrbitTags(tags);
+    };
+    emit();
+    const timer = window.setInterval(emit, 1000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    try {
+      viewer.scene.globe.maximumScreenSpaceError = moonLodSse;
+      viewer.scene.globe.preloadAncestors = true;
+      viewer.scene.globe.preloadSiblings = moonLodSse <= 6;
+      viewer.scene.globe.tileCacheSize = 1200;
+      viewer.scene.requestRender?.();
+    } catch {}
+  }, [viewer, moonLodSse]);
 
   // Sync ImageryLayer instances with layerState.
   useEffect(() => {
@@ -191,6 +241,25 @@ export default function MoonPanels({ viewer }: Props) {
         onSelect={setSelectedMission}
       />
 
+      {missionsVisible && (
+        <AtlasTagsOverlay
+          viewer={viewer}
+          tags={[...missionTags, ...liveOrbitTags]}
+          clusterDistancePx={72}
+          minMembers={1}
+          ellipsoid={Ellipsoid.MOON}
+          horizonRadius={Ellipsoid.MOON.maximumRadius}
+          onSelect={(tag) => {
+            if (tag.kind === "moon-mission") {
+              const m = MOON_MISSIONS.find((x) => `moon-mission-${x.id}` === tag.id);
+              if (m) flyToMission(m);
+            } else if (tag.kind === "moon-probe") {
+              window.dispatchEvent(new CustomEvent("moon:select-orbiter", { detail: { id: tag.id.replace("moon-probe-", "") } }));
+            }
+          }}
+        />
+      )}
+
       {/* Pills — top right, stacked */}
       <div className="fixed top-3 right-3 z-[70] flex flex-col gap-2 items-end">
         <button
@@ -221,6 +290,21 @@ export default function MoonPanels({ viewer }: Props) {
             <button onClick={() => setOpenPanel(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
           </div>
           <div className="p-3 space-y-4">
+            <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wider opacity-60">Moon LOD</div>
+                <div className="text-[10px] tabular-nums text-white/80">SSE {moonLodSse}px</div>
+              </div>
+              <input
+                type="range"
+                min={2}
+                max={16}
+                step={1}
+                value={moonLodSse}
+                onChange={(e) => setMoonLodSse(parseInt(e.target.value, 10))}
+                className="w-full accent-white"
+              />
+            </div>
             {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => (
               <div key={cat}>
                 <div className="text-[10px] uppercase tracking-wider opacity-60 mb-1.5">{CATEGORY_LABEL[cat]}</div>

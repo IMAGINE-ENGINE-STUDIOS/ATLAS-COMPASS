@@ -57,12 +57,13 @@ export default function LiveOrbits({ viewer }: Props) {
       if (now - lastEmit > 500) {
         lastEmit = now;
         setLiveMap({ ...liveMapRef.current });
+        try { viewer?.scene?.requestRender?.(); } catch {}
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [viewer]);
 
   // Add Cesium entities (one per orbiter). Position is a CallbackProperty
   // so Cesium re-samples every frame → smooth motion without React churn.
@@ -114,13 +115,7 @@ export default function LiveOrbits({ viewer }: Props) {
   // Click → open info card + fly toward the orbiter's current subpoint.
   useEffect(() => {
     if (!viewer) return;
-    const h = new ScreenSpaceEventHandler(viewer.scene.canvas);
-    h.setInputAction((e: any) => {
-      const picked = viewer.scene.pick(e.position);
-      const id = picked?.id?.properties?.orbiterId?.getValue?.();
-      if (!id) return;
-      const o = LUNAR_ORBITERS.find((x) => x.id === id);
-      if (!o) return;
+    const selectOrbiter = (o: OrbitElements) => {
       setSelected(o);
       const ll = liveMapRef.current[o.id];
       if (ll) {
@@ -129,8 +124,26 @@ export default function LiveOrbits({ viewer }: Props) {
           pitch: -35,
         });
       }
+    };
+    const h = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    h.setInputAction((e: any) => {
+      const picked = viewer.scene.pick(e.position);
+      const id = picked?.id?.properties?.orbiterId?.getValue?.();
+      if (!id) return;
+      const o = LUNAR_ORBITERS.find((x) => x.id === id);
+      if (!o) return;
+      selectOrbiter(o);
     }, ScreenSpaceEventType.LEFT_CLICK);
-    return () => { try { h.destroy(); } catch {} };
+    const onSelect = (event: Event) => {
+      const id = (event as CustomEvent).detail?.id;
+      const o = LUNAR_ORBITERS.find((x) => x.id === id);
+      if (o) selectOrbiter(o);
+    };
+    window.addEventListener("moon:select-orbiter", onSelect as EventListener);
+    return () => {
+      try { h.destroy(); } catch {}
+      window.removeEventListener("moon:select-orbiter", onSelect as EventListener);
+    };
   }, [viewer]);
 
   // Silence unused import warning (JulianDate reserved for a future
