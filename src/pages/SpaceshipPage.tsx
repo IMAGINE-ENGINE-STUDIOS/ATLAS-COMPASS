@@ -2979,13 +2979,33 @@ function SpaceshipPage({
       // Keep a rocky fallback disc under NASA Trek imagery so the planet
       // never vanishes if tiles are delayed. Colour matches the world.
       viewer.scene.globe.baseColor = Color.fromCssColorString(
-        marsModeRef.current ? "#8b3a17" : "#8f8b83",
+        marsModeRef.current
+          ? "#8b3a17"
+          : (genericPlanetRef.current ? (genericPlanetEntry?.color ?? "#555") : "#8f8b83"),
       );
       (viewer.scene.globe as any).translucency && ((viewer.scene.globe as any).translucency.enabled = false);
       // Non-Earth datasets read as map/albedo layers — no lighting, no sun.
       viewer.scene.globe.enableLighting = false;
       viewer.scene.sun && (viewer.scene.sun.show = false);
-      if (marsModeRef.current) {
+      if (genericPlanetRef.current && genericPlanetEntry) {
+        // Generic planet — no NASA Trek WMTS available.  Drape the
+        // highest-res NASA-derived albedo texture as a single equirect
+        // tile so the ellipsoid gains a real photographic surface.
+        try {
+          viewer.imageryLayers.removeAll(true);
+          const provider = new (SingleTileImageryProvider as any)({
+            url: genericPlanetEntry.textureUrl,
+            tilingScheme: new GeographicTilingScheme(),
+            rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+          });
+          const layer = new ImageryLayer(provider, {});
+          layer.brightness = 1.05;
+          layer.saturation = 1.15;
+          viewer.imageryLayers.add(layer);
+        } catch (err) {
+          console.warn("[Atlas planet] imagery failed", err);
+        }
+      } else if (marsModeRef.current) {
         // Mars world — NASA Mars Trek imagery. Terrain stays as the ellipsoid
         // surface (Cesium has no bundled Mars terrain provider); LOLA math
         // would be wrong here so we skip it.
