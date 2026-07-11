@@ -57,8 +57,8 @@ export async function gltfUrlToUsdz(url: string): Promise<Blob> {
   const scene = await loadGltfScene(url);
   ensureStandardMaterials(scene);
   const exporter = new USDZExporter();
-  const bytes = await exporter.parse(scene);
-  return new Blob([bytes], { type: "model/vnd.usdz+zip" });
+  const bytes = await exporter.parseAsync(scene);
+  return new Blob([bytes as BlobPart], { type: "model/vnd.usdz+zip" });
 }
 
 export function downloadBlob(blob: Blob, fileName: string) {
