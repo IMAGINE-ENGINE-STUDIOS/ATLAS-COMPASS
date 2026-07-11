@@ -7009,6 +7009,24 @@ function SpaceshipPage() {
                     <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">
                       Placed models · {placedModels.length}
                     </p>
+                    <div className="flex items-center gap-1" data-history-tick={historyTick}>
+                      <button
+                        onClick={undoPlacement}
+                        disabled={undoStackRef.current.length === 0}
+                        title={`Undo placement (${undoStackRef.current.length}) · ⌘Z`}
+                        className="p-1 rounded text-white/60 hover:text-emerald-300 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/60"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={redoPlacement}
+                        disabled={redoStackRef.current.length === 0}
+                        title={`Redo placement (${redoStackRef.current.length}) · ⇧⌘Z`}
+                        className="p-1 rounded text-white/60 hover:text-emerald-300 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/60"
+                      >
+                        <RotateCw className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   {placedModels.length === 0 ? (
                     <p className="text-[10.5px] text-white/40 text-center py-2">
