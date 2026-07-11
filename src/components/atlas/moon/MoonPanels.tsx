@@ -249,7 +249,7 @@ export default function MoonPanels({ viewer }: Props) {
 
   const flyToMission = (m: MoonMission) => {
     if (!viewer) return;
-    try { flyToMoonCoord(viewer, m.lon, m.lat, { altitude: 60_000, pitch: -45 }); } catch {}
+    try { flyToMoonCoord(viewer, m.lon, m.lat, { altitude: 180_000 }); } catch {}
     setSelectedMission(m);
   };
 

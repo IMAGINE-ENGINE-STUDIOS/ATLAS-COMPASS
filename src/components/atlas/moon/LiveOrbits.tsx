@@ -120,8 +120,7 @@ export default function LiveOrbits({ viewer }: Props) {
       const ll = liveMapRef.current[o.id];
       if (ll) {
         flyToMoonCoord(viewer, ll.lon, ll.lat, {
-          altitude: Math.max(150_000, ll.alt * 2.2),
-          pitch: -35,
+          altitude: Math.max(220_000, ll.alt * 2.8),
         });
       }
     };
