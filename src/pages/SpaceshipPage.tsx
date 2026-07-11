@@ -4985,7 +4985,7 @@ function SpaceshipPage({
     if (!viewerRef.current) return;
     viewerRef.current.entities.add({
       id: `poi-${poi.id}`,
-      position: Cartesian3.fromDegrees(poi.lng, poi.lat),
+      position: Cartesian3.fromDegrees(poi.lng, poi.lat, poi.alt ?? 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
       name: poi.name,
       label: {
         text: `📍 ${poi.name}`, font: "13px Inter, sans-serif",
@@ -5005,6 +5005,7 @@ function SpaceshipPage({
   const confirmPOI = useCallback(() => {
     if (!namingPOI || !poiName.trim()) return;
     const newPoi: POI = {
+      world: currentAtlasWorldId(),
       id: crypto.randomUUID(), name: poiName.trim(), description: poiDescription.trim(),
       notes: "", lat: namingPOI.lat, lng: namingPOI.lng, alt: namingPOI.alt, createdAt: Date.now(),
     };
@@ -5043,10 +5044,12 @@ function SpaceshipPage({
   // Load saved POIs onto globe when viewer is ready
   useEffect(() => {
     if (!isLoaded || !viewerRef.current) return;
-    // Moon world: skip loading Earth-anchored POIs onto the lunar globe.
-    if (moonMode) return;
+    pois.forEach((p) => {
+      const entity = viewerRef.current?.entities.getById(`poi-${p.id}`);
+      if (entity) viewerRef.current?.entities.remove(entity);
+    });
     pois.forEach(addPOIToGlobe);
-  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, pois, addPOIToGlobe]);
 
   /* ── Tile Brush / 3D Model Placement ── */
   const applyModelTransformToEntity = useCallback((entity: any, model: Pick<PlacedModel, "lat" | "lng" | "alt" | "heading" | "pitch" | "roll" | "scale">) => {
