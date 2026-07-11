@@ -39,7 +39,13 @@ import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import LPRPanel from "@/components/atlas/lpr/LPRPanel";
 import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
-import { MoonPill } from "@/components/atlas/MoonPill";
+import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
+import MoonPanels from "@/components/atlas/moon/MoonPanels";
+import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
+import {
+  MOON_LAYERS,
+  createMoonImageryProvider,
+} from "@/lib/moon/trekProviders";
 import { restoreEnabledIonLayers } from "@/lib/atlasIonLayers";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
@@ -2821,14 +2827,31 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       viewer.scene.globe.showGroundAtmosphere = false;
       viewer.scene.globe.baseColor = Color.fromCssColorString("#8a8578");
       viewer.scene.globe.enableLighting = true;
-      CesiumTerrainProvider.fromIonAssetId(2684829)
-        .then((terrain) => {
-          if (!viewer.isDestroyed()) {
-            viewer.terrainProvider = terrain;
-            viewer.scene.requestRender();
-          }
-        })
-        .catch((err) => console.warn("[Atlas moon] terrain failed", err));
+      // NASA LOLA-derived terrain (no Cesium ion). Renders convincing
+      // 3D relief from public LRO/LOLA hillshade tiles.
+      try {
+        viewer.terrainProvider = createLolaMoonTerrainProvider();
+      } catch (err) {
+        console.warn("[Atlas moon] LOLA terrain failed", err);
+      }
+
+      // Mount default NASA imagery layer (LRO WAC Global Mosaic — the
+      // photorealistic base). Additional layers are toggled from the
+      // Moon Layers pill. Remove any default Bing base first.
+      try {
+        viewer.imageryLayers.removeAll(true);
+        const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
+        (viewer as any).__moonImagery = (viewer as any).__moonImagery || {};
+        defaults.forEach((def) => {
+          const provider = createMoonImageryProvider(def);
+          const layer = new ImageryLayer(provider, {});
+          layer.alpha = def.defaultAlpha ?? 1;
+          viewer.imageryLayers.add(layer);
+          (viewer as any).__moonImagery[def.id] = layer;
+        });
+      } catch (err) {
+        console.warn("[Atlas moon] imagery failed", err);
+      }
     } else {
       createWorldTerrainAsync({
         requestWaterMask: false,
@@ -5758,8 +5781,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
-      {/* Circular Moon cropout — top-center jump button to the Moon world. */}
-      {isLoaded && <MoonPill />}
+      {/* Circular cropout — top-center jump button. Moon on Earth, Earth on Moon. */}
+      {isLoaded && (moonMode ? <EarthPill /> : <MoonPill />)}
+
+      {/* Moon-only HUD: NASA layers + missions catalog. */}
+      {isLoaded && moonMode && viewerRef.current && (
+        <MoonPanels viewer={viewerRef.current} />
+      )}
 
       <style>{`@keyframes atlasEmergencyPulse {
         0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.75), 0 0 18px rgba(239,68,68,0.55); transform: scale(1); }
