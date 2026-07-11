@@ -6,7 +6,7 @@ import {
   Maximize2, Minimize2, Globe, Crosshair, MousePointer2, X,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
-  Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
+  RotateCw, Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
   Sun, Brain
@@ -1307,6 +1307,25 @@ function SpaceshipPage() {
   // the callback below can read the latest value without re-binding).
   const brushIndicatorEnabledRef = useRef<boolean>(false);
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
+  // ── Undo / Redo for stamp + tile placements ──
+  // We snapshot the `placedModels` array before any mutation that changes the
+  // set of placed items (add via stamp/tile, terrain pad, delete). Async
+  // re-snap alt updates deliberately DO NOT push a history frame so that
+  // undoing a stamp reverts the whole placement including the snapped alt.
+  const placedModelsRef = useRef<PlacedModel[]>(placedModels);
+  useEffect(() => { placedModelsRef.current = placedModels; }, [placedModels]);
+  const undoStackRef = useRef<PlacedModel[][]>([]);
+  const redoStackRef = useRef<PlacedModel[][]>([]);
+  const [historyTick, setHistoryTick] = useState(0);
+  const HISTORY_LIMIT = 50;
+  const snapshotPlaced = (arr: PlacedModel[]): PlacedModel[] =>
+    arr.map((m) => ({ ...m, cropBase: m.cropBase ? { ...m.cropBase } : undefined }));
+  const pushPlacementHistory = useCallback(() => {
+    undoStackRef.current.push(snapshotPlaced(placedModelsRef.current));
+    if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    setHistoryTick((t) => t + 1);
+  }, []);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [modelName, setModelName] = useState("");
@@ -5285,6 +5304,7 @@ function SpaceshipPage() {
     setConvertError(null);
     try {
       const gltfBlob = await convertToGltfBlob(modelFile, setConvertProgress);
+      pushPlacementHistory();
       const modelId = crypto.randomUUID();
       await saveAtlasModelBlob(modelId, gltfBlob, modelFile.name);
       const blobUrl = URL.createObjectURL(gltfBlob);
@@ -5354,13 +5374,15 @@ function SpaceshipPage() {
     } finally {
       setConvertingModel(false);
     }
-  }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe]);
+  }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe, pushPlacementHistory]);
 
   // Stamp a new instance of the currently-loaded stamp model at a location.
   // No dialog — just creates a new PlacedModel reusing the existing blob URL.
   const stampModelAt = useCallback(async (loc: { lat: number; lng: number; alt: number }) => {
     const stamp = stampModelRef.current;
     if (!stamp) return;
+    // Snapshot BEFORE mutating so undo restores the exact pre-stamp state.
+    pushPlacementHistory();
     const modelId = crypto.randomUUID();
     // Snap to ground precisely — 0mm above, 0mm below. First try the
     // synchronous `sampleHeight`; if the tile isn't loaded yet we fall back
@@ -5427,7 +5449,7 @@ function SpaceshipPage() {
       const blob = await resp.blob();
       await saveAtlasModelBlob(modelId, blob, stamp.fileName);
     } catch {}
-  }, [applyModelTransformToEntity, placeModelOnGlobe, placedModels.length]);
+  }, [applyModelTransformToEntity, placeModelOnGlobe, placedModels.length, pushPlacementHistory]);
 
   const clearStampModel = useCallback(() => {
     stampModelRef.current = null;
@@ -5437,6 +5459,7 @@ function SpaceshipPage() {
 
   // Drop an editable terrain pad — no GLB, just a circular cropBase the user can sculpt.
   const stampTerrainAt = useCallback((loc: { lat: number; lng: number; alt: number }) => {
+    pushPlacementHistory();
     const viewer = viewerRef.current;
     let surfaceAlt = loc.alt;
     if (viewer) {
@@ -5501,9 +5524,10 @@ function SpaceshipPage() {
     });
     setEditingModel(newModel);
     setTerrainEditing(true);
-  }, [placedModels]);
+  }, [placedModels, pushPlacementHistory]);
 
   const deleteModel = useCallback(async (id: string) => {
+    pushPlacementHistory();
     const updated = placedModels.filter((m) => m.id !== id);
     setPlacedModels(updated);
     savePlacedModels(updated);
@@ -5512,10 +5536,79 @@ function SpaceshipPage() {
       const entity = viewerRef.current.entities.getById(`model-${id}`);
       if (entity) viewerRef.current.entities.remove(entity);
     }
-    const url = modelUrlsRef.current.get(id);
-    if (url) { URL.revokeObjectURL(url); modelUrlsRef.current.delete(id); }
-    await deleteAtlasModelBlob(id);
-  }, [placedModels]);
+    // NOTE: intentionally keep the blob URL alive in `modelUrlsRef` and
+    // preserve the IndexedDB copy so an "undo" can restore the placement
+    // without re-downloading. Only fully drop after history is cleared or
+    // pruned; for now we retain — negligible memory for the session.
+  }, [placedModels, pushPlacementHistory]);
+
+  /**
+   * Reconcile Cesium entities to match a target snapshot: remove entities for
+   * ids no longer present, re-create entities for restored ids (using cached
+   * blob URLs), and re-apply transforms for surviving ids.
+   */
+  const applyPlacedSnapshot = useCallback((snapshot: PlacedModel[]) => {
+    const viewer = viewerRef.current;
+    const currentIds = new Set(placedModelsRef.current.map((m) => m.id));
+    const nextIds = new Set(snapshot.map((m) => m.id));
+    if (viewer && !viewer.isDestroyed()) {
+      // Remove entities for models that are going away.
+      for (const id of currentIds) {
+        if (!nextIds.has(id)) {
+          const ent = viewer.entities.getById(`model-${id}`);
+          if (ent) viewer.entities.remove(ent);
+        }
+      }
+      // Add or update entities for the snapshot.
+      for (const m of snapshot) {
+        const ent = viewer.entities.getById(`model-${m.id}`);
+        if (ent) {
+          applyModelTransformToEntity(ent, m);
+        } else if (m.category !== "terrain-pad") {
+          const url = modelUrlsRef.current.get(m.id);
+          if (url) placeModelOnGlobe(m, url);
+          // If URL missing, the restore useEffect will hydrate from IDB.
+        }
+      }
+    }
+    setPlacedModels(snapshot);
+    savePlacedModels(snapshot);
+  }, [applyModelTransformToEntity, placeModelOnGlobe]);
+
+  const undoPlacement = useCallback(() => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    redoStackRef.current.push(snapshotPlaced(placedModelsRef.current));
+    if (redoStackRef.current.length > HISTORY_LIMIT) redoStackRef.current.shift();
+    applyPlacedSnapshot(prev);
+    setHistoryTick((t) => t + 1);
+  }, [applyPlacedSnapshot]);
+
+  const redoPlacement = useCallback(() => {
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    undoStackRef.current.push(snapshotPlaced(placedModelsRef.current));
+    if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+    applyPlacedSnapshot(next);
+    setHistoryTick((t) => t + 1);
+  }, [applyPlacedSnapshot]);
+
+  // Keyboard: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z or Ctrl+Y = redo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      // Don't hijack while typing in inputs.
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undoPlacement(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redoPlacement(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undoPlacement, redoPlacement]);
 
   const flyToModel = useCallback((model: PlacedModel) => {
     if (!viewerRef.current) return;
@@ -6916,6 +7009,24 @@ function SpaceshipPage() {
                     <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">
                       Placed models · {placedModels.length}
                     </p>
+                    <div className="flex items-center gap-1" data-history-tick={historyTick}>
+                      <button
+                        onClick={undoPlacement}
+                        disabled={undoStackRef.current.length === 0}
+                        title={`Undo placement (${undoStackRef.current.length}) · ⌘Z`}
+                        className="p-1 rounded text-white/60 hover:text-emerald-300 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/60"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={redoPlacement}
+                        disabled={redoStackRef.current.length === 0}
+                        title={`Redo placement (${redoStackRef.current.length}) · ⇧⌘Z`}
+                        className="p-1 rounded text-white/60 hover:text-emerald-300 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/60"
+                      >
+                        <RotateCw className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   {placedModels.length === 0 ? (
                     <p className="text-[10.5px] text-white/40 text-center py-2">
