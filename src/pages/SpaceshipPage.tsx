@@ -2796,16 +2796,32 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // Visuals are intentionally neutral/fast: no HDR, SSAO, sharpen, or shader overlays.
     try { applyAtlasVisuals(viewer); } catch (err) { console.warn("[atlas-visuals] failed", err); }
 
-    // Add world terrain
-    createWorldTerrainAsync({
-      requestWaterMask: false,
-      requestVertexNormals: false,
-    }).then((terrain) => {
-      if (!viewer.isDestroyed()) {
-        viewer.terrainProvider = terrain;
-        viewer.scene.requestRender();
-      }
-    });
+    // Terrain: Earth world terrain, or Cesium ion Moon Terrain (2684829)
+    // for the Moon world. Same viewer, same controls, different planet.
+    if (isMoon) {
+      viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false);
+      viewer.scene.globe.showGroundAtmosphere = false;
+      viewer.scene.globe.baseColor = Color.fromCssColorString("#8a8578");
+      viewer.scene.globe.enableLighting = true;
+      CesiumTerrainProvider.fromIonAssetId(2684829)
+        .then((terrain) => {
+          if (!viewer.isDestroyed()) {
+            viewer.terrainProvider = terrain;
+            viewer.scene.requestRender();
+          }
+        })
+        .catch((err) => console.warn("[Atlas moon] terrain failed", err));
+    } else {
+      createWorldTerrainAsync({
+        requestWaterMask: false,
+        requestVertexNormals: false,
+      }).then((terrain) => {
+        if (!viewer.isDestroyed()) {
+          viewer.terrainProvider = terrain;
+          viewer.scene.requestRender();
+        }
+      });
+    }
 
     // ── Ion + OSM are now LAZY ─────────────────────────────────
     // Boot used to instantiate THREE full-detail photoreal tilesets in
