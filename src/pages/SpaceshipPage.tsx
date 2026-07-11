@@ -4639,6 +4639,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const handler = () => {
       const v = viewerRef.current;
       if (!v || v.isDestroyed()) return;
+      if (moonModeRef.current) return;
       applyAtlasMapVisibility(v, viewModeRef.current, showBuildingsRef.current);
     };
     window.addEventListener("atlas:earth-intel-changed", handler);
@@ -4648,6 +4649,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
+    if (moonModeRef.current) return;
     // Purge every tileset that isn't the active mode so only ONE layer streams.
     if (viewMode !== "google") {
       destroyAtlasTileset(viewer, "_googleDirectTileset");
