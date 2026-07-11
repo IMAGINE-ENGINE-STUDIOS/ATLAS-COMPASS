@@ -1,16 +1,12 @@
 /**
- * Top-center cosmic body switcher.  Shows only the CURRENTLY selected
- * planet as a large chip flanked by prev / next arrows.  Sliding to a
- * neighbour fades the old chip out and the new one in (pure CSS), then
- * navigates.  Users can also swipe horizontally on touch devices.
- *
- * Navigating a planet lands on its full-Atlas experience (earth/moon/
- * mars have canonical routes, everything else routes through
- * `/planet/:id` → `PlanetAtlasPage`).
+ * Top-center cosmic body switcher — Apple-dock style.  All planets sit
+ * in a single glass bar; the pointer's proximity magnifies neighbours
+ * (like the macOS Dock), and the active planet is always slightly
+ * larger with a label chip above it.  Click any orb to jump to its
+ * full-Atlas experience.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PLANETS, type PlanetEntry } from "@/lib/planets/config";
 
 function activeIdFromPath(path: string): string {
@@ -24,7 +20,7 @@ function activeIdFromPath(path: string): string {
 function PlanetOrb({ p, size = 44 }: { p: PlanetEntry; size?: number }) {
   return (
     <div
-      className="relative rounded-full overflow-hidden border border-white/70 shadow-[0_0_22px_rgba(255,255,255,0.35)]"
+      className="relative rounded-full overflow-hidden border border-white/60 shadow-[0_0_22px_rgba(255,255,255,0.28)] will-change-transform"
       style={{
         width: size,
         height: size,
@@ -63,98 +59,109 @@ export default function PlanetSwitcher() {
     () => Math.max(0, PLANETS.findIndex((p) => p.id === activeId)),
     [activeId],
   );
-  const [dir, setDir] = useState<0 | 1 | -1>(0);
-  const [animKey, setAnimKey] = useState(activeId);
 
-  // Re-key the chip whenever the route changes so it fades in.
+  // ── Apple-dock magnification ──────────────────────────────────────
+  // Track the pointer's X in dock-local coords and compute a scale for
+  // each orb based on distance to that X. Touch devices skip magnify
+  // and just show the active orb larger.
+  const dockRef = useRef<HTMLDivElement>(null);
+  const [orbCenters, setOrbCenters] = useState<number[]>([]);
+  const [pointerX, setPointerX] = useState<number | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  // Recompute orb centres whenever the layout changes (resize / count).
   useEffect(() => {
-    setAnimKey(activeId);
-  }, [activeId]);
+    const recompute = () => {
+      const dock = dockRef.current;
+      if (!dock) return;
+      const dockRect = dock.getBoundingClientRect();
+      const centers = Array.from(
+        dock.querySelectorAll<HTMLElement>("[data-orb]"),
+      ).map((el) => {
+        const r = el.getBoundingClientRect();
+        return r.left + r.width / 2 - dockRect.left;
+      });
+      setOrbCenters(centers);
+    };
+    recompute();
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, [activeIndex]);
 
-  const go = (delta: 1 | -1) => {
-    const next = PLANETS[(activeIndex + delta + PLANETS.length) % PLANETS.length];
-    setDir(delta);
-    navigate(next.route);
+  const isMobile =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(max-width: 640px)").matches;
+  const BASE = isMobile ? 30 : 40;
+  const PEAK = isMobile ? 46 : 68;
+  const INFLUENCE = isMobile ? 60 : 110;
+
+  const scaleFor = (i: number) => {
+    if (pointerX == null || orbCenters.length !== PLANETS.length) {
+      return i === activeIndex ? 1.25 : 1;
+    }
+    const dx = Math.abs(orbCenters[i] - pointerX);
+    const t = Math.max(0, 1 - dx / INFLUENCE);
+    // Cosine falloff for a smooth Apple-like curve.
+    const eased = 0.5 - 0.5 * Math.cos(Math.PI * t);
+    return 1 + eased * (PEAK / BASE - 1);
   };
 
-  // Touch swipe support.
-  const startX = useRef<number | null>(null);
-  const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
-  };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (startX.current == null) return;
-    const dx = e.changedTouches[0].clientX - startX.current;
-    startX.current = null;
-    if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
-  };
-
-  const active = PLANETS[activeIndex];
-  const enterAnim =
-    dir === 1
-      ? "animate-[slide-in-from-right_260ms_ease-out]"
-      : dir === -1
-        ? "animate-[slide-in-from-left_260ms_ease-out]"
-        : "animate-fade-in";
+  const focusIdx = hoverIdx ?? activeIndex;
+  const focused = PLANETS[focusIdx];
 
   return (
-    <div className="pointer-events-auto">
-      <style>{`
-        @keyframes slide-in-from-right { from { opacity:0; transform: translateX(24px);} to { opacity:1; transform: translateX(0);} }
-        @keyframes slide-in-from-left  { from { opacity:0; transform: translateX(-24px);} to { opacity:1; transform: translateX(0);} }
-      `}</style>
-      <div
-        className="flex items-center gap-1 rounded-full border border-white/10 bg-black/60 backdrop-blur-xl pl-1 pr-1 py-1 shadow-2xl"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        <button
-          type="button"
-          onClick={() => go(-1)}
-          aria-label="Previous planet"
-          className="w-7 h-7 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition"
+    <div className="pointer-events-auto select-none">
+      {/* Floating label above the currently focused orb. */}
+      <div className="relative h-6 mb-1">
+        <div
+          key={focused.id}
+          className="absolute left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono uppercase tracking-[0.28em] text-white whitespace-nowrap animate-fade-in"
         >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          key={animKey}
-          onClick={() => navigate(active.route)}
-          title={`${active.name} — ${active.blurb}`}
-          className={`flex items-center gap-2 pl-1 pr-3 py-0.5 rounded-full hover:bg-white/5 transition ${enterAnim}`}
-        >
-          <PlanetOrb p={active} size={38} />
-          <div className="flex flex-col items-start leading-tight">
-            <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-white">
-              {active.name}
-            </span>
-            <span className="hidden sm:block text-[9px] font-mono text-white/50 max-w-[220px] truncate">
-              {active.blurb}
-            </span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => go(1)}
-          aria-label="Next planet"
-          className="w-7 h-7 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+          {focused.name}
+        </div>
       </div>
 
-      {/* Tiny progress dots so the user still perceives the full set. */}
-      <div className="mt-1.5 flex justify-center gap-1">
-        {PLANETS.map((p, i) => (
-          <span
-            key={p.id}
-            className={`h-1 rounded-full transition-all duration-300 ${
-              i === activeIndex ? "w-4 bg-white" : "w-1 bg-white/30"
-            }`}
-          />
-        ))}
+      <div
+        ref={dockRef}
+        onPointerMove={(e) => {
+          if (e.pointerType === "touch") return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          setPointerX(e.clientX - rect.left);
+        }}
+        onPointerLeave={() => {
+          setPointerX(null);
+          setHoverIdx(null);
+        }}
+        className="flex items-end justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-full border border-white/10 bg-black/55 backdrop-blur-xl shadow-2xl"
+        style={{ minHeight: PEAK + 12 }}
+      >
+        {PLANETS.map((p, i) => {
+          const s = scaleFor(i);
+          const size = BASE * s;
+          const isActive = i === activeIndex;
+          return (
+            <button
+              key={p.id}
+              data-orb
+              type="button"
+              onClick={() => navigate(p.route)}
+              onPointerEnter={() => setHoverIdx(i)}
+              title={`${p.name} — ${p.blurb}`}
+              aria-label={p.name}
+              aria-current={isActive ? "true" : undefined}
+              className="relative flex items-end justify-center transition-[width,height] duration-150 ease-out"
+              style={{ width: size, height: size }}
+            >
+              <PlanetOrb p={p} size={size} />
+              {isActive && (
+                <span
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]"
+                  aria-hidden
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
