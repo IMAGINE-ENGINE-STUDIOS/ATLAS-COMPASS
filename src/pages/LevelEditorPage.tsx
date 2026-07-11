@@ -1371,9 +1371,14 @@ export default function LevelEditorPage() {
     setCadConverting(true);
     const tid = toast.loading(`Converting ${file.name} via Autodesk Platform Services…`);
     try {
-      const imported = await convertCadViaAps(file, (fn, opts) =>
-        supabase.functions.invoke(fn, opts) as any,
-      );
+      // DWG has a dedicated pipeline (LibreDWG / ODA File Converter
+      // proxy with APS fallback). Everything else goes straight to APS.
+      const invoke = (fn: string, opts: any) =>
+        supabase.functions.invoke(fn, opts) as any;
+      const imported =
+        ext === "dwg"
+          ? await convertDwg(file, invoke)
+          : await convertCadViaAps(file, invoke);
       await addImportedAsObject(imported);
       toast.success(`Imported ${file.name}`, { id: tid });
     } catch (e: any) {
