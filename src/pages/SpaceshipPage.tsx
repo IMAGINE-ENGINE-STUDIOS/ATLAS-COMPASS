@@ -3094,15 +3094,26 @@ function SpaceshipPage({
               (viewer as any).__planetImagery[def.id] = layer;
             });
           } else {
-            const provider = new (SingleTileImageryProvider as any)({
-              url: genericPlanetEntry.textureUrl,
-              tilingScheme: new GeographicTilingScheme(),
-              rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
-            });
-            const layer = new ImageryLayer(provider, {});
-            layer.brightness = 1.05;
-            layer.saturation = 1.15;
-            viewer.imageryLayers.add(layer);
+            // Modern Cesium requires the async `fromUrl` factory — the
+            // legacy `new SingleTileImageryProvider({url})` constructor
+            // silently creates a provider that never loads the image, so
+            // the globe stays as its baseColor. Use the async form.
+            (SingleTileImageryProvider as any)
+              .fromUrl(genericPlanetEntry.textureUrl, {
+                tilingScheme: new GeographicTilingScheme(),
+                rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+              })
+              .then((provider: any) => {
+                if (viewer.isDestroyed()) return;
+                const layer = new ImageryLayer(provider, {});
+                layer.brightness = 1.05;
+                layer.saturation = 1.15;
+                viewer.imageryLayers.add(layer);
+                viewer.scene.requestRender?.();
+              })
+              .catch((err: any) =>
+                console.warn("[Atlas planet] single-tile failed", err),
+              );
           }
         } catch (err) {
           console.warn("[Atlas planet] imagery failed", err);
