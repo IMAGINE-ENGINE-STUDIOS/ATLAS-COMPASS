@@ -6157,6 +6157,11 @@ function SpaceshipPage({
                 </div>
               </div>
 
+              {/* Top-center planet switcher — Sun, Mercury … Neptune. */}
+              <div className="hidden md:flex flex-1 justify-center pointer-events-none">
+                <PlanetSwitcher />
+              </div>
+
               <div className="relative">
                 <GlassPanel className="flex items-center gap-1.5 p-1.5 sm:p-2">
                   <button
