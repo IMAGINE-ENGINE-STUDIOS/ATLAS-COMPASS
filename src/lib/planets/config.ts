@@ -32,14 +32,20 @@ export interface PlanetEntry {
   blurb: string;
 }
 
-const TEX = "https://www.solarsystemscope.com/textures/download";
+// Public NASA-derived planet albedo maps hosted by the
+// `jeromeetienne/threex.planets` repo and served with CORS via jsDelivr.
+// These are the highest-resolution assets in that catalog (1K for the
+// terrestrial planets, native res for the gas giants and Sun).  If a
+// texture is missing the sphere still renders with the fallback base
+// colour from `PlanetEntry.color`.
+const TEX = "https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images";
 
 export const PLANETS: PlanetEntry[] = [
   {
     id: "sun",
     name: "Sun",
     color: "#f59e0b",
-    textureUrl: `${TEX}/8k_sun.jpg`,
+    textureUrl: `${TEX}/sunmap.jpg`,
     route: "/planet/sun",
     radiusKm: 696_340,
     blurb: "G2V star · NASA SDO composite",
@@ -48,7 +54,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "mercury",
     name: "Mercury",
     color: "#a8a29e",
-    textureUrl: `${TEX}/8k_mercury.jpg`,
+    textureUrl: `${TEX}/mercurymap.jpg`,
     route: "/planet/mercury",
     radiusKm: 2_439.7,
     blurb: "MESSENGER MDIS mosaic",
@@ -57,7 +63,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "venus",
     name: "Venus",
     color: "#facc15",
-    textureUrl: `${TEX}/8k_venus_surface.jpg`,
+    textureUrl: `${TEX}/venusmap.jpg`,
     route: "/planet/venus",
     radiusKm: 6_051.8,
     blurb: "Magellan radar surface",
@@ -66,7 +72,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "earth",
     name: "Earth",
     color: "#38bdf8",
-    textureUrl: `${TEX}/8k_earth_daymap.jpg`,
+    textureUrl: `${TEX}/earthmap1k.jpg`,
     route: "/atlas",
     radiusKm: 6_371,
     blurb: "Atlas — live Earth command",
@@ -75,7 +81,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "moon",
     name: "Moon",
     color: "#e5e7eb",
-    textureUrl: `${TEX}/8k_moon.jpg`,
+    textureUrl: `${TEX}/moonmap1k.jpg`,
     route: "/moon",
     radiusKm: 1_737.4,
     blurb: "LRO WAC + NASA Trek",
@@ -84,7 +90,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "mars",
     name: "Mars",
     color: "#ef4444",
-    textureUrl: `${TEX}/8k_mars.jpg`,
+    textureUrl: `${TEX}/marsmap1k.jpg`,
     route: "/mars",
     radiusKm: 3_389.5,
     blurb: "Viking MDIM + NASA Trek",
@@ -93,7 +99,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "jupiter",
     name: "Jupiter",
     color: "#f97316",
-    textureUrl: `${TEX}/8k_jupiter.jpg`,
+    textureUrl: `${TEX}/jupitermap.jpg`,
     route: "/planet/jupiter",
     radiusKm: 69_911,
     blurb: "Cassini + Juno composite",
@@ -102,8 +108,8 @@ export const PLANETS: PlanetEntry[] = [
     id: "saturn",
     name: "Saturn",
     color: "#fbbf24",
-    textureUrl: `${TEX}/8k_saturn.jpg`,
-    ringUrl: `${TEX}/8k_saturn_ring_alpha.png`,
+    textureUrl: `${TEX}/saturnmap.jpg`,
+    ringUrl: `${TEX}/saturnringcolor.jpg`,
     route: "/planet/saturn",
     radiusKm: 58_232,
     blurb: "Cassini ISS + rings",
@@ -112,7 +118,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "uranus",
     name: "Uranus",
     color: "#67e8f9",
-    textureUrl: `${TEX}/2k_uranus.jpg`,
+    textureUrl: `${TEX}/uranusmap.jpg`,
     route: "/planet/uranus",
     radiusKm: 25_362,
     blurb: "Voyager 2 flyby",
@@ -121,7 +127,7 @@ export const PLANETS: PlanetEntry[] = [
     id: "neptune",
     name: "Neptune",
     color: "#3b82f6",
-    textureUrl: `${TEX}/2k_neptune.jpg`,
+    textureUrl: `${TEX}/neptunemap.jpg`,
     route: "/planet/neptune",
     radiusKm: 24_622,
     blurb: "Voyager 2 imaging",
