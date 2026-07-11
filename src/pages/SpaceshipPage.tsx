@@ -1076,6 +1076,7 @@ function SpaceshipPage({
     [planetId, resolvedMars, resolvedMoon],
   );
   const isEarthWorld = activeWorldId === "earth";
+  const activeWorldName = findPlanet(activeWorldId)?.name ?? activeWorldId.replace(/[-_]/g, " ");
   // Non-Earth gating: every existing `moonMode` check must also fire for
   // Mars (Mars world hides the same Earth-only data loads: Google Photoreal,
   // OSM Buildings, Overpass, POIs, live traffic, etc.).  We alias the prop
@@ -2857,7 +2858,7 @@ function SpaceshipPage({
       // LOLA sampler — which combined to freeze pan/zoom at low altitudes
       // and only feel responsive above ~17,000 km. We restore full Cesium
       // defaults on the Moon and only keep sane min/max zoom distances.
-      (ssec0 as any).enableCollisionDetection = false;
+      (ssec0 as any).enableCollisionDetection = true;
       ssec0.minimumZoomDistance = MOON_MIN_SAFE_ALTITUDE_M;
       ssec0.maximumZoomDistance = MOON_MAX_SAFE_ALTITUDE_M;
       ssec0.enableTilt = true;
@@ -6152,8 +6153,16 @@ function SpaceshipPage({
 
       {/* Gaussian Splat landmarks — high-fidelity overlays at specific
           coords, loaded only when the camera is within their radius. */}
-      <AtlasSplatOverlay viewerRef={viewerRef} />
-      <AtlasSplatUploader viewer={viewerRef.current} />
+      <AtlasSplatOverlay
+        viewerRef={viewerRef}
+        world={activeWorldId}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+      />
+      <AtlasSplatUploader
+        viewer={viewerRef.current}
+        world={activeWorldId}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+      />
 
       {/* OSM Buildings — click to open BuildingCard, long-press to enter
           multi-select, color/tag/notes/GLB-replace individual buildings.
@@ -7794,7 +7803,7 @@ function SpaceshipPage({
                                   const viewer = viewerRef.current;
                                   if (!viewer || viewer.isDestroyed()) return;
                                   if (moonModeRef.current) {
-                                    flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2 });
+                                    flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2, ellipsoid: nonEarthEllipsoidRef.current });
                                   } else {
                                     viewer.camera.flyTo({
                                       destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 800, Ellipsoid.WGS84),
@@ -7816,7 +7825,7 @@ function SpaceshipPage({
                                     const viewer = viewerRef.current;
                                     if (!viewer || viewer.isDestroyed()) return;
                                     if (moonModeRef.current) {
-                                      flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2 });
+                                      flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2, ellipsoid: nonEarthEllipsoidRef.current });
                                     } else {
                                       viewer.camera.flyTo({
                                         destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 1500, Ellipsoid.WGS84),
@@ -8076,12 +8085,12 @@ function SpaceshipPage({
                     }}>
                     <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary shrink-0" />
                     {searchOpen ? (
-                      <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder="Search stores, addresses…"
+                      <input type="text" autoFocus value={searchQuery} onChange={(e) => handleSearch(e.target.value)} placeholder={isEarthWorld ? "Search stores, addresses…" : "Search points, coordinates…"}
                         className="flex-1 bg-transparent text-white text-xs sm:text-sm outline-none placeholder:text-white/70 min-w-0"
                         style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}
                         onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }} />
                     ) : (
-                      <span className="text-[10px] sm:text-xs text-white/70 truncate" style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>Search stores, addresses…</span>
+                      <span className="text-[10px] sm:text-xs text-white/70 truncate" style={{ fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif' }}>{isEarthWorld ? "Search stores, addresses…" : "Search points, coordinates…"}</span>
                     )}
                     {searchOpen && searchQuery && (
                       <button onClick={(e) => { e.stopPropagation(); setSearchQuery(""); handleSearch(""); }} className="shrink-0"><X className="w-2.5 h-2.5 text-white/70 hover:text-white/85" /></button>
@@ -8108,9 +8117,9 @@ function SpaceshipPage({
                   <div className="w-px h-5 sm:h-7 bg-white/10" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">
-                      {moonMode ? "Moon" : "Mode"}
+                      {isEarthWorld ? "Mode" : activeWorldName}
                     </p>
-                    {moonMode ? (
+                    {activeWorldId === "moon" ? (
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => window.dispatchEvent(new CustomEvent("moon:toggle-panel", { detail: "layers" }))}
@@ -8126,6 +8135,12 @@ function SpaceshipPage({
                         >
                           <Satellite className="w-2.5 h-2.5" /> Missions
                         </button>
+                      </div>
+                    ) : !isEarthWorld ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="flex items-center gap-1 px-2 h-6 rounded-full bg-white/10 border border-white/15 text-[10px] font-semibold text-slate-100 capitalize">
+                          <Satellite className="w-2.5 h-2.5" /> {activeWorldId === "mars" ? "NASA Trek" : "Atlas"}
+                        </span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">

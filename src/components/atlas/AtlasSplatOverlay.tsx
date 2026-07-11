@@ -14,6 +14,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   Cartesian3,
+  Ellipsoid,
   Matrix4 as CesiumMatrix4,
   Transforms,
   type Viewer,
@@ -40,7 +41,6 @@ function loadGaussianSplats3D() {
 
 const MAX_LOADED = 3;
 const BUCKET = "splat-landmarks";
-const EARTH_RADIUS_M = 6371000;
 const SUPPORTED_SPLAT_EXT = /\.(splat|ksplat|spz)$/i;
 
 function isSupportedSplatPath(path: string) {
@@ -64,23 +64,26 @@ export type SplatLandmark = {
   scale: number;
   radius_m: number;
   file_path: string;
+  world?: string;
 };
 
-function isWorldPointInFront(viewer: Viewer, world: Cartesian3) {
+function isWorldPointInFront(viewer: Viewer, world: Cartesian3, horizonRadius: number) {
   const camera = viewer.camera;
   const toPoint = Cartesian3.subtract(world, camera.positionWC, new Cartesian3());
   if (Cartesian3.dot(toPoint, camera.directionWC) <= 0) return false;
-  return Cartesian3.dot(world, camera.positionWC) >= EARTH_RADIUS_M * EARTH_RADIUS_M;
+  return Cartesian3.dot(world, camera.positionWC) >= horizonRadius * horizonRadius;
 }
 
 function SplatNode({
   viewer,
   landmark,
   signedUrl,
+  ellipsoid,
 }: {
   viewer: Viewer;
   landmark: SplatLandmark;
   signedUrl: string;
+  ellipsoid: Ellipsoid;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const dropInRef = useRef<any>(null);
@@ -90,14 +93,15 @@ function SplatNode({
     const origin = Cartesian3.fromDegrees(
       landmark.longitude,
       landmark.latitude,
-      landmark.altitude || 0
+      landmark.altitude || 0,
+      ellipsoid,
     );
-    const m = Transforms.eastNorthUpToFixedFrame(origin);
+    const m = Transforms.eastNorthUpToFixedFrame(origin, ellipsoid);
     const arr = CesiumMatrix4.toArray(m, []) as number[];
     const rot = new THREE.Matrix4().fromArray(arr);
     rot.setPosition(0, 0, 0);
     return { ecef: new THREE.Vector3(origin.x, origin.y, origin.z), enuRot: rot };
-  }, [landmark.longitude, landmark.latitude, landmark.altitude]);
+  }, [landmark.longitude, landmark.latitude, landmark.altitude, ellipsoid]);
 
   const headingRad = -(landmark.heading * Math.PI) / 180;
   const pitchRad = (landmark.pitch * Math.PI) / 180;
@@ -174,8 +178,12 @@ function SplatNode({
 
 export default function AtlasSplatOverlay({
   viewerRef,
+  world = "earth",
+  ellipsoid = Ellipsoid.WGS84,
 }: {
   viewerRef: React.MutableRefObject<Viewer | null>;
+  world?: string;
+  ellipsoid?: Ellipsoid;
 }) {
   const [landmarks, setLandmarks] = useState<SplatLandmark[]>([]);
   const [loadedIds, setLoadedIds] = useState<string[]>([]); // LRU, max 3
@@ -190,12 +198,13 @@ export default function AtlasSplatOverlay({
         .from("splat_landmarks")
         .select(
           "id,name,longitude,latitude,altitude,heading,pitch,roll,scale,radius_m,file_path"
-        );
+        )
+        .eq("world", world);
       if (!cancelled) setLandmarks(((data as SplatLandmark[]) ?? []).filter((lm) => isSupportedSplatPath(lm.file_path)));
     };
     load();
     const ch = supabase
-      .channel("splat_landmarks_rt")
+      .channel(`splat_landmarks_rt:${world}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "splat_landmarks" },
@@ -206,7 +215,7 @@ export default function AtlasSplatOverlay({
       cancelled = true;
       supabase.removeChannel(ch);
     };
-  }, []);
+  }, [world]);
 
   // Cesium pin markers for every landmark (visible even before splat loads)
   useEffect(() => {
@@ -214,10 +223,10 @@ export default function AtlasSplatOverlay({
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const entities = landmarks.map((lm) => {
-      const pinWorld = Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0);
+      const pinWorld = Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0, ellipsoid);
       const inFront = new CallbackProperty(() => {
         if (viewer.isDestroyed()) return false;
-        return isWorldPointInFront(viewer, pinWorld);
+        return isWorldPointInFront(viewer, pinWorld, ellipsoid.maximumRadius);
       }, false);
       return viewer.entities.add({
         id: `splat-pin-${lm.id}`,
@@ -257,7 +266,7 @@ export default function AtlasSplatOverlay({
       }
       viewer.scene.requestRender?.();
     };
-  }, [ready, landmarks, viewerRef]);
+  }, [ready, landmarks, viewerRef, ellipsoid]);
 
   // Wait for viewer — B1: guard the recursive setTimeout with cleanup so an
   // unmount mid-wait can't fire setReady on an unmounted component.
@@ -294,7 +303,7 @@ export default function AtlasSplatOverlay({
       const camPos = viewer.camera.positionWC;
       const inRange: { id: string; d: number; lm: SplatLandmark }[] = [];
       for (const lm of landmarks) {
-        const p = Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0);
+        const p = Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0, ellipsoid);
         const dx = p.x - camPos.x;
         const dy = p.y - camPos.y;
         const dz = p.z - camPos.z;
@@ -309,7 +318,7 @@ export default function AtlasSplatOverlay({
         const farGone = prev.filter((id) => {
           const lm = landmarks.find((l) => l.id === id);
           if (!lm) return false;
-          const p = Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0);
+          const p = Cartesian3.fromDegrees(lm.longitude, lm.latitude, lm.altitude || 0, ellipsoid);
           const dx = p.x - camPos.x,
             dy = p.y - camPos.y,
             dz = p.z - camPos.z;
@@ -327,7 +336,7 @@ export default function AtlasSplatOverlay({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [ready, landmarks, viewerRef]);
+  }, [ready, landmarks, viewerRef, ellipsoid]);
 
   // Resolve signed URLs for loaded splats — fetch in parallel (P17) instead
   // of blocking each request on the previous.
@@ -381,6 +390,7 @@ export default function AtlasSplatOverlay({
             viewer={viewer}
             landmark={lm}
             signedUrl={signedUrls[lm.id]!}
+            ellipsoid={ellipsoid}
           />
         ))}
       </Canvas>
