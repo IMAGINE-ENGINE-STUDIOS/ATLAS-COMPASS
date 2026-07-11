@@ -21,7 +21,6 @@ import {
 } from "@/data/moon/missions";
 import MoonMissionEntities from "./MoonMissionEntities";
 import LiveOrbits from "./LiveOrbits";
-import EarthInMoonSky from "./EarthInMoonSky";
 import { Ellipsoid, ImageryLayer } from "cesium";
 import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
 import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
@@ -249,7 +248,7 @@ export default function MoonPanels({ viewer }: Props) {
 
   const flyToMission = (m: MoonMission) => {
     if (!viewer) return;
-    try { flyToMoonCoord(viewer, m.lon, m.lat, { altitude: 60_000, pitch: -45 }); } catch {}
+    try { flyToMoonCoord(viewer, m.lon, m.lat, { altitude: 180_000 }); } catch {}
     setSelectedMission(m);
   };
 
@@ -258,9 +257,6 @@ export default function MoonPanels({ viewer }: Props) {
       {/* Live orbiter pins (LRO, Chandrayaan-2, KPLO, Queqiao-2) with
           continuously-propagated Keplerian positions and a LIVE readout. */}
       <LiveOrbits viewer={viewer} />
-
-      {/* Real Earth in the Moon's sky at exact astronomical distance. */}
-      <EarthInMoonSky viewer={viewer} />
 
       <MoonMissionEntities
         viewer={viewer}

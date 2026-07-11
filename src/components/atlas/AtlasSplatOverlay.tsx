@@ -41,6 +41,16 @@ function loadGaussianSplats3D() {
 const MAX_LOADED = 3;
 const BUCKET = "splat-landmarks";
 const EARTH_RADIUS_M = 6371000;
+const SUPPORTED_SPLAT_EXT = /\.(splat|ksplat|spz)$/i;
+
+function isSupportedSplatPath(path: string) {
+  try {
+    const pathname = path.startsWith("http") ? new URL(path).pathname : path;
+    return SUPPORTED_SPLAT_EXT.test(pathname);
+  } catch {
+    return SUPPORTED_SPLAT_EXT.test(path.split("?")[0] ?? path);
+  }
+}
 
 export type SplatLandmark = {
   id: string;
@@ -97,6 +107,7 @@ function SplatNode({
   // Load splat on mount, dispose on unmount
   useEffect(() => {
     if (!groupRef.current) return;
+    if (!isSupportedSplatPath(signedUrl)) return;
     let cancelled = false;
     let dropIn: any = null;
     loadGaussianSplats3D().then((mod: any) => {
@@ -180,7 +191,7 @@ export default function AtlasSplatOverlay({
         .select(
           "id,name,longitude,latitude,altitude,heading,pitch,roll,scale,radius_m,file_path"
         );
-      if (!cancelled) setLandmarks((data as SplatLandmark[]) ?? []);
+      if (!cancelled) setLandmarks(((data as SplatLandmark[]) ?? []).filter((lm) => isSupportedSplatPath(lm.file_path)));
     };
     load();
     const ch = supabase

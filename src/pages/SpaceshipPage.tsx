@@ -98,6 +98,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 // without leaving Atlas.
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import AtlasSplatOverlay from "@/components/atlas/AtlasSplatOverlay";
+import SolarSystemOverlay from "@/components/atlas/SolarSystemOverlay";
 import AtlasBuildingsOverlay from "@/components/atlas/AtlasBuildingsOverlay";
 import OverpassBuildingsOverlay from "@/components/atlas/OverpassBuildingsOverlay";
 import AtlasSplatUploader from "@/components/atlas/AtlasSplatUploader";
@@ -958,9 +959,7 @@ function flyCameraToTarget(
 
   if ((viewer as any).__moonMode) {
     flyToMoonCoord(viewer, target.lng, target.lat, {
-      altitude: options.range ?? 1800,
-      heading: options.headingDeg ?? 0,
-      pitch: options.pitchDeg ?? -38,
+      altitude: Math.max(options.range ?? 180_000, 160_000),
       duration: options.duration ?? 1.6,
     });
     return;
@@ -5929,6 +5928,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
+
+      {isLoaded && viewerRef.current && (
+        <SolarSystemOverlay viewer={viewerRef.current} centralBody={moonMode ? "moon" : "earth"} />
+      )}
 
       {/* Circular cropout — top-center jump button. Moon on Earth, Earth on Moon. */}
       {isLoaded && (moonMode ? <EarthPill /> : <MoonPill />)}

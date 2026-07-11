@@ -12,8 +12,6 @@ import {
   Cartographic,
   Ellipsoid,
   Math as CesiumMath,
-  HeadingPitchRange,
-  BoundingSphere,
   Matrix4,
 } from "cesium";
 
@@ -39,25 +37,36 @@ export function flyToMoonCoord(
   opts: MoonFlyOpts = {}
 ) {
   if (!viewer || viewer.isDestroyed?.()) return;
-  const altitude = opts.altitude ?? 60_000;
+  const altitude = Math.max(opts.altitude ?? 180_000, 120_000);
   const duration = opts.duration ?? 1.6;
-  const headingDeg = opts.heading ?? 0;
-  const pitchDeg = opts.pitch ?? -35;
 
-  // Target on the Moon surface. Use a bounding sphere + HeadingPitchRange so
-  // Cesium computes the destination in a Moon-ENU frame (scene.ellipsoid on
-  // a Moon viewer is Ellipsoid.MOON), which reliably keeps the camera OUTSIDE
-  // the lunar body regardless of pitch/heading.
+  // Put the camera directly above the target in Moon coordinates and look
+  // nadir. This avoids Cesium's Earth-biased fly-to offsets and prevents POI
+  // arrivals from ending inside the Moon or at a tangent angle facing space.
   const target = Cartesian3.fromDegrees(lon, lat, 0, Ellipsoid.MOON);
-  const sphere = new BoundingSphere(target, 1);
-  viewer.camera.flyToBoundingSphere(sphere, {
+  const destination = Cartesian3.fromDegrees(lon, lat, altitude, Ellipsoid.MOON);
+  const normal = Cartesian3.normalize(target, new Cartesian3());
+  const direction = Cartesian3.negate(normal, new Cartesian3());
+  const pole = Math.abs(normal.z) > 0.96 ? Cartesian3.UNIT_Y : Cartesian3.UNIT_Z;
+  const east = Cartesian3.normalize(Cartesian3.cross(pole, normal, new Cartesian3()), new Cartesian3());
+  const north = Cartesian3.normalize(Cartesian3.cross(normal, east, new Cartesian3()), new Cartesian3());
+
+  viewer.trackedEntity = undefined;
+  viewer.selectedEntity = undefined;
+  viewer.camera.lookAtTransform(Matrix4.IDENTITY);
+  viewer.camera.flyTo({
+    destination,
+    orientation: { direction, up: north },
     duration,
-    offset: new HeadingPitchRange(
-      CesiumMath.toRadians(headingDeg),
-      CesiumMath.toRadians(pitchDeg),
-      Math.max(altitude, 5_000),
-    ),
+    complete: () => {
+      if (viewer.isDestroyed?.()) return;
+      viewer.camera.lookAtTransform(Matrix4.IDENTITY);
+      viewer.camera.setView({ destination, orientation: { direction, up: north } });
+      viewer.scene.requestRender?.();
+    },
   });
+  void opts.heading;
+  void opts.pitch;
 }
 
 /**

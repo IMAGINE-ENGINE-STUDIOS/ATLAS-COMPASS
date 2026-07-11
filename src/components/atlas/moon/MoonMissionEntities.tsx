@@ -95,7 +95,7 @@ export default function MoonMissionEntities({
       const m = MOON_MISSIONS.find((x) => x.id === id);
       if (m) {
         onSelect(m);
-        try { flyToMoonCoord(viewer, m.lon, m.lat, { altitude: 60_000, pitch: -45 }); } catch {}
+        try { flyToMoonCoord(viewer, m.lon, m.lat, { altitude: 180_000 }); } catch {}
       }
     };
     const h = new ScreenSpaceEventHandler(viewer.scene.canvas);
