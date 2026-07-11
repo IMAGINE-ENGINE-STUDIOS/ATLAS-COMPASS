@@ -6983,31 +6983,33 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                       />
                     </div>
 
-                    {/* Inline utility: Scan POIs inside the current radius */}
-                    <button
-                      disabled={!cursorInfo || areaScanning}
-                      onClick={async () => {
-                        if (!cursorInfo) return;
-                        setAreaScanning(true);
-                        setAreaScanResults([]);
-                        setAreaCenter({ lat: cursorInfo.lat, lng: cursorInfo.lng });
-                        try {
-                          const ctrl = new AbortController();
-                          const results = await runOverpassAround(
-                            "",
-                            { lat: cursorInfo.lat, lng: cursorInfo.lng },
-                            brushRadiusM / 1000,
-                            ctrl.signal,
-                          );
-                          setAreaScanResults(results.slice(0, 50));
-                        } finally { setAreaScanning(false); }
-                      }}
-                      className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
-                    >
-                      {areaScanning
-                        ? <><Loader2 className="w-3 h-3 animate-spin" /> Scanning…</>
-                        : <><Search className="w-3 h-3" /> Scan POIs in radius</>}
-                    </button>
+                    {/* Inline utility: scan Earth POIs only on Earth. Moon mode keeps this brush lunar-content only. */}
+                    {!moonMode && (
+                      <button
+                        disabled={!cursorInfo || areaScanning}
+                        onClick={async () => {
+                          if (!cursorInfo) return;
+                          setAreaScanning(true);
+                          setAreaScanResults([]);
+                          setAreaCenter({ lat: cursorInfo.lat, lng: cursorInfo.lng });
+                          try {
+                            const ctrl = new AbortController();
+                            const results = await runOverpassAround(
+                              "",
+                              { lat: cursorInfo.lat, lng: cursorInfo.lng },
+                              brushRadiusM / 1000,
+                              ctrl.signal,
+                            );
+                            setAreaScanResults(results.slice(0, 50));
+                          } finally { setAreaScanning(false); }
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
+                      >
+                        {areaScanning
+                          ? <><Loader2 className="w-3 h-3 animate-spin" /> Scanning…</>
+                          : <><Search className="w-3 h-3" /> Scan POIs in radius</>}
+                      </button>
+                    )}
                     {areaScanResults.length > 0 && (
                       <div className="max-h-32 overflow-y-auto space-y-0.5 rounded-lg bg-black/45 border border-white/[0.06] p-1">
                         {areaScanResults.map((r, i) => (
@@ -7022,7 +7024,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                     )}
 
                     <p className="text-[9.5px] text-white/45 leading-snug px-0.5">
-                      Double-click the globe to stamp. Models snap flush to the tile surface — no float, no bury.
+                      Double-click the {moonMode ? "Moon" : "globe"} to stamp. Models snap flush to the {moonMode ? "LOLA terrain" : "tile surface"} — no float, no bury.
                     </p>
                   </div>
                 )}
@@ -7128,35 +7130,37 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5">
-                        <button
-                          disabled={selectedTiles.size === 0 || tilesScanning}
-                          onClick={async () => {
-                            if (selectedTiles.size === 0) return;
-                            setTilesScanning(true);
-                            setTilesScanResults([]);
-                            try {
-                              let n = -90, s = 90, e = -180, w = 180;
-                              selectedTiles.forEach(k => {
-                                const { z, x, y } = parseTileKey(k);
-                                const b = tileBounds(x, y, z);
-                                n = Math.max(n, b.north); s = Math.min(s, b.south);
-                                e = Math.max(e, b.east);  w = Math.min(w, b.west);
-                              });
-                              const center = { lat: (n + s) / 2, lng: (e + w) / 2 };
-                              const radiusKm = Math.max(0.05, geoHaversine(n, w, s, e) / 2);
-                              const ctrl = new AbortController();
-                              const results = await runOverpassAround("", center, radiusKm, ctrl.signal);
-                              const filtered = results.filter(r => {
-                                const { x, y } = lngLatToTile(r.lat, r.lng, tileZoom);
-                                return selectedTiles.has(tileKey(tileZoom, x, y));
-                              });
-                              setTilesScanResults(filtered.slice(0, 80));
-                            } finally { setTilesScanning(false); }
-                          }}
-                          className="px-1.5 py-1 rounded-md text-[11px] font-medium bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
-                        >
-                          {tilesScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
-                        </button>
+                        {!moonMode && (
+                          <button
+                            disabled={selectedTiles.size === 0 || tilesScanning}
+                            onClick={async () => {
+                              if (selectedTiles.size === 0) return;
+                              setTilesScanning(true);
+                              setTilesScanResults([]);
+                              try {
+                                let n = -90, s = 90, e = -180, w = 180;
+                                selectedTiles.forEach(k => {
+                                  const { z, x, y } = parseTileKey(k);
+                                  const b = tileBounds(x, y, z);
+                                  n = Math.max(n, b.north); s = Math.min(s, b.south);
+                                  e = Math.max(e, b.east);  w = Math.min(w, b.west);
+                                });
+                                const center = { lat: (n + s) / 2, lng: (e + w) / 2 };
+                                const radiusKm = Math.max(0.05, geoHaversine(n, w, s, e) / 2);
+                                const ctrl = new AbortController();
+                                const results = await runOverpassAround("", center, radiusKm, ctrl.signal);
+                                const filtered = results.filter(r => {
+                                  const { x, y } = lngLatToTile(r.lat, r.lng, tileZoom);
+                                  return selectedTiles.has(tileKey(tileZoom, x, y));
+                                });
+                                setTilesScanResults(filtered.slice(0, 80));
+                              } finally { setTilesScanning(false); }
+                            }}
+                            className="px-1.5 py-1 rounded-md text-[11px] font-medium bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
+                          >
+                            {tilesScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
+                          </button>
+                        )}
                         <button
                           disabled={selectedTiles.size === 0 || !stampModelRef.current}
                           title={!stampModelRef.current ? "Load a model in Stamp mode first" : "Stamp model at each tile center"}
