@@ -28,6 +28,15 @@ const MoonPage = lazy(() =>
     },
   })),
 );
+const MarsPage = lazy(() =>
+  import("@/pages/SpaceshipPage").then((m) => ({
+    default: () => {
+      const Cmp = m.default as unknown as (p: { marsMode?: boolean }) => JSX.Element;
+      return <Cmp marsMode />;
+    },
+  })),
+);
+const PlanetPage = lazy(() => import("@/pages/PlanetPage"));
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";
@@ -51,6 +60,8 @@ const App = () => (
           <Route path="/atlas" element={<SpaceshipPage />} />
           <Route path="/explore" element={<SpaceshipPage />} />
           <Route path="/moon" element={<MoonPage />} />
+          <Route path="/mars" element={<MarsPage />} />
+          <Route path="/planet/:id" element={<PlanetPage />} />
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/icons" element={<IconsPage />} />
 
