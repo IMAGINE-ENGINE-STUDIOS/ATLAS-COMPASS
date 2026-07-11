@@ -25,6 +25,7 @@ import { Ellipsoid, ImageryLayer } from "cesium";
 import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
 import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOverlay";
 import { LUNAR_ORBITERS, inertialToLatLonAlt, propagate } from "@/lib/moon/liveOrbits";
+import { loadMoonPhotoreal, unloadMoonPhotoreal } from "@/lib/moon/cesiumMoon3DTiles";
 
 interface Props {
   viewer: any;
@@ -94,6 +95,34 @@ export default function MoonPanels({ viewer }: Props) {
   const [selectedMission, setSelectedMission] = useState<MoonMission | null>(null);
   const [moonLodSse, setMoonLodSse] = useState(6);
   const [liveOrbitTags, setLiveOrbitTags] = useState<AtlasTag[]>([]);
+  const [photoreal, setPhotoreal] = useState(false);
+  const [photorealLoading, setPhotorealLoading] = useState(false);
+  const [photorealError, setPhotorealError] = useState<string | null>(null);
+
+  // Mount / unmount the Cesium Moon 3D Tileset overlay. When active the
+  // ellipsoid globe is hidden so we don't pay for two surfaces at once.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    let cancelled = false;
+    if (photoreal) {
+      setPhotorealLoading(true);
+      setPhotorealError(null);
+      loadMoonPhotoreal(viewer)
+        .catch((err) => {
+          if (!cancelled) setPhotorealError(err?.message ?? "Photoreal tileset unavailable");
+        })
+        .finally(() => { if (!cancelled) setPhotorealLoading(false); });
+    } else {
+      unloadMoonPhotoreal(viewer);
+    }
+    return () => {
+      cancelled = true;
+      if (!photoreal) unloadMoonPhotoreal(viewer);
+    };
+  }, [viewer, photoreal]);
+
+  // Always release the tileset when the panel unmounts (world switch).
+  useEffect(() => () => { if (viewer) unloadMoonPhotoreal(viewer); }, [viewer]);
 
   const allAgencies = useMemo(() => {
     const s = new Set<string>();
