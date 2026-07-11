@@ -2853,23 +2853,47 @@ function SpaceshipPage() {
     // (Vexcel 3D Cities, Japan 3D Buildings / PLATEAU, user-added assets).
     restoreEnabledIonLayers(viewer).catch(() => {});
 
-    // Create brush indicator entity (hidden by default)
-    const brushEntity = viewer.entities.add({
-      id: "brush-indicator",
+    // Create brush indicator — two entities that render as DECALS across both
+    // the terrain surface AND every 3D Tileset above it (Google Photoreal,
+    // OSM Buildings, Vexcel, PLATEAU…). `classificationType: BOTH` means the
+    // shape is projected onto whatever geometry is on top, so it is ALWAYS
+    // visible above the tiles and can never be occluded by a building.
+    //   • `brushCircleEntity`  — ellipse, used for the "circle" shape.
+    //   • `brushPolyEntity`    — polygon, used for square / hex shapes AND
+    //                            for the tile-shaped indicator in Tile mode.
+    const brushCircleEntity = viewer.entities.add({
+      id: "brush-indicator-circle",
       position: Cartesian3.fromDegrees(0, 0, 0),
       show: false,
       ellipse: {
-        semiMajorAxis: 50,
-        semiMinorAxis: 50,
-        material: Color.fromCssColorString("#00ff88").withAlpha(0.3),
+        semiMajorAxis: 25,
+        semiMinorAxis: 25,
+        material: Color.fromCssColorString("#00ff88").withAlpha(0.22),
         outline: true,
-        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.8),
+        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.95),
         outlineWidth: 3,
-        height: 0,
-        heightReference: 1, // CLAMP_TO_GROUND
+        classificationType: ClassificationType.BOTH,
       } as any,
     });
-    brushIndicatorRef.current = brushEntity;
+    const brushPolyEntity = viewer.entities.add({
+      id: "brush-indicator-poly",
+      show: false,
+      polygon: {
+        hierarchy: Cartesian3.fromDegreesArray([0, 0, 0, 0, 0, 0]) as any,
+        material: Color.fromCssColorString("#00ff88").withAlpha(0.22),
+        outline: true,
+        outlineColor: Color.fromCssColorString("#00ff88").withAlpha(0.95),
+        outlineWidth: 3,
+        classificationType: ClassificationType.BOTH,
+      } as any,
+    });
+    // Back-compat: `brushIndicatorRef` still points at the "current" indicator
+    // so the mouse-move handler that assigns `.position` keeps working for
+    // the circle. The polygon shape is repositioned via its `hierarchy` in
+    // the shape-update effect below.
+    brushIndicatorRef.current = brushCircleEntity;
+    (viewer as any).__brushCircleEntity = brushCircleEntity;
+    (viewer as any).__brushPolyEntity = brushPolyEntity;
 
     // Area-mode circle entity (hidden by default; lives over the painted zone)
     const areaEntity = viewer.entities.add({
