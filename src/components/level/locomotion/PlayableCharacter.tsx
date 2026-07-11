@@ -583,7 +583,10 @@ export default function PlayableCharacter({
         // sampling, then subtract it back when projecting the surface
         // point into the level's local frame.
         const viewer = (window as any).__cesiumViewer;
-        const ellipsoid = viewer?.__moonMode ? CesiumEllipsoid.MOON : CesiumEllipsoid.WGS84;
+        const nonEarth = viewer?.__atlasNonEarthEllipsoid as any;
+        const ellipsoid = viewer?.__moonMode
+          ? (nonEarth ?? CesiumEllipsoid.MOON)
+          : CesiumEllipsoid.WGS84;
         const camPos = viewer?.camera?.positionWC;
         const offX = camPos?.x ?? 0;
         const offY = camPos?.y ?? 0;

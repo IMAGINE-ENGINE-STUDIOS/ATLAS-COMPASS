@@ -24,7 +24,10 @@ export function clampEyeAboveTerrain(
   marginMeters: number = 0.6,
 ): Cartesian3 {
   try {
-    const ellipsoid = (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    const nonEarth = (viewer as any).__atlasNonEarthEllipsoid as Ellipsoid | null | undefined;
+    const ellipsoid = (viewer as any).__moonMode
+      ? (nonEarth ?? Ellipsoid.MOON)
+      : Ellipsoid.WGS84;
     Cartographic.fromCartesian(new Cartesian3(eye.x, eye.y, eye.z), ellipsoid, _carto);
     const scene = viewer.scene;
     // Prefer the actual rendered surface (3D Tiles + globe), fall back to globe.

@@ -72,7 +72,9 @@ export function useAtlasKeyboardNav(
       try {
         const carto = Cartographic.fromCartesian(
           viewer.camera.positionWC,
-          (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84,
+          ((viewer as any).__moonMode
+            ? ((viewer as any).__atlasNonEarthEllipsoid ?? Ellipsoid.MOON)
+            : Ellipsoid.WGS84),
         );
         alt = Math.max(2, carto.height);
       } catch {}

@@ -42,6 +42,9 @@ import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPil
 import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
+import { MARS_LAYERS, createMarsImageryProvider, tuneMarsImageryLayer } from "@/lib/mars/marsProviders";
+import { MARS_ELLIPSOID } from "@/lib/planets/ellipsoids";
+import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
 import {
   MOON_LAYERS,
   createMoonImageryProvider,
@@ -1023,17 +1026,38 @@ async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<a
 }
 
 /* ── Main Spaceship Component ── */
-function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
+function SpaceshipPage({
+  moonMode: _moonModeProp = false,
+  marsMode = false,
+}: { moonMode?: boolean; marsMode?: boolean } = {}) {
+  // Non-Earth gating: every existing `moonMode` check must also fire for
+  // Mars (Mars world hides the same Earth-only data loads: Google Photoreal,
+  // OSM Buildings, Overpass, POIs, live traffic, etc.).  We alias the prop
+  // internally so the ~200 existing `moonMode` sites keep working.
+  const moonMode = _moonModeProp || marsMode;
   // Route-driven "world" flag: when true we render the same Atlas HUD but
-  // over a Moon-sized globe with Cesium ion Moon Terrain (asset 2684829)
-  // and skip every Earth-only data load (Google Photoreal, OSM Buildings,
-  // Ion Realistic, Overpass discovery, POIs, placed models, level layer).
+  // over a Moon- or Mars-sized globe with NASA Trek imagery and skips every
+  // Earth-only data load.  `marsMode` swaps the ellipsoid and imagery to
+  // the Mars Trek stack while keeping the same HUD, controls, and tooling.
   const moonModeRef = useRef(moonMode);
+  const marsModeRef = useRef(marsMode);
+  // Active non-Earth ellipsoid — Moon by default, Mars when `marsMode`.
+  // All in-file placement/coordinate math reads from this ref so a single
+  // switch swaps the entire coordinate system between the two worlds.
+  const nonEarthEllipsoidRef = useRef<Ellipsoid>(marsMode ? MARS_ELLIPSOID : Ellipsoid.MOON);
   useEffect(() => {
     moonModeRef.current = moonMode;
+    marsModeRef.current = marsMode;
+    nonEarthEllipsoidRef.current = marsMode ? MARS_ELLIPSOID : Ellipsoid.MOON;
     (window as any).__atlasMoonMode = moonMode;
-    return () => { (window as any).__atlasMoonMode = false; };
-  }, [moonMode]);
+    (window as any).__atlasMarsMode = marsMode;
+    (window as any).__atlasNonEarthEllipsoid = moonMode ? nonEarthEllipsoidRef.current : null;
+    return () => {
+      (window as any).__atlasMoonMode = false;
+      (window as any).__atlasMarsMode = false;
+      (window as any).__atlasNonEarthEllipsoid = null;
+    };
+  }, [moonMode, marsMode]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
@@ -1237,7 +1261,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // No tile snap — drop the ghost at the EXACT clicked lng/lat so the
     // user gets pixel-accurate placement.
     const size = sizeM;
-    const ellipsoid = moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    const ellipsoid = (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84);
     const center = Cartesian3.fromDegrees(loc.lng, loc.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2, ellipsoid);
     const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading ?? 0), 0, 0);
     const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr, ellipsoid);
@@ -1443,12 +1467,12 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   useEffect(() => { tilesToolRef.current = tilesTool; }, [tilesTool]);
 
   const cartesianFromDegrees = useCallback((lng: number, lat: number, height = 0) => (
-    Cartesian3.fromDegrees(lng, lat, height, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84)
+    Cartesian3.fromDegrees(lng, lat, height, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84))
   ), []);
   const cartesianArrayFromDegrees = useCallback((coords: number[]) => {
     const out: Cartesian3[] = [];
     for (let i = 0; i < coords.length - 1; i += 2) {
-      out.push(Cartesian3.fromDegrees(coords[i], coords[i + 1], 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84));
+      out.push(Cartesian3.fromDegrees(coords[i], coords[i + 1], 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)));
     }
     return out;
   }, []);
@@ -1480,7 +1504,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const z = Math.max(1, Math.min(moonModeRef.current ? 12 : 22, Math.round(tileZoom)));
       const { x, y } = lngLatToTile(cursor.lat, cursor.lng, z);
       const b = tileBounds(x, y, z);
-      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b, moonModeRef.current ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius);
+      const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, 0, "tile", b, (moonModeRef.current ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius));
       poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
       poly.show = wantIndicator;
       circle.show = false;
@@ -1498,7 +1522,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       return;
     }
 
-    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape, undefined, moonModeRef.current ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius);
+    const coords = buildBrushPolygonDegrees(cursor.lng, cursor.lat, radius, shape, undefined, (moonModeRef.current ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius));
     poly.polygon.hierarchy = cartesianArrayFromDegrees(coords) as any;
     poly.show = wantIndicator;
     circle.show = false;
@@ -1567,7 +1591,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if (typeof height === "number" && isFinite(height)) {
         // +0.5m lift so the billboard's base sits ABOVE the tile surface,
         // never co-planar with (or below) it.
-        entity.position = Cartesian3.fromDegrees(lng, lat, height + 0.5, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+        entity.position = Cartesian3.fromDegrees(lng, lat, height + 0.5, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
       }
       entity.show = true;
       viewer.scene.requestRender?.();
@@ -1812,7 +1836,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   };
   const tileSizeMeters = (lat: number, z: number) =>
     moonModeRef.current
-      ? (2 * Math.PI * Ellipsoid.MOON.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / Math.pow(2, z + 1)
+      ? (2 * Math.PI * nonEarthEllipsoidRef.current.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / Math.pow(2, z + 1)
       : (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, z);
   const tileKey = (z: number, x: number, y: number): string => `${z}/${x}/${y}`;
   const parseTileKey = (k: string) => {
@@ -1964,7 +1988,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const cam = viewer.camera;
         const carto = Cartographic.fromCartesian(
           cam.position,
-          moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+          (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
         );
         if (!carto) return;
         const lat = CesiumMath.toDegrees(carto.latitude);
@@ -1975,7 +1999,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const mpp = (2 * height * Math.tan(fovy / 2)) / canvasH;
         if (!isFinite(mpp) || mpp <= 0) return;
         const z = moonModeRef.current
-          ? Math.log2((2 * Math.PI * Ellipsoid.MOON.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / (512 * mpp))
+          ? Math.log2((2 * Math.PI * nonEarthEllipsoidRef.current.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / (512 * mpp))
           : Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / mpp);
         const clamped = Math.max(1, Math.min(moonModeRef.current ? 12 : 22, Math.round(z)));
         setTileZoom((prev) => (prev === clamped ? prev : clamped));
@@ -2710,7 +2734,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       ...(isMoon
         ? {
             // Moon world: Moon-sized ellipsoid + no default Bing imagery.
-            globe: new CesiumGlobe(Ellipsoid.MOON),
+            globe: new CesiumGlobe(marsModeRef.current ? MARS_ELLIPSOID : Ellipsoid.MOON),
             baseLayer: false as unknown as undefined,
           }
         : {}),
@@ -2931,46 +2955,57 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     if (isMoon) {
       viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false);
       viewer.scene.globe.showGroundAtmosphere = false;
-      // Keep a lunar fallback disc under NASA Trek imagery. Transparent here
-      // made the Moon vanish whenever imagery tiles were delayed/cancelled
-      // during right-drag movement.
-      viewer.scene.globe.baseColor = Color.fromCssColorString("#8f8b83");
+      // Keep a rocky fallback disc under NASA Trek imagery so the planet
+      // never vanishes if tiles are delayed. Colour matches the world.
+      viewer.scene.globe.baseColor = Color.fromCssColorString(
+        marsModeRef.current ? "#8b3a17" : "#8f8b83",
+      );
       (viewer.scene.globe as any).translucency && ((viewer.scene.globe as any).translucency.enabled = false);
-      // Moon datasets must read as map/albedo layers, not disappear into an
-      // unlit night-side hemisphere while orbiting with right-drag.
+      // Non-Earth datasets read as map/albedo layers — no lighting, no sun.
       viewer.scene.globe.enableLighting = false;
       viewer.scene.sun && (viewer.scene.sun.show = false);
-      // NASA LOLA-derived terrain (no Cesium ion). Renders convincing
-      // 3D relief from public LRO/LOLA hillshade tiles.
-      try {
-        viewer.terrainProvider = createLolaMoonTerrainProvider();
-      } catch (err) {
-        console.warn("[Atlas moon] LOLA terrain failed", err);
+      if (marsModeRef.current) {
+        // Mars world — NASA Mars Trek imagery. Terrain stays as the ellipsoid
+        // surface (Cesium has no bundled Mars terrain provider); LOLA math
+        // would be wrong here so we skip it.
+        try {
+          viewer.imageryLayers.removeAll(true);
+          const defaults = MARS_LAYERS.filter((l) => l.defaultVisible);
+          (viewer as any).__marsImagery = (viewer as any).__marsImagery || {};
+          defaults.forEach((def) => {
+            const provider = createMarsImageryProvider(def);
+            const layer = new ImageryLayer(provider, {});
+            tuneMarsImageryLayer(layer, def);
+            layer.alpha = def.defaultAlpha ?? 1;
+            viewer.imageryLayers.add(layer);
+            (viewer as any).__marsImagery[def.id] = layer;
+          });
+        } catch (err) {
+          console.warn("[Atlas mars] imagery failed", err);
+        }
+      } else {
+        // NASA LOLA-derived terrain for the Moon (no Cesium ion).
+        try {
+          viewer.terrainProvider = createLolaMoonTerrainProvider();
+        } catch (err) {
+          console.warn("[Atlas moon] LOLA terrain failed", err);
+        }
+        try {
+          viewer.imageryLayers.removeAll(true);
+          const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
+          (viewer as any).__moonImagery = (viewer as any).__moonImagery || {};
+          defaults.forEach((def) => {
+            const provider = createMoonImageryProvider(def);
+            const layer = new ImageryLayer(provider, {});
+            tuneMoonImageryLayer(layer, def);
+            layer.alpha = def.defaultAlpha ?? 1;
+            viewer.imageryLayers.add(layer);
+            (viewer as any).__moonImagery[def.id] = layer;
+          });
+        } catch (err) {
+          console.warn("[Atlas moon] imagery failed", err);
+        }
       }
-
-      // Mount default NASA imagery layer (LRO WAC Global Mosaic — the
-      // photorealistic base). Additional layers are toggled from the
-      // Moon Layers pill. Remove any default Bing base first.
-      try {
-        viewer.imageryLayers.removeAll(true);
-        const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
-        (viewer as any).__moonImagery = (viewer as any).__moonImagery || {};
-        defaults.forEach((def) => {
-          const provider = createMoonImageryProvider(def);
-          const layer = new ImageryLayer(provider, {});
-          tuneMoonImageryLayer(layer, def);
-          layer.alpha = def.defaultAlpha ?? 1;
-          viewer.imageryLayers.add(layer);
-          (viewer as any).__moonImagery[def.id] = layer;
-        });
-      } catch (err) {
-        console.warn("[Atlas moon] imagery failed", err);
-      }
-
-      // NOTE: Cesium ion asset 2684829 is not accessible under the current
-      // ion token (returns 404). Moon surface is rendered from LOLA terrain
-      // + NASA Trek imagery layers above. Do not re-add without a valid
-      // ion asset id / token.
     } else {
       createWorldTerrainAsync({
         requestWaterMask: false,
@@ -3280,7 +3315,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         // entire lunar body to the viewport regardless of aspect ratio, so
         // the Moon is visible + centered on the very first paint (no need to
         // wait for terrain to finish streaming).
-        const moonR = Ellipsoid.MOON.maximumRadius;
+        const moonR = nonEarthEllipsoidRef.current.maximumRadius;
         const moonSphere = new BoundingSphere(Cartesian3.ZERO, moonR);
         viewer.camera.flyToBoundingSphere(moonSphere, {
           duration: 0,
@@ -3327,7 +3362,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         if (defined(cartesian)) {
           const carto = Cartographic.fromCartesian(
             cartesian,
-            isMoon ? Ellipsoid.MOON : undefined
+            (isMoon ? nonEarthEllipsoidRef.current : undefined)
           );
           setCursorInfo({
             lat: CesiumMath.toDegrees(carto.latitude),
@@ -3390,7 +3425,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if (!defined(cartesian)) return null;
       const carto = Cartographic.fromCartesian(
         cartesian,
-        isMoon ? Ellipsoid.MOON : Ellipsoid.WGS84,
+        (isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
       );
       return {
         lat: CesiumMath.toDegrees(carto.latitude),
@@ -3464,7 +3499,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if (now - __lastAltEmit < 250) return;
       const carto = Cartographic.fromCartesian(
         viewer.camera.position,
-        isMoon ? Ellipsoid.MOON : undefined
+        (isMoon ? nonEarthEllipsoidRef.current : undefined)
       );
       const h = carto.height;
       if (Math.abs(h - __lastAltVal) < 0.5) return;
@@ -3504,7 +3539,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const now = performance.now();
       const dt = now - __lastFrameT;
       __lastFrameT = now;
-      const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position, isMoon ? Ellipsoid.MOON : Ellipsoid.WGS84).height; } catch { return 0; } })();
+      const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position, (isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)).height; } catch { return 0; } })();
       // Moon-scale altitude threshold is much larger than Earth's due to
       // Cartographic.fromCartesian returning distance from the ellipsoid
       // surface (Moon radius is 1/4 of Earth's).
@@ -4326,7 +4361,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         if (movedModel && viewerRef.current) {
           const entity = viewerRef.current.entities.getById(`model-${id}`);
           if (entity) {
-        const pos = Cartesian3.fromDegrees(movedModel.lng, movedModel.lat, movedModel.alt || 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+        const pos = Cartesian3.fromDegrees(movedModel.lng, movedModel.lat, movedModel.alt || 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
             const hpr = new HeadingPitchRoll(
               CesiumMath.toRadians(movedModel.heading || 0),
               CesiumMath.toRadians(movedModel.pitch || 0),
@@ -4336,7 +4371,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
             entity.orientation = Transforms.headingPitchRollQuaternion(
               pos,
               hpr,
-              moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+              (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
             ) as any;
           }
         }
@@ -4913,7 +4948,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
   /* ── Tile Brush / 3D Model Placement ── */
   const applyModelTransformToEntity = useCallback((entity: any, model: Pick<PlacedModel, "lat" | "lng" | "alt" | "heading" | "pitch" | "roll" | "scale">) => {
-      const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+      const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
     entity.position = position as any;
     if (entity.model) {
       (entity.model as any).heightReference = 0;
@@ -4928,7 +4963,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       entity.orientation = Transforms.headingPitchRollQuaternion(
         position,
         hpr,
-        moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+        (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
       ) as any;
   }, []);
 
@@ -4941,7 +4976,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const theta = (i / segments) * Math.PI * 2;
       const dLat = (radiusMeters * Math.sin(theta)) / metersPerDegLat;
       const dLng = (radiusMeters * Math.cos(theta)) / Math.max(1, metersPerDegLng);
-      positions.push(Cartesian3.fromDegrees(lng + dLng, lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84));
+      positions.push(Cartesian3.fromDegrees(lng + dLng, lat + dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)));
     }
     return new ClippingPolygon({ positions });
   }, []);
@@ -4973,10 +5008,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const dLat = half / metersPerDegLat;
       const dLng = half / Math.max(1, metersPerDegLng);
       const corners = [
-        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat - dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
-        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat - dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
-        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
-        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat - dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat - dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat + dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat + dLat, 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
       ];
       polygons.push(new ClippingPolygon({ positions: corners }));
     }
@@ -5247,7 +5282,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const screenToCell = (screenPos: { x: number; y: number }) => {
       const world = pickWorld(screenPos);
       if (!world) return null;
-      const c = Cartographic.fromCartesian(world, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+      const c = Cartographic.fromCartesian(world, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84));
       const lat = CesiumMath.toDegrees(c.latitude);
       const lng = CesiumMath.toDegrees(c.longitude);
       const cb = editingModel.cropBase!;
@@ -5940,15 +5975,15 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
-      {isLoaded && viewerRef.current && (
+      {isLoaded && !marsMode && viewerRef.current && (
         <SolarSystemOverlay viewer={viewerRef.current} centralBody={moonMode ? "moon" : "earth"} />
       )}
 
       {/* Circular cropout — top-center jump button. Moon on Earth, Earth on Moon. */}
-      {isLoaded && (moonMode ? <EarthPill /> : <MoonPill />)}
+      {isLoaded && !marsMode && (moonMode ? <EarthPill /> : <MoonPill />)}
 
       {/* Moon-only HUD: NASA layers + missions catalog. */}
-      {isLoaded && moonMode && viewerRef.current && (
+      {isLoaded && moonMode && !marsMode && viewerRef.current && (
         <MoonPanels viewer={viewerRef.current} />
       )}
 
@@ -5972,8 +6007,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
             }
             setEditingModel(m as PlacedModel);
           }}
-          ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
-          horizonRadius={moonMode ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius}
+          ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+          horizonRadius={(moonMode ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius)}
         />
       )}
 
@@ -5986,7 +6021,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         isLoaded={isLoaded}
         placements={levelPlacements}
         onPlayingChange={handleLevelPlayingChange}
-        ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
       />
 
       {/* Gaussian Splat landmarks — high-fidelity overlays at specific
@@ -6012,7 +6047,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         viewerRef={viewerRef}
         spawn={freePlaySpawn}
         onExit={() => setFreePlaySpawn(null)}
-        ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
       />
 
       {/* Level Inspector — opens when the user clicks a placed Level on
@@ -6031,8 +6066,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         <AtlasTagsOverlay
           viewer={viewerRef.current}
           tags={atlasTags}
-          ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
-          horizonRadius={moonMode ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius}
+          ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+          horizonRadius={(moonMode ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius)}
           onSelect={(t) => {
             if (t.kind === "biz") {
               const data = businessDataRef.current.get(t.id);
@@ -6120,6 +6155,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                     <span className="text-sm font-bold">ATLAS</span>
                   </GlassPanel>
                 </div>
+              </div>
+
+              {/* Top-center planet switcher — Sun, Mercury … Neptune. */}
+              <div className="hidden md:flex flex-1 justify-center pointer-events-none">
+                <PlanetSwitcher />
               </div>
 
               <div className="relative">
@@ -8301,10 +8341,13 @@ class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
   }
 }
 
-export default function AtlasPage({ moonMode = false }: { moonMode?: boolean } = {}) {
+export default function AtlasPage({
+  moonMode = false,
+  marsMode = false,
+}: { moonMode?: boolean; marsMode?: boolean } = {}) {
   return (
     <AtlasErrorBoundary>
-      <SpaceshipPage moonMode={moonMode} />
+      <SpaceshipPage moonMode={moonMode} marsMode={marsMode} />
     </AtlasErrorBoundary>
   );
 }
