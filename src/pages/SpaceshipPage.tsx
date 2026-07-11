@@ -2998,7 +2998,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       return (viewer as any)._googleDirectLoading;
     };
     applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
-    if (viewModeRef.current === "google") {
+    if (isMoon) {
+      // Skip every Earth tileset ensure. The moon world only shows the
+      // Cesium ion Moon terrain — no Google Photoreal, no OSM, no ion
+      // photogrammetry, no community layers.
+    } else if (viewModeRef.current === "google") {
       (viewer as any)._ensureGoogleDirectTileset();
     } else if (viewModeRef.current === "realistic") {
       (viewer as any)._ensureRealisticTileset();
@@ -3009,7 +3013,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
     // Rehydrate previously enabled Cesium ion community 3D Tile layers
     // (Vexcel 3D Cities, Japan 3D Buildings / PLATEAU, user-added assets).
-    restoreEnabledIonLayers(viewer).catch(() => {});
+    if (!isMoon) restoreEnabledIonLayers(viewer).catch(() => {});
 
     // Create brush indicator — two entities that render as DECALS across both
     // the terrain surface AND every 3D Tileset above it (Google Photoreal,
