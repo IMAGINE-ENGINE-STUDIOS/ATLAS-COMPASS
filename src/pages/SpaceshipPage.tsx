@@ -5304,6 +5304,7 @@ function SpaceshipPage() {
     setConvertError(null);
     try {
       const gltfBlob = await convertToGltfBlob(modelFile, setConvertProgress);
+      pushPlacementHistory();
       const modelId = crypto.randomUUID();
       await saveAtlasModelBlob(modelId, gltfBlob, modelFile.name);
       const blobUrl = URL.createObjectURL(gltfBlob);
