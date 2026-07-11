@@ -2828,6 +2828,10 @@ function SpaceshipPage() {
       (viewer as any)._ensureOsmTileset();
     }
 
+    // Rehydrate previously enabled Cesium ion community 3D Tile layers
+    // (Vexcel 3D Cities, Japan 3D Buildings / PLATEAU, user-added assets).
+    restoreEnabledIonLayers(viewer).catch(() => {});
+
     // Create brush indicator entity (hidden by default)
     const brushEntity = viewer.entities.add({
       id: "brush-indicator",
