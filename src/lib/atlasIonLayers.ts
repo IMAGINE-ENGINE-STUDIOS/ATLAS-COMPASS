@@ -13,7 +13,16 @@
  * and an "Add by asset ID" input so users can wire additional cities without
  * touching code.
  */
-import { Cesium3DTileset, Ion, type Viewer } from "cesium";
+import {
+  Cartographic,
+  Cesium3DTileset,
+  ClippingPolygon,
+  ClippingPolygonCollection,
+  Ion,
+  Math as CMath,
+  Cartesian3,
+  type Viewer,
+} from "cesium";
 
 export type IonLayerGroup = "vexcel" | "japan" | "custom";
 
@@ -322,7 +331,12 @@ export const ensureIonLayer = async (
     try {
       ts = await Cesium3DTileset.fromIonAssetId(assetId);
     } catch (err) {
-      console.warn(`[atlasIonLayers] asset ${assetId} failed`, err);
+      console.warn(`[atlasIonLayers] asset ${assetId} (${entry.name}) failed`, err);
+      try {
+        window.dispatchEvent(new CustomEvent("atlas-ion-layer-error", {
+          detail: { entry, error: (err as any)?.message || String(err) },
+        }));
+      } catch {}
       return null;
     }
     if ((viewer as any).isDestroyed?.()) { try { ts.destroy?.(); } catch {} return null; }
@@ -332,6 +346,10 @@ export const ensureIonLayer = async (
     map.set(entry.id, ts);
   }
   ts.show = visible;
+  // Whenever a community overlay is toggled we must re-cut the base tilesets
+  // (Google Photoreal / OSM) so their photoreal mesh doesn't z-fight with
+  // the higher-resolution overlay we just enabled.
+  try { await refreshBaseTilesetClipping(viewer); } catch {}
   viewer.scene.requestRender?.();
   return ts;
 };
@@ -342,6 +360,8 @@ export const removeIonLayerPrimitive = (viewer: Viewer, id: string) => {
   if (!ts) return;
   try { viewer.scene.primitives.remove(ts); } catch {}
   map.delete(id);
+  // Removing an overlay must also drop its clipping polygon from the base.
+  void refreshBaseTilesetClipping(viewer);
   viewer.scene.requestRender?.();
 };
 
