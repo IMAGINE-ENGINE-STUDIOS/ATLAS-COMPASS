@@ -2857,7 +2857,7 @@ function SpaceshipPage({
       // LOLA sampler — which combined to freeze pan/zoom at low altitudes
       // and only feel responsive above ~17,000 km. We restore full Cesium
       // defaults on the Moon and only keep sane min/max zoom distances.
-      (ssec0 as any).enableCollisionDetection = false;
+      (ssec0 as any).enableCollisionDetection = true;
       ssec0.minimumZoomDistance = MOON_MIN_SAFE_ALTITUDE_M;
       ssec0.maximumZoomDistance = MOON_MAX_SAFE_ALTITUDE_M;
       ssec0.enableTilt = true;
@@ -7802,7 +7802,7 @@ function SpaceshipPage({
                                   const viewer = viewerRef.current;
                                   if (!viewer || viewer.isDestroyed()) return;
                                   if (moonModeRef.current) {
-                                    flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2 });
+                                    flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2, ellipsoid: nonEarthEllipsoidRef.current });
                                   } else {
                                     viewer.camera.flyTo({
                                       destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 800, Ellipsoid.WGS84),
@@ -7824,7 +7824,7 @@ function SpaceshipPage({
                                     const viewer = viewerRef.current;
                                     if (!viewer || viewer.isDestroyed()) return;
                                     if (moonModeRef.current) {
-                                      flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2 });
+                                      flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2, ellipsoid: nonEarthEllipsoidRef.current });
                                     } else {
                                       viewer.camera.flyTo({
                                         destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 1500, Ellipsoid.WGS84),
