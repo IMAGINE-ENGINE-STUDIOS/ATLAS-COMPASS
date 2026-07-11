@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import { SkeletonUtils } from "three-stdlib";
-import { Cartesian3 as CesiumCartesian3, Cartographic as CesiumCartographic, Math as CesiumMath } from "cesium";
+import { Cartesian3 as CesiumCartesian3, Cartographic as CesiumCartographic, Ellipsoid as CesiumEllipsoid, Math as CesiumMath } from "cesium";
 import type { CharacterObject } from "@/lib/levelTypes";
 import { modelForwardYawOffset } from "@/lib/modelOrientation";
 import {
@@ -583,6 +583,7 @@ export default function PlayableCharacter({
         // sampling, then subtract it back when projecting the surface
         // point into the level's local frame.
         const viewer = (window as any).__cesiumViewer;
+        const ellipsoid = viewer?.__moonMode ? CesiumEllipsoid.MOON : CesiumEllipsoid.WGS84;
         const camPos = viewer?.camera?.positionWC;
         const offX = camPos?.x ?? 0;
         const offY = camPos?.y ?? 0;
@@ -592,13 +593,14 @@ export default function PlayableCharacter({
         const ecefZ = worldFeet.z + offZ;
         const carto = CesiumCartographic.fromCartesian(
           new CesiumCartesian3(ecefX, ecefY, ecefZ),
+          ellipsoid,
         );
         if (carto) {
           const lngDeg = CesiumMath.toDegrees(carto.longitude);
           const latDeg = CesiumMath.toDegrees(carto.latitude);
           const h = sampleEarthHeight(lngDeg, latDeg);
           if (h !== null) {
-            const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, h);
+            const surfECEF = CesiumCartesian3.fromRadians(carto.longitude, carto.latitude, h, ellipsoid);
             groundPoint = toLocalPoint(
               new THREE.Vector3(
                 surfECEF.x - offX,

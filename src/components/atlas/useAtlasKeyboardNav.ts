@@ -15,7 +15,7 @@
  * is inside an input/textarea/contenteditable so we don't fight typing.
  */
 import { useEffect, useRef } from "react";
-import { Cartographic, type Viewer } from "cesium";
+import { Cartographic, Ellipsoid, type Viewer } from "cesium";
 
 const KEY_MAP: Record<string, string> = {
   KeyW: "fwd", ArrowUp: "fwd",
@@ -70,7 +70,10 @@ export function useAtlasKeyboardNav(
       if (!viewer || viewer.isDestroyed()) return;
       let alt = 100;
       try {
-        const carto = Cartographic.fromCartesian(viewer.camera.positionWC);
+        const carto = Cartographic.fromCartesian(
+          viewer.camera.positionWC,
+          (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84,
+        );
         alt = Math.max(2, carto.height);
       } catch {}
       const base = Math.max(2, alt * 0.6) * sensitivity * (boostRef.current ? 4 : 1);

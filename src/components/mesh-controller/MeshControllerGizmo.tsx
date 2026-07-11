@@ -21,6 +21,7 @@ import type { Viewer } from "cesium";
 import {
   Cartesian3,
   Cartographic,
+  Ellipsoid,
   Math as CesiumMath,
   Matrix4,
   Transforms,
@@ -60,12 +61,13 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const scene = viewer.scene;
+    const ellipsoid = (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84;
 
     const sync = () => {
       if (!viewer || viewer.isDestroyed()) return;
       const t = stateRef.current.transform;
-      const anchor = Cartesian3.fromDegrees(t.lng, t.lat, (t.alt ?? 0));
-      const enu = Transforms.eastNorthUpToFixedFrame(anchor);
+      const anchor = Cartesian3.fromDegrees(t.lng, t.lat, (t.alt ?? 0), ellipsoid);
+      const enu = Transforms.eastNorthUpToFixedFrame(anchor, ellipsoid);
 
       const camDist = Cartesian3.distance(scene.camera.positionWC, anchor);
       // Adaptive world length so the gizmo stays ~90 px on screen.
@@ -163,12 +165,13 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
   // Convert meters along an ENU axis into transform deltas.
   const applyAxisMeters = (axis: "east" | "north" | "up", meters: number) => {
     const t = stateRef.current.transform;
+    const viewer = viewerRef.current;
+    const R = (viewer as any)?.__moonMode ? Ellipsoid.MOON.maximumRadius : 6371008.8;
     if (axis === "up") {
       onChange({ alt: (t.alt || 0) + meters });
       return;
     }
     // Meters → degrees using local scale (spherical earth approximation).
-    const R = 6371008.8;
     if (axis === "north") {
       const dLat = (meters / R) * (180 / Math.PI);
       onChange({ lat: t.lat + dLat });
@@ -213,7 +216,7 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
       cart = scene.camera.pickEllipsoid({ x, y } as any, scene.globe.ellipsoid);
     }
     if (!defined(cart)) return;
-    const c = Cartographic.fromCartesian(cart!);
+    const c = Cartographic.fromCartesian(cart!, (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84);
     onChange({
       lat: CesiumMath.toDegrees(c.latitude),
       lng: CesiumMath.toDegrees(c.longitude),
