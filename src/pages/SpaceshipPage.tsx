@@ -1307,6 +1307,25 @@ function SpaceshipPage() {
   // the callback below can read the latest value without re-binding).
   const brushIndicatorEnabledRef = useRef<boolean>(false);
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
+  // ── Undo / Redo for stamp + tile placements ──
+  // We snapshot the `placedModels` array before any mutation that changes the
+  // set of placed items (add via stamp/tile, terrain pad, delete). Async
+  // re-snap alt updates deliberately DO NOT push a history frame so that
+  // undoing a stamp reverts the whole placement including the snapped alt.
+  const placedModelsRef = useRef<PlacedModel[]>(placedModels);
+  useEffect(() => { placedModelsRef.current = placedModels; }, [placedModels]);
+  const undoStackRef = useRef<PlacedModel[][]>([]);
+  const redoStackRef = useRef<PlacedModel[][]>([]);
+  const [historyTick, setHistoryTick] = useState(0);
+  const HISTORY_LIMIT = 50;
+  const snapshotPlaced = (arr: PlacedModel[]): PlacedModel[] =>
+    arr.map((m) => ({ ...m, cropBase: m.cropBase ? { ...m.cropBase } : undefined }));
+  const pushPlacementHistory = useCallback(() => {
+    undoStackRef.current.push(snapshotPlaced(placedModelsRef.current));
+    if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    setHistoryTick((t) => t + 1);
+  }, []);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [modelName, setModelName] = useState("");
