@@ -1523,7 +1523,9 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // anchors them to the photogrammetry top instead.
   const viewModeRef = useRef<AtlasViewMode>("google");
   const pinHeightRef = useCallback(() => (
-    viewModeRef.current === "realistic" || viewModeRef.current === "google"
+    moonModeRef.current
+      ? HeightReference.CLAMP_TO_GROUND
+      : viewModeRef.current === "realistic" || viewModeRef.current === "google"
       ? HeightReference.CLAMP_TO_3D_TILE
       : HeightReference.CLAMP_TO_GROUND
   ), []);
@@ -7855,8 +7857,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
               </GlassPanel>
 
               <div className="flex flex-col items-end shrink-0">
-              <GoogleAttributionPill viewer={viewerRef.current} visible={viewMode === "google"} />
-              <Google3DController viewer={viewerRef.current} visible={viewMode === "google"} />
+              <GoogleAttributionPill viewer={viewerRef.current} visible={!moonMode && viewMode === "google"} />
+              <Google3DController viewer={viewerRef.current} visible={!moonMode && viewMode === "google"} />
               <GlassPanel className="px-2.5 py-1.5 sm:px-3 sm:py-2.5 shrink-0">
                 <div className="flex items-center gap-1.5 sm:gap-2.5">
                   <img src={eyePng} alt="Eye" width={16} height={16} className="w-3 h-3 sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
@@ -7866,11 +7868,19 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                   </div>
                   <div className="w-px h-5 sm:h-7 bg-white/10" />
                   <div>
-                    <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">Mode</p>
-                    <div className="flex items-center gap-1.5">
-                      <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
-                      <AtlasCommunityLayersPill viewerRef={viewerRef} isLoaded={isLoaded} />
-                    </div>
+                    <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">
+                      {moonMode ? "Moon" : "Mode"}
+                    </p>
+                    {moonMode ? (
+                      <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-slate-100">
+                        <Satellite className="w-2.5 h-2.5" /> NASA LOLA
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
+                        <AtlasCommunityLayersPill viewerRef={viewerRef} isLoaded={isLoaded} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </GlassPanel>
