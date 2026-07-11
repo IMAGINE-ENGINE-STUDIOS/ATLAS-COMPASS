@@ -28,7 +28,7 @@ export interface ImportTarget {
   lat: number;
   lng: number;
   alt: number;
-  world?: "earth" | "moon";
+  world?: string;
 }
 
 export interface ImportResult {
