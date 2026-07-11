@@ -2732,6 +2732,17 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       viewer.scene.skyAtmosphere.brightnessShift = 0.05;
     }
 
+    // Show the real Moon in Earth's sky using Cesium's built-in Moon
+    // (`Simon1994PlanetaryPositions` — accurate ephemeris). This puts the
+    // Moon at its exact real distance from Earth in the same scene, and
+    // means the Moon and Earth are in ONE shared coordinate space.
+    if (!isMoon && viewer.scene.moon) {
+      try {
+        viewer.scene.moon.show = true;
+        viewer.scene.moon.onlySunLighting = true;
+      } catch {}
+    }
+
 
     // Prevent crash-reloads: catch render errors instead of letting them propagate
     viewer.scene.renderError.addEventListener((scene: any, error: any) => {
