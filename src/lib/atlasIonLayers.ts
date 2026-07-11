@@ -316,6 +316,35 @@ const bag = (viewer: any): Map<string, Cesium3DTileset> => {
   return viewer.__ionCommunityTilesets;
 };
 
+/**
+ * Find an already-loaded tileset for `assetId` anywhere on the viewer so we
+ * never stream the same asset twice. Checks:
+ *  • the community bag (this module),
+ *  • the discovery loader's `_ionDetailOverlays` list (SpaceshipPage),
+ *  • hardcoded singletons: Google Direct (2275207) and OSM Buildings (96188).
+ */
+const findExistingTileset = (viewer: any, assetId: number): Cesium3DTileset | null => {
+  const readAssetId = (t: any): number =>
+    Number(t?._ionAssetId ?? t?.__ionAssetId ?? t?._url?.match?.(/assets\/(\d+)/)?.[1] ?? 0);
+  for (const t of bag(viewer).values()) {
+    if (t && !(t as any).isDestroyed?.() && readAssetId(t) === assetId) return t;
+  }
+  const detail: any[] = viewer?._ionDetailOverlays ?? [];
+  for (const t of detail) {
+    if (t && !t.isDestroyed?.() && readAssetId(t) === assetId) return t;
+  }
+  if (assetId === 2275207 && viewer?._googleDirectTileset && !viewer._googleDirectTileset.isDestroyed?.()) {
+    return viewer._googleDirectTileset;
+  }
+  if (assetId === 2275207 && viewer?._realisticTileset && !viewer._realisticTileset.isDestroyed?.()) {
+    return viewer._realisticTileset;
+  }
+  if (assetId === 96188 && viewer?._osmTileset && !viewer._osmTileset.isDestroyed?.()) {
+    return viewer._osmTileset;
+  }
+  return null;
+};
+
 /** Ensure the tileset is loaded + added to the scene; toggles `show`. */
 export const ensureIonLayer = async (
   viewer: Viewer,
@@ -327,9 +356,28 @@ export const ensureIonLayer = async (
   if (!assetId || assetId <= 0) return null;
   const map = bag(viewer);
   let ts = map.get(entry.id) ?? null;
+  // De-duplicate: if the same asset ID is already loaded elsewhere (e.g. by
+  // the discovery loader), reuse that tileset instead of streaming a second
+  // full copy.
+  if (!ts) {
+    const existing = findExistingTileset(viewer as any, assetId);
+    if (existing) {
+      (existing as any).__ionLayerId = entry.id;
+      (existing as any).__ionLayerName = entry.name;
+      (existing as any).__ionAssetId = assetId;
+      map.set(entry.id, existing);
+      ts = existing;
+    }
+  }
   if (!ts) {
     try {
       ts = await Cesium3DTileset.fromIonAssetId(assetId);
+      // One more check: a parallel toggle may have raced us to the load.
+      const raced = findExistingTileset(viewer as any, assetId);
+      if (raced && raced !== ts) {
+        try { ts.destroy?.(); } catch {}
+        ts = raced;
+      }
     } catch (err) {
       console.warn(`[atlasIonLayers] asset ${assetId} (${entry.name}) failed`, err);
       try {
@@ -342,7 +390,17 @@ export const ensureIonLayer = async (
     if ((viewer as any).isDestroyed?.()) { try { ts.destroy?.(); } catch {} return null; }
     (ts as any).__ionLayerId = entry.id;
     (ts as any).__ionLayerName = entry.name;
-    viewer.scene.primitives.add(ts);
+    (ts as any).__ionAssetId = assetId;
+    // Only add to primitives if it isn't already in the scene (reused
+    // singletons already are).
+    const inScene = (() => {
+      try {
+        const prims: any = viewer.scene.primitives;
+        for (let i = 0; i < prims.length; i++) if (prims.get(i) === ts) return true;
+        return false;
+      } catch { return false; }
+    })();
+    if (!inScene) viewer.scene.primitives.add(ts);
     map.set(entry.id, ts);
   }
   ts.show = visible;

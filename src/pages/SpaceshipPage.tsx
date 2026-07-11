@@ -2884,6 +2884,16 @@ function SpaceshipPage() {
           );
           console.log(`[Atlas realistic] found ${detail.length} Ion detail tilesets`);
           for (const asset of detail) {
+            // De-dupe: if the community layer pill already streamed this
+            // asset (or the user just enabled it), skip a second load.
+            const communityBag: Map<string, any> | undefined = (viewer as any).__ionCommunityTilesets;
+            const alreadyLoaded = communityBag && Array.from(communityBag.values()).some((t: any) =>
+              Number(t?.__ionAssetId ?? 0) === Number(asset.id)
+            );
+            if (alreadyLoaded) {
+              console.log(`[Atlas realistic] skipping asset ${asset.id} — already loaded by community pill`);
+              continue;
+            }
             try {
               const ts = await Cesium3DTileset.fromIonAssetId(Number(asset.id));
               if (viewer.isDestroyed()) { try { ts.destroy?.(); } catch {} return; }
@@ -2891,6 +2901,7 @@ function SpaceshipPage() {
               tuneAtlasTileset(ts, "boot");
               ts.show = viewModeRef.current === "realistic" && showBuildingsRef.current;
               (ts as any)._ionAssetName = asset.name;
+              (ts as any).__ionAssetId = Number(asset.id);
               (viewer as any)._ionDetailOverlays.push(ts);
               viewer.scene.requestRender?.();
             } catch (err) {
