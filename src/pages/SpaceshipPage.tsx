@@ -3142,25 +3142,17 @@ function SpaceshipPage({
           console.warn("[Atlas mars] imagery failed", err);
         }
       } else {
-        // Moon: prefer Cesium ion's real LOLA-derived quantized-mesh
-        // terrain (asset 2684829). Fall back to the hillshade-luminance
-        // provider if the ion asset fails (offline, revoked token, etc).
-        (async () => {
-          try {
-            const ionTerrain = await CesiumTerrainProvider.fromIonAssetId(2684829);
-            if (!viewer.isDestroyed()) {
-              viewer.terrainProvider = ionTerrain;
-              viewer.scene.requestRender?.();
-            }
-          } catch (err) {
-            console.warn("[Atlas moon] ion terrain failed, falling back to LOLA hillshade", err);
-            try {
-              viewer.terrainProvider = createLolaMoonTerrainProvider();
-            } catch (err2) {
-              console.warn("[Atlas moon] LOLA fallback failed", err2);
-            }
-          }
-        })();
+        // Moon: use the LOLA-hillshade-derived heightmap terrain provider.
+        // NOTE: Cesium ion asset 2684829 is a 3D Tiles asset (not
+        // quantized-mesh terrain), so `CesiumTerrainProvider.fromIonAssetId`
+        // resolves to a provider whose tile requests 404, which prevents
+        // the globe from tessellating any surface geometry — the whole
+        // Moon renders as empty space. Skip ion entirely for terrain.
+        try {
+          viewer.terrainProvider = createLolaMoonTerrainProvider();
+        } catch (err) {
+          console.warn("[Atlas moon] LOLA terrain failed", err);
+        }
         try {
           viewer.imageryLayers.removeAll(true);
           const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
