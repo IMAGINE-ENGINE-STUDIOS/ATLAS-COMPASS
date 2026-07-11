@@ -38,6 +38,8 @@ import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligence
 import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import LPRPanel from "@/components/atlas/lpr/LPRPanel";
 import ModeCarousel from "@/components/atlas/ModeCarousel";
+import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
+import { restoreEnabledIonLayers } from "@/lib/atlasIonLayers";
 import HeatmapLayer from "@/components/atlas/tileIntel/HeatmapLayer";
 import {
   amenityToCategoryId,
@@ -2825,6 +2827,10 @@ function SpaceshipPage() {
     } else {
       (viewer as any)._ensureOsmTileset();
     }
+
+    // Rehydrate previously enabled Cesium ion community 3D Tile layers
+    // (Vexcel 3D Cities, Japan 3D Buildings / PLATEAU, user-added assets).
+    restoreEnabledIonLayers(viewer).catch(() => {});
 
     // Create brush indicator entity (hidden by default)
     const brushEntity = viewer.entities.add({
@@ -7438,7 +7444,10 @@ function SpaceshipPage() {
                   <div className="w-px h-5 sm:h-7 bg-white/10" />
                   <div>
                     <p className="text-[8px] sm:text-[9px] text-white/70 uppercase tracking-wider mb-0.5">Mode</p>
-                    <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
+                    <div className="flex items-center gap-1.5">
+                      <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
+                      <AtlasCommunityLayersPill viewerRef={viewerRef} isLoaded={isLoaded} />
+                    </div>
                   </div>
                 </div>
               </GlassPanel>
