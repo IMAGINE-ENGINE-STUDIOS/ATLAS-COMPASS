@@ -1,150 +1,104 @@
-# Comprehensive Solar Report — from Roof Tool
 
-Turn the roof/solar measurement into a **full solar engineering proposal** on par with what Tesla Solar, Sunrun, Enphase and Aurora Solar produce — powered by real-world irradiance data and exported as a downloadable PDF.
+# Moon world — NASA imagery, LOLA terrain, missions catalog
+
+Goal: make `/moon` look like a real photographic Moon, driven entirely by public NASA data, with the same Atlas tools plus a Moon‑only layers/missions panel. No Cesium ion terrain, no simulated data.
+
+## 1. Real photo base imagery (NASA Trek WMTS)
+
+Add a `moonImagery` module that registers a set of NASA Trek WMTS providers as Cesium `WebMapTileServiceImageryProvider` layers. Trek serves free, keyless global lunar tiles.
+
+Default visible base:
+- **LRO WAC Global Mosaic 303 ppd** — the photorealistic monochrome mosaic used by LROC. Endpoint: `https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg`.
+
+Additional NASA base/overlay options exposed as toggleable layers:
+- LRO WAC Color Shaded Relief
+- LOLA Color Hillshade (elevation‑colored)
+- LOLA Global Hillshade (grey relief)
+- Clementine UVVIS Warped Color
+- Kaguya TC Ortho Mosaic
+- LROC NAC ROI mosaics for Apollo 11/12/14/15/16/17 landing sites (ultra‑high‑res tiles that stream in when the camera is near each site)
+- Diviner Rock Abundance
+- LOLA Slope
+- Mineral / FeO / TiO2 (Clementine derived)
+- Permanently Shadowed Regions polygons
+- Water‑ice indicator overlay (M3‑derived)
+
+Each layer is defined once (id, title, url, layer, tileMatrixSetID, credit, min/max level, category), consumed by both the viewer init and the new Moon Layers panel.
+
+## 2. LOLA terrain (no Cesium ion)
+
+Implement a `LolaTerrainProvider` that satisfies Cesium's `TerrainProvider` interface and reads elevation from NASA's public LOLA global DEM served as PNG/BIL tiles via Trek:
+
+- Fetch `SLDEM2015` / `LOLA_LDEM_global_128ppd` PNG16 tiles at request time.
+- Convert 16‑bit pixel values to meters using the documented scale/offset.
+- Build a Cesium `HeightmapTerrainData` per tile with `Ellipsoid.MOON`.
+- Include a small in‑memory LRU cache and graceful failure to smooth ellipsoid tiles.
+- Register credit lines: "NASA LOLA / SLDEM2015 — Lunar Reconnaissance Orbiter".
+
+Viewer init in moon mode uses this provider directly; no ion calls, no 2684829.
+
+## 3. Moon HUD: Layers + Missions panels
+
+Add two Moon‑only pills to the existing HUD (visible only when `moonMode` is true, reusing existing pill styling):
+
+- **Moon Layers pill** — opens a glass panel listing every provider from step 1 with a toggle each, grouped by category (Basemap, Elevation, Composition, Landing‑site High‑Res, Special Regions). Multi‑select allowed; opacity slider per layer.
+- **Missions pill** — opens a panel listing the mission catalog (step 4) with filter chips: Past crewed, Past robotic, Active orbiters, Planned (Artemis/CLPS), Sample return. Selecting a mission flies the camera to it and opens its POI card.
+
+Both panels reuse the existing glassmorphic panel component pattern.
+
+## 4. NASA mission & probe catalog
+
+New static data file `src/data/moon/missions.ts` containing the full historical + planned catalog with real coordinates, dates, agency, status, description, and NASA image URLs. Sources: NSSDCA, LROC landing‑site coordinates, NASA Artemis program pages.
+
+Covers at minimum:
+- Apollo 11, 12, 14, 15, 16, 17 (with LM, ALSEP, rover traverse where known)
+- Luna 2, 9, 13, 16, 17 (Lunokhod 1), 20, 21 (Lunokhod 2), 24
+- Surveyor 1, 3, 5, 6, 7
+- Chang'e 3 (Yutu), Chang'e 4 (Yutu‑2, far side), Chang'e 5, Chang'e 6
+- Chandrayaan‑1 impact site, Chandrayaan‑3 (Vikram/Pragyan)
+- SLIM (JAXA), Hakuto‑R, IM‑1 Odysseus, Blue Ghost
+- Active orbiters plotted at nominal sub‑spacecraft point of prime‑meridian epoch: LRO, Chandrayaan‑2, KPLO/Danuri, Queqiao‑2
+- Planned Artemis III candidate sites (13 South‑Pole regions), CLPS upcoming landers
+
+Each entry is rendered as a Cesium `Entity` (billboard + label) plus a `POICard` (reusing the standardized card widget) with mission photo, dates, and a NASA reference link.
+
+## 5. Camera + framing
+
+Keep the existing `flyToBoundingSphere` initial framing. Add:
+- Ellipsoid‑correct altitude readout: swap the WGS84 calculation for `Ellipsoid.MOON.cartesianToCartographic` when `moonMode` is true.
+- "Selenographic" lat/lon label instead of "Lat/Lon" in the readout.
+- Selecting a mission or landing‑site NAC overlay flies to its coordinates at an appropriate altitude for the feature size.
+
+## 6. Data isolation (already partially done)
+
+Confirmed already blocked in moon mode: Google Photoreal, OSM buildings, Earth Ion overlays, saved Earth POIs, placed models, Overpass/Nominatim/OSRM. This plan keeps that guard and adds a symmetric guard so Moon POIs and Moon‑saved content persist under a `__atlas_moon_*` localStorage namespace, never touching Earth keys.
+
+## 7. Tools parity
+
+All existing Atlas tools (tile brush, level placement, splat landmarks, rig saves, camera saves, drawing, measurement, screenshots, share) work unchanged on the moon; they just operate in the selenographic frame. New content the user creates on the moon is stored under Moon‑scoped tables/keys and never appears on Earth.
 
 ---
 
-## What the report will contain
+## Technical notes
 
-Every section a solar installer needs to design a system and quote a homeowner.
+- **New files**
+  - `src/lib/moon/trekProviders.ts` — Trek WMTS provider factory + registry.
+  - `src/lib/moon/LolaTerrainProvider.ts` — custom `TerrainProvider` reading LOLA PNG16 tiles.
+  - `src/data/moon/missions.ts` — catalog.
+  - `src/components/atlas/moon/MoonLayersPill.tsx`
+  - `src/components/atlas/moon/MoonLayersPanel.tsx`
+  - `src/components/atlas/moon/MoonMissionsPill.tsx`
+  - `src/components/atlas/moon/MoonMissionsPanel.tsx`
+  - `src/components/atlas/moon/MoonMissionEntities.tsx` — renders catalog as Cesium entities.
+- **Edited**
+  - `src/pages/SpaceshipPage.tsx` — in `moonMode`, replace ellipsoid‑only terrain with `LolaTerrainProvider`, add default LRO WAC WMTS layer, mount Moon HUD pills, swap altitude/coord readout to `Ellipsoid.MOON`, namespace persistence to `__atlas_moon_*`.
+- **Endpoints (all keyless, public)**
+  - Imagery: `https://trek.nasa.gov/tiles/Moon/EQ/{layerId}/1.0.0/default/default028mm/{z}/{y}/{x}.{ext}`
+  - LOLA DEM: `https://trek.nasa.gov/tiles/Moon/EQ/LRO_LOLA_ClrShade_Global_128ppd_v04/...` for hillshade; raw elevation from `Moon_LRO_LOLA_ClrRoughness_Global_128ppd` and SLDEM2015 PNG16 endpoints.
+- **Credits** — Attribution strings for LRO/LROC, LOLA, Clementine, Kaguya, and Diviner added to the Cesium credit display in moon mode.
+- **No Cesium ion calls** in the moon path, including no `Ion.defaultAccessToken` reads and no `fromIonAssetId` invocations.
+- **No mock data**, no simulated positions; orbiter pins are catalog entries with documented reference epochs.
 
-### 1. Site & Roof
-- Address (reverse-geocoded from Nominatim), lat/lng, elevation
-- Roof slant area, planar (footprint) area, perimeter, tilt°, azimuth° (derived from vertex order + true north)
-- Roof shape thumbnail — direct Cesium canvas capture of the polygon
-- Optimal tilt for that latitude (≈ |lat|) — flagged as green/amber/red vs current tilt
-
-### 2. Solar Resource (real data, no fabrication)
-- Monthly GHI / DNI / DIF (kWh/m²/day) from **NASA POWER** (free, no key)
-- Peak sun hours per month + annual average
-- Sun-path summary at summer / equinox / winter solstice (elevation & azimuth at solar noon) via `suncalc`
-- Sky-condition context: clearness index if NASA POWER returns it
-
-### 3. System Design
-- Panel model selector (Tesla 425 W, REC Alpha Pure 430 W, Q.CELLS Q.PEAK 400 W, Silfab 440 W, LG NeON — user picks default)
-- Panels that fit = `floor(slantArea × 0.72 / panelArea)` (72 % usable factor — industry median)
-- DC system size (kWp), AC size after inverter clipping, DC:AC ratio
-- Inverter recommendation (string vs micro-inverter table)
-- String layout guidance (panels/string, strings/MPPT)
-- Battery add-on toggle — Tesla Powerwall 3 vs Enphase IQ Battery 10 sizing suggestion based on annual consumption
-
-### 4. Energy Production
-- Year-1 annual kWh, monthly production **bar chart** (recharts)
-- Panel-plane irradiance from PVGIS (falls back to NASA POWER + tilt correction if PVGIS unavailable)
-- 25-year degradation curve (year-1 output, then –0.5 %/yr) — line chart
-- Utility-bill offset % (user enters average monthly bill or kWh)
-
-### 5. Financials
-- Editable inputs: `$/W installed` (default 2.75), utility rate `$/kWh` (default 0.16), yearly rate escalator (3 %), ITC % (30 %), loan APR / term
-- Gross cost, federal ITC credit, net cost
-- Simple payback (yrs), 25-year net savings, IRR, LCOE ($/kWh)
-- Monthly loan payment vs monthly bill savings (comparison bar)
-- Ballpark permitting & interconnection line item
-
-### 6. Environmental Impact
-- Lifetime CO₂ avoided (t), equivalent trees planted, gasoline cars off the road, US homes powered — same formulas EPA uses (grid intensity from IEA world avg + optional user override)
-
-### 7. Assumptions & Disclaimers
-- Every constant used (fill factor, losses, degradation, grid intensity)
-- Data-source attributions: NASA POWER, PVGIS, Nominatim, SunCalc
-- "Estimates only — final numbers require a site survey" footer
-
-### 8. Deliverable
-- **PDF export** (`jspdf` + `jspdf-autotable`) — multi-page, branded, includes the Cesium screenshot and inline recharts (rendered to PNG via `html-to-image`)
-- **Copy shareable summary** to clipboard (markdown)
-- **Save to Cloud** — writes report metadata to a new `solar_reports` table so the user can re-open past reports from the Atlas measurement ledger
-
----
-
-## UX
-
-- New **"Generate Solar Report"** primary CTA appears inside the roof readout block once the polygon has ≥ 3 vertices and the user has clicked "End Measurement".
-- Clicking it opens a **draggable full-viewport modal** styled like the Mesh Editor: three-pane layout — left nav (report sections), center preview (live-rendered report with charts), right inputs (panel model, utility rate, financing).
-- Real-time recompute as inputs change.
-- Footer: `Download PDF` · `Save to Cloud` · `Copy summary` · `Close`.
-
----
-
-## Technical section
-
-### New files
-```text
-src/components/atlas/solar-report/
-  SolarReportModal.tsx        ← draggable modal, three-pane layout
-  SolarReportPreview.tsx      ← center pane, renders every section
-  sections/
-    SiteSection.tsx
-    ResourceSection.tsx
-    SystemSection.tsx
-    ProductionSection.tsx
-    FinancialsSection.tsx
-    ImpactSection.tsx
-    AssumptionsSection.tsx
-  charts/
-    MonthlyProductionChart.tsx     ← recharts BarChart
-    DegradationChart.tsx           ← recharts LineChart
-    SunPathChart.tsx               ← lightweight SVG
-  panels/
-    PanelCatalog.ts                ← curated panel database (Tesla, REC, Q.CELLS, Silfab, LG, Longi)
-    InverterCatalog.ts             ← Enphase IQ8, SolarEdge HD-Wave, Tesla inverter
-  api/
-    fetchNasaPower.ts              ← https://power.larc.nasa.gov/api/temporal/climatology/point
-    fetchPvgis.ts                  ← https://re.jrc.ec.europa.eu/api/v5_2/PVcalc
-    reverseGeocode.ts              ← existing Nominatim helper
-    sunPosition.ts                 ← suncalc wrapper
-  export/
-    exportPdf.ts                   ← jsPDF composition
-    exportMarkdown.ts              ← clipboard summary
-  types.ts                         ← ReportInputs, ReportComputed, ProviderCatalog
-```
-
-### Files edited
-- `src/components/atlas/MeasureToolPanel.tsx`
-  - Add "Generate Solar Report" button inside the `mode === "roof"` readout block (around line 1257).
-  - Extract `solarPotential()` into `solar-report/api/solarModel.ts` and enrich it to consume monthly PSH from NASA POWER (fall back to the current lat-band table if the API is unreachable — preserving the offline path but marking the report as "using fallback data").
-  - Pass the current `viewer` down so the modal can capture a canvas screenshot.
-
-### New Supabase table (report persistence)
-```sql
-create table public.solar_reports (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  created_at timestamptz not null default now(),
-  address text,
-  lat double precision not null,
-  lng double precision not null,
-  inputs jsonb not null,
-  computed jsonb not null,
-  thumbnail_url text
-);
-grant select, insert, update, delete on public.solar_reports to authenticated;
-grant all on public.solar_reports to service_role;
-alter table public.solar_reports enable row level security;
-create policy "owner_all" on public.solar_reports
-  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
-```
-
-### Dependencies to add
-- `jspdf`, `jspdf-autotable` — PDF composition
-- `html-to-image` — recharts → PNG for embedding in PDF
-- `suncalc` — sun elevation/azimuth (tiny, 3 KB)
-- `recharts` (check first; if not present, add) — charts
-
-### Data sources (all real, no fabrication — matches project memory rule)
-| Data | Endpoint | Auth |
-|---|---|---|
-| Monthly GHI/DNI/DIF | `https://power.larc.nasa.gov/api/temporal/climatology/point` | none |
-| Panel-plane yield | `https://re.jrc.ec.europa.eu/api/v5_2/PVcalc` | none |
-| Address | `https://nominatim.openstreetmap.org/reverse` (already used) | none |
-| Sun position | `suncalc` npm — computed locally from lat/lng/date | n/a |
-
-If a network fetch fails, the report shows a yellow "using fallback climatology" banner rather than silently making up numbers — no simulated data ever presented as real.
-
-### Files NOT touched
-- Cesium viewer setup, Atlas main routes, Mesh Controller, Imagine Engine pages.
-- Existing measurement types / ledger persistence — the roof measurement schema is a superset already (`solar` sub-object stays; the report just enriches it with monthly arrays).
-
-### Out of scope (explicit)
-- Shading analysis from actual sun-path obstruction (requires ray-cast against 3D tiles — noted in Assumptions as a limitation).
-- Per-panel string routing / DC loss modeling — we suggest inverter+string count but don't lay out cabling.
-- Live utility-rate lookup — user enters their rate (or we default to 0.16 $/kWh with a note).
+## Out of scope (per your answers)
+- Cesium ion Moon Terrain (2684829) — not used.
+- Live real‑time orbiter tracking via SPICE/Horizons — not this pass.
