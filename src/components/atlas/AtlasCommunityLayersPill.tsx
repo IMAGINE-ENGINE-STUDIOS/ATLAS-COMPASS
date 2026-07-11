@@ -334,20 +334,18 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
 }
 
 function Row({
-  entry, enabled, assetIdOverride, validation, onToggle, onFly, onRemove, onSetAssetId, onValidate,
+  entry, enabled, validation, onToggle, onFly, onRemove, onValidate,
 }: {
   entry: IonLayerEntry;
   enabled: boolean;
-  assetIdOverride?: number;
   validation: IonAssetValidation;
   onToggle: () => void;
   onFly: () => void;
   onRemove?: () => void;
-  onSetAssetId?: () => void;
   onValidate?: () => void;
 }) {
-  const effectiveAssetId = assetIdOverride ?? entry.assetId;
-  const unconfigured = entry.needsAssetId && !assetIdOverride;
+  const effectiveAssetId = entry.assetId;
+  const flyOnly = !entry.assetId || entry.assetId <= 0;
   const status = validation.status;
   const statusMeta = {
     ok:        { color: "bg-emerald-400",  label: "Validated" },
@@ -359,8 +357,7 @@ function Row({
     <div className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border transition-colors ${
       enabled && status === "error" ? "bg-red-500/10 border-red-400/40" :
       enabled ? "bg-fuchsia-500/10 border-fuchsia-400/30" :
-      unconfigured ? "bg-amber-500/[0.04] border-amber-400/15 hover:bg-amber-500/[0.08]"
-      : "bg-white/[0.03] border-white/10 hover:bg-white/[0.06]"
+      "bg-white/[0.03] border-white/10 hover:bg-white/[0.06]"
     }`}>
       {/* Status dot */}
       <span
@@ -369,7 +366,7 @@ function Row({
       />
       <button
         onClick={onToggle}
-        title={unconfigured ? "Click to set ion asset ID + enable" : enabled ? "Hide layer" : "Show layer"}
+        title={flyOnly ? "Fly to preset (no tileset)" : enabled ? "Hide layer" : "Show layer"}
         className={`p-1 rounded ${enabled ? "text-fuchsia-200" : "text-white/50 hover:text-white"}`}
       >
         {enabled ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -377,14 +374,12 @@ function Row({
       <div className="min-w-0 flex-1">
         <div className="text-[11px] font-medium truncate">{entry.name}</div>
         <div className={`text-[9px] truncate ${status === "error" && enabled ? "text-red-300" : "text-white/45"}`}>
-          {unconfigured
-            ? "Needs your ion asset ID · click key"
-            : status === "error" && enabled
+          {status === "error" && enabled
               ? validation.error
               : (entry.description ?? `ion asset ${effectiveAssetId}`)}
         </div>
       </div>
-      {onValidate && !unconfigured && (
+      {onValidate && !flyOnly && (
         <button
           onClick={onValidate}
           title={status === "ok" ? "Re-validate asset ID" : "Validate asset ID against Cesium ion"}
@@ -399,17 +394,6 @@ function Row({
           ) : (
             <RefreshCw className="w-3.5 h-3.5" />
           )}
-        </button>
-      )}
-      {onSetAssetId && (
-        <button
-          onClick={onSetAssetId}
-          title={assetIdOverride ? `ion asset ${assetIdOverride} · edit` : "Set ion asset ID"}
-          className={`p-1 rounded hover:bg-white/5 ${
-            unconfigured ? "text-amber-300 animate-pulse" : "text-white/40 hover:text-fuchsia-300"
-          }`}
-        >
-          <Key className="w-3.5 h-3.5" />
         </button>
       )}
       <button
