@@ -2844,8 +2844,16 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     if (isMoon) {
       viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false);
       viewer.scene.globe.showGroundAtmosphere = false;
-      viewer.scene.globe.baseColor = Color.fromCssColorString("#8a8578");
+      // Fully transparent base — the imagery layers (or nothing at all)
+      // define what the user sees. No plain grey sphere sits behind the
+      // NASA datasets. Mission and orbiter pins remain visible against
+      // deep space when no imagery layer is enabled.
+      viewer.scene.globe.baseColor = Color.TRANSPARENT;
+      (viewer.scene.globe as any).translucency && ((viewer.scene.globe as any).translucency.enabled = false);
       viewer.scene.globe.enableLighting = true;
+      // Show Cesium's built-in Sun so the imagery is realistically lit.
+      viewer.scene.sun && (viewer.scene.sun.show = true);
+      viewer.scene.skyBox && (viewer.scene.skyBox.show = true);
       // NASA LOLA-derived terrain (no Cesium ion). Renders convincing
       // 3D relief from public LRO/LOLA hillshade tiles.
       try {
