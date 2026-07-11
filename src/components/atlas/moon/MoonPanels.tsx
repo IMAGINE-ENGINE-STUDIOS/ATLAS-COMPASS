@@ -285,27 +285,8 @@ export default function MoonPanels({ viewer }: Props) {
         />
       )}
 
-      {/* Pills — top right, stacked */}
-      <div className="fixed top-3 right-3 z-[70] flex flex-col gap-2 items-end">
-        <button
-          onClick={() => setOpenPanel(openPanel === "layers" ? null : "layers")}
-          className="group flex items-center gap-2 px-3 h-10 rounded-full bg-black/60 backdrop-blur-xl border border-white/15 hover:border-white/30 hover:bg-black/85 transition-all shadow-2xl text-white text-xs font-medium"
-          title="NASA Moon datasets"
-        >
-          <Layers size={14} /> Layers
-          <span className="opacity-60 text-[10px] tabular-nums">
-            {Object.keys(layerState).length}
-          </span>
-        </button>
-        <button
-          onClick={() => setOpenPanel(openPanel === "missions" ? null : "missions")}
-          className="group flex items-center gap-2 px-3 h-10 rounded-full bg-black/60 backdrop-blur-xl border border-white/15 hover:border-white/30 hover:bg-black/85 transition-all shadow-2xl text-white text-xs font-medium"
-          title="Missions, landers, rovers, orbiters"
-        >
-          <Rocket size={14} /> Missions
-          <span className="opacity-60 text-[10px] tabular-nums">{MOON_MISSIONS.length}</span>
-        </button>
-      </div>
+      {/* Pills moved into the unified Atlas HUD console (bottom-right).
+          The console dispatches `moon:toggle-panel` events, handled above. */}
 
       {/* Layers panel */}
       {openPanel === "layers" && (
