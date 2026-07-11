@@ -999,6 +999,7 @@ function flyCameraToTarget(
     flyToMoonCoord(viewer, target.lng, target.lat, {
       altitude: options.range ?? 180_000,
       duration: options.duration ?? 1.6,
+      ellipsoid: (viewer as any).__atlasNonEarthEllipsoid,
     });
     return;
   }
@@ -1381,7 +1382,7 @@ function SpaceshipPage({
     // Fly the camera to the new placement so the user sees the cube immediately.
     try {
       if (moonModeRef.current) {
-        flyToMoonCoord(viewerRef.current, p.loc.lng, p.loc.lat, { altitude: 1200, duration: 1.2 });
+        flyToMoonCoord(viewerRef.current, p.loc.lng, p.loc.lat, { altitude: 1200, duration: 1.2, ellipsoid: nonEarthEllipsoidRef.current });
       } else {
         viewerRef.current?.camera.flyTo({
           destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500, Ellipsoid.WGS84),
@@ -1795,7 +1796,7 @@ function SpaceshipPage({
         categoryId: "landmark",
       });
     });
-    if (showMarketplacePins) {
+    if (showMarketplacePins && isEarthWorld) {
       fetchMarketplaceProducts().forEach(p => {
         allTags.push({
           kind: "market",
@@ -1810,7 +1811,7 @@ function SpaceshipPage({
     }
     void tagsVersion;
     return allTags;
-  }, [pois, showMarketplacePins, tagsVersion]);
+  }, [pois, showMarketplacePins, tagsVersion, isEarthWorld]);
 
   // Real-time aircraft & ship tracking
   const [showLiveTraffic, setShowLiveTraffic] = useState<boolean>(savedUI.showLiveTraffic ?? false);
