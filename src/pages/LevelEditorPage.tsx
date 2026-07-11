@@ -58,6 +58,8 @@ import { toast } from "sonner";
 import {
   importModelFile,
   convertCadViaAps,
+  convertDwg,
+  downloadAsUsdz,
   extOf,
   isCadFormat,
   isNativeFormat,
