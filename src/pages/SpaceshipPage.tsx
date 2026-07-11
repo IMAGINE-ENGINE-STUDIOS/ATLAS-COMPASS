@@ -2899,7 +2899,7 @@ function SpaceshipPage({
     if (isMoon) {
       // Fewer tiles on first paint = much faster time-to-visible-moon.
       // Refinement happens naturally as the user zooms.
-      viewer.scene.globe.maximumScreenSpaceError = 10;
+      viewer.scene.globe.maximumScreenSpaceError = 2;
       viewer.scene.globe.preloadSiblings = true;
       viewer.scene.globe.preloadAncestors = true;
       viewer.scene.globe.tileCacheSize = 1600;
