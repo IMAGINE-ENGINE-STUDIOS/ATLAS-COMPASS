@@ -55,6 +55,7 @@ import { Star } from "lucide-react";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
+  CesiumTerrainProvider, Ellipsoid, Globe,
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined,
   HeadingPitchRoll, Transforms,
