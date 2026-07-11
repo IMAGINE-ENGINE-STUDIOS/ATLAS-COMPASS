@@ -14,30 +14,25 @@ import { TextureLoader, SRGBColorSpace, DoubleSide } from "three";
 import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
 import { findPlanet } from "@/lib/planets/config";
 
-function Planet({ url, ring }: { url: string; ring?: string }) {
+function Planet({ url }: { url: string }) {
   const map = useLoader(TextureLoader, url);
   map.colorSpace = SRGBColorSpace;
-  const ringMap = ring ? useLoader(TextureLoader, ring) : null;
-  if (ringMap) ringMap.colorSpace = SRGBColorSpace;
-
   return (
-    <>
-      <mesh>
-        <sphereGeometry args={[1, 128, 128]} />
-        <meshStandardMaterial map={map} metalness={0.02} roughness={0.9} />
-      </mesh>
-      {ringMap && (
-        <mesh rotation={[Math.PI / 2.15, 0, 0]}>
-          <ringGeometry args={[1.35, 2.35, 128]} />
-          <meshBasicMaterial
-            map={ringMap}
-            transparent
-            opacity={0.9}
-            side={DoubleSide}
-          />
-        </mesh>
-      )}
-    </>
+    <mesh>
+      <sphereGeometry args={[1, 128, 128]} />
+      <meshStandardMaterial map={map} metalness={0.02} roughness={0.9} />
+    </mesh>
+  );
+}
+
+function Ring({ url }: { url: string }) {
+  const map = useLoader(TextureLoader, url);
+  map.colorSpace = SRGBColorSpace;
+  return (
+    <mesh rotation={[Math.PI / 2.15, 0, 0]}>
+      <ringGeometry args={[1.35, 2.35, 128]} />
+      <meshBasicMaterial map={map} transparent opacity={0.9} side={DoubleSide} />
+    </mesh>
   );
 }
 
@@ -77,7 +72,10 @@ export default function PlanetPage() {
           {isSun ? (
             <SunGlow url={planet.textureUrl} />
           ) : (
-            <Planet url={planet.textureUrl} ring={planet.ringUrl} />
+            <Planet url={planet.textureUrl} />
+          )}
+          {!isSun && planet.ringUrl && (
+            <Ring url={planet.ringUrl} />
           )}
         </Suspense>
         <OrbitControls
