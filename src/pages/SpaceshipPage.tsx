@@ -1303,6 +1303,9 @@ function SpaceshipPage() {
   // Effects below read this ref to redraw the indicator when the user changes
   // shape/radius without moving the mouse.
   const brushCursorRef = useRef<{ lng: number; lat: number } | null>(null);
+  // Whether the brush indicator should currently be visible (kept in a ref so
+  // the callback below can read the latest value without re-binding).
+  const brushIndicatorEnabledRef = useRef<boolean>(false);
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
@@ -1388,7 +1391,7 @@ function SpaceshipPage() {
     const sub = brushSubModeRef.current;
     const shape = brushShapeRef.current;
     const radius = brushRadiusRef.current;
-    const wantIndicator = !!brushIndicatorRef.__enabled;
+    const wantIndicator = brushIndicatorEnabledRef.current;
 
     if (sub === "tiles") {
       const z = Math.max(6, Math.min(22, Math.round(tileZoom)));
