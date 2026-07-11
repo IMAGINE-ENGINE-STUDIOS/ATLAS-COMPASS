@@ -6,7 +6,7 @@ import {
   Maximize2, Minimize2, Globe, Crosshair, MousePointer2, X,
   Eye, Satellite, Trash2, Check, Plane, Anchor, SquareIcon,
   FileText, Edit3, Save, Plus, Paintbrush, Upload, RotateCcw,
-  Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
+  RotateCw, Move, Scale, Box, AlertCircle, Loader2, Route, Clock, Ruler,
   Play, Square as StopIcon, Store, UtensilsCrossed, Hotel, Fuel,
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
   Sun, Brain
