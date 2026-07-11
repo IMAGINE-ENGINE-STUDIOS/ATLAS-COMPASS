@@ -5,7 +5,7 @@
  * Atlas glass aesthetic.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Layers, Rocket, X, ExternalLink } from "lucide-react";
+import { Layers, Rocket, X, ExternalLink, Search } from "lucide-react";
 import {
   MOON_LAYERS,
   createMoonImageryProvider,
@@ -52,8 +52,44 @@ export default function MoonPanels({ viewer }: Props) {
   const [openPanel, setOpenPanel] = useState<null | "layers" | "missions">(null);
 
   const [filterKinds, setFilterKinds] = useState<Set<MoonMissionKind>>(new Set());
+  const [filterAgencies, setFilterAgencies] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  // Time period sliders: [startYear, endYear]
+  const yearBounds = useMemo<[number, number]>(() => {
+    const years = MOON_MISSIONS.map((m) => Number(m.date.slice(0, 4)));
+    return [Math.min(...years), Math.max(...years)];
+  }, []);
+  const [yearRange, setYearRange] = useState<[number, number]>(yearBounds);
   const [missionsVisible, setMissionsVisible] = useState(true);
   const [selectedMission, setSelectedMission] = useState<MoonMission | null>(null);
+
+  const allAgencies = useMemo(() => {
+    const s = new Set<string>();
+    MOON_MISSIONS.forEach((m) => s.add(m.agency));
+    return Array.from(s).sort();
+  }, []);
+
+  // Single source of truth for what missions are visible in both the list
+  // and the on-globe pins.
+  const filteredMissions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return MOON_MISSIONS.filter((m) => {
+      if (filterKinds.size && !filterKinds.has(m.kind)) return false;
+      if (filterAgencies.size && !filterAgencies.has(m.agency)) return false;
+      const y = Number(m.date.slice(0, 4));
+      if (y < yearRange[0] || y > yearRange[1]) return false;
+      if (q) {
+        const hay = `${m.name} ${m.agency} ${m.description} ${m.id}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [filterKinds, filterAgencies, searchQuery, yearRange]);
+
+  const filteredIds = useMemo(
+    () => new Set(filteredMissions.map((m) => m.id)),
+    [filteredMissions]
+  );
 
   // Sync ImageryLayer instances with layerState.
   useEffect(() => {
@@ -113,6 +149,22 @@ export default function MoonPanels({ viewer }: Props) {
       return next;
     });
   };
+  const toggleAgency = (a: string) => {
+    setFilterAgencies((prev) => {
+      const next = new Set(prev);
+      if (next.has(a)) next.delete(a); else next.add(a);
+      return next;
+    });
+  };
+  const resetFilters = () => {
+    setFilterKinds(new Set());
+    setFilterAgencies(new Set());
+    setSearchQuery("");
+    setYearRange(yearBounds);
+  };
+  const activeFilterCount =
+    filterKinds.size + filterAgencies.size + (searchQuery ? 1 : 0) +
+    ((yearRange[0] !== yearBounds[0] || yearRange[1] !== yearBounds[1]) ? 1 : 0);
 
   const flyToMission = (m: MoonMission) => {
     if (!viewer) return;
@@ -130,7 +182,7 @@ export default function MoonPanels({ viewer }: Props) {
       <MoonMissionEntities
         viewer={viewer}
         visible={missionsVisible}
-        filterKinds={filterKinds.size ? (filterKinds as unknown as Set<string>) : null}
+        allowedIds={filteredIds}
         onSelect={setSelectedMission}
       />
 
@@ -205,7 +257,7 @@ export default function MoonPanels({ viewer }: Props) {
       {openPanel === "missions" && (
         <div className="fixed top-16 right-3 z-[71] w-[380px] max-h-[75vh] overflow-y-auto rounded-2xl border border-white/15 bg-black/85 backdrop-blur-2xl shadow-2xl text-white animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex items-center justify-between p-3 border-b border-white/10">
-            <div className="font-medium text-sm">Lunar Missions</div>
+            <div className="font-medium text-sm">Lunar Missions <span className="opacity-50 text-[10px] tabular-nums ml-1">{filteredMissions.length}/{MOON_MISSIONS.length}</span></div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 text-[11px] opacity-80 cursor-pointer">
                 <input type="checkbox" checked={missionsVisible} onChange={(e) => setMissionsVisible(e.target.checked)} className="accent-white" />
@@ -215,6 +267,46 @@ export default function MoonPanels({ viewer }: Props) {
             </div>
           </div>
           <div className="p-3">
+            {/* Search */}
+            <div className="relative mb-3">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search missions, agencies, sites…"
+                className="w-full h-8 pl-7 pr-2 rounded-lg bg-white/[0.06] border border-white/10 focus:border-white/30 focus:outline-none text-[12px] placeholder:opacity-40"
+              />
+            </div>
+
+            {/* Year range */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-[10px] opacity-60 mb-1">
+                <span>Time period</span>
+                <span className="tabular-nums">{yearRange[0]} – {yearRange[1]}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[0]}
+                  onChange={(e) => {
+                    const v = Math.min(parseInt(e.target.value), yearRange[1]);
+                    setYearRange([v, yearRange[1]]);
+                  }}
+                  className="flex-1 accent-white"
+                />
+                <input
+                  type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[1]}
+                  onChange={(e) => {
+                    const v = Math.max(parseInt(e.target.value), yearRange[0]);
+                    setYearRange([yearRange[0], v]);
+                  }}
+                  className="flex-1 accent-white"
+                />
+              </div>
+            </div>
+
+            {/* Mission type chips */}
+            <div className="text-[10px] uppercase tracking-wider opacity-60 mb-1">Mission type</div>
             <div className="flex flex-wrap gap-1 mb-3">
               {(Object.keys(MISSION_KIND_LABEL) as MoonMissionKind[]).map((k) => {
                 const on = filterKinds.has(k);
@@ -231,10 +323,38 @@ export default function MoonPanels({ viewer }: Props) {
                 );
               })}
             </div>
+
+            {/* Agency chips */}
+            <div className="text-[10px] uppercase tracking-wider opacity-60 mb-1">Agency</div>
+            <div className="flex flex-wrap gap-1 mb-3">
+              {allAgencies.map((a) => {
+                const on = filterAgencies.has(a);
+                return (
+                  <button
+                    key={a}
+                    onClick={() => toggleAgency(a)}
+                    className={`text-[10px] px-2 py-1 rounded-full border transition-all ${on ? "border-white/50 bg-white/10" : "border-white/15 bg-white/[0.03] hover:bg-white/[0.06]"}`}
+                  >
+                    {a}
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeFilterCount > 0 && (
+              <button
+                onClick={resetFilters}
+                className="text-[10px] opacity-70 hover:opacity-100 underline mb-2"
+              >
+                Clear {activeFilterCount} filter{activeFilterCount === 1 ? "" : "s"}
+              </button>
+            )}
+
             <div className="space-y-1.5">
-              {MOON_MISSIONS
-                .filter((m) => filterKinds.size === 0 || filterKinds.has(m.kind))
-                .map((m) => (
+              {filteredMissions.length === 0 && (
+                <div className="text-[11px] opacity-50 text-center py-4">No missions match these filters.</div>
+              )}
+              {filteredMissions.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => flyToMission(m)}

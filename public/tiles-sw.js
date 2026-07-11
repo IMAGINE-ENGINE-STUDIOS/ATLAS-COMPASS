@@ -6,12 +6,12 @@
 // v6 — larger persistent tile cache on the user's disk so revisits and
 // higher-LOD walks are instant. CacheStorage is durable across reloads and
 // tabs; Chrome will only evict under global storage pressure.
-const CACHE = "atlas-tiles-v6";
+const CACHE = "atlas-tiles-v7";
 const MAX_ENTRIES = 8000;
 const TRIM_EVERY_PUTS = 100;
 const MAX_CACHEABLE_BYTES = 96 * 1024 * 1024;
 
-const TILE_HOST_RE = /(assets\.ion\.cesium\.com|assets\.cesium\.com|api\.cesium\.com|tile\.googleapis\.com|tile\.openstreetmap\.org|data\.osmbuildings\.org)/i;
+const TILE_HOST_RE = /(assets\.ion\.cesium\.com|assets\.cesium\.com|api\.cesium\.com|tile\.googleapis\.com|tile\.openstreetmap\.org|data\.osmbuildings\.org|trek\.nasa\.gov)/i;
 const TILE_PATH_RE = /\/functions\/v1\/google-3d-tiles\//i;
 const TILE_EXT_RE = /\.(glb|b3dm|i3dm|pnts|cmpt|terrain|json|jpg|jpeg|png|webp|ktx2|bin)(\?|$)/i;
 // Tileset manifest / root docs: these carry session tokens & child-tile URLs

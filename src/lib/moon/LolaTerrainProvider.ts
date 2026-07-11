@@ -24,9 +24,21 @@ import {
 const TREK_LOLA_HILLSHADE =
   "https://trek.nasa.gov/tiles/Moon/EQ/LRO_LOLA_Shade_Global_128ppd_v04/1.0.0/default/default028mm";
 
-/** Approximate vertical range from LOLA global topography, in metres. */
-const MOON_ELEV_MIN = -9130; // deepest point (near South Pole–Aitken)
-const MOON_ELEV_MAX = 10786; // highest point (far-side highlands)
+/**
+ * Approximate vertical range for the derived heightmap, in metres.
+ *
+ * Scientifically the LOLA range is roughly ±10 km, but the underlying signal
+ * we sample here is hillshade luminance (relative shading), not absolute
+ * elevation. Amplifying it to ±10 km produces jagged spikes that block
+ * `screenSpaceCameraController` zoom because terrain-collision detection
+ * pushes the camera away from what looks like a nearby cliff.
+ *
+ * We therefore compress the amplitude to a modest ±1500 m — enough to give
+ * craters and maria visible 3D relief while keeping zoom smooth to the
+ * surface.
+ */
+const MOON_ELEV_MIN = -1500;
+const MOON_ELEV_MAX = 1500;
 const MOON_ELEV_RANGE = MOON_ELEV_MAX - MOON_ELEV_MIN;
 
 const TILE_WIDTH = 32;

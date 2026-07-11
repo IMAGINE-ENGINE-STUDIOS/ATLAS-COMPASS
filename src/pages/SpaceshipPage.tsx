@@ -2677,6 +2677,17 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // the underside of terrain while orbiting.
     (ssec0 as any).enableCollisionDetection = true;
     ssec0.minimumZoomDistance = 1.5;
+    if (isMoon) {
+      // Moon: allow the user to zoom in tightly to the surface. The custom
+      // LOLA-derived terrain provider fetches tiles asynchronously, so we
+      // disable collision detection (a partially-loaded terrain tile can
+      // otherwise push the camera many kilometres above the surface).
+      (ssec0 as any).enableCollisionDetection = false;
+      ssec0.minimumZoomDistance = 0.5;
+      // Keep the maximum zoom-out finite so users don't fly infinitely away
+      // from a body the size of the Moon and lose orientation.
+      ssec0.maximumZoomDistance = 40_000_000;
+    }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
     ssec0.tiltEventTypes = [
       CameraEventType.RIGHT_DRAG,
@@ -2756,6 +2767,14 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       document.removeEventListener("fullscreenchange", onResize);
     };
     viewer.scene.globe.maximumScreenSpaceError = 8;
+    if (isMoon) {
+      // Fewer tiles on first paint = much faster time-to-visible-moon.
+      // Refinement happens naturally as the user zooms.
+      viewer.scene.globe.maximumScreenSpaceError = 16;
+      viewer.scene.globe.preloadSiblings = false;
+      viewer.scene.globe.preloadAncestors = true;
+      viewer.scene.globe.tileCacheSize = 800;
+    }
     viewer.scene.globe.depthTestAgainstTerrain = true;
     // Do not draw Cesium terrain/imagery behind photoreal modes. Google 3D
     // must be standalone so seams cannot reveal a second map underneath.
@@ -3193,7 +3212,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const cartesian = viewer.scene.pickPosition(movement.endPosition) 
           || (viewer.scene.globe.show ? viewer.scene.globe.pick(ray, viewer.scene) : undefined);
         if (defined(cartesian)) {
-          const carto = Cartographic.fromCartesian(cartesian);
+          const carto = Cartographic.fromCartesian(
+            cartesian,
+            isMoon ? Ellipsoid.MOON : undefined
+          );
           setCursorInfo({
             lat: CesiumMath.toDegrees(carto.latitude),
             lng: CesiumMath.toDegrees(carto.longitude),
@@ -3324,7 +3346,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       if (viewer.isDestroyed()) return;
       const now = performance.now();
       if (now - __lastAltEmit < 250) return;
-      const carto = Cartographic.fromCartesian(viewer.camera.position);
+      const carto = Cartographic.fromCartesian(
+        viewer.camera.position,
+        isMoon ? Ellipsoid.MOON : undefined
+      );
       const h = carto.height;
       if (Math.abs(h - __lastAltVal) < 0.5) return;
       __lastAltEmit = now;
@@ -3364,7 +3389,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const dt = now - __lastFrameT;
       __lastFrameT = now;
       const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position).height; } catch { return 0; } })();
-      if (alt > 23000) {
+      // Moon-scale altitude threshold is much larger than Earth's due to
+      // Cartographic.fromCartesian returning distance from the ellipsoid
+      // surface (Moon radius is 1/4 of Earth's).
+      const farAlt = isMoon ? 200_000 : 23_000;
+      if (alt > farAlt) {
         applyPerfProfile("far");
         return;
       }
