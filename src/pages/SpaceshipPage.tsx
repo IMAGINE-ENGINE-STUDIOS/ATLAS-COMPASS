@@ -2716,7 +2716,6 @@ function SpaceshipPage({
     Ion.defaultAccessToken = CESIUM_TOKEN;
 
     const isMoon = moonModeRef.current;
-    console.log("[Atlas boot] world =", marsModeRef.current ? "mars" : moonModeRef.current ? "moon" : "earth", "isMoon=", isMoon);
     const viewer = new Viewer(cesiumContainer.current, {
       animation: false,
       baseLayerPicker: false,
