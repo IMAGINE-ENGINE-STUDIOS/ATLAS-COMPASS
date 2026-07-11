@@ -2755,7 +2755,7 @@ function SpaceshipPage({
       ...(isMoon
         ? {
             // Moon world: Moon-sized ellipsoid + no default Bing imagery.
-            globe: new CesiumGlobe(marsModeRef.current ? MARS_ELLIPSOID : Ellipsoid.MOON),
+            globe: new CesiumGlobe(nonEarthEllipsoidRef.current),
             baseLayer: false as unknown as undefined,
           }
         : {}),
