@@ -961,7 +961,7 @@ function flyCameraToTarget(
 
   if ((viewer as any).__moonMode) {
     flyToMoonCoord(viewer, target.lng, target.lat, {
-      altitude: Math.max(options.range ?? 180_000, 160_000),
+      altitude: options.range ?? 180_000,
       duration: options.duration ?? 1.6,
     });
     return;
@@ -1237,9 +1237,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // No tile snap — drop the ghost at the EXACT clicked lng/lat so the
     // user gets pixel-accurate placement.
     const size = sizeM;
-    const center = Cartesian3.fromDegrees(loc.lng, loc.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2);
+    const ellipsoid = moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    const center = Cartesian3.fromDegrees(loc.lng, loc.lat, (loc.alt ?? 0) + LEVEL_HEIGHT_M / 2, ellipsoid);
     const hpr = new HeadingPitchRoll(CesiumMath.toRadians(heading ?? 0), 0, 0);
-    const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr);
+    const orientation = Transforms.headingPitchRollQuaternion(center as any, hpr, ellipsoid);
     const ent = viewer.entities.add({
       id: "pending-level-ghost",
       position: center as any,
@@ -7628,10 +7629,14 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                                 onClick={() => {
                                   const viewer = viewerRef.current;
                                   if (!viewer || viewer.isDestroyed()) return;
-                                  viewer.camera.flyTo({
-                                    destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 800),
-                                    duration: 1.2,
-                                  });
+                                  if (moonModeRef.current) {
+                                    flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2 });
+                                  } else {
+                                    viewer.camera.flyTo({
+                                      destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 800, Ellipsoid.WGS84),
+                                      duration: 1.2,
+                                    });
+                                  }
                                 }}
                                 className="flex-1 flex items-center gap-2.5 text-left min-w-0"
                               >
@@ -7646,10 +7651,14 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                                   onClick={() => {
                                     const viewer = viewerRef.current;
                                     if (!viewer || viewer.isDestroyed()) return;
-                                    viewer.camera.flyTo({
-                                      destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 1500),
-                                      duration: 1.2,
-                                    });
+                                    if (moonModeRef.current) {
+                                      flyToMoonCoord(viewer, lp.lng, lp.lat, { altitude: 900, duration: 1.2 });
+                                    } else {
+                                      viewer.camera.flyTo({
+                                        destination: Cartesian3.fromDegrees(lp.lng, lp.lat, 1500, Ellipsoid.WGS84),
+                                        duration: 1.2,
+                                      });
+                                    }
                                   }}
                                   className="p-1 rounded-md text-white/85 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all"
                                   title="Fly to"

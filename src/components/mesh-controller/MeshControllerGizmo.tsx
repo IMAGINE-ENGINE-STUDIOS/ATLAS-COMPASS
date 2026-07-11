@@ -61,7 +61,7 @@ export default function ModelGizmoOverlay({ viewerRef, transform, mode, onChange
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const scene = viewer.scene;
-      const ellipsoid = (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84;
+    const ellipsoid = (viewer as any).__moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84;
 
     const sync = () => {
       if (!viewer || viewer.isDestroyed()) return;
