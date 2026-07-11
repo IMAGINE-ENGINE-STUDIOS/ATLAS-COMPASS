@@ -9,11 +9,10 @@ import {
   LabelStyle,
   VerticalOrigin,
   Ellipsoid,
-  HeadingPitchRange,
-  Math as CesiumMath,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
 } from "cesium";
+import { flyToMoonCoord } from "@/lib/moon/moonNavigation";
 import {
   MOON_MISSIONS,
   MISSION_KIND_COLOR,
@@ -96,12 +95,7 @@ export default function MoonMissionEntities({
       const m = MOON_MISSIONS.find((x) => x.id === id);
       if (m) {
         onSelect(m);
-        try {
-          viewer.camera.flyToBoundingSphere(
-            { center: Cartesian3.fromDegrees(m.lon, m.lat, 0, Ellipsoid.MOON), radius: 20000 } as any,
-            { duration: 1.4, offset: new HeadingPitchRange(0, CesiumMath.toRadians(-45), 60000) }
-          );
-        } catch {}
+        try { flyToMoonCoord(viewer, m.lon, m.lat, { altitude: 60_000, pitch: -45 }); } catch {}
       }
     };
     const h = new ScreenSpaceEventHandler(viewer.scene.canvas);
