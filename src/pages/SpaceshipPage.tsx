@@ -461,6 +461,7 @@ interface CursorInfo {
 
 interface POI {
   id: string;
+  world?: string;
   name: string;
   description: string;
   notes: string;
@@ -472,6 +473,7 @@ interface POI {
 
 interface PlacedModel {
   id: string;
+  world?: string;
   name: string;
   fileName: string;
   lat: number;
@@ -522,31 +524,60 @@ const POI_STORAGE_KEY = "nexus-spaceship-pois";
 const MODELS_STORAGE_KEY = "nexus-spaceship-models";
 const MOON_MODELS_STORAGE_KEY = "nexus-spaceship-moon-models";
 
-function loadPOIs(): POI[] {
+const normalizeAtlasWorldId = (world?: string | null) => (
+  (world || "earth").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) || "earth"
+);
+
+const poiStorageKeyForWorld = (world?: string | null) => {
+  const w = normalizeAtlasWorldId(world);
+  return w === "earth" ? POI_STORAGE_KEY : `${POI_STORAGE_KEY}:${w}`;
+};
+
+const modelStorageKeyForWorld = (world?: string | null) => {
+  const w = normalizeAtlasWorldId(world);
+  if (w === "earth") return MODELS_STORAGE_KEY;
+  if (w === "moon") return MOON_MODELS_STORAGE_KEY;
+  return `${MODELS_STORAGE_KEY}:${w}`;
+};
+
+const currentAtlasWorldId = () => normalizeAtlasWorldId((window as any).__atlasWorldId ?? ((window as any).__atlasMoonMode ? "moon" : "earth"));
+
+const cameraStorageKeyForWorld = (world?: string | null) => {
+  const w = normalizeAtlasWorldId(world);
+  return w === "earth" ? "atlas_camera" : `atlas_camera:${w}`;
+};
+
+function loadPOIs(world = "earth"): POI[] {
   try {
-    const stored = localStorage.getItem(POI_STORAGE_KEY);
+    const w = normalizeAtlasWorldId(world);
+    const stored = localStorage.getItem(poiStorageKeyForWorld(w));
     if (!stored) return [];
     return JSON.parse(stored).map((p: any) => ({
       ...p,
+      world: p.world ?? w,
       description: p.description || "",
       notes: p.notes || "",
     }));
   } catch { return []; }
 }
 
-function savePOIs(pois: POI[]) {
-  localStorage.setItem(POI_STORAGE_KEY, JSON.stringify(pois));
+function savePOIs(pois: POI[], world = currentAtlasWorldId()) {
+  const w = normalizeAtlasWorldId(world);
+  localStorage.setItem(poiStorageKeyForWorld(w), JSON.stringify(pois.map((p) => ({ ...p, world: p.world ?? w }))));
 }
 
-function loadPlacedModels(isMoon = false): PlacedModel[] {
+function loadPlacedModels(worldOrMoon: string | boolean = "earth"): PlacedModel[] {
   try {
-    const stored = localStorage.getItem(isMoon ? MOON_MODELS_STORAGE_KEY : MODELS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const world = typeof worldOrMoon === "boolean" ? (worldOrMoon ? "moon" : "earth") : worldOrMoon;
+    const w = normalizeAtlasWorldId(world);
+    const stored = localStorage.getItem(modelStorageKeyForWorld(w));
+    return stored ? JSON.parse(stored).map((m: any) => ({ ...m, world: m.world ?? w })) : [];
   } catch { return []; }
 }
 
-function savePlacedModels(models: PlacedModel[]) {
-  localStorage.setItem((window as any).__atlasMoonMode ? MOON_MODELS_STORAGE_KEY : MODELS_STORAGE_KEY, JSON.stringify(models));
+function savePlacedModels(models: PlacedModel[], world = currentAtlasWorldId()) {
+  const w = normalizeAtlasWorldId(world);
+  localStorage.setItem(modelStorageKeyForWorld(w), JSON.stringify(models.map((m) => ({ ...m, world: m.world ?? w }))));
 }
 
 /* ── Preset Locations ── */
@@ -968,6 +999,7 @@ function flyCameraToTarget(
     flyToMoonCoord(viewer, target.lng, target.lat, {
       altitude: options.range ?? 180_000,
       duration: options.duration ?? 1.6,
+      ellipsoid: (viewer as any).__atlasNonEarthEllipsoid,
     });
     return;
   }
@@ -1039,6 +1071,11 @@ function SpaceshipPage({
   const isGenericPlanet =
     !!planetId && !["earth", "moon", "mars"].includes(planetId);
   const genericPlanetEntry = isGenericPlanet ? findPlanet(planetId!) : undefined;
+  const activeWorldId = useMemo(
+    () => normalizeAtlasWorldId(planetId ?? (resolvedMars ? "mars" : resolvedMoon ? "moon" : "earth")),
+    [planetId, resolvedMars, resolvedMoon],
+  );
+  const isEarthWorld = activeWorldId === "earth";
   // Non-Earth gating: every existing `moonMode` check must also fire for
   // Mars (Mars world hides the same Earth-only data loads: Google Photoreal,
   // OSM Buildings, Overpass, POIs, live traffic, etc.).  We alias the prop
@@ -1071,14 +1108,16 @@ function SpaceshipPage({
     (window as any).__atlasMoonMode = moonMode;
     (window as any).__atlasMarsMode = resolvedMars;
     (window as any).__atlasPlanetId = planetId ?? null;
+    (window as any).__atlasWorldId = activeWorldId;
     (window as any).__atlasNonEarthEllipsoid = moonMode ? nonEarthEllipsoidRef.current : null;
     return () => {
       (window as any).__atlasMoonMode = false;
       (window as any).__atlasMarsMode = false;
       (window as any).__atlasPlanetId = null;
+      (window as any).__atlasWorldId = "earth";
       (window as any).__atlasNonEarthEllipsoid = null;
     };
-  }, [moonMode, resolvedMars, isGenericPlanet, planetId]);
+  }, [moonMode, resolvedMars, isGenericPlanet, planetId, activeWorldId]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
@@ -1143,7 +1182,7 @@ function SpaceshipPage({
     useCallback((p: LevelPlacement) => {
       setSelectedLevelPlacement(p);
     }, []),
-    moonMode ? "moon" : "earth",
+    activeWorldId,
   );
   // Inspector panel: clicking a placed Level opens this floating panel
   // with info, control bars (heading/scale/altitude), Main Character
@@ -1176,7 +1215,7 @@ function SpaceshipPage({
   // re-rendering the entire 7k-line SpaceshipPage on every camera move —
   // only the memoized <CameraAltHUD/> subscribes.
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [pois, setPois] = useState<POI[]>(loadPOIs);
+  const [pois, setPois] = useState<POI[]>(() => loadPOIs(activeWorldId));
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
   // Active free-play spawn: when set, a playable character (default Soldier)
@@ -1334,7 +1373,7 @@ function SpaceshipPage({
       altitude: p.loc.alt,
       heading: p.heading ?? 0,
       scale: 1,
-      world: moonModeRef.current ? "moon" : "earth",
+      world: currentAtlasWorldId(),
     });
     if (error) { toast.error(`Failed: ${error.message}`); return; }
     window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
@@ -1343,7 +1382,7 @@ function SpaceshipPage({
     // Fly the camera to the new placement so the user sees the cube immediately.
     try {
       if (moonModeRef.current) {
-        flyToMoonCoord(viewerRef.current, p.loc.lng, p.loc.lat, { altitude: 1200, duration: 1.2 });
+        flyToMoonCoord(viewerRef.current, p.loc.lng, p.loc.lat, { altitude: 1200, duration: 1.2, ellipsoid: nonEarthEllipsoidRef.current });
       } else {
         viewerRef.current?.camera.flyTo({
           destination: Cartesian3.fromDegrees(p.loc.lng, p.loc.lat, 1500, Ellipsoid.WGS84),
@@ -1400,7 +1439,7 @@ function SpaceshipPage({
   // lunar globe). New models placed on the Moon stay only in-session for
   // now until per-world persistence lands.
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(
-    () => loadPlacedModels(moonMode),
+    () => loadPlacedModels(activeWorldId),
   );
   // ── Undo / Redo for stamp + tile placements ──
   // We snapshot the `placedModels` array before any mutation that changes the
@@ -1412,6 +1451,29 @@ function SpaceshipPage({
   const undoStackRef = useRef<PlacedModel[][]>([]);
   const redoStackRef = useRef<PlacedModel[][]>([]);
   const [historyTick, setHistoryTick] = useState(0);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (viewer && !viewer.isDestroyed()) {
+      placedModelsRef.current.forEach((m) => {
+        const ent = viewer.entities.getById(`model-${m.id}`);
+        if (ent) viewer.entities.remove(ent);
+      });
+      pois.forEach((p) => {
+        const ent = viewer.entities.getById(`poi-${p.id}`);
+        if (ent) viewer.entities.remove(ent);
+      });
+    }
+    const nextModels = loadPlacedModels(activeWorldId);
+    const nextPois = loadPOIs(activeWorldId);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setHistoryTick((t) => t + 1);
+    setPlacedModels(nextModels);
+    setPois(nextPois);
+    setSelectedPOI(null);
+    setEditingModel(null);
+    setSelectedLevelPlacement(null);
+  }, [activeWorldId]);
   const HISTORY_LIMIT = 50;
   const snapshotPlaced = (arr: PlacedModel[]): PlacedModel[] =>
     arr.map((m) => ({ ...m, cropBase: m.cropBase ? { ...m.cropBase } : undefined }));
@@ -1734,7 +1796,7 @@ function SpaceshipPage({
         categoryId: "landmark",
       });
     });
-    if (showMarketplacePins) {
+    if (showMarketplacePins && isEarthWorld) {
       fetchMarketplaceProducts().forEach(p => {
         allTags.push({
           kind: "market",
@@ -1749,7 +1811,7 @@ function SpaceshipPage({
     }
     void tagsVersion;
     return allTags;
-  }, [pois, showMarketplacePins, tagsVersion]);
+  }, [pois, showMarketplacePins, tagsVersion, isEarthWorld]);
 
   // Real-time aircraft & ship tracking
   const [showLiveTraffic, setShowLiveTraffic] = useState<boolean>(savedUI.showLiveTraffic ?? false);
@@ -3325,21 +3387,21 @@ function SpaceshipPage({
     const wantsHomeView =
       !isMoon && new URLSearchParams(window.location.search).get("home") === "1";
     if (wantsHomeView) {
-      try { localStorage.removeItem("atlas_camera"); } catch {}
+      try { localStorage.removeItem(cameraStorageKeyForWorld(activeWorldId)); } catch {}
       try {
         const url = new URL(window.location.href);
         url.searchParams.delete("home");
         window.history.replaceState({}, "", url.toString());
       } catch {}
     }
-    // Moon world: don't restore Earth-cached camera (would be inside the Moon).
-    if (!isMoon && !wantsHomeView) try {
-      const saved = localStorage.getItem("atlas_camera");
+    if (!wantsHomeView) try {
+      const saved = localStorage.getItem(cameraStorageKeyForWorld(activeWorldId));
       if (saved) {
         const s = JSON.parse(saved);
         if (typeof s.lng === "number" && typeof s.lat === "number" && typeof s.alt === "number") {
+          const ellipsoid = isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84;
           viewer.camera.setView({
-            destination: Cartesian3.fromDegrees(s.lng, s.lat, s.alt),
+            destination: Cartesian3.fromDegrees(s.lng, s.lat, s.alt, ellipsoid),
             orientation: {
               heading: CesiumMath.toRadians(s.heading ?? 0),
               pitch: CesiumMath.toRadians(s.pitch ?? -90),
@@ -3598,12 +3660,29 @@ function SpaceshipPage({
 
     setIsLoaded(true);
 
+    const removeWorldCameraSave = viewer.camera.moveEnd.addEventListener(() => {
+      try {
+        const ellipsoid = isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84;
+        const carto = Cartographic.fromCartesian(viewer.camera.position, ellipsoid);
+        const cam = viewer.camera;
+        localStorage.setItem(cameraStorageKeyForWorld(activeWorldId), JSON.stringify({
+          lng: CesiumMath.toDegrees(carto.longitude),
+          lat: CesiumMath.toDegrees(carto.latitude),
+          alt: carto.height,
+          heading: CesiumMath.toDegrees(cam.heading),
+          pitch: CesiumMath.toDegrees(cam.pitch),
+          roll: CesiumMath.toDegrees(cam.roll),
+        }));
+      } catch {}
+    });
+
     return () => {
       handler.destroy();
       if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
       if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
       try { removeAltListener?.(); } catch {}
       try { removePerfListener?.(); } catch {}
+      try { removeWorldCameraSave?.(); } catch {}
       try { removeMoonCameraGuard?.(); } catch {}
       // Release the module-level Viewer ref held by the shared scheduler
       // so its WebGL resources can be GC'd after navigation / HMR.
@@ -4924,7 +5003,7 @@ function SpaceshipPage({
     if (!viewerRef.current) return;
     viewerRef.current.entities.add({
       id: `poi-${poi.id}`,
-      position: Cartesian3.fromDegrees(poi.lng, poi.lat),
+      position: Cartesian3.fromDegrees(poi.lng, poi.lat, poi.alt ?? 0, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)),
       name: poi.name,
       label: {
         text: `📍 ${poi.name}`, font: "13px Inter, sans-serif",
@@ -4944,6 +5023,7 @@ function SpaceshipPage({
   const confirmPOI = useCallback(() => {
     if (!namingPOI || !poiName.trim()) return;
     const newPoi: POI = {
+      world: currentAtlasWorldId(),
       id: crypto.randomUUID(), name: poiName.trim(), description: poiDescription.trim(),
       notes: "", lat: namingPOI.lat, lng: namingPOI.lng, alt: namingPOI.alt, createdAt: Date.now(),
     };
@@ -4982,10 +5062,12 @@ function SpaceshipPage({
   // Load saved POIs onto globe when viewer is ready
   useEffect(() => {
     if (!isLoaded || !viewerRef.current) return;
-    // Moon world: skip loading Earth-anchored POIs onto the lunar globe.
-    if (moonMode) return;
+    pois.forEach((p) => {
+      const entity = viewerRef.current?.entities.getById(`poi-${p.id}`);
+      if (entity) viewerRef.current?.entities.remove(entity);
+    });
     pois.forEach(addPOIToGlobe);
-  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, pois, addPOIToGlobe]);
 
   /* ── Tile Brush / 3D Model Placement ── */
   const applyModelTransformToEntity = useCallback((entity: any, model: Pick<PlacedModel, "lat" | "lng" | "alt" | "heading" | "pitch" | "roll" | "scale">) => {
@@ -5688,6 +5770,7 @@ function SpaceshipPage({
         scale: modelScale,
         createdAt: Date.now(),
         category: modelCategory,
+        world: currentAtlasWorldId(),
       };
 
       modelUrlsRef.current.set(newModel.id, blobUrl);
@@ -5763,6 +5846,7 @@ function SpaceshipPage({
       scale: stamp.baseScale,
       createdAt: Date.now(),
       category: stamp.category,
+      world: currentAtlasWorldId(),
     };
     modelUrlsRef.current.set(newModel.id, stamp.blobUrl);
     placeModelOnGlobe(newModel, stamp.blobUrl);
@@ -5836,6 +5920,7 @@ function SpaceshipPage({
       scale: 1,
       createdAt: Date.now(),
       category: "terrain-pad",
+      world: currentAtlasWorldId(),
       cropRadius: radius,
       cropBase: DEFAULT_CROP_BASE(radius),
     };
@@ -5844,7 +5929,7 @@ function SpaceshipPage({
       try {
         viewer.entities.add({
           id: `model-${id}`,
-          position: Cartesian3.fromDegrees(loc.lng, loc.lat, surfaceAlt + 1) as any,
+          position: Cartesian3.fromDegrees(loc.lng, loc.lat, surfaceAlt + 1, (moonModeRef.current ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)) as any,
           point: {
             pixelSize: 10,
             color: Color.fromCssColorString("#10b981"),
@@ -6074,12 +6159,12 @@ function SpaceshipPage({
           multi-select, color/tag/notes/GLB-replace individual buildings.
           Only active in OSM view mode where the Cesium OSM Buildings
           tileset (Ion 96188) is streaming pickable features. */}
-      <AtlasBuildingsOverlay viewerRef={viewerRef} active={viewMode === "osm"} />
+      <AtlasBuildingsOverlay viewerRef={viewerRef} active={isEarthWorld && viewMode === "osm"} />
 
       {/* Live Overpass buildings — fills gaps where Cesium's OSM snapshot
           is missing footprints (remote South America villages, brand-new
           OSM edits). Adds a "Load OSM ✚" button in OSM mode. */}
-      <OverpassBuildingsOverlay viewerRef={viewerRef} active={viewMode === "osm"} />
+      <OverpassBuildingsOverlay viewerRef={viewerRef} active={isEarthWorld && viewMode === "osm"} />
 
       {/* Free-play: drop a playable Soldier anywhere via the Earth menu
           (triple-left-click the globe → "Play from here"). WASD + mouse,
@@ -6410,7 +6495,7 @@ function SpaceshipPage({
             </div>
           </div>
 
-          {earthIntelOpen && (
+          {isEarthWorld && earthIntelOpen && (
             <EarthIntelligenceBar viewerRef={viewerRef} onClose={() => setEarthIntelOpen(false)} />
           )}
 
@@ -8203,7 +8288,7 @@ function SpaceshipPage({
               }
               const result = await importMapToAtlas(file, {
                 lat: l.lat, lng: l.lng, alt: groundAlt,
-                world: moonModeRef.current ? "moon" : "earth",
+                world: currentAtlasWorldId(),
               });
               toast.success(`MAP "${result.name}" imported.`);
             } catch (err: any) {
@@ -8247,7 +8332,7 @@ function SpaceshipPage({
                   lat: l.lat, lng: l.lng,
                   altitude: Math.max(0, l.alt),
                   heading: 0, scale: 1,
-                  world: moonModeRef.current ? "moon" : "earth",
+                  world: currentAtlasWorldId(),
                 });
                 window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
               })();

@@ -11,12 +11,15 @@ export const MARS_ELLIPSOID = Object.freeze(
   new Ellipsoid(3_396_200, 3_396_200, 3_376_200),
 );
 
-export type WorldId = "earth" | "moon" | "mars";
+export type WorldId = PlanetId | (string & {});
 
 export function ellipsoidForWorld(world: WorldId): Ellipsoid {
-  if (world === "mars") return MARS_ELLIPSOID;
+  if (world === "earth") return Ellipsoid.WGS84;
   if (world === "moon") return Ellipsoid.MOON;
-  return Ellipsoid.WGS84;
+  if (world === "mars") return MARS_ELLIPSOID;
+  const p = findPlanet(world);
+  const rm = (p?.radiusKm ?? 1000) * 1000;
+  return Object.freeze(new Ellipsoid(rm, rm, rm));
 }
 
 /** Build a spherical Cesium Ellipsoid from a planet's equatorial radius (km). */
