@@ -1552,6 +1552,7 @@ function SpaceshipPage() {
       localStorage.setItem("atlas_ui", JSON.stringify({
         showBuildings, viewMode, hudVisible,
         brushMode, brushPanelOpen, brushSubMode,
+        brushShape, brushRadiusM,
         tilesTool, tileZoom, tileZoomAuto,
         showBusinessIcons, showLiveTraffic, geoCategory,
         showMarketplacePins,
@@ -1561,6 +1562,7 @@ function SpaceshipPage() {
   }, [
     showBuildings, viewMode, hudVisible,
     brushMode, brushPanelOpen, brushSubMode,
+    brushShape, brushRadiusM,
     tilesTool, tileZoom, tileZoomAuto,
     showBusinessIcons, showLiveTraffic, geoCategory,
     showMarketplacePins,
