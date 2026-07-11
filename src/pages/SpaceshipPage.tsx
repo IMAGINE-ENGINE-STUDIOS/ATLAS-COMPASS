@@ -2964,6 +2964,26 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       } catch (err) {
         console.warn("[Atlas moon] imagery failed", err);
       }
+
+      // Cesium ion Moon 3D Tileset (asset 2684829) — high-fidelity lunar
+      // surface tileset draped over the LOLA terrain. Added as a scene
+      // primitive so it participates in Cesium's LOD + request scheduler.
+      try {
+        Cesium3DTileset.fromIonAssetId(2684829).then((tileset) => {
+          if (viewer.isDestroyed() || !moonModeRef.current) {
+            try { tileset.destroy?.(); } catch {}
+            return;
+          }
+          viewer.scene.primitives.add(tileset);
+          (viewer as any).__moonTileset = tileset;
+          try { tuneAtlasTileset(tileset, "boot"); } catch {}
+          viewer.scene.requestRender();
+        }).catch((err) => {
+          console.warn("[Atlas moon] ion Moon tileset failed", err);
+        });
+      } catch (err) {
+        console.warn("[Atlas moon] ion Moon tileset init failed", err);
+      }
     } else {
       createWorldTerrainAsync({
         requestWaterMask: false,
