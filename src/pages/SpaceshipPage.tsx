@@ -42,6 +42,9 @@ import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPil
 import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
+import { MARS_LAYERS, createMarsImageryProvider, tuneMarsImageryLayer } from "@/lib/mars/marsProviders";
+import { MARS_ELLIPSOID } from "@/lib/planets/ellipsoids";
+import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
 import {
   MOON_LAYERS,
   createMoonImageryProvider,
@@ -1023,17 +1026,38 @@ async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<a
 }
 
 /* ── Main Spaceship Component ── */
-function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
+function SpaceshipPage({
+  moonMode: _moonModeProp = false,
+  marsMode = false,
+}: { moonMode?: boolean; marsMode?: boolean } = {}) {
+  // Non-Earth gating: every existing `moonMode` check must also fire for
+  // Mars (Mars world hides the same Earth-only data loads: Google Photoreal,
+  // OSM Buildings, Overpass, POIs, live traffic, etc.).  We alias the prop
+  // internally so the ~200 existing `moonMode` sites keep working.
+  const moonMode = _moonModeProp || marsMode;
   // Route-driven "world" flag: when true we render the same Atlas HUD but
-  // over a Moon-sized globe with Cesium ion Moon Terrain (asset 2684829)
-  // and skip every Earth-only data load (Google Photoreal, OSM Buildings,
-  // Ion Realistic, Overpass discovery, POIs, placed models, level layer).
+  // over a Moon- or Mars-sized globe with NASA Trek imagery and skips every
+  // Earth-only data load.  `marsMode` swaps the ellipsoid and imagery to
+  // the Mars Trek stack while keeping the same HUD, controls, and tooling.
   const moonModeRef = useRef(moonMode);
+  const marsModeRef = useRef(marsMode);
+  // Active non-Earth ellipsoid — Moon by default, Mars when `marsMode`.
+  // All in-file placement/coordinate math reads from this ref so a single
+  // switch swaps the entire coordinate system between the two worlds.
+  const nonEarthEllipsoidRef = useRef<Ellipsoid>(marsMode ? MARS_ELLIPSOID : Ellipsoid.MOON);
   useEffect(() => {
     moonModeRef.current = moonMode;
+    marsModeRef.current = marsMode;
+    nonEarthEllipsoidRef.current = marsMode ? MARS_ELLIPSOID : Ellipsoid.MOON;
     (window as any).__atlasMoonMode = moonMode;
-    return () => { (window as any).__atlasMoonMode = false; };
-  }, [moonMode]);
+    (window as any).__atlasMarsMode = marsMode;
+    (window as any).__atlasNonEarthEllipsoid = moonMode ? nonEarthEllipsoidRef.current : null;
+    return () => {
+      (window as any).__atlasMoonMode = false;
+      (window as any).__atlasMarsMode = false;
+      (window as any).__atlasNonEarthEllipsoid = null;
+    };
+  }, [moonMode, marsMode]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
