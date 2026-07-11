@@ -2606,6 +2606,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
     Ion.defaultAccessToken = CESIUM_TOKEN;
 
+    const isMoon = moonModeRef.current;
     const viewer = new Viewer(cesiumContainer.current, {
       animation: false,
       baseLayerPicker: false,
@@ -2621,7 +2622,15 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       navigationInstructionsInitiallyVisible: false,
       creditContainer: document.createElement("div"),
       orderIndependentTranslucency: false,
+      ...(isMoon
+        ? {
+            // Moon world: Moon-sized ellipsoid + no default Bing imagery.
+            globe: new CesiumGlobe(Ellipsoid.MOON),
+            baseLayer: false as unknown as undefined,
+          }
+        : {}),
     });
+    (viewer as any).__moonMode = isMoon;
 
     viewerRef.current = viewer;
     // Expose for components that need to sample the Cesium scene (e.g. the
