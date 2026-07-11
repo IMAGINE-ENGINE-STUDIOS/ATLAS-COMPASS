@@ -4124,19 +4124,20 @@ function SpaceshipPage() {
     return subscribeSelection(repaint);
   }, [tagsVersion]);
 
-  // Brush mode indicator visibility
+  // Brush indicator visibility + reactive re-draw. The indicator is a
+  // ClassificationType.BOTH decal on Stamp (circle/square/hex) AND on Tile
+  // (hovered tile bounds). It stays on top of every tileset — never under.
   useEffect(() => {
-    if (brushIndicatorRef.current) {
-      // Show the cursor reticle only when actively painting (not when
-      // browsing the placed-models list with brushMode off, and not while
-      // the area / tiles sub-modes draw their own overlays).
-      brushIndicatorRef.current.show =
-        brushMode && brushSubMode !== "area" && brushSubMode !== "tiles";
-    }
+    // Any time the mode, shape, radius, sub-mode, or tile zoom changes,
+    // refresh the shape at the last cursor position so the user sees the
+    // update immediately.
+    brushIndicatorEnabledRef.current = brushMode;
+    const viewer = viewerRef.current;
+    if (viewer) updateBrushIndicator(viewer);
     if (areaEntityRef.current) {
       areaEntityRef.current.show = brushMode && brushSubMode === "area" && !!areaCenter;
     }
-  }, [brushMode, brushSubMode, areaCenter]);
+  }, [brushMode, brushSubMode, brushShape, brushRadiusM, tileZoom, areaCenter, updateBrushIndicator]);
 
   // ── Tiles-mode: render selected tile polygons on the globe ──
   useEffect(() => {
