@@ -55,9 +55,9 @@ export default function MoonPanels({ viewer }: Props) {
   const [filterAgencies, setFilterAgencies] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   // Time period sliders: [startYear, endYear]
-  const yearBounds = useMemo(() => {
+  const yearBounds = useMemo<[number, number]>(() => {
     const years = MOON_MISSIONS.map((m) => Number(m.date.slice(0, 4)));
-    return [Math.min(...years), Math.max(...years)] as const;
+    return [Math.min(...years), Math.max(...years)];
   }, []);
   const [yearRange, setYearRange] = useState<[number, number]>(yearBounds);
   const [missionsVisible, setMissionsVisible] = useState(true);
