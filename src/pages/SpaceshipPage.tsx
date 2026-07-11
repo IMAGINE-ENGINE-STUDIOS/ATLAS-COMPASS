@@ -1836,7 +1836,7 @@ function SpaceshipPage({
   };
   const tileSizeMeters = (lat: number, z: number) =>
     moonModeRef.current
-      ? (2 * Math.PI * Ellipsoid.MOON.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / Math.pow(2, z + 1)
+      ? (2 * Math.PI * nonEarthEllipsoidRef.current.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / Math.pow(2, z + 1)
       : (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, z);
   const tileKey = (z: number, x: number, y: number): string => `${z}/${x}/${y}`;
   const parseTileKey = (k: string) => {
@@ -1999,7 +1999,7 @@ function SpaceshipPage({
         const mpp = (2 * height * Math.tan(fovy / 2)) / canvasH;
         if (!isFinite(mpp) || mpp <= 0) return;
         const z = moonModeRef.current
-          ? Math.log2((2 * Math.PI * Ellipsoid.MOON.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / (512 * mpp))
+          ? Math.log2((2 * Math.PI * nonEarthEllipsoidRef.current.maximumRadius * Math.max(0.01, Math.cos((lat * Math.PI) / 180))) / (512 * mpp))
           : Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / mpp);
         const clamped = Math.max(1, Math.min(moonModeRef.current ? 12 : 22, Math.round(z)));
         setTileZoom((prev) => (prev === clamped ? prev : clamped));
@@ -2734,7 +2734,7 @@ function SpaceshipPage({
       ...(isMoon
         ? {
             // Moon world: Moon-sized ellipsoid + no default Bing imagery.
-            globe: new CesiumGlobe(Ellipsoid.MOON),
+            globe: new CesiumGlobe(marsModeRef.current ? MARS_ELLIPSOID : Ellipsoid.MOON),
             baseLayer: false as unknown as undefined,
           }
         : {}),
@@ -3304,7 +3304,7 @@ function SpaceshipPage({
         // entire lunar body to the viewport regardless of aspect ratio, so
         // the Moon is visible + centered on the very first paint (no need to
         // wait for terrain to finish streaming).
-        const moonR = Ellipsoid.MOON.maximumRadius;
+        const moonR = nonEarthEllipsoidRef.current.maximumRadius;
         const moonSphere = new BoundingSphere(Cartesian3.ZERO, moonR);
         viewer.camera.flyToBoundingSphere(moonSphere, {
           duration: 0,
@@ -3351,7 +3351,7 @@ function SpaceshipPage({
         if (defined(cartesian)) {
           const carto = Cartographic.fromCartesian(
             cartesian,
-            isMoon ? Ellipsoid.MOON : undefined
+            (isMoon ? nonEarthEllipsoidRef.current : undefined)
           );
           setCursorInfo({
             lat: CesiumMath.toDegrees(carto.latitude),
@@ -3414,7 +3414,7 @@ function SpaceshipPage({
       if (!defined(cartesian)) return null;
       const carto = Cartographic.fromCartesian(
         cartesian,
-        isMoon ? Ellipsoid.MOON : Ellipsoid.WGS84,
+        (isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84),
       );
       return {
         lat: CesiumMath.toDegrees(carto.latitude),
@@ -3488,7 +3488,7 @@ function SpaceshipPage({
       if (now - __lastAltEmit < 250) return;
       const carto = Cartographic.fromCartesian(
         viewer.camera.position,
-        isMoon ? Ellipsoid.MOON : undefined
+        (isMoon ? nonEarthEllipsoidRef.current : undefined)
       );
       const h = carto.height;
       if (Math.abs(h - __lastAltVal) < 0.5) return;
@@ -3528,7 +3528,7 @@ function SpaceshipPage({
       const now = performance.now();
       const dt = now - __lastFrameT;
       __lastFrameT = now;
-      const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position, isMoon ? Ellipsoid.MOON : Ellipsoid.WGS84).height; } catch { return 0; } })();
+      const alt = (() => { try { return Cartographic.fromCartesian(viewer.camera.position, (isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)).height; } catch { return 0; } })();
       // Moon-scale altitude threshold is much larger than Earth's due to
       // Cartographic.fromCartesian returning distance from the ellipsoid
       // surface (Moon radius is 1/4 of Earth's).
@@ -5996,8 +5996,8 @@ function SpaceshipPage({
             }
             setEditingModel(m as PlacedModel);
           }}
-          ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
-          horizonRadius={moonMode ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius}
+          ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+          horizonRadius={(moonMode ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius)}
         />
       )}
 
@@ -6010,7 +6010,7 @@ function SpaceshipPage({
         isLoaded={isLoaded}
         placements={levelPlacements}
         onPlayingChange={handleLevelPlayingChange}
-        ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
       />
 
       {/* Gaussian Splat landmarks — high-fidelity overlays at specific
@@ -6036,7 +6036,7 @@ function SpaceshipPage({
         viewerRef={viewerRef}
         spawn={freePlaySpawn}
         onExit={() => setFreePlaySpawn(null)}
-        ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
       />
 
       {/* Level Inspector — opens when the user clicks a placed Level on
@@ -6055,8 +6055,8 @@ function SpaceshipPage({
         <AtlasTagsOverlay
           viewer={viewerRef.current}
           tags={atlasTags}
-          ellipsoid={moonMode ? Ellipsoid.MOON : Ellipsoid.WGS84}
-          horizonRadius={moonMode ? Ellipsoid.MOON.maximumRadius : Ellipsoid.WGS84.maximumRadius}
+          ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+          horizonRadius={(moonMode ? nonEarthEllipsoidRef.current.maximumRadius : Ellipsoid.WGS84.maximumRadius)}
           onSelect={(t) => {
             if (t.kind === "biz") {
               const data = businessDataRef.current.get(t.id);
