@@ -2774,7 +2774,13 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     viewer.scene.globe.enableLighting = false;
     viewer.scene.globe.atmosphereLightIntensity = 10;
     viewer.scene.globe.showGroundAtmosphere = true;
-    viewer.scene.globe.baseColor = Color.fromCssColorString("#0a0a1a");
+    // Moon: fall back to a lunar grey so the disc is always visible even
+    // when NASA Trek tiles haven't streamed in yet (prevents the "Moon
+    // disappears while the camera moves" flash). Earth keeps the deep
+    // space color as fallback since tiles cover the visible frustum.
+    viewer.scene.globe.baseColor = isMoon
+      ? Color.fromCssColorString("#8f8b83")
+      : Color.fromCssColorString("#0a0a1a");
 
     // Outer-atmosphere sky glow
     if (viewer.scene.skyAtmosphere) {
@@ -3213,8 +3219,21 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
     // Restore last camera viewport if available, else open at full global view.
     let restoredCamera = false;
+    // If the user just arrived from the Moon (or explicitly requested a
+    // home view), skip camera restore and clear the cached viewport so we
+    // frame the whole Earth on this session.
+    const wantsHomeView =
+      !isMoon && new URLSearchParams(window.location.search).get("home") === "1";
+    if (wantsHomeView) {
+      try { localStorage.removeItem("atlas_camera"); } catch {}
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("home");
+        window.history.replaceState({}, "", url.toString());
+      } catch {}
+    }
     // Moon world: don't restore Earth-cached camera (would be inside the Moon).
-    if (!isMoon) try {
+    if (!isMoon && !wantsHomeView) try {
       const saved = localStorage.getItem("atlas_camera");
       if (saved) {
         const s = JSON.parse(saved);
@@ -7879,8 +7898,21 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
                       {moonMode ? "Moon" : "Mode"}
                     </p>
                     {moonMode ? (
-                      <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-slate-100">
-                        <Satellite className="w-2.5 h-2.5" /> NASA LOLA
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent("moon:toggle-panel", { detail: "layers" }))}
+                          className="flex items-center gap-1 px-2 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-[10px] font-semibold text-slate-100 transition-colors"
+                          title="NASA Moon datasets & LOD"
+                        >
+                          <Layers className="w-2.5 h-2.5" /> Layers
+                        </button>
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent("moon:toggle-panel", { detail: "missions" }))}
+                          className="flex items-center gap-1 px-2 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-[10px] font-semibold text-slate-100 transition-colors"
+                          title="Lunar missions, landers, rovers, orbiters"
+                        >
+                          <Satellite className="w-2.5 h-2.5" /> Missions
+                        </button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">

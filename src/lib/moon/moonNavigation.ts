@@ -10,12 +10,9 @@
 import {
   Cartesian3,
   Ellipsoid,
-  Transforms,
-  Matrix4,
   Math as CesiumMath,
-  HeadingPitchRoll,
-  Quaternion,
-  Matrix3,
+  HeadingPitchRange,
+  BoundingSphere,
 } from "cesium";
 
 export interface MoonFlyOpts {
@@ -40,48 +37,20 @@ export function flyToMoonCoord(
   const altitude = opts.altitude ?? 60_000;
   const duration = opts.duration ?? 1.6;
   const headingDeg = opts.heading ?? 0;
-  const pitchDeg = opts.pitch ?? -45;
+  const pitchDeg = opts.pitch ?? -35;
 
-  // Target point on the Moon surface, in world coordinates.
+  // Target on the Moon surface. Use a bounding sphere + HeadingPitchRange so
+  // Cesium computes the destination in a Moon-ENU frame (scene.ellipsoid on
+  // a Moon viewer is Ellipsoid.MOON), which reliably keeps the camera OUTSIDE
+  // the lunar body regardless of pitch/heading.
   const target = Cartesian3.fromDegrees(lon, lat, 0, Ellipsoid.MOON);
-
-  // Build an ENU frame *at the target* using Moon parameters so up/east/north
-  // are correct for a lunar observer.
-  const enu = Transforms.eastNorthUpToFixedFrame(target, Ellipsoid.MOON);
-
-  // In that frame: heading rotates about local up (Z), pitch tilts down.
-  const hpr = new HeadingPitchRoll(
-    CesiumMath.toRadians(headingDeg),
-    CesiumMath.toRadians(pitchDeg),
-    0
-  );
-  // Camera sits behind the target along the -look direction, at `altitude`
-  // away from the target point in local ENU.
-  const localOffset = new Cartesian3(
-    -altitude * Math.sin(hpr.heading) * Math.cos(hpr.pitch),
-    -altitude * Math.cos(hpr.heading) * Math.cos(hpr.pitch),
-    -altitude * Math.sin(hpr.pitch)
-  );
-  const destination = Matrix4.multiplyByPoint(enu, localOffset, new Cartesian3());
-
-  // Orientation: face the target from the destination.
-  const dirLocal = Cartesian3.normalize(
-    Cartesian3.negate(localOffset, new Cartesian3()),
-    new Cartesian3()
-  );
-  // Convert local dir to world by using the ENU rotation part.
-  const rot = Matrix4.getMatrix3(enu, new Matrix3());
-  const dirWorld = Matrix3.multiplyByVector(rot, dirLocal, new Cartesian3());
-  const upWorld = Matrix3.multiplyByVector(rot, Cartesian3.UNIT_Z, new Cartesian3());
-
-  viewer.camera.flyTo({
-    destination,
-    orientation: {
-      direction: dirWorld,
-      up: upWorld,
-    },
+  const sphere = new BoundingSphere(target, 1);
+  viewer.camera.flyToBoundingSphere(sphere, {
     duration,
+    offset: new HeadingPitchRange(
+      CesiumMath.toRadians(headingDeg),
+      CesiumMath.toRadians(pitchDeg),
+      Math.max(altitude, 5_000),
+    ),
   });
-  // Silence unused warning for Quaternion (kept for future orientation modes).
-  void Quaternion;
 }

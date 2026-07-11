@@ -56,6 +56,31 @@ export default function MoonPanels({ viewer }: Props) {
   });
   const [openPanel, setOpenPanel] = useState<null | "layers" | "missions">(null);
 
+  // Allow the Atlas HUD console (bottom pill area) to toggle the same
+  // panels so the user has ONE console instead of duplicated top-right
+  // pills. The pill layer top-right is hidden below when moonMode is on.
+  useEffect(() => {
+    const onToggle = (e: Event) => {
+      const detail = (e as CustomEvent).detail as "layers" | "missions" | null;
+      if (!detail) { setOpenPanel(null); return; }
+      setOpenPanel((cur) => (cur === detail ? null : detail));
+    };
+    window.addEventListener("moon:toggle-panel", onToggle as EventListener);
+    return () => window.removeEventListener("moon:toggle-panel", onToggle as EventListener);
+  }, []);
+
+  // Broadcast counts + open state so the HUD console can render matching
+  // badges without duplicating filter/layer state.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("moon:panel-state", {
+      detail: {
+        openPanel,
+        layerCount: Object.keys(layerState).length,
+        missionCount: MOON_MISSIONS.length,
+      },
+    }));
+  }, [openPanel, layerState]);
+
   const [filterKinds, setFilterKinds] = useState<Set<MoonMissionKind>>(new Set());
   const [filterAgencies, setFilterAgencies] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -260,27 +285,8 @@ export default function MoonPanels({ viewer }: Props) {
         />
       )}
 
-      {/* Pills — top right, stacked */}
-      <div className="fixed top-3 right-3 z-[70] flex flex-col gap-2 items-end">
-        <button
-          onClick={() => setOpenPanel(openPanel === "layers" ? null : "layers")}
-          className="group flex items-center gap-2 px-3 h-10 rounded-full bg-black/60 backdrop-blur-xl border border-white/15 hover:border-white/30 hover:bg-black/85 transition-all shadow-2xl text-white text-xs font-medium"
-          title="NASA Moon datasets"
-        >
-          <Layers size={14} /> Layers
-          <span className="opacity-60 text-[10px] tabular-nums">
-            {Object.keys(layerState).length}
-          </span>
-        </button>
-        <button
-          onClick={() => setOpenPanel(openPanel === "missions" ? null : "missions")}
-          className="group flex items-center gap-2 px-3 h-10 rounded-full bg-black/60 backdrop-blur-xl border border-white/15 hover:border-white/30 hover:bg-black/85 transition-all shadow-2xl text-white text-xs font-medium"
-          title="Missions, landers, rovers, orbiters"
-        >
-          <Rocket size={14} /> Missions
-          <span className="opacity-60 text-[10px] tabular-nums">{MOON_MISSIONS.length}</span>
-        </button>
-      </div>
+      {/* Pills moved into the unified Atlas HUD console (bottom-right).
+          The console dispatches `moon:toggle-panel` events, handled above. */}
 
       {/* Layers panel */}
       {openPanel === "layers" && (

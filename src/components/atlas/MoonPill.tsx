@@ -53,7 +53,7 @@ export function MoonPill({ className = "" }: PillProps) {
 export function EarthPill({ className = "" }: PillProps) {
   return (
     <Link
-      to="/atlas"
+      to="/atlas?home=1"
       title="Return to Earth"
       aria-label="Return to Earth"
       className={`group fixed top-3 left-1/2 -translate-x-1/2 z-[70] flex items-center justify-center rounded-full bg-black/60 backdrop-blur-xl border border-white/15 hover:border-white/30 hover:bg-black/85 transition-all shadow-2xl p-0.5 ${className}`}
