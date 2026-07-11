@@ -3387,21 +3387,21 @@ function SpaceshipPage({
     const wantsHomeView =
       !isMoon && new URLSearchParams(window.location.search).get("home") === "1";
     if (wantsHomeView) {
-      try { localStorage.removeItem("atlas_camera"); } catch {}
+      try { localStorage.removeItem(cameraStorageKeyForWorld(activeWorldId)); } catch {}
       try {
         const url = new URL(window.location.href);
         url.searchParams.delete("home");
         window.history.replaceState({}, "", url.toString());
       } catch {}
     }
-    // Moon world: don't restore Earth-cached camera (would be inside the Moon).
-    if (!isMoon && !wantsHomeView) try {
-      const saved = localStorage.getItem("atlas_camera");
+    if (!wantsHomeView) try {
+      const saved = localStorage.getItem(cameraStorageKeyForWorld(activeWorldId));
       if (saved) {
         const s = JSON.parse(saved);
         if (typeof s.lng === "number" && typeof s.lat === "number" && typeof s.alt === "number") {
+          const ellipsoid = isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84;
           viewer.camera.setView({
-            destination: Cartesian3.fromDegrees(s.lng, s.lat, s.alt),
+            destination: Cartesian3.fromDegrees(s.lng, s.lat, s.alt, ellipsoid),
             orientation: {
               heading: CesiumMath.toRadians(s.heading ?? 0),
               pitch: CesiumMath.toRadians(s.pitch ?? -90),
@@ -3660,12 +3660,29 @@ function SpaceshipPage({
 
     setIsLoaded(true);
 
+    const removeWorldCameraSave = viewer.camera.moveEnd.addEventListener(() => {
+      try {
+        const ellipsoid = isMoon ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84;
+        const carto = Cartographic.fromCartesian(viewer.camera.position, ellipsoid);
+        const cam = viewer.camera;
+        localStorage.setItem(cameraStorageKeyForWorld(activeWorldId), JSON.stringify({
+          lng: CesiumMath.toDegrees(carto.longitude),
+          lat: CesiumMath.toDegrees(carto.latitude),
+          alt: carto.height,
+          heading: CesiumMath.toDegrees(cam.heading),
+          pitch: CesiumMath.toDegrees(cam.pitch),
+          roll: CesiumMath.toDegrees(cam.roll),
+        }));
+      } catch {}
+    });
+
     return () => {
       handler.destroy();
       if ((viewer as any)._resizeCleanup) (viewer as any)._resizeCleanup();
       if ((viewer as any)._fpsCleanup) (viewer as any)._fpsCleanup();
       try { removeAltListener?.(); } catch {}
       try { removePerfListener?.(); } catch {}
+      try { removeWorldCameraSave?.(); } catch {}
       try { removeMoonCameraGuard?.(); } catch {}
       // Release the module-level Viewer ref held by the shared scheduler
       // so its WebGL resources can be GC'd after navigation / HMR.
