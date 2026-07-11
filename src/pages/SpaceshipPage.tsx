@@ -1543,7 +1543,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed() || !entity) return;
     entity.show = false;
-    const carto = Cartographic.fromDegrees(lng, lat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+    const carto = Cartographic.fromDegrees(lng, lat);
     const reveal = (height: number | null) => {
       if (!viewer || viewer.isDestroyed()) return;
       if (typeof height === "number" && isFinite(height)) {
@@ -4109,7 +4109,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const v = viewerRef.current;
         if (v) {
           try {
-          const carto = Cartographic.fromDegrees(loc.lng, loc.lat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+          const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
             const sampled = v.scene.sampleHeight(carto);
             if (typeof sampled === "number" && !isNaN(sampled)) groundAlt = sampled;
             else {
@@ -4128,7 +4128,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         const viewer = viewerRef.current;
         if (viewer) {
           try {
-            const carto = Cartographic.fromDegrees(loc.lng, loc.lat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
+            const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
             const sampled = viewer.scene.sampleHeight(carto);
             if (typeof sampled === "number" && !isNaN(sampled)) tileAlt = sampled;
             else {
