@@ -212,7 +212,7 @@ import EmergencyPanel from "@/components/atlas/EmergencyPanel";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 
 /* ── Cesium Token (publishable key) ── */
-const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODhlOTUyMy1kNmE2LTQ3MWUtYTkyNS0zN2QwYzM5YWIwNjciLCJpZCI6MzU0Mjc2LCJpYXQiOjE3NjE1MzQ0OTh9.BvVrQHG_6Ln5TryWETCkQISdSTH8PTSBuZboxLgM45o";
+const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZjE5YWQxYi04OGE3LTQxOTEtOTBmZS1iZDdkOWNmOTIyYjYiLCJpZCI6MzIyODgyLCJpYXQiOjE3NTI4NzUyMTB9.UhWm2A1x0gFnsiPJ-XzIyK3K6kOW9jwRYjqQw4Jw9xs";
 
 /* ── Atlas performance profiles ─────────────────────────────────
  * Keep photorealistic quality high without freezing the browser:
@@ -2865,6 +2865,18 @@ function SpaceshipPage({
       ssec0.minimumZoomDistance = MOON_MIN_SAFE_ALTITUDE_M;
       ssec0.maximumZoomDistance = MOON_MAX_SAFE_ALTITUDE_M;
       ssec0.enableTilt = true;
+      // Non-Earth worlds have smaller ellipsoids (Mars 3396 km, Mercury
+      // 2439 km, ...). Cesium's default trackball/picking-height thresholds
+      // (7 500 km / 150 km) are tuned for Earth, so on a small planet the
+      // wheel-zoom transitions to trackball mode far above the surface and
+      // then can't get closer — the camera parks at ~2 700 km altitude.
+      // Lower these thresholds so wheel-zoom keeps refining all the way
+      // down to the terrain/ellipsoid surface, matching Earth behavior.
+      const nonEarthR = nonEarthEllipsoidRef.current.maximumRadius;
+      (ssec0 as any).minimumCollisionTerrainHeight = 0;
+      (ssec0 as any)._minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
+      (ssec0 as any)._minimumPickingTerrainHeight = 0;
+      (ssec0 as any).minimumPickingTerrainHeight = 0;
     }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
     ssec0.tiltEventTypes = [

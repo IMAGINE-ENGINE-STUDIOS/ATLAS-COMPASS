@@ -29,7 +29,11 @@ export default function PlanetAtlasPage() {
   }) => JSX.Element;
   return (
     <Suspense fallback={<div className="w-full h-screen bg-[#0a0a1a]" />}>
-      <Cmp planetId={planet.id} />
+      {/* Key on planet id so switching between /planet/<id> routes
+          remounts the Atlas viewer — otherwise Cesium keeps the previous
+          planet's ellipsoid, imagery, and camera framing, which breaks
+          centering and zoom on the newly selected world. */}
+      <Cmp key={planet.id} planetId={planet.id} />
     </Suspense>
   );
 }
