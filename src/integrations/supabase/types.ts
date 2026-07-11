@@ -1150,6 +1150,7 @@ export type Database = {
           roll: number
           scale: number
           updated_at: string
+          world: string
         }
         Insert: {
           altitude?: number
@@ -1168,6 +1169,7 @@ export type Database = {
           roll?: number
           scale?: number
           updated_at?: string
+          world?: string
         }
         Update: {
           altitude?: number
@@ -1186,6 +1188,7 @@ export type Database = {
           roll?: number
           scale?: number
           updated_at?: string
+          world?: string
         }
         Relationships: []
       }
