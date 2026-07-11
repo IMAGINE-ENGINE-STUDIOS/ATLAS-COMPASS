@@ -11,6 +11,8 @@ import {
   Ellipsoid,
   HeadingPitchRange,
   Math as CesiumMath,
+  ScreenSpaceEventHandler,
+  ScreenSpaceEventType,
 } from "cesium";
 import {
   MOON_MISSIONS,
@@ -101,7 +103,6 @@ export default function MoonMissionEntities({
         } catch {}
       }
     };
-    const { ScreenSpaceEventHandler, ScreenSpaceEventType } = require("cesium");
     const h = new ScreenSpaceEventHandler(viewer.scene.canvas);
     h.setInputAction(handler, ScreenSpaceEventType.LEFT_CLICK);
     return () => { try { h.destroy(); } catch {} };
