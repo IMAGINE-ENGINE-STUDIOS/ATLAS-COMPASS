@@ -324,6 +324,28 @@ export default function MoonPanels({ viewer }: Props) {
             <button onClick={() => setOpenPanel(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
           </div>
           <div className="p-3 space-y-4">
+            <div className="rounded-lg bg-gradient-to-br from-sky-500/15 to-indigo-500/10 border border-sky-400/25 p-2.5">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-sky-400"
+                  checked={photoreal}
+                  onChange={(e) => setPhotoreal(e.target.checked)}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-semibold leading-tight flex items-center gap-1.5">
+                    Photoreal 3D (Cesium Moon)
+                    {photorealLoading && <span className="text-[9px] opacity-60 uppercase tracking-wider">loading…</span>}
+                  </div>
+                  <div className="text-[10px] opacity-70 mt-0.5 leading-snug">
+                    Streams Cesium ion's photoreal Moon 3D Tileset (asset 2684829). Hides the ellipsoid globe while active. Requires network + Cesium ion token.
+                  </div>
+                  {photorealError && (
+                    <div className="text-[10px] text-rose-300 mt-1">{photorealError}</div>
+                  )}
+                </div>
+              </label>
+            </div>
             <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5">
               <div className="flex items-center justify-between mb-1">
                 <div className="text-[10px] uppercase tracking-wider opacity-60">Moon LOD</div>
