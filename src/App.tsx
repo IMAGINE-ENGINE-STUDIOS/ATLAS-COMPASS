@@ -20,7 +20,14 @@ import DeliveryPage from "@/pages/DeliveryPage";
 // and R3F, which we don't want blocking the initial paint of lighter routes
 // like /landing, /files, or the admin dashboard. (P15)
 const SpaceshipPage = lazy(() => import("@/pages/SpaceshipPage"));
-const MoonPage = lazy(() => import("@/pages/moon/MoonPage"));
+const MoonPage = lazy(() =>
+  import("@/pages/SpaceshipPage").then((m) => ({
+    default: () => {
+      const Cmp = m.default as unknown as (p: { moonMode?: boolean }) => JSX.Element;
+      return <Cmp moonMode />;
+    },
+  })),
+);
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";

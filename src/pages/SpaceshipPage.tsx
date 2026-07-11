@@ -55,6 +55,7 @@ import { Star } from "lucide-react";
 import {
   Viewer, Ion, Cartesian3, Math as CesiumMath,
   createWorldTerrainAsync, createOsmBuildingsAsync,
+  CesiumTerrainProvider, Ellipsoid, Globe as CesiumGlobe,
   Cartographic, Color, ScreenSpaceEventHandler, ScreenSpaceEventType,
   defined,
   HeadingPitchRoll, Transforms,
@@ -997,7 +998,13 @@ async function fetchOverpassJson(query: string, signal?: AbortSignal): Promise<a
 }
 
 /* ── Main Spaceship Component ── */
-function SpaceshipPage() {
+function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
+  // Route-driven "world" flag: when true we render the same Atlas HUD but
+  // over a Moon-sized globe with Cesium ion Moon Terrain (asset 2684829)
+  // and skip every Earth-only data load (Google Photoreal, OSM Buildings,
+  // Ion Realistic, Overpass discovery, POIs, placed models, level layer).
+  const moonModeRef = useRef(moonMode);
+  useEffect(() => { moonModeRef.current = moonMode; }, [moonMode]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
@@ -2599,6 +2606,7 @@ function SpaceshipPage() {
 
     Ion.defaultAccessToken = CESIUM_TOKEN;
 
+    const isMoon = moonModeRef.current;
     const viewer = new Viewer(cesiumContainer.current, {
       animation: false,
       baseLayerPicker: false,
@@ -2614,7 +2622,15 @@ function SpaceshipPage() {
       navigationInstructionsInitiallyVisible: false,
       creditContainer: document.createElement("div"),
       orderIndependentTranslucency: false,
+      ...(isMoon
+        ? {
+            // Moon world: Moon-sized ellipsoid + no default Bing imagery.
+            globe: new CesiumGlobe(Ellipsoid.MOON),
+            baseLayer: false as unknown as undefined,
+          }
+        : {}),
     });
+    (viewer as any).__moonMode = isMoon;
 
     viewerRef.current = viewer;
     // Expose for components that need to sample the Cesium scene (e.g. the
@@ -2780,16 +2796,32 @@ function SpaceshipPage() {
     // Visuals are intentionally neutral/fast: no HDR, SSAO, sharpen, or shader overlays.
     try { applyAtlasVisuals(viewer); } catch (err) { console.warn("[atlas-visuals] failed", err); }
 
-    // Add world terrain
-    createWorldTerrainAsync({
-      requestWaterMask: false,
-      requestVertexNormals: false,
-    }).then((terrain) => {
-      if (!viewer.isDestroyed()) {
-        viewer.terrainProvider = terrain;
-        viewer.scene.requestRender();
-      }
-    });
+    // Terrain: Earth world terrain, or Cesium ion Moon Terrain (2684829)
+    // for the Moon world. Same viewer, same controls, different planet.
+    if (isMoon) {
+      viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false);
+      viewer.scene.globe.showGroundAtmosphere = false;
+      viewer.scene.globe.baseColor = Color.fromCssColorString("#8a8578");
+      viewer.scene.globe.enableLighting = true;
+      CesiumTerrainProvider.fromIonAssetId(2684829)
+        .then((terrain) => {
+          if (!viewer.isDestroyed()) {
+            viewer.terrainProvider = terrain;
+            viewer.scene.requestRender();
+          }
+        })
+        .catch((err) => console.warn("[Atlas moon] terrain failed", err));
+    } else {
+      createWorldTerrainAsync({
+        requestWaterMask: false,
+        requestVertexNormals: false,
+      }).then((terrain) => {
+        if (!viewer.isDestroyed()) {
+          viewer.terrainProvider = terrain;
+          viewer.scene.requestRender();
+        }
+      });
+    }
 
     // ── Ion + OSM are now LAZY ─────────────────────────────────
     // Boot used to instantiate THREE full-detail photoreal tilesets in
@@ -2966,7 +2998,11 @@ function SpaceshipPage() {
       return (viewer as any)._googleDirectLoading;
     };
     applyAtlasMapVisibility(viewer, viewModeRef.current, showBuildingsRef.current);
-    if (viewModeRef.current === "google") {
+    if (isMoon) {
+      // Skip every Earth tileset ensure. The moon world only shows the
+      // Cesium ion Moon terrain — no Google Photoreal, no OSM, no ion
+      // photogrammetry, no community layers.
+    } else if (viewModeRef.current === "google") {
       (viewer as any)._ensureGoogleDirectTileset();
     } else if (viewModeRef.current === "realistic") {
       (viewer as any)._ensureRealisticTileset();
@@ -2977,7 +3013,7 @@ function SpaceshipPage() {
 
     // Rehydrate previously enabled Cesium ion community 3D Tile layers
     // (Vexcel 3D Cities, Japan 3D Buildings / PLATEAU, user-added assets).
-    restoreEnabledIonLayers(viewer).catch(() => {});
+    if (!isMoon) restoreEnabledIonLayers(viewer).catch(() => {});
 
     // Create brush indicator — two entities that render as DECALS across both
     // the terrain surface AND every 3D Tileset above it (Google Photoreal,
@@ -3041,7 +3077,8 @@ function SpaceshipPage() {
 
     // Restore last camera viewport if available, else open at full global view.
     let restoredCamera = false;
-    try {
+    // Moon world: don't restore Earth-cached camera (would be inside the Moon).
+    if (!isMoon) try {
       const saved = localStorage.getItem("atlas_camera");
       if (saved) {
         const s = JSON.parse(saved);
@@ -3060,7 +3097,9 @@ function SpaceshipPage() {
     } catch {}
     if (!restoredCamera) {
       viewer.camera.setView({
-        destination: Cartesian3.fromDegrees(0, 20, 20000000),
+        destination: isMoon
+          ? Cartesian3.fromDegrees(0, 0, 4_000_000, Ellipsoid.MOON)
+          : Cartesian3.fromDegrees(0, 20, 20000000),
         orientation: {
           heading: CesiumMath.toRadians(0),
           pitch: CesiumMath.toRadians(-90),
@@ -7991,10 +8030,10 @@ class AtlasErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
   }
 }
 
-export default function AtlasPage() {
+export default function AtlasPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   return (
     <AtlasErrorBoundary>
-      <SpaceshipPage />
+      <SpaceshipPage moonMode={moonMode} />
     </AtlasErrorBoundary>
   );
 }
