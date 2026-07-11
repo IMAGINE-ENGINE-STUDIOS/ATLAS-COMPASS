@@ -5362,11 +5362,14 @@ function SpaceshipPage() {
     const stamp = stampModelRef.current;
     if (!stamp) return;
     const modelId = crypto.randomUUID();
-    // Snap to ground precisely.
+    // Snap to ground precisely — 0mm above, 0mm below. First try the
+    // synchronous `sampleHeight`; if the tile isn't loaded yet we fall back
+    // to terrain, then re-snap asynchronously with `sampleHeightMostDetailed`
+    // once the tile finishes streaming so the model sits flush.
     let surfaceAlt = loc.alt;
-    try {
-      const viewer = viewerRef.current;
-      if (viewer) {
+    const viewer = viewerRef.current;
+    if (viewer) {
+      try {
         const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
         const sampled = viewer.scene.sampleHeight(carto);
         if (typeof sampled === "number" && !isNaN(sampled)) surfaceAlt = sampled;
@@ -5374,8 +5377,8 @@ function SpaceshipPage() {
           const terrainH = viewer.scene.globe.getHeight(carto);
           if (typeof terrainH === "number" && !isNaN(terrainH)) surfaceAlt = terrainH;
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     const newModel: PlacedModel = {
       id: modelId,
@@ -5398,13 +5401,33 @@ function SpaceshipPage() {
       savePlacedModels(updated);
       return updated;
     });
+    // Precise async re-snap once the highest-detail tile at this coordinate
+    // has loaded. This eliminates the "half-buried / hovering" look on
+    // Photoreal 3D tiles that stream in a few frames after the click.
+    if (viewer) {
+      const carto = Cartographic.fromDegrees(loc.lng, loc.lat);
+      (viewer.scene as any).sampleHeightMostDetailed?.([carto])
+        .then((arr: any[]) => {
+          const h = arr?.[0]?.height;
+          if (typeof h !== "number" || !isFinite(h)) return;
+          if (Math.abs(h - surfaceAlt) < 0.02) return; // already flush
+          setPlacedModels(prev => {
+            const updated = prev.map(m => m.id === modelId ? { ...m, alt: h } : m);
+            savePlacedModels(updated);
+            const ent = viewer.entities.getById(`model-${modelId}`);
+            if (ent) applyModelTransformToEntity(ent, { ...newModel, alt: h });
+            return updated;
+          });
+        })
+        .catch(() => {});
+    }
     // Also persist a per-instance copy of the blob so it survives reloads.
     try {
       const resp = await fetch(stamp.blobUrl);
       const blob = await resp.blob();
       await saveAtlasModelBlob(modelId, blob, stamp.fileName);
     } catch {}
-  }, [placeModelOnGlobe, placedModels.length]);
+  }, [applyModelTransformToEntity, placeModelOnGlobe, placedModels.length]);
 
   const clearStampModel = useCallback(() => {
     stampModelRef.current = null;
