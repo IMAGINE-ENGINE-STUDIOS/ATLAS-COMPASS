@@ -16,7 +16,7 @@ import {
 } from "cesium";
 
 export const MOON_MIN_SAFE_ALTITUDE_M = 1.5;
-export const MOON_MAX_SAFE_ALTITUDE_M = 450_000_000;
+export const MOON_MAX_SAFE_ALTITUDE_M = 2_000_000_000;
 
 export interface MoonFlyOpts {
   /** Approach altitude above the target, in metres. */
@@ -84,45 +84,15 @@ export function flyToMoonCoord(
  */
 export function installMoonCameraGuard(viewer: any): () => void {
   if (!viewer || viewer.isDestroyed?.()) return () => {};
-  const ellipsoid = Ellipsoid.MOON;
+  const ellipsoid = (viewer as any).__atlasNonEarthEllipsoid ?? Ellipsoid.MOON;
   let correcting = false;
   let lastCheck = 0;
-  let rightDrag: {
-    pointerId: number;
-    x: number;
-    y: number;
-    lon: number;
-    lat: number;
-    height: number;
-  } | null = null;
 
-  const lookAtMoonCenter = (position: Cartesian3) => {
-    const direction = Cartesian3.normalize(
-      Cartesian3.negate(position, new Cartesian3()),
-      new Cartesian3(),
-    );
-    const pole = Math.abs(direction.z) > 0.96
-      ? Cartesian3.UNIT_Y
-      : Cartesian3.UNIT_Z;
-    const right = Cartesian3.normalize(
-      Cartesian3.cross(direction, pole, new Cartesian3()),
-      new Cartesian3(),
-    );
-    const up = Cartesian3.normalize(
-      Cartesian3.cross(right, direction, new Cartesian3()),
-      new Cartesian3(),
-    );
-    viewer.camera.setView({
-      destination: position,
-      orientation: { direction, up },
-    });
-  };
-
-  const correct = (forceAimAtMoon = false) => {
+  const correct = () => {
     if (correcting || viewer.isDestroyed?.()) return;
     if (typeof window !== "undefined" && (window as any).__atlasLevelPlaying) return;
     const now = performance.now();
-    if (!forceAimAtMoon && now - lastCheck < 100) return;
+    if (now - lastCheck < 150) return;
     lastCheck = now;
 
     let carto: Cartographic;
@@ -142,83 +112,25 @@ export function installMoonCameraGuard(viewer: any): () => void {
       needsCorrection = true;
     }
 
-    // In Moon mode the center of the viewport should stay oriented at the
-    // lunar body. A free/tangent camera makes the surface read as black space.
-    if (forceAimAtMoon && safeHeight < 50_000_000) needsCorrection = true;
-
     if (!needsCorrection) return;
 
     correcting = true;
     try {
       viewer.camera.lookAtTransform(Matrix4.IDENTITY);
       const position = Cartesian3.fromRadians(carto.longitude, carto.latitude, safeHeight, ellipsoid);
-      lookAtMoonCenter(position);
+      viewer.camera.setView({ destination: position });
       viewer.scene.requestRender?.();
     } finally {
       correcting = false;
     }
   };
 
-  const removePostRender = viewer.scene.postRender.addEventListener(() => correct(false));
-  const removeMoveEnd = viewer.camera.moveEnd.addEventListener(() => correct(true));
-  const canvas: HTMLCanvasElement | undefined = viewer.scene?.canvas;
-  const stopContextMenu = (e: MouseEvent) => e.preventDefault();
-  const onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 2 || viewer.isDestroyed?.()) return;
-    const carto = Cartographic.fromCartesian(viewer.camera.position, ellipsoid);
-    rightDrag = {
-      pointerId: e.pointerId,
-      x: e.clientX,
-      y: e.clientY,
-      lon: carto.longitude,
-      lat: carto.latitude,
-      height: Math.max(MOON_MIN_SAFE_ALTITUDE_M, Math.min(MOON_MAX_SAFE_ALTITUDE_M, carto.height)),
-    };
-    try { canvas?.setPointerCapture?.(e.pointerId); } catch {}
-    e.preventDefault();
-  };
-  const onPointerMove = (e: PointerEvent) => {
-    if (!rightDrag || e.pointerId !== rightDrag.pointerId || viewer.isDestroyed?.()) return;
-    const dx = e.clientX - rightDrag.x;
-    const dy = e.clientY - rightDrag.y;
-    const speed = rightDrag.height > 20_000_000 ? 0.0018 : 0.0032;
-    const lon = rightDrag.lon - dx * speed;
-    const lat = Math.max(
-      CesiumMath.toRadians(-84),
-      Math.min(CesiumMath.toRadians(84), rightDrag.lat + dy * speed),
-    );
-    const position = Cartesian3.fromRadians(lon, lat, rightDrag.height, ellipsoid);
-    correcting = true;
-    try {
-      viewer.camera.lookAtTransform(Matrix4.IDENTITY);
-      lookAtMoonCenter(position);
-      viewer.scene.requestRender?.();
-    } finally {
-      correcting = false;
-    }
-    e.preventDefault();
-  };
-  const clearRightDrag = (e?: PointerEvent) => {
-    if (rightDrag && e?.pointerId === rightDrag.pointerId) {
-      try { canvas?.releasePointerCapture?.(e.pointerId); } catch {}
-    }
-    rightDrag = null;
-    correct(true);
-  };
-  canvas?.addEventListener("contextmenu", stopContextMenu);
-  canvas?.addEventListener("pointerdown", onPointerDown, { passive: false });
-  canvas?.addEventListener("pointermove", onPointerMove, { passive: false });
-  canvas?.addEventListener("pointerup", clearRightDrag, { passive: false });
-  canvas?.addEventListener("pointercancel", clearRightDrag, { passive: false });
-  correct(true);
+  const removeMoveEnd = viewer.camera.moveEnd.addEventListener(correct);
+  correct();
 
   return () => {
-    try { removePostRender?.(); } catch {}
     try { removeMoveEnd?.(); } catch {}
-    canvas?.removeEventListener("contextmenu", stopContextMenu);
-    canvas?.removeEventListener("pointerdown", onPointerDown);
-    canvas?.removeEventListener("pointermove", onPointerMove);
-    canvas?.removeEventListener("pointerup", clearRightDrag);
-    canvas?.removeEventListener("pointercancel", clearRightDrag);
   };
 }
+
+void CesiumMath;
