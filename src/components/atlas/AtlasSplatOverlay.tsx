@@ -41,7 +41,6 @@ function loadGaussianSplats3D() {
 
 const MAX_LOADED = 3;
 const BUCKET = "splat-landmarks";
-const EARTH_RADIUS_M = 6371000;
 const SUPPORTED_SPLAT_EXT = /\.(splat|ksplat|spz)$/i;
 
 function isSupportedSplatPath(path: string) {
@@ -205,7 +204,7 @@ export default function AtlasSplatOverlay({
     };
     load();
     const ch = supabase
-      .channel("splat_landmarks_rt")
+      .channel(`splat_landmarks_rt:${world}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "splat_landmarks" },
@@ -216,7 +215,7 @@ export default function AtlasSplatOverlay({
       cancelled = true;
       supabase.removeChannel(ch);
     };
-  }, []);
+  }, [world]);
 
   // Cesium pin markers for every landmark (visible even before splat loads)
   useEffect(() => {
