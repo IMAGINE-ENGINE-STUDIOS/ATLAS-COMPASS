@@ -6152,8 +6152,16 @@ function SpaceshipPage({
 
       {/* Gaussian Splat landmarks — high-fidelity overlays at specific
           coords, loaded only when the camera is within their radius. */}
-      <AtlasSplatOverlay viewerRef={viewerRef} />
-      <AtlasSplatUploader viewer={viewerRef.current} />
+      <AtlasSplatOverlay
+        viewerRef={viewerRef}
+        world={activeWorldId}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+      />
+      <AtlasSplatUploader
+        viewer={viewerRef.current}
+        world={activeWorldId}
+        ellipsoid={(moonMode ? nonEarthEllipsoidRef.current : Ellipsoid.WGS84)}
+      />
 
       {/* OSM Buildings — click to open BuildingCard, long-press to enter
           multi-select, color/tag/notes/GLB-replace individual buildings.
