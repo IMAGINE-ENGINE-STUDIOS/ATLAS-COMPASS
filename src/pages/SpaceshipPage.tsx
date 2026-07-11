@@ -524,6 +524,9 @@ function loadPlacedModels(): PlacedModel[] {
 }
 
 function savePlacedModels(models: PlacedModel[]) {
+  // Guarded by callers: on the Moon we intentionally skip Earth-model
+  // persistence so a moon-session doesn't stomp the user's Earth models.
+  if ((window as any).__atlasMoonMode) return;
   localStorage.setItem(MODELS_STORAGE_KEY, JSON.stringify(models));
 }
 
