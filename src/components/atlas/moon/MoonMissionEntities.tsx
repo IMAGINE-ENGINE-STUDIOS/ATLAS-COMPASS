@@ -23,14 +23,15 @@ import {
 interface Props {
   viewer: any;
   visible: boolean;
-  filterKinds: Set<string> | null;
+  /** If provided, only missions with these ids are rendered as pins. */
+  allowedIds?: Set<string>;
   onSelect?: (m: MoonMission) => void;
 }
 
 export default function MoonMissionEntities({
   viewer,
   visible,
-  filterKinds,
+  allowedIds,
   onSelect,
 }: Props) {
   useEffect(() => {
@@ -40,7 +41,7 @@ export default function MoonMissionEntities({
 
     if (visible) {
       MOON_MISSIONS.forEach((m) => {
-        if (filterKinds && filterKinds.size > 0 && !filterKinds.has(m.kind)) return;
+        if (allowedIds && !allowedIds.has(m.id)) return;
         const color = Color.fromCssColorString(MISSION_KIND_COLOR[m.kind]);
         const ent = viewer.entities.add({
           id: `moon-mission-${m.id}`,
@@ -83,7 +84,7 @@ export default function MoonMissionEntities({
       });
       try { viewer.scene?.requestRender(); } catch {}
     };
-  }, [viewer, visible, filterKinds]);
+  }, [viewer, visible, allowedIds]);
 
   // Click handler
   useEffect(() => {
