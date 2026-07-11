@@ -1070,6 +1070,11 @@ function SpaceshipPage({
   const isGenericPlanet =
     !!planetId && !["earth", "moon", "mars"].includes(planetId);
   const genericPlanetEntry = isGenericPlanet ? findPlanet(planetId!) : undefined;
+  const activeWorldId = useMemo(
+    () => normalizeAtlasWorldId(planetId ?? (resolvedMars ? "mars" : resolvedMoon ? "moon" : "earth")),
+    [planetId, resolvedMars, resolvedMoon],
+  );
+  const isEarthWorld = activeWorldId === "earth";
   // Non-Earth gating: every existing `moonMode` check must also fire for
   // Mars (Mars world hides the same Earth-only data loads: Google Photoreal,
   // OSM Buildings, Overpass, POIs, live traffic, etc.).  We alias the prop
@@ -1102,14 +1107,16 @@ function SpaceshipPage({
     (window as any).__atlasMoonMode = moonMode;
     (window as any).__atlasMarsMode = resolvedMars;
     (window as any).__atlasPlanetId = planetId ?? null;
+    (window as any).__atlasWorldId = activeWorldId;
     (window as any).__atlasNonEarthEllipsoid = moonMode ? nonEarthEllipsoidRef.current : null;
     return () => {
       (window as any).__atlasMoonMode = false;
       (window as any).__atlasMarsMode = false;
       (window as any).__atlasPlanetId = null;
+      (window as any).__atlasWorldId = "earth";
       (window as any).__atlasNonEarthEllipsoid = null;
     };
-  }, [moonMode, resolvedMars, isGenericPlanet, planetId]);
+  }, [moonMode, resolvedMars, isGenericPlanet, planetId, activeWorldId]);
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const isMobile = useIsMobile();
@@ -1174,7 +1181,7 @@ function SpaceshipPage({
     useCallback((p: LevelPlacement) => {
       setSelectedLevelPlacement(p);
     }, []),
-    moonMode ? "moon" : "earth",
+    activeWorldId,
   );
   // Inspector panel: clicking a placed Level opens this floating panel
   // with info, control bars (heading/scale/altitude), Main Character
@@ -1207,7 +1214,7 @@ function SpaceshipPage({
   // re-rendering the entire 7k-line SpaceshipPage on every camera move —
   // only the memoized <CameraAltHUD/> subscribes.
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [pois, setPois] = useState<POI[]>(loadPOIs);
+  const [pois, setPois] = useState<POI[]>(() => loadPOIs(activeWorldId));
   const [namingPOI, setNamingPOI] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [earthMenu, setEarthMenu] = useState<{ x: number; y: number; loc: EarthLoc } | null>(null);
   // Active free-play spawn: when set, a playable character (default Soldier)
@@ -1365,7 +1372,7 @@ function SpaceshipPage({
       altitude: p.loc.alt,
       heading: p.heading ?? 0,
       scale: 1,
-      world: moonModeRef.current ? "moon" : "earth",
+      world: currentAtlasWorldId(),
     });
     if (error) { toast.error(`Failed: ${error.message}`); return; }
     window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
@@ -1431,7 +1438,7 @@ function SpaceshipPage({
   // lunar globe). New models placed on the Moon stay only in-session for
   // now until per-world persistence lands.
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(
-    () => loadPlacedModels(moonMode),
+    () => loadPlacedModels(activeWorldId),
   );
   // ── Undo / Redo for stamp + tile placements ──
   // We snapshot the `placedModels` array before any mutation that changes the
