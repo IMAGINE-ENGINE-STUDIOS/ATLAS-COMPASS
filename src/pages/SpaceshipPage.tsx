@@ -3096,16 +3096,27 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       }
     } catch {}
     if (!restoredCamera) {
-      viewer.camera.setView({
-        destination: isMoon
-          ? Cartesian3.fromDegrees(0, 0, 4_000_000, Ellipsoid.MOON)
-          : Cartesian3.fromDegrees(0, 20, 20000000),
-        orientation: {
-          heading: CesiumMath.toRadians(0),
-          pitch: CesiumMath.toRadians(-90),
-          roll: 0,
-        },
-      });
+      if (isMoon) {
+        // Frame the full Moon disc immediately. flyToBoundingSphere fits the
+        // entire lunar body to the viewport regardless of aspect ratio, so
+        // the Moon is visible + centered on the very first paint (no need to
+        // wait for terrain to finish streaming).
+        const moonR = Ellipsoid.MOON.maximumRadius;
+        const moonSphere = new BoundingSphere(Cartesian3.ZERO, moonR);
+        viewer.camera.flyToBoundingSphere(moonSphere, {
+          duration: 0,
+          offset: new HeadingPitchRange(0, CesiumMath.toRadians(-25), moonR * 3.2),
+        });
+      } else {
+        viewer.camera.setView({
+          destination: Cartesian3.fromDegrees(0, 20, 20000000),
+          orientation: {
+            heading: CesiumMath.toRadians(0),
+            pitch: CesiumMath.toRadians(-90),
+            roll: 0,
+          },
+        });
+      }
     }
 
     // Mouse move handler for coordinates + brush indicator
