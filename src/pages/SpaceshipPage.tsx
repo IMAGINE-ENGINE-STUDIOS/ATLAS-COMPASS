@@ -1242,7 +1242,26 @@ function SpaceshipPage() {
   //   stamp   — load a model once, click to stamp many times
   //   tiles   — Web Mercator XYZ tile selection (grid/rect/lasso)
   type BrushSubMode = "reticle" | "area" | "stamp" | "tiles";
-  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>(savedUI.brushSubMode ?? "stamp");
+  // Legacy sub-modes (reticle, area) are folded into the new unified panel as
+  // inline actions; only `stamp` (default) and `tiles` remain user-visible.
+  const [brushSubMode, setBrushSubMode] = useState<BrushSubMode>(() => {
+    const raw = savedUI.brushSubMode as BrushSubMode | undefined;
+    return raw === "tiles" ? "tiles" : "stamp";
+  });
+  // Brush indicator shape (Stamp mode). Tile mode overrides to a tile-shaped
+  // decal computed from the hovered Web-Mercator tile bounds.
+  type BrushShape = "circle" | "square" | "hex";
+  const [brushShape, setBrushShape] = useState<BrushShape>(() =>
+    (savedUI.brushShape as BrushShape) ?? "circle",
+  );
+  // Physical radius of the brush footprint on the ground, in meters.
+  const [brushRadiusM, setBrushRadiusM] = useState<number>(() =>
+    Number(savedUI.brushRadiusM) || 25,
+  );
+  const brushShapeRef = useRef<BrushShape>(brushShape);
+  const brushRadiusRef = useRef<number>(brushRadiusM);
+  useEffect(() => { brushShapeRef.current = brushShape; }, [brushShape]);
+  useEffect(() => { brushRadiusRef.current = brushRadiusM; }, [brushRadiusM]);
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
