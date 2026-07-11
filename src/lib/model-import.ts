@@ -290,6 +290,7 @@ export async function convertCadViaAps(
 export async function convertDwg(
   file: File,
   invoke: (fnName: string, opts: { body: any }) => Promise<{ data: any; error: any }>,
+  opts: { format?: "auto" | "glb" | "dxf" } = {},
 ): Promise<ImportedModel> {
   const ext = extOf(file.name);
   const buf = await readArrayBuffer(file);
@@ -300,7 +301,7 @@ export async function convertDwg(
 
   try {
     const { data, error } = await invoke("dwg-convert", {
-      body: { fileName: file.name, fileBase64: b64 },
+      body: { fileName: file.name, fileBase64: b64, format: opts.format ?? "auto" },
     });
     if (error) throw new Error(error.message || "DWG worker failed");
     if (data?.glbBase64) {
