@@ -2677,6 +2677,17 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // the underside of terrain while orbiting.
     (ssec0 as any).enableCollisionDetection = true;
     ssec0.minimumZoomDistance = 1.5;
+    if (isMoon) {
+      // Moon: allow the user to zoom in tightly to the surface. The custom
+      // LOLA-derived terrain provider fetches tiles asynchronously, so we
+      // disable collision detection (a partially-loaded terrain tile can
+      // otherwise push the camera many kilometres above the surface).
+      (ssec0 as any).enableCollisionDetection = false;
+      ssec0.minimumZoomDistance = 0.5;
+      // Keep the maximum zoom-out finite so users don't fly infinitely away
+      // from a body the size of the Moon and lose orientation.
+      ssec0.maximumZoomDistance = 40_000_000;
+    }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
     ssec0.tiltEventTypes = [
       CameraEventType.RIGHT_DRAG,
