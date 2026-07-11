@@ -58,6 +58,8 @@ import { toast } from "sonner";
 import {
   importModelFile,
   convertCadViaAps,
+  convertDwg,
+  downloadAsUsdz,
   extOf,
   isCadFormat,
   isNativeFormat,
@@ -1369,9 +1371,14 @@ export default function LevelEditorPage() {
     setCadConverting(true);
     const tid = toast.loading(`Converting ${file.name} via Autodesk Platform Services…`);
     try {
-      const imported = await convertCadViaAps(file, (fn, opts) =>
-        supabase.functions.invoke(fn, opts) as any,
-      );
+      // DWG has a dedicated pipeline (LibreDWG / ODA File Converter
+      // proxy with APS fallback). Everything else goes straight to APS.
+      const invoke = (fn: string, opts: any) =>
+        supabase.functions.invoke(fn, opts) as any;
+      const imported =
+        ext === "dwg"
+          ? await convertDwg(file, invoke)
+          : await convertCadViaAps(file, invoke);
       await addImportedAsObject(imported);
       toast.success(`Imported ${file.name}`, { id: tid });
     } catch (e: any) {
@@ -2343,6 +2350,7 @@ export default function LevelEditorPage() {
                   disabled={!isOwner}
                 />
               ) : selectedObj ? (
+                <>
                 <ObjectInspector
                   obj={selectedObj}
                   onPatch={(p) => patchObject(selectedObj.id, p)}
@@ -2382,6 +2390,42 @@ export default function LevelEditorPage() {
                     if (editingPolygonId === selectedObj.id) setEditingPolygonId(null);
                   }}
                 />
+                {selectedObj.kind === "model" && selectedObj.url && (
+                  <div className="pt-2 border-t border-border/40">
+                    <button
+                      onClick={async () => {
+                        const tid = toast.loading("Exporting USDZ…");
+                        try {
+                          await downloadAsUsdz(
+                            selectedObj.url!,
+                            selectedObj.fileName || selectedObj.name,
+                            async (gltfBase64, fileName) => {
+                              const { data, error } = await supabase.functions.invoke(
+                                "usd-convert",
+                                { body: { fileBase64: gltfBase64, fileName } },
+                              );
+                              if (error || !data?.usdzBase64) return null;
+                              const bin = atob(data.usdzBase64);
+                              const bytes = new Uint8Array(bin.length);
+                              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                              return new Blob([bytes], { type: "model/vnd.usdz+zip" });
+                            },
+                          );
+                          toast.success("USDZ downloaded", { id: tid });
+                        } catch (e: any) {
+                          toast.error(e?.message || "USDZ export failed", { id: tid });
+                        }
+                      }}
+                      className="w-full text-[11px] uppercase tracking-wider px-3 py-2 rounded-md bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-200 transition"
+                    >
+                      Download as USDZ
+                    </button>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Uses three.js USDZExporter, falls back to google/usd_from_gltf worker if configured.
+                    </p>
+                  </div>
+                )}
+                </>
               ) : (
                 <p className="text-xs text-muted-foreground italic">Select an object or light to edit</p>
               )}
