@@ -6482,6 +6482,480 @@ function SpaceshipPage() {
             )}
           
 
+          {/* ── GROUND BRUSH · Unified Stamp / Tile panel ─────────────────
+              One panel, two tools:
+                Stamp (default) — shape + radius, ground-snapped model drop.
+                Tile            — hovered Web-Mercator tile decal + select.
+              The brush footprint decal always renders ABOVE the tiles
+              (ClassificationType.BOTH) so users never lose it under a
+              building. Placed models are precisely re-snapped to the surface
+              once the highest-detail tile at the click point resolves. */}
+          {brushPanelOpen && !pendingPlacement && (
+            <div className="absolute top-20 right-4 z-30 w-[calc(100vw-2rem)] max-w-[320px]">
+              <GlassPanel className="p-3">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Paintbrush className="w-3.5 h-3.5 text-emerald-300" />
+                    <span className="text-sm font-bold text-white">Ground Brush</span>
+                    <span className="text-[10px] text-white/60 font-mono tabular-nums">
+                      · {placedModels.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setBrushPanelOpen(false); setBrushMode(false); }}
+                    className="text-white/60 hover:text-white"
+                    title="Close brush"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Live cursor readout + inline "save POI here" */}
+                <div className="rounded-lg bg-black/55 border border-white/[0.06] px-2.5 py-1.5 mb-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[8px] uppercase tracking-[0.14em] text-white/45 mb-0.5">Cursor</p>
+                    {cursorInfo ? (
+                      <p className="text-[10.5px] font-mono tabular-nums text-white/85 truncate">
+                        {cursorInfo.lat.toFixed(5)}°, {cursorInfo.lng.toFixed(5)}° · {formatAlt(cursorInfo.alt)}
+                      </p>
+                    ) : (
+                      <p className="text-[10.5px] text-white/35">Move over the globe…</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!cursorInfo) return;
+                      setNamingPOI({ lat: cursorInfo.lat, lng: cursorInfo.lng, alt: cursorInfo.alt });
+                      setPoiName(""); setPoiDescription("");
+                    }}
+                    disabled={!cursorInfo}
+                    title="Save this point as a POI"
+                    className="shrink-0 flex items-center gap-1 px-1.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-400/25 text-[9.5px] font-semibold uppercase tracking-wider text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-30"
+                  >
+                    <MapPin className="w-2.5 h-2.5" /> POI
+                  </button>
+                </div>
+
+                {/* Tool selector — two options only */}
+                <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-black/55 border border-white/[0.06] mb-2.5">
+                  {([
+                    { id: "stamp", label: "Stamp", Icon: Paintbrush, tint: "emerald" },
+                    { id: "tiles", label: "Tile",  Icon: SquareIcon, tint: "violet"  },
+                  ] as const).map((opt) => {
+                    const active = brushSubMode === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => setBrushSubMode(opt.id as BrushSubMode)}
+                        className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                          active
+                            ? opt.tint === "emerald"
+                              ? "bg-emerald-500/25 text-emerald-200 border border-emerald-400/40"
+                              : "bg-violet-500/25 text-violet-200 border border-violet-400/40"
+                            : "text-white/60 hover:text-white border border-transparent"
+                        }`}
+                      >
+                        <opt.Icon className="w-3 h-3" /> {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* ── STAMP MODE ─────────────────────────────────── */}
+                {brushSubMode === "stamp" && (
+                  <div className="space-y-2.5">
+                    {/* Shape row */}
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/45 mb-1">Brush shape</p>
+                      <div className="grid grid-cols-3 gap-1">
+                        {([
+                          { id: "circle", label: "Circle", glyph: "◯" },
+                          { id: "square", label: "Square", glyph: "▢" },
+                          { id: "hex",    label: "Hex",    glyph: "⬢" },
+                        ] as const).map((s) => {
+                          const active = brushShape === s.id;
+                          return (
+                            <button
+                              key={s.id}
+                              onClick={() => setBrushShape(s.id)}
+                              className={`flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                                active
+                                  ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/35"
+                                  : "bg-white/[0.03] text-white/60 hover:text-white border border-white/10"
+                              }`}
+                              title={`${s.label} footprint`}
+                            >
+                              <span className="text-base leading-none">{s.glyph}</span>
+                              <span className="text-[10px] uppercase tracking-wider">{s.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Radius slider */}
+                    <div className="rounded-lg bg-black/55 border border-white/[0.06] p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">Radius</p>
+                        <p className="text-[11px] font-mono tabular-nums text-emerald-200">
+                          {brushRadiusM >= 1000
+                            ? `${(brushRadiusM / 1000).toFixed(2)} km`
+                            : `${brushRadiusM} m`}
+                        </p>
+                      </div>
+                      <input
+                        type="range" min={5} max={5000} step={5}
+                        value={brushRadiusM}
+                        onChange={(e) => setBrushRadiusM(parseInt(e.target.value))}
+                        className="w-full accent-emerald-400"
+                      />
+                    </div>
+
+                    {/* Model chip */}
+                    <div className={`rounded-lg p-2.5 flex items-center gap-2.5 border ${
+                      stampModelInfo
+                        ? "bg-emerald-500/10 border-emerald-400/30"
+                        : "bg-white/[0.03] border-dashed border-white/15"
+                    }`}>
+                      <Box className={`w-4 h-4 shrink-0 ${stampModelInfo ? "text-emerald-300" : "text-white/40"}`} />
+                      <div className="flex-1 min-w-0">
+                        {stampModelInfo ? (
+                          <>
+                            <p className="text-[11px] text-white font-medium truncate">{stampModelInfo.name}</p>
+                            <p className="text-[9px] text-white/55 truncate">{stampModelInfo.fileName}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[11px] text-white/85">No model loaded</p>
+                            <p className="text-[9px] text-white/50">Double-click the globe to upload one</p>
+                          </>
+                        )}
+                      </div>
+                      {stampModelInfo && (
+                        <button
+                          onClick={clearStampModel}
+                          className="px-1.5 py-1 rounded-md text-[10px] text-white/70 hover:text-white border border-white/10 hover:bg-black/40"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Min-spacing (only really relevant when stamping repeatedly) */}
+                    <div className="rounded-lg bg-black/55 border border-white/[0.06] p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">Min spacing</p>
+                        <p className="text-[11px] font-mono tabular-nums text-white/85">
+                          {stampSpacingM === 0 ? "off" : `${stampSpacingM} m`}
+                        </p>
+                      </div>
+                      <input
+                        type="range" min={0} max={500} step={5}
+                        value={stampSpacingM}
+                        onChange={(e) => setStampSpacingM(parseInt(e.target.value))}
+                        className="w-full accent-emerald-400"
+                      />
+                    </div>
+
+                    {/* Inline utility: Scan POIs inside the current radius */}
+                    <button
+                      disabled={!cursorInfo || areaScanning}
+                      onClick={async () => {
+                        if (!cursorInfo) return;
+                        setAreaScanning(true);
+                        setAreaScanResults([]);
+                        setAreaCenter({ lat: cursorInfo.lat, lng: cursorInfo.lng });
+                        try {
+                          const ctrl = new AbortController();
+                          const results = await runOverpassAround(
+                            "",
+                            { lat: cursorInfo.lat, lng: cursorInfo.lng },
+                            brushRadiusM / 1000,
+                            ctrl.signal,
+                          );
+                          setAreaScanResults(results.slice(0, 50));
+                        } finally { setAreaScanning(false); }
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
+                    >
+                      {areaScanning
+                        ? <><Loader2 className="w-3 h-3 animate-spin" /> Scanning…</>
+                        : <><Search className="w-3 h-3" /> Scan POIs in radius</>}
+                    </button>
+                    {areaScanResults.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto space-y-0.5 rounded-lg bg-black/45 border border-white/[0.06] p-1">
+                        {areaScanResults.map((r, i) => (
+                          <div key={i} className="px-1.5 py-1 rounded hover:bg-white/5">
+                            <p className="text-[11px] text-white/85 truncate">{r.name}</p>
+                            <p className="text-[9px] text-white/45 font-mono">
+                              {r.type}{r.distance != null ? ` · ${(r.distance / 1000).toFixed(2)} km` : ""}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-[9.5px] text-white/45 leading-snug px-0.5">
+                      Double-click the globe to stamp. Models snap flush to the tile surface — no float, no bury.
+                    </p>
+                  </div>
+                )}
+
+                {/* ── TILE MODE ──────────────────────────────────── */}
+                {brushSubMode === "tiles" && (
+                  <div className="space-y-2.5">
+                    {/* Zoom (tile size) */}
+                    <div className="rounded-lg bg-black/55 border border-white/[0.06] p-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">Tile zoom</p>
+                          <button
+                            onClick={() => setTileZoomAuto((v) => !v)}
+                            className={`px-1.5 py-0.5 rounded-md text-[8.5px] font-semibold uppercase tracking-wider border transition-colors ${
+                              tileZoomAuto
+                                ? "bg-violet-500/20 text-violet-200 border-violet-400/40"
+                                : "text-white/60 border-white/10 hover:text-white hover:border-white/25"
+                            }`}
+                          >
+                            {tileZoomAuto ? "Auto" : "Manual"}
+                          </button>
+                        </div>
+                        <p className="text-[11px] font-mono tabular-nums text-violet-200">
+                          z{tileZoom} · ~{tileSizeMeters(cursorInfo?.lat ?? 0, tileZoom).toFixed(1)} m
+                        </p>
+                      </div>
+                      <input
+                        type="range" min={6} max={22} step={1}
+                        value={tileZoom} disabled={tileZoomAuto}
+                        onChange={(e) => setTileZoom(parseInt(e.target.value))}
+                        className="w-full accent-violet-400 disabled:opacity-40"
+                      />
+                    </div>
+
+                    {/* Pick mode */}
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.14em] text-white/45 mb-1">Pick mode</p>
+                      <div className="grid grid-cols-3 gap-1">
+                        {(["grid", "rectangle", "lasso"] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => { setTilesTool(t); setRectStart(null); setLassoPoints([]); }}
+                            className={`px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                              tilesTool === t
+                                ? "bg-violet-500/20 text-violet-200 border border-violet-400/40"
+                                : "text-white/60 hover:text-white border border-white/10 bg-white/[0.02]"
+                            }`}
+                            title={
+                              t === "grid" ? "Click a tile to toggle" :
+                              t === "rectangle" ? "Two corners → rectangle of tiles" :
+                              "Draw a polygon → tiles inside"
+                            }
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {tilesTool === "rectangle" && rectStart && (
+                      <div className="rounded-lg bg-amber-500/10 border border-amber-400/30 p-1.5 text-[10px] text-amber-200">
+                        First corner set. Double-click the opposite corner.
+                        <button onClick={() => setRectStart(null)} className="ml-1.5 underline">cancel</button>
+                      </div>
+                    )}
+                    {tilesTool === "lasso" && (
+                      <div className="rounded-lg bg-amber-500/10 border border-amber-400/30 p-1.5 text-[10px] text-amber-200 flex items-center justify-between gap-1.5">
+                        <span>{lassoPoints.length} vertex{lassoPoints.length === 1 ? "" : "es"}</span>
+                        <div className="flex gap-1">
+                          <button
+                            disabled={lassoPoints.length < 3}
+                            onClick={() => {
+                              const lats = lassoPoints.map(p => p.lat);
+                              const lngs = lassoPoints.map(p => p.lng);
+                              const nw = lngLatToTile(Math.max(...lats), Math.min(...lngs), tileZoom);
+                              const se = lngLatToTile(Math.min(...lats), Math.max(...lngs), tileZoom);
+                              const next = new Set(selectedTiles);
+                              for (let xi = Math.min(nw.x, se.x); xi <= Math.max(nw.x, se.x); xi++) {
+                                for (let yi = Math.min(nw.y, se.y); yi <= Math.max(nw.y, se.y); yi++) {
+                                  const b = tileBounds(xi, yi, tileZoom);
+                                  const cLat = (b.north + b.south) / 2;
+                                  const cLng = (b.east + b.west) / 2;
+                                  if (pointInPoly(cLat, cLng, lassoPoints)) next.add(tileKey(tileZoom, xi, yi));
+                                }
+                              }
+                              setSelectedTiles(next);
+                              setLassoPoints([]);
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-violet-500/25 border border-violet-400/40 text-violet-100 disabled:opacity-40"
+                          >Close</button>
+                          <button onClick={() => setLassoPoints([])} className="px-1.5 py-0.5 rounded bg-black/50 border border-white/10 text-white/70">Clear</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Selection summary + batch actions */}
+                    <div className="rounded-lg bg-violet-500/8 border border-violet-400/25 p-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[9px] uppercase tracking-[0.14em] text-violet-200">Selection</p>
+                        <p className="text-[11px] font-mono tabular-nums text-white/90">
+                          {selectedTiles.size} tile{selectedTiles.size === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          disabled={selectedTiles.size === 0 || tilesScanning}
+                          onClick={async () => {
+                            if (selectedTiles.size === 0) return;
+                            setTilesScanning(true);
+                            setTilesScanResults([]);
+                            try {
+                              let n = -90, s = 90, e = -180, w = 180;
+                              selectedTiles.forEach(k => {
+                                const { z, x, y } = parseTileKey(k);
+                                const b = tileBounds(x, y, z);
+                                n = Math.max(n, b.north); s = Math.min(s, b.south);
+                                e = Math.max(e, b.east);  w = Math.min(w, b.west);
+                              });
+                              const center = { lat: (n + s) / 2, lng: (e + w) / 2 };
+                              const radiusKm = Math.max(0.05, geoHaversine(n, w, s, e) / 2);
+                              const ctrl = new AbortController();
+                              const results = await runOverpassAround("", center, radiusKm, ctrl.signal);
+                              const filtered = results.filter(r => {
+                                const { x, y } = lngLatToTile(r.lat, r.lng, tileZoom);
+                                return selectedTiles.has(tileKey(tileZoom, x, y));
+                              });
+                              setTilesScanResults(filtered.slice(0, 80));
+                            } finally { setTilesScanning(false); }
+                          }}
+                          className="px-1.5 py-1 rounded-md text-[11px] font-medium bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-30"
+                        >
+                          {tilesScanning ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : "Scan POIs"}
+                        </button>
+                        <button
+                          disabled={selectedTiles.size === 0 || !stampModelRef.current}
+                          title={!stampModelRef.current ? "Load a model in Stamp mode first" : "Stamp model at each tile center"}
+                          onClick={async () => {
+                            for (const k of selectedTiles) {
+                              const { z, x, y } = parseTileKey(k);
+                              const b = tileBounds(x, y, z);
+                              const lat = (b.north + b.south) / 2;
+                              const lng = (b.east + b.west) / 2;
+                              let alt = 0;
+                              const v = viewerRef.current;
+                              if (v) {
+                                try {
+                                  const carto = Cartographic.fromDegrees(lng, lat);
+                                  const h = v.scene.sampleHeight(carto);
+                                  if (typeof h === "number" && !isNaN(h)) alt = h;
+                                  else {
+                                    const th = v.scene.globe.getHeight(carto);
+                                    if (typeof th === "number" && !isNaN(th)) alt = th;
+                                  }
+                                } catch {}
+                              }
+                              await stampModelAt({ lat, lng, alt });
+                            }
+                          }}
+                          className="px-1.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-30"
+                        >
+                          Stamp each
+                        </button>
+                        <button
+                          disabled={selectedTiles.size === 0}
+                          onClick={() => {
+                            const features = Array.from(selectedTiles).map(k => {
+                              const { z, x, y } = parseTileKey(k);
+                              const b = tileBounds(x, y, z);
+                              const ring: [number, number][] = [
+                                [b.west, b.north], [b.east, b.north],
+                                [b.east, b.south], [b.west, b.south],
+                                [b.west, b.north],
+                              ];
+                              return { type: "Feature", properties: { z, x, y, tile: k }, geometry: { type: "Polygon", coordinates: [ring] } };
+                            });
+                            const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features }, null, 2)], { type: "application/geo+json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url; a.download = `tiles-z${tileZoom}-${Date.now()}.geojson`; a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="px-1.5 py-1 rounded-md text-[11px] bg-black/50 border border-white/10 text-white/80 hover:text-white disabled:opacity-30"
+                        >
+                          Export
+                        </button>
+                        <button
+                          disabled={selectedTiles.size === 0}
+                          onClick={() => { setSelectedTiles(new Set()); setTilesScanResults([]); }}
+                          className="px-1.5 py-1 rounded-md text-[11px] bg-black/50 border border-white/10 text-white/70 hover:text-white disabled:opacity-30"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      {tilesScanResults.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto space-y-0.5 mt-1.5">
+                          {tilesScanResults.map((r, i) => (
+                            <div key={i} className="px-1.5 py-1 rounded bg-black/40 hover:bg-black/60">
+                              <p className="text-[11px] text-white/85 truncate">{r.name}</p>
+                              <p className="text-[9px] text-white/45 font-mono">{r.type}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-[9.5px] text-white/45 leading-snug px-0.5">
+                      The brush footprint follows the hovered tile bounds. Always drawn on top of the map.
+                    </p>
+                  </div>
+                )}
+
+                {/* Placed models list — collapsible footer */}
+                <div className="mt-2.5 pt-2.5 border-t border-white/[0.06]">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[9px] uppercase tracking-[0.14em] text-white/50">
+                      Placed models · {placedModels.length}
+                    </p>
+                  </div>
+                  {placedModels.length === 0 ? (
+                    <p className="text-[10.5px] text-white/40 text-center py-2">
+                      Nothing placed yet.
+                    </p>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                      {placedModels.map((model) => (
+                        <div key={model.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 group">
+                          <Box className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-medium text-white truncate">{model.name}</p>
+                            <p className="text-[9.5px] text-white/50 font-mono truncate">
+                              {model.lat.toFixed(4)}, {model.lng.toFixed(4)} · {model.scale}x
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => flyToModel(model)}
+                              className="p-1 rounded text-white/70 hover:text-emerald-300 hover:bg-emerald-500/10"
+                              title="Fly to"
+                            >
+                              <Move className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => deleteModel(model.id)}
+                              className="p-1 rounded text-white/70 hover:text-red-400 hover:bg-red-500/10"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </GlassPanel>
+            </div>
+          )}
 
           {/* POI Detail View */}
           
