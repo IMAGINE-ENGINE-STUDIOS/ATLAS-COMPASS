@@ -3219,8 +3219,21 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
     // Restore last camera viewport if available, else open at full global view.
     let restoredCamera = false;
+    // If the user just arrived from the Moon (or explicitly requested a
+    // home view), skip camera restore and clear the cached viewport so we
+    // frame the whole Earth on this session.
+    const wantsHomeView =
+      !isMoon && new URLSearchParams(window.location.search).get("home") === "1";
+    if (wantsHomeView) {
+      try { localStorage.removeItem("atlas_camera"); } catch {}
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("home");
+        window.history.replaceState({}, "", url.toString());
+      } catch {}
+    }
     // Moon world: don't restore Earth-cached camera (would be inside the Moon).
-    if (!isMoon) try {
+    if (!isMoon && !wantsHomeView) try {
       const saved = localStorage.getItem("atlas_camera");
       if (saved) {
         const s = JSON.parse(saved);
