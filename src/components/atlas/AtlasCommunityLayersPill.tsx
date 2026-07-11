@@ -11,17 +11,20 @@
  * localStorage — see `src/lib/atlasIonLayers.ts`.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronUp, Eye, EyeOff, Layers, Locate, Plus, Trash2, X } from "lucide-react";
+import { ChevronUp, Eye, EyeOff, Key, Layers, Locate, Plus, Search, Trash2, X } from "lucide-react";
 import { type Viewer } from "cesium";
 import {
   addCustomIonLayer,
   flyToIonLayer,
   ensureIonLayer,
+  getAssetIdOverride,
   getIonLayerEnabled,
   ION_LAYER_CATALOG,
   listCustomIonLayers,
   removeCustomIonLayer,
   removeIonLayerPrimitive,
+  resolveAssetId,
+  setAssetIdOverride,
   setIonLayerEnabled,
   type IonLayerEntry,
 } from "@/lib/atlasIonLayers";
@@ -36,6 +39,8 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
   const [tick, setTick] = useState(0);
   const [newId, setNewId] = useState("");
   const [newName, setNewName] = useState("");
+  const [tab, setTab] = useState<"japan" | "vexcel" | "custom">("japan");
+  const [search, setSearch] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,6 +66,17 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
   const toggle = async (e: IonLayerEntry) => {
     const v = viewerRef.current; if (!v) return;
     const next = !getIonLayerEnabled(e.id);
+    // Placeholder Vexcel entries: prompt for an ion asset ID before enabling.
+    if (next && e.needsAssetId && !getAssetIdOverride(e.id)) {
+      const raw = window.prompt(
+        `Enter your Cesium ion asset ID for ${e.name}.\n\n` +
+        `Vexcel 3D Cities is per-account: add the asset from Cesium ion → ` +
+        `Asset Depot, then paste its numeric ID here (saved for future sessions).`,
+      );
+      const id = Number(raw?.trim());
+      if (!Number.isFinite(id) || id <= 0) return;
+      setAssetIdOverride(e.id, id);
+    }
     setIonLayerEnabled(e.id, next);
     if (next) await ensureIonLayer(v, e, true);
     else {
@@ -99,13 +115,18 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
 
   if (!isLoaded) return null;
 
-  const catalog = entries.filter((e) => !e.id.startsWith("custom-"));
-  const custom = entries.filter((e) => e.id.startsWith("custom-"));
+  const q = search.trim().toLowerCase();
+  const matches = (e: IonLayerEntry) =>
+    !q || e.name.toLowerCase().includes(q) || (e.description ?? "").toLowerCase().includes(q);
+  const japan = entries.filter((e) => e.group === "japan" && matches(e));
+  const vexcel = entries.filter((e) => e.group === "vexcel" && matches(e));
+  const custom = entries.filter((e) => e.id.startsWith("custom-") && matches(e));
+  const shownList = tab === "japan" ? japan : tab === "vexcel" ? vexcel : custom;
 
   return (
     <div ref={wrapRef} className="relative select-none">
       {open && (
-        <div className="absolute bottom-full mb-2 right-0 w-[300px] rounded-2xl bg-black/90 backdrop-blur-xl border border-white/15 shadow-2xl text-white overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+        <div className="absolute bottom-full mb-2 right-0 w-[340px] rounded-2xl bg-black/90 backdrop-blur-xl border border-white/15 shadow-2xl text-white overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
           <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
             <div className="flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-fuchsia-300" />
@@ -116,35 +137,76 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
             </button>
           </div>
 
-          <div className="max-h-[55vh] overflow-y-auto p-2 space-y-3">
-            <Section title="Curated">
-              {catalog.map((e) => (
-                <Row
-                  key={e.id}
-                  entry={e}
-                  enabled={getIonLayerEnabled(e.id)}
-                  onToggle={() => toggle(e)}
-                  onFly={() => fly(e)}
-                />
-              ))}
-            </Section>
+          {/* Tabs */}
+          <div className="flex items-center gap-1 px-2 pt-2">
+            {(["japan", "vexcel", "custom"] as const).map((t) => {
+              const count = t === "japan" ? japan.length : t === "vexcel" ? vexcel.length : custom.length;
+              const label = t === "japan" ? "Japan" : t === "vexcel" ? "Vexcel" : "Custom";
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`flex-1 px-2 py-1 rounded-md text-[10px] font-semibold tracking-wide transition-colors ${
+                    tab === t
+                      ? "bg-fuchsia-500/25 text-fuchsia-100 border border-fuchsia-400/40"
+                      : "bg-white/[0.04] text-white/60 border border-transparent hover:text-white"
+                  }`}
+                >
+                  {label} · {count}
+                </button>
+              );
+            })}
+          </div>
 
-            {custom.length > 0 && (
-              <Section title="Custom">
-                {custom.map((e) => (
-                  <Row
-                    key={e.id}
-                    entry={e}
-                    enabled={getIonLayerEnabled(e.id)}
-                    onToggle={() => toggle(e)}
-                    onFly={() => fly(e)}
-                    onRemove={() => remove(e)}
-                  />
-                ))}
-              </Section>
+          {/* Search */}
+          <div className="px-2 pt-2">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/50 border border-white/10">
+              <Search className="w-3 h-3 text-white/40" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={tab === "vexcel" ? "Search 60 metros…" : "Search…"}
+                className="flex-1 bg-transparent text-[11px] outline-none placeholder:text-white/30"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="text-white/40 hover:text-white">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="max-h-[55vh] overflow-y-auto p-2 space-y-1.5">
+            {shownList.length === 0 && (
+              <p className="text-center text-[10px] text-white/40 py-4">
+                {tab === "custom" ? "No custom layers yet." : "No matches."}
+              </p>
             )}
+            {shownList.map((e) => (
+              <Row
+                key={e.id}
+                entry={e}
+                enabled={getIonLayerEnabled(e.id)}
+                assetIdOverride={getAssetIdOverride(e.id)}
+                onToggle={() => toggle(e)}
+                onFly={() => fly(e)}
+                onSetAssetId={() => {
+                  const raw = window.prompt(
+                    `Set ion asset ID for ${e.name}`,
+                    String(resolveAssetId(e) || ""),
+                  );
+                  const id = Number(raw?.trim());
+                  if (Number.isFinite(id) && id > 0) {
+                    setAssetIdOverride(e.id, id);
+                    setTick((t) => t + 1);
+                  }
+                }}
+                onRemove={e.id.startsWith("custom-") ? () => remove(e) : undefined}
+              />
+            ))}
 
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2 space-y-1.5">
+            {tab === "custom" && (
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2 space-y-1.5 mt-2">
               <div className="text-[10px] uppercase tracking-wider text-white/60">Add ion asset ID</div>
               <input
                 value={newName}
@@ -168,11 +230,10 @@ export default function AtlasCommunityLayersPill({ viewerRef, isLoaded }: Props)
                 </button>
               </div>
               <p className="text-[9px] text-white/50 leading-snug">
-                Add a Vexcel 3D Cities asset to your Cesium ion account, then
-                paste its asset ID here. Layer streams instantly on top of the
-                current map mode.
+                Paste any Cesium ion 3D Tileset asset ID. Layer streams instantly on top of the current map mode.
               </p>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -207,21 +268,27 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Row({
-  entry, enabled, onToggle, onFly, onRemove,
+  entry, enabled, assetIdOverride, onToggle, onFly, onRemove, onSetAssetId,
 }: {
   entry: IonLayerEntry;
   enabled: boolean;
+  assetIdOverride?: number;
   onToggle: () => void;
   onFly: () => void;
   onRemove?: () => void;
+  onSetAssetId?: () => void;
 }) {
+  const effectiveAssetId = assetIdOverride ?? entry.assetId;
+  const unconfigured = entry.needsAssetId && !assetIdOverride;
   return (
     <div className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border transition-colors ${
-      enabled ? "bg-fuchsia-500/10 border-fuchsia-400/30" : "bg-white/[0.03] border-white/10 hover:bg-white/[0.06]"
+      enabled ? "bg-fuchsia-500/10 border-fuchsia-400/30" :
+      unconfigured ? "bg-amber-500/[0.04] border-amber-400/15 hover:bg-amber-500/[0.08]"
+      : "bg-white/[0.03] border-white/10 hover:bg-white/[0.06]"
     }`}>
       <button
         onClick={onToggle}
-        title={enabled ? "Hide layer" : "Show layer"}
+        title={unconfigured ? "Click to set ion asset ID + enable" : enabled ? "Hide layer" : "Show layer"}
         className={`p-1 rounded ${enabled ? "text-fuchsia-200" : "text-white/50 hover:text-white"}`}
       >
         {enabled ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -229,9 +296,22 @@ function Row({
       <div className="min-w-0 flex-1">
         <div className="text-[11px] font-medium truncate">{entry.name}</div>
         <div className="text-[9px] text-white/45 truncate">
-          {entry.description ?? `ion asset ${entry.assetId}`}
+          {unconfigured
+            ? "Needs your ion asset ID · click key"
+            : (entry.description ?? `ion asset ${effectiveAssetId}`)}
         </div>
       </div>
+      {onSetAssetId && (
+        <button
+          onClick={onSetAssetId}
+          title={assetIdOverride ? `ion asset ${assetIdOverride} · edit` : "Set ion asset ID"}
+          className={`p-1 rounded hover:bg-white/5 ${
+            unconfigured ? "text-amber-300 animate-pulse" : "text-white/40 hover:text-fuchsia-300"
+          }`}
+        >
+          <Key className="w-3.5 h-3.5" />
+        </button>
+      )}
       <button
         onClick={onFly}
         title="Fly to layer"
