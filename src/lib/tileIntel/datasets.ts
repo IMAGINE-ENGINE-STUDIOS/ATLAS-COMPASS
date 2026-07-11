@@ -13,8 +13,15 @@ export interface UserDataset {
   ingest_token: string;
   sample_count: number;
   units: string | null;
+  world: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Read the world id that the Atlas is currently showing. Defaults to earth. */
+function activeWorld(): string {
+  const raw = (typeof window !== "undefined" && (window as any).__atlasWorldId) || "earth";
+  return String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) || "earth";
 }
 
 const KIND_BY_EXT: Record<string, DatasetKind> = {
@@ -34,7 +41,12 @@ export function guessKind(filename: string): DatasetKind {
 }
 
 export async function listDatasets(): Promise<UserDataset[]> {
-  const { data, error } = await supabase.from("user_datasets").select("*").order("created_at", { ascending: false });
+  const world = activeWorld();
+  const { data, error } = await supabase
+    .from("user_datasets")
+    .select("*")
+    .eq("world", world)
+    .order("created_at", { ascending: false });
   if (error) { console.warn("[datasets] list", error); return []; }
   return (data ?? []) as unknown as UserDataset[];
 }
@@ -53,6 +65,7 @@ export async function uploadDataset(file: File, name?: string): Promise<UserData
     kind,
     storage_path: path,
     stats: { size: file.size, mime: file.type } as any,
+    world: activeWorld(),
   }).select().single();
   if (error) throw error;
 
