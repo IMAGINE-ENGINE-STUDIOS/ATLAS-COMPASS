@@ -4710,6 +4710,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // Load saved POIs onto globe when viewer is ready
   useEffect(() => {
     if (!isLoaded || !viewerRef.current) return;
+    // Moon world: skip loading Earth-anchored POIs onto the lunar globe.
+    if (moonMode) return;
     pois.forEach(addPOIToGlobe);
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
