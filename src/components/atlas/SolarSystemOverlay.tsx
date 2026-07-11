@@ -9,6 +9,7 @@ import {
   JulianDate,
   LabelStyle,
   Matrix3,
+  Matrix4,
   NearFarScalar,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
@@ -108,7 +109,7 @@ function travelToBody(viewer: any, body: SolarBodyDefinition, position: Cartesia
   if (!viewer || viewer.isDestroyed?.()) return;
   viewer.trackedEntity = undefined;
   viewer.selectedEntity = undefined;
-  try { viewer.camera.lookAtTransform?.(Matrix3.IDENTITY as any); } catch {}
+  try { viewer.camera.lookAtTransform?.(Matrix4.IDENTITY); } catch {}
   const radius = body.radiusM;
   const range = body.id === "sun"
     ? radius * 5.5
