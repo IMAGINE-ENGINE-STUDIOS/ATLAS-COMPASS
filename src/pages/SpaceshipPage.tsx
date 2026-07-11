@@ -1065,7 +1065,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
   // one coordinate system so the user can walk in and out of levels.
   const { placements: levelPlacements } = useAtlasLevelLayer(
     viewerRef,
-    isLoaded,
+    // Skip loading Earth-anchored level placements when we're on the Moon.
+    isLoaded && !moonMode,
     useCallback((p: LevelPlacement) => {
       setSelectedLevelPlacement(p);
     }, []),
