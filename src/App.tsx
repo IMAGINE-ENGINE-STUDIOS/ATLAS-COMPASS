@@ -62,7 +62,7 @@ const App = () => (
           <Route path="/explore" element={<SpaceshipPage />} />
           <Route path="/moon" element={<MoonPage />} />
           <Route path="/mars" element={<MarsPage />} />
-          <Route path="/planet/:id" element={<PlanetPage />} />
+          <Route path="/planet/:id" element={<PlanetAtlasPage />} />
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/icons" element={<IconsPage />} />
 
