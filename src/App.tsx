@@ -36,7 +36,7 @@ const MarsPage = lazy(() =>
     },
   })),
 );
-const PlanetPage = lazy(() => import("@/pages/PlanetPage"));
+const PlanetAtlasPage = lazy(() => import("@/pages/PlanetAtlasPage"));
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";
@@ -61,7 +61,7 @@ const App = () => (
           <Route path="/explore" element={<SpaceshipPage />} />
           <Route path="/moon" element={<MoonPage />} />
           <Route path="/mars" element={<MarsPage />} />
-          <Route path="/planet/:id" element={<PlanetPage />} />
+          <Route path="/planet/:id" element={<PlanetAtlasPage />} />
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/icons" element={<IconsPage />} />
 

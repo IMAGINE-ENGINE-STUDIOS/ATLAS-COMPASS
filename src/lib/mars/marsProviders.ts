@@ -36,7 +36,7 @@ export const MARS_LAYERS: MarsLayerDef[] = [
     category: "basemap",
     wmtsLayer: "Mars_Viking_MDIM21_ClrMosaic_global_232m",
     ext: "jpg",
-    maximumLevel: 7,
+    maximumLevel: 8,
     credit: "NASA / USGS · Viking MDIM 2.1 color mosaic (232 m/px)",
     description:
       "Global color mosaic of Mars from the Viking Orbiter, corrected and mosaicked by USGS.",
@@ -70,7 +70,7 @@ export const MARS_LAYERS: MarsLayerDef[] = [
     category: "basemap",
     wmtsLayer: "Mars_MO_THEMIS-IR-Day_mosaic_global_100m_v12",
     ext: "jpg",
-    maximumLevel: 7,
+    maximumLevel: 9,
     credit: "NASA / ASU · THEMIS Day IR global mosaic (100 m/px)",
     description:
       "Daytime thermal infrared global mosaic from Mars Odyssey's THEMIS instrument.",
