@@ -8288,7 +8288,7 @@ function SpaceshipPage({
               }
               const result = await importMapToAtlas(file, {
                 lat: l.lat, lng: l.lng, alt: groundAlt,
-                world: moonModeRef.current ? "moon" : "earth",
+                world: currentAtlasWorldId(),
               });
               toast.success(`MAP "${result.name}" imported.`);
             } catch (err: any) {
@@ -8332,7 +8332,7 @@ function SpaceshipPage({
                   lat: l.lat, lng: l.lng,
                   altitude: Math.max(0, l.alt),
                   heading: 0, scale: 1,
-                  world: moonModeRef.current ? "moon" : "earth",
+                  world: currentAtlasWorldId(),
                 });
                 window.dispatchEvent(new CustomEvent("atlas-level-placements-refresh"));
               })();
