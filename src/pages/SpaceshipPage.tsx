@@ -2744,28 +2744,24 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     ssec0.minimumZoomDistance = 1.5;
     let removeMoonCameraGuard: (() => void) | null = null;
     if (isMoon) {
-      // Moon: keep Cesium-native controls, but enforce a safe orbital camera.
-      // Right-drag tilt was able to clip below the Moon or point fully into
-      // space; this keeps the lunar disc visible while preserving zoom depth.
-      (ssec0 as any).enableCollisionDetection = true;
+      // Moon: keep the SAME Cesium-native controls as Earth so the camera
+      // never feels "rigid". The previous config disabled tilt, clamped
+      // movement to 12% ratio, and enabled terrain-collision against the
+      // LOLA sampler — which combined to freeze pan/zoom at low altitudes
+      // and only feel responsive above ~17,000 km. We restore full Cesium
+      // defaults on the Moon and only keep sane min/max zoom distances.
+      (ssec0 as any).enableCollisionDetection = false;
       ssec0.minimumZoomDistance = MOON_MIN_SAFE_ALTITUDE_M;
       ssec0.maximumZoomDistance = MOON_MAX_SAFE_ALTITUDE_M;
-      ssec0.minimumCollisionTerrainHeight = MOON_MIN_SAFE_ALTITUDE_M;
-      ssec0.maximumMovementRatio = 0.12;
-      // Avoid tangent/night-side right-drag tilts that turn the viewport into
-      // black space. Lunar orbit still pans with left-drag and zooms normally.
-      ssec0.enableTilt = false;
-      ssec0.tiltEventTypes = [] as any;
+      ssec0.enableTilt = true;
     }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
-    if (!isMoon) {
-      ssec0.tiltEventTypes = [
-        CameraEventType.RIGHT_DRAG,
-        CameraEventType.MIDDLE_DRAG,
-        { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
-        CameraEventType.PINCH,
-      ] as any;
-    }
+    ssec0.tiltEventTypes = [
+      CameraEventType.RIGHT_DRAG,
+      CameraEventType.MIDDLE_DRAG,
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
+      CameraEventType.PINCH,
+    ] as any;
     ssec0.zoomEventTypes = [
       CameraEventType.WHEEL,
       CameraEventType.PINCH,
@@ -2773,9 +2769,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     ssec0.lookEventTypes = [
       { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.SHIFT },
     ] as any;
-    ssec0.inertiaSpin = isMoon ? 0.2 : 0.6;
-    ssec0.inertiaTranslate = isMoon ? 0.2 : ssec0.inertiaTranslate;
-    ssec0.inertiaZoom = isMoon ? 0.25 : ssec0.inertiaZoom;
+    ssec0.inertiaSpin = 0.6;
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
     // Global ESC + click-on-empty-globe → restore first-person (clear any
