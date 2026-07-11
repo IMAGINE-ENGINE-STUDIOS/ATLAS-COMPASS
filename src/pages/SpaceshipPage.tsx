@@ -5975,7 +5975,7 @@ function SpaceshipPage({
       {/* Cesium Globe Container */}
       <div ref={cesiumContainer} className="absolute inset-0 z-0" />
 
-      {isLoaded && viewerRef.current && (
+      {isLoaded && !marsMode && viewerRef.current && (
         <SolarSystemOverlay viewer={viewerRef.current} centralBody={moonMode ? "moon" : "earth"} />
       )}
 
