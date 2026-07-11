@@ -5374,7 +5374,7 @@ function SpaceshipPage() {
     } finally {
       setConvertingModel(false);
     }
-  }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe]);
+  }, [pendingPlacement, modelFile, modelName, modelHeading, modelScale, placedModels, placeModelOnGlobe, pushPlacementHistory]);
 
   // Stamp a new instance of the currently-loaded stamp model at a location.
   // No dialog — just creates a new PlacedModel reusing the existing blob URL.
