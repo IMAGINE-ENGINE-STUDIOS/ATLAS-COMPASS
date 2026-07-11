@@ -6,7 +6,7 @@
 // v6 — larger persistent tile cache on the user's disk so revisits and
 // higher-LOD walks are instant. CacheStorage is durable across reloads and
 // tabs; Chrome will only evict under global storage pressure.
-const CACHE = "atlas-tiles-v6";
+const CACHE = "atlas-tiles-v7";
 const MAX_ENTRIES = 8000;
 const TRIM_EVERY_PUTS = 100;
 const MAX_CACHEABLE_BYTES = 96 * 1024 * 1024;
