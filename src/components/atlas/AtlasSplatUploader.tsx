@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { Upload, X, MapPin, Loader2 } from "lucide-react";
-import { Cartographic, Math as CesiumMath, type Viewer } from "cesium";
+import { Cartographic, Ellipsoid, Math as CesiumMath, type Viewer } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
 
 const BUCKET = "splat-landmarks";
@@ -18,8 +18,12 @@ export const SPLAT_OPEN_EVENT = "atlas-splat-open";
 
 export default function AtlasSplatUploader({
   viewer,
+  world = "earth",
+  ellipsoid = Ellipsoid.WGS84,
 }: {
   viewer: Viewer | null;
+  world?: string;
+  ellipsoid?: Ellipsoid;
 }) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -54,7 +58,7 @@ export default function AtlasSplatUploader({
   const prefillFromCamera = () => {
     if (!viewer || viewer.isDestroyed()) return;
     try {
-      const c = Cartographic.fromCartesian(viewer.camera.positionWC);
+      const c = Cartographic.fromCartesian(viewer.camera.positionWC, ellipsoid);
       setLng(CesiumMath.toDegrees(c.longitude));
       setLat(CesiumMath.toDegrees(c.latitude));
       setAltitude(0);
@@ -101,6 +105,7 @@ export default function AtlasSplatUploader({
         roll: 0,
         scale,
         radius_m: radius,
+        world,
         file_path: path,
         file_size_bytes: file.size,
       });
