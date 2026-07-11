@@ -1030,6 +1030,7 @@ function SpaceshipPage({
   moonMode: _moonModeProp = false,
   marsMode = false,
 }: { moonMode?: boolean; marsMode?: boolean } = {}) {
+  console.log("[SpaceshipPage] props moonMode=", _moonModeProp, "marsMode=", marsMode, "pathname=", typeof window !== "undefined" ? window.location.pathname : "");
   // Non-Earth gating: every existing `moonMode` check must also fire for
   // Mars (Mars world hides the same Earth-only data loads: Google Photoreal,
   // OSM Buildings, Overpass, POIs, live traffic, etc.).  We alias the prop
