@@ -4860,7 +4860,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
 
   /* ── Tile Brush / 3D Model Placement ── */
   const applyModelTransformToEntity = useCallback((entity: any, model: Pick<PlacedModel, "lat" | "lng" | "alt" | "heading" | "pitch" | "roll" | "scale">) => {
-    const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0);
+      const position = Cartesian3.fromDegrees(model.lng, model.lat, model.alt || 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
     entity.position = position as any;
     if (entity.model) {
       (entity.model as any).heightReference = 0;
@@ -4872,7 +4872,11 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       CesiumMath.toRadians(model.pitch || 0),
       CesiumMath.toRadians(model.roll || 0),
     );
-    entity.orientation = Transforms.headingPitchRollQuaternion(position, hpr) as any;
+      entity.orientation = Transforms.headingPitchRollQuaternion(
+        position,
+        hpr,
+        moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84,
+      ) as any;
   }, []);
 
   // ── Tile cropping: clip a circular hole in 3D tilesets under a model ──
@@ -4884,7 +4888,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const theta = (i / segments) * Math.PI * 2;
       const dLat = (radiusMeters * Math.sin(theta)) / metersPerDegLat;
       const dLng = (radiusMeters * Math.cos(theta)) / Math.max(1, metersPerDegLng);
-      positions.push(Cartesian3.fromDegrees(lng + dLng, lat + dLat));
+      positions.push(Cartesian3.fromDegrees(lng + dLng, lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84));
     }
     return new ClippingPolygon({ positions });
   }, []);
@@ -4916,10 +4920,10 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       const dLat = half / metersPerDegLat;
       const dLng = half / Math.max(1, metersPerDegLng);
       const corners = [
-        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat - dLat),
-        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat - dLat),
-        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat + dLat),
-        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat + dLat),
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat - dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat - dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
+        Cartesian3.fromDegrees(lp.lng + dLng, lp.lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
+        Cartesian3.fromDegrees(lp.lng - dLng, lp.lat + dLat, 0, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84),
       ];
       polygons.push(new ClippingPolygon({ positions: corners }));
     }
@@ -4986,17 +4990,18 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       basePositions = [];
       for (let i = 0; i < segs; i++) {
         const theta = (i / segs) * Math.PI * 2;
-        basePositions.push(Cartesian3.fromDegrees(
+        basePositions.push(cartesianFromDegrees(
           model.lng + dLng(r * Math.cos(theta)),
           model.lat + dLat(r * Math.sin(theta)),
+          0,
         ));
       }
     } else {
       basePositions = [
-        Cartesian3.fromDegrees(model.lng - dLng(r), model.lat - dLat(r)),
-        Cartesian3.fromDegrees(model.lng + dLng(r), model.lat - dLat(r)),
-        Cartesian3.fromDegrees(model.lng + dLng(r), model.lat + dLat(r)),
-        Cartesian3.fromDegrees(model.lng - dLng(r), model.lat + dLat(r)),
+        cartesianFromDegrees(model.lng - dLng(r), model.lat - dLat(r), 0),
+        cartesianFromDegrees(model.lng + dLng(r), model.lat - dLat(r), 0),
+        cartesianFromDegrees(model.lng + dLng(r), model.lat + dLat(r), 0),
+        cartesianFromDegrees(model.lng - dLng(r), model.lat + dLat(r), 0),
       ];
     }
     out.push(viewer.entities.add({
@@ -5022,8 +5027,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         out.push(viewer.entities.add({
           polyline: {
             positions: [
-              Cartesian3.fromDegrees(model.lng - dLng(halfR), model.lat + dLat(m)),
-              Cartesian3.fromDegrees(model.lng + dLng(halfR), model.lat + dLat(m)),
+              cartesianFromDegrees(model.lng - dLng(halfR), model.lat + dLat(m), 0),
+              cartesianFromDegrees(model.lng + dLng(halfR), model.lat + dLat(m), 0),
             ] as any,
             width, material: mat as any, clampToGround: true,
           } as any,
@@ -5032,8 +5037,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         out.push(viewer.entities.add({
           polyline: {
             positions: [
-              Cartesian3.fromDegrees(model.lng + dLng(m), model.lat - dLat(halfR)),
-              Cartesian3.fromDegrees(model.lng + dLng(m), model.lat + dLat(halfR)),
+              cartesianFromDegrees(model.lng + dLng(m), model.lat - dLat(halfR), 0),
+              cartesianFromDegrees(model.lng + dLng(m), model.lat + dLat(halfR), 0),
             ] as any,
             width, material: mat as any, clampToGround: true,
           } as any,
@@ -5043,8 +5048,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       out.push(viewer.entities.add({
         polyline: {
           positions: [
-            Cartesian3.fromDegrees(model.lng - dLng(halfR), model.lat),
-            Cartesian3.fromDegrees(model.lng + dLng(halfR), model.lat),
+            cartesianFromDegrees(model.lng - dLng(halfR), model.lat, 0),
+            cartesianFromDegrees(model.lng + dLng(halfR), model.lat, 0),
           ] as any,
           width: 2.2, material: AXIS as any, clampToGround: true,
         } as any,
@@ -5052,8 +5057,8 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       out.push(viewer.entities.add({
         polyline: {
           positions: [
-            Cartesian3.fromDegrees(model.lng, model.lat - dLat(halfR)),
-            Cartesian3.fromDegrees(model.lng, model.lat + dLat(halfR)),
+            cartesianFromDegrees(model.lng, model.lat - dLat(halfR), 0),
+            cartesianFromDegrees(model.lng, model.lat + dLat(halfR), 0),
           ] as any,
           width: 2.2, material: AXIS as any, clampToGround: true,
         } as any,
@@ -5061,7 +5066,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       // Ruler tick labels every 5 m on +X and +Y axes
       for (let m = major; m <= halfR; m += major) {
         out.push(viewer.entities.add({
-          position: Cartesian3.fromDegrees(model.lng + dLng(m), model.lat, baseAlt + 0.5),
+          position: cartesianFromDegrees(model.lng + dLng(m), model.lat, baseAlt + 0.5),
           label: {
             text: `${m}m`, font: '600 10px -apple-system,system-ui,sans-serif',
             fillColor: AXIS, outlineColor: Color.BLACK, outlineWidth: 2,
@@ -5073,7 +5078,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
           } as any,
         }));
         out.push(viewer.entities.add({
-          position: Cartesian3.fromDegrees(model.lng, model.lat + dLat(m), baseAlt + 0.5),
+          position: cartesianFromDegrees(model.lng, model.lat + dLat(m), baseAlt + 0.5),
           label: {
             text: `${m}m`, font: '600 10px -apple-system,system-ui,sans-serif',
             fillColor: AXIS, outlineColor: Color.BLACK, outlineWidth: 2,
@@ -5105,7 +5110,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
         // lower (h<0): box sits below baseAlt, top at baseAlt + h.
         const topZ = baseAlt + Math.min(0, h);
         const centerZ = topZ - absH / 2;
-        const pos = Cartesian3.fromDegrees(lng, lat, centerZ);
+        const pos = cartesianFromDegrees(lng, lat, centerZ);
         out.push(viewer.entities.add({
           position: pos,
           box: {
@@ -5117,7 +5122,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
       }
     }
     viewer.scene.requestRender();
-  }, []);
+  }, [cartesianFromDegrees]);
 
   const applyAllCropBasesRef = useRef<() => void>(() => {});
   useEffect(() => {
@@ -5158,7 +5163,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     // ── Brush cursor: a glowing ring that follows the mouse over the pad ──
     const brushCursor = viewer.entities.add({
       id: `terrain-brush-cursor-${editingModel.id}`,
-      position: Cartesian3.fromDegrees(editingModel.lng, editingModel.lat, editingModel.alt || 0),
+      position: cartesianFromDegrees(editingModel.lng, editingModel.lat, editingModel.alt || 0),
       ellipse: {
         semiMajorAxis: editingModel.cropBase.brushRadius,
         semiMinorAxis: editingModel.cropBase.brushRadius,
@@ -5189,7 +5194,7 @@ function SpaceshipPage({ moonMode = false }: { moonMode?: boolean } = {}) {
     const screenToCell = (screenPos: { x: number; y: number }) => {
       const world = pickWorld(screenPos);
       if (!world) return null;
-      const c = Cartographic.fromCartesian(world);
+      const c = Cartographic.fromCartesian(world, moonModeRef.current ? Ellipsoid.MOON : Ellipsoid.WGS84);
       const lat = CesiumMath.toDegrees(c.latitude);
       const lng = CesiumMath.toDegrees(c.longitude);
       const cb = editingModel.cropBase!;
