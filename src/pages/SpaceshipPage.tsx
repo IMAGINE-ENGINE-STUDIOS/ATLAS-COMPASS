@@ -209,6 +209,43 @@ const atlasTilesetKeyForMode = (mode: AtlasViewMode): AtlasTilesetKey => {
   return "_osmTileset";
 };
 
+/**
+ * Build the polygon vertices for the brush "footprint" decal at (lng,lat).
+ * Returns a flat [lng,lat,lng,lat,…] array for Cesium.Cartesian3.fromDegreesArray.
+ * `radiusM` is the distance from center to the farthest vertex, in meters.
+ */
+const buildBrushPolygonDegrees = (
+  lng: number,
+  lat: number,
+  radiusM: number,
+  shape: "square" | "hex" | "tile",
+  tileBoundsRect?: { north: number; south: number; east: number; west: number },
+): number[] => {
+  if (shape === "tile" && tileBoundsRect) {
+    const { north, south, east, west } = tileBoundsRect;
+    return [west, north, east, north, east, south, west, south];
+  }
+  const mPerDegLat = 111320;
+  const mPerDegLng = Math.max(1, 111320 * Math.cos((lat * Math.PI) / 180));
+  const dLat = radiusM / mPerDegLat;
+  const dLng = radiusM / mPerDegLng;
+  if (shape === "square") {
+    return [
+      lng - dLng, lat + dLat,
+      lng + dLng, lat + dLat,
+      lng + dLng, lat - dLat,
+      lng - dLng, lat - dLat,
+    ];
+  }
+  // hex — flat-top hexagon
+  const pts: number[] = [];
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI / 3) * i;
+    pts.push(lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat);
+  }
+  return pts;
+};
+
 const advanceAtlasMapSerial = (viewer: any) => {
   viewer.__atlasMapSerial = (viewer.__atlasMapSerial || 0) + 1;
   return viewer.__atlasMapSerial;
