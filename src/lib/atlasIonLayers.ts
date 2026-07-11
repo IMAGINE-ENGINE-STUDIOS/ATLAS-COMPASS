@@ -13,7 +13,7 @@
  * and an "Add by asset ID" input so users can wire additional cities without
  * touching code.
  */
-import { Cesium3DTileset, type Viewer } from "cesium";
+import { Cesium3DTileset, Ion, type Viewer } from "cesium";
 
 export type IonLayerGroup = "vexcel" | "japan" | "custom";
 
@@ -322,4 +322,170 @@ export const restoreEnabledIonLayers = async (viewer: Viewer) => {
       try { await ensureIonLayer(viewer, e, true); } catch {}
     }
   }
+};
+
+// ─── Ion asset validation ──────────────────────────────────────────────────
+// Confirms that a Cesium ion asset ID is real, that the current access token
+// is authorised to read it, and that it is served as a 3D Tileset. Hits the
+// ion REST endpoint directly so we don't have to spin up a full tileset in
+// the scene just to know if the ID works.
+
+export type IonAssetStatus = "unchecked" | "checking" | "ok" | "error";
+export interface IonAssetValidation {
+  status: IonAssetStatus;
+  checkedAt?: number;
+  assetId?: number;
+  type?: string;   // "3DTILES" when usable
+  name?: string;
+  error?: string;
+}
+
+const VALIDATION_KEY = "atlas.ionLayers.validation.v1";
+const validationMem = new Map<string, IonAssetValidation>();
+const validationListeners = new Set<() => void>();
+
+const loadValidationCache = (): Record<string, IonAssetValidation> => {
+  try {
+    const raw = localStorage.getItem(VALIDATION_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, IonAssetValidation>) : {};
+  } catch { return {}; }
+};
+const saveValidationCache = (m: Record<string, IonAssetValidation>) => {
+  try { localStorage.setItem(VALIDATION_KEY, JSON.stringify(m)); } catch {}
+};
+const writeValidation = (id: string, v: IonAssetValidation) => {
+  validationMem.set(id, v);
+  const cache = loadValidationCache();
+  cache[id] = v;
+  saveValidationCache(cache);
+  validationListeners.forEach((fn) => { try { fn(); } catch {} });
+};
+
+/** Subscribe to validation changes (returns unsubscribe). */
+export const onIonValidationChange = (fn: () => void): (() => void) => {
+  validationListeners.add(fn);
+  return () => { validationListeners.delete(fn); };
+};
+
+/** Read the last-known validation for an entry (mem or persisted cache). */
+export const getIonLayerValidation = (id: string): IonAssetValidation => {
+  const cached = validationMem.get(id);
+  if (cached) return cached;
+  const persisted = loadValidationCache()[id];
+  if (persisted) { validationMem.set(id, persisted); return persisted; }
+  return { status: "unchecked" };
+};
+
+/**
+ * Ping the Cesium ion REST endpoint to check the asset resolves and is
+ * accessible with the current access token. Result is cached in localStorage
+ * so we don't hammer the API on every render.
+ */
+export const validateIonLayer = async (
+  entry: IonLayerEntry,
+  opts: { force?: boolean } = {},
+): Promise<IonAssetValidation> => {
+  const assetId = resolveAssetId(entry);
+  if (!assetId || assetId <= 0) {
+    const v: IonAssetValidation = { status: "error", error: "No asset ID configured", checkedAt: Date.now() };
+    writeValidation(entry.id, v);
+    return v;
+  }
+  // Re-use recent successful checks (24h) unless forced.
+  const existing = getIonLayerValidation(entry.id);
+  if (
+    !opts.force &&
+    existing.status === "ok" &&
+    existing.assetId === assetId &&
+    existing.checkedAt &&
+    Date.now() - existing.checkedAt < 24 * 60 * 60 * 1000
+  ) {
+    return existing;
+  }
+
+  writeValidation(entry.id, { status: "checking", assetId });
+  const token = Ion.defaultAccessToken;
+  if (!token) {
+    const v: IonAssetValidation = {
+      status: "error",
+      error: "No Cesium ion access token set",
+      assetId,
+      checkedAt: Date.now(),
+    };
+    writeValidation(entry.id, v);
+    return v;
+  }
+  try {
+    const res = await fetch(
+      `https://api.cesium.com/v1/assets/${assetId}/endpoint?access_token=${encodeURIComponent(token)}`,
+      { method: "GET" },
+    );
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => "");
+      let msg = res.status === 404
+        ? "Asset not found — check the ID"
+        : res.status === 401 || res.status === 403
+          ? "Not authorised — add this asset to your Cesium ion account (Asset Depot → Add to my assets)"
+          : `HTTP ${res.status}`;
+      if (bodyText && bodyText.length < 200) msg += ` · ${bodyText}`;
+      const v: IonAssetValidation = { status: "error", error: msg, assetId, checkedAt: Date.now() };
+      writeValidation(entry.id, v);
+      return v;
+    }
+    const data = await res.json().catch(() => ({} as any));
+    const type: string | undefined = data?.type;
+    if (type && type !== "3DTILES") {
+      const v: IonAssetValidation = {
+        status: "error",
+        error: `Asset type is ${type}, not 3DTILES`,
+        assetId,
+        type,
+        checkedAt: Date.now(),
+      };
+      writeValidation(entry.id, v);
+      return v;
+    }
+    const v: IonAssetValidation = {
+      status: "ok",
+      assetId,
+      type: type ?? "3DTILES",
+      name: data?.name,
+      checkedAt: Date.now(),
+    };
+    writeValidation(entry.id, v);
+    return v;
+  } catch (err: any) {
+    const v: IonAssetValidation = {
+      status: "error",
+      error: err?.message || "Network error contacting Cesium ion",
+      assetId,
+      checkedAt: Date.now(),
+    };
+    writeValidation(entry.id, v);
+    return v;
+  }
+};
+
+/** Validate every currently-enabled layer in parallel. */
+export const validateEnabledIonLayers = async (): Promise<IonAssetValidation[]> => {
+  const s = loadState();
+  const entries = listAllIonLayers().filter((e) => s.enabled[e.id]);
+  return Promise.all(entries.map((e) => validateIonLayer(e, { force: true })));
+};
+
+/** True if every currently-enabled layer has a cached OK validation. */
+export const areAllEnabledIonLayersValid = (): boolean => {
+  const s = loadState();
+  const entries = listAllIonLayers().filter((e) => s.enabled[e.id]);
+  if (entries.length === 0) return true;
+  return entries.every((e) => getIonLayerValidation(e.id).status === "ok");
+};
+
+/** Snapshot of validation problems for enabled layers (empty when clean). */
+export const listEnabledIonLayerIssues = (): Array<{ entry: IonLayerEntry; validation: IonAssetValidation }> => {
+  const s = loadState();
+  return listAllIonLayers()
+    .filter((e) => s.enabled[e.id])
+    .map((entry) => ({ entry, validation: getIonLayerValidation(entry.id) }))
+    .filter(({ validation }) => validation.status !== "ok");
 };
