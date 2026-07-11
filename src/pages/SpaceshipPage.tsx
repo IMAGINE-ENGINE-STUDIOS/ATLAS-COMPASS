@@ -1299,6 +1299,58 @@ function SpaceshipPage() {
   const brushRadiusRef = useRef<number>(brushRadiusM);
   useEffect(() => { brushShapeRef.current = brushShape; }, [brushShape]);
   useEffect(() => { brushRadiusRef.current = brushRadiusM; }, [brushRadiusM]);
+
+  /**
+   * Move/reshape the brush indicator to the cursor. Circle uses the ellipse
+   * entity; square/hex use the polygon entity; in Tile mode the polygon
+   * becomes the exact bounds of the tile under the cursor.
+   * Called from the mouse-move handler and from the shape/radius/mode effects.
+   */
+  const updateBrushIndicator = useCallback((viewer: any, lng: number, lat: number) => {
+    if (!viewer || viewer.isDestroyed?.()) return;
+    const circle = viewer.__brushCircleEntity;
+    const poly = viewer.__brushPolyEntity;
+    if (!circle || !poly) return;
+
+    const sub = brushSubModeRef.current;
+    const shape = brushShapeRef.current;
+    const radius = brushRadiusRef.current;
+    const mode = brushMode;
+    const wantIndicator = mode && !pendingPlacementRef.current;
+
+    // Tile mode → polygon shaped to the hovered Web-Mercator tile.
+    if (sub === "tiles") {
+      const z = tileZoomAuto
+        ? Math.max(6, Math.min(22, Math.round(tileZoom)))
+        : tileZoom;
+      const { x, y } = lngLatToTile(lat, lng, z);
+      const b = tileBounds(x, y, z);
+      const coords = buildBrushPolygonDegrees(lng, lat, 0, "tile", b);
+      poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+      poly.show = wantIndicator;
+      circle.show = false;
+      return;
+    }
+
+    // Stamp mode → shape follows user choice.
+    if (shape === "circle") {
+      circle.position = Cartesian3.fromDegrees(lng, lat, 0) as any;
+      if (circle.ellipse) {
+        circle.ellipse.semiMajorAxis = radius as any;
+        circle.ellipse.semiMinorAxis = radius as any;
+      }
+      circle.show = wantIndicator;
+      poly.show = false;
+      return;
+    }
+
+    const coords = buildBrushPolygonDegrees(lng, lat, radius, shape);
+    poly.polygon.hierarchy = Cartesian3.fromDegreesArray(coords) as any;
+    poly.show = wantIndicator;
+    circle.show = false;
+  }, [brushMode, tileZoom, tileZoomAuto]);
+  const updateBrushIndicatorRef = useRef(updateBrushIndicator);
+  useEffect(() => { updateBrushIndicatorRef.current = updateBrushIndicator; }, [updateBrushIndicator]);
   const [placedModels, setPlacedModels] = useState<PlacedModel[]>(loadPlacedModels);
   const [pendingPlacement, setPendingPlacement] = useState<{ lat: number; lng: number; alt: number } | null>(null);
   const [modelFile, setModelFile] = useState<File | null>(null);
