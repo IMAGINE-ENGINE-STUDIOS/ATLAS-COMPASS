@@ -1,28 +1,25 @@
 /**
  * AtlasTectonicPlatesPill
  * -----------------------
- * Toggles Bird (2003) PB2002 tectonic plates on the Cesium globe.
- *
- * Coordinates: every polygon and boundary line uses the GeoJSON's lon/lat
- * verbatim (fraxen/tectonicplates mirror of Bird 2003). No reprojection.
- *
- * Rendering: `clampToGround` is intentionally OFF because Google
- * Photorealistic 3D Tiles hide `scene.globe`, so ground clamping has
- * nothing to project onto. Instead we lift polygons + boundaries to a
- * fixed geodetic altitude above any terrain (`PLATE_ALT_M`) — same
- * lat/lon everywhere, guaranteed to be visible above 3D tiles, satellite
- * imagery, or the plain ellipsoid.
+ * Toggles Bird (2003) PB2002 tectonic plates on the Cesium globe as a
+ * volumetric shell. Every polygon and boundary uses the GeoJSON lon/lat
+ * verbatim (fraxen/tectonicplates mirror). No reprojection is applied —
+ * the shell is drawn at a fixed geodetic altitude so it sits directly
+ * above Google Photorealistic 3D Tiles / satellite imagery at the same
+ * coordinates.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Globe2, Loader2 } from "lucide-react";
 import {
+  ArcType,
   Cartesian3,
   Cartographic,
   Color,
   ColorMaterialProperty,
   ConstantProperty,
-  GeoJsonDataSource,
   Ellipsoid,
+  GeoJsonDataSource,
+  HeightReference,
   type Viewer,
 } from "cesium";
 
@@ -36,15 +33,6 @@ const PLATES_URL =
 const BOUNDARIES_URL =
   "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json";
 
-// Altitude of the plate shell in metres. High enough to sit above every
-// natural feature (Everest ≈ 8.85 km) and above Google's 3D tile geometry.
-// The shell is also given a small extruded thickness so it reads as a
-// coloured slab from every camera distance.
-const PLATE_ALT_M = 20_000;
-const PLATE_EXTRUDE_M = 80_000;
-const BOUNDARY_ALT_M = 90_000;
-
-// Deterministic color per plate code (Bird 2003 short codes).
 const PLATE_COLORS: Record<string, string> = {
   PA: "#4a90e2", NA: "#e74c3c", SA: "#f39c12", EU: "#9b59b6",
   AF: "#e67e22", AN: "#95a5a6", AU: "#1abc9c", NB: "#3498db",
@@ -53,13 +41,7 @@ const PLATE_COLORS: Record<string, string> = {
   SC: "#7bed9f", SW: "#a29bfe", SU: "#fd79a8", BU: "#fdcb6e",
   MO: "#6c5ce7", MA: "#00cec9", SO: "#e17055", YA: "#74b9ff",
   PM: "#8e44ad", TI: "#fab1a0", SB: "#55efc4", NH: "#81ecec",
-  ND: "#ffeaa7", MS: "#dfe6e9", AT: "#b2bec3", OK: "#00b894",
-  ON: "#fdcb6e", SL: "#e17055", KE: "#0984e3", NI: "#d63031",
-  AS: "#fab1a0", GP: "#00cec9", JZ: "#e84393", TO: "#fdcb6e",
-  MN: "#b71540", CL: "#78e08f", CR: "#f8c291", EA: "#82ccdd",
-  FT: "#b8e994", GA: "#f6b93b", NB2: "#eb2f06", SS: "#78e08f",
-  BR: "#b8e994", BS: "#fa983a", BH: "#eb2f06", SG: "#e58e26",
-  KL: "#079992", MT: "#78e08f",
+  ND: "#ffeaa7", MS: "#dfe6e9", AT: "#b2bec3",
 };
 
 function plateColor(code: string | undefined, alpha: number): Color {
@@ -67,59 +49,69 @@ function plateColor(code: string | undefined, alpha: number): Color {
   return Color.fromCssColorString(hex).withAlpha(alpha);
 }
 
-// Bright, high-contrast boundary color regardless of type — one shade so the
-// tectonic seams read instantly against Google 3D imagery.
 const BOUNDARY_COLOR = Color.fromCssColorString("#ff1f4e");
+const PLATE_ALT_M = 15_000;    // ~15 km — above every mountain / 3D building
+const BOUNDARY_ALT_M = 25_000; // sits just above the fill
+
+/** Lift a Cartesian3 vertex to a given geodetic altitude along the ellipsoid normal. */
+function liftCartesian(c: Cartesian3, altMeters: number): Cartesian3 {
+  const carto = Cartographic.fromCartesian(c, Ellipsoid.WGS84, new Cartographic());
+  return Cartesian3.fromRadians(carto.longitude, carto.latitude, altMeters);
+}
 
 async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
   const created: GeoJsonDataSource[] = [];
   console.log("[Plates] loading PB2002…");
 
-  // Filled polygons — coords are used verbatim from the GeoJSON.
-  const plates = await GeoJsonDataSource.load(PLATES_URL);
+  const plates = await GeoJsonDataSource.load(PLATES_URL, {
+    stroke: Color.WHITE.withAlpha(0.65),
+    strokeWidth: 1,
+    fill: Color.WHITE.withAlpha(0.35),
+  });
   plates.name = "PB2002 · Tectonic plates";
-  console.log(`[Plates] loaded ${plates.entities.values.length} plate polygons`);
   for (const entity of plates.entities.values) {
     const props: any = entity.properties;
     const code: string | undefined =
       props?.Code?.getValue?.() ?? props?.PlateName?.getValue?.();
-    if (entity.polygon) {
-      const poly: any = entity.polygon;
+    const poly: any = entity.polygon;
+    if (poly) {
       poly.material = new ColorMaterialProperty(plateColor(code, 0.55));
       poly.height = new ConstantProperty(PLATE_ALT_M);
-      poly.extrudedHeight = new ConstantProperty(PLATE_EXTRUDE_M);
-      poly.outline = new ConstantProperty(false);
+      poly.outline = new ConstantProperty(true);
+      poly.outlineColor = new ConstantProperty(Color.WHITE.withAlpha(0.85));
+      poly.outlineWidth = new ConstantProperty(1);
       poly.perPositionHeight = new ConstantProperty(false);
-      poly.arcType = new ConstantProperty(1); // ArcType.GEODESIC
+      poly.arcType = new ConstantProperty(ArcType.GEODESIC);
+      poly.heightReference = new ConstantProperty(HeightReference.NONE);
     }
   }
+  console.log(`[Plates] ${plates.entities.values.length} polygons prepared`);
   viewer.dataSources.add(plates);
   created.push(plates);
 
-  // Boundary vectors — lifted just above the fill so seams read on top.
-  const bnds = await GeoJsonDataSource.load(BOUNDARIES_URL);
+  const bnds = await GeoJsonDataSource.load(BOUNDARIES_URL, {
+    stroke: BOUNDARY_COLOR,
+    strokeWidth: 3,
+  });
   bnds.name = "PB2002 · Plate boundaries";
   for (const entity of bnds.entities.values) {
-    if (entity.polyline) {
-      const line: any = entity.polyline;
-      line.material = new ColorMaterialProperty(BOUNDARY_COLOR);
-      line.width = new ConstantProperty(3);
-      line.clampToGround = new ConstantProperty(false);
-      line.arcType = new ConstantProperty(1);
-      const raw = entity.polyline.positions?.getValue?.(undefined as any) as Cartesian3[] | undefined;
-      if (Array.isArray(raw)) {
-        const lifted = raw.map((c) => {
-          const carto = Cartographic.fromCartesian(c, Ellipsoid.WGS84, new Cartographic());
-          return Cartesian3.fromRadians(carto.longitude, carto.latitude, BOUNDARY_ALT_M);
-        });
-        line.positions = new ConstantProperty(lifted);
-      }
+    const line: any = entity.polyline;
+    if (!line) continue;
+    line.material = new ColorMaterialProperty(BOUNDARY_COLOR);
+    line.width = new ConstantProperty(3);
+    line.clampToGround = new ConstantProperty(false);
+    line.arcType = new ConstantProperty(ArcType.GEODESIC);
+    // Re-project each vertex to BOUNDARY_ALT_M while preserving lon/lat.
+    const raw = line.positions?.getValue?.(undefined as any) as Cartesian3[] | undefined;
+    if (Array.isArray(raw) && raw.length) {
+      const lifted = raw.map((c) => liftCartesian(c, BOUNDARY_ALT_M));
+      line.positions = new ConstantProperty(lifted);
     }
   }
   viewer.dataSources.add(bnds);
   created.push(bnds);
 
-  console.log(`[Plates] added ${created.length} datasources, requesting render`);
+  console.log(`[Plates] rendered ${created.length} datasources`);
   viewer.scene.requestRender?.();
   return created;
 }
@@ -161,7 +153,7 @@ export default function AtlasTectonicPlatesPill({ viewerRef, isLoaded }: Props) 
     }
   };
 
-  useEffect(() => () => removeAll(), []); // cleanup on unmount
+  useEffect(() => () => removeAll(), []);
 
   if (!isLoaded) return null;
 
