@@ -13,6 +13,7 @@ import {
   characterRegistry,
   splineDrivenIds,
   mobileAxes,
+  mobileLook,
 } from "./locomotionState";
 
 /* ----------------------------- input -------------------------------- */

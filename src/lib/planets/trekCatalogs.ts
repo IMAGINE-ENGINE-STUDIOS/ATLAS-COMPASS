@@ -103,6 +103,153 @@ const CERES_LAYERS: PlanetLayerDef[] = [
   },
 ];
 
+// ─── Venus (NASA / USGS · Magellan C3-MDIR) ────────────────────
+const VENUS_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "magellan_c3_mdir",
+    title: "Magellan C3-MDIR Global Mosaic (4641 m)",
+    category: "basemap",
+    wmtsLayer: "Venus_Magellan_C3-MDIR_Global_Mosaic_4641m",
+    urlTemplate: trekUrl("Venus", "Venus_Magellan_C3-MDIR_Global_Mosaic_4641m", "jpg"),
+    ext: "jpg",
+    maximumLevel: 6,
+    credit: "NASA / JPL · Magellan C3-MDIR radar mosaic",
+    description: "Global synthetic-aperture radar mosaic of Venus from the Magellan mission.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+// ─── Vesta (NASA / DLR · Dawn Framing Camera HAMO) ─────────────
+const VESTA_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "dawn_fc_hamo_vesta",
+    title: "Dawn FC HAMO Color Shade (60 ppd)",
+    category: "basemap",
+    wmtsLayer: "Vesta_Dawn_HAMO_ClrShade_DLR_Global_74ppd_Oct2016",
+    urlTemplate: trekUrl("Vesta", "Vesta_Dawn_HAMO_ClrShade_DLR_Global_74ppd_Oct2016", "jpg"),
+    ext: "jpg",
+    maximumLevel: 7,
+    credit: "NASA / JPL / DLR · Dawn Framing Camera HAMO",
+    description: "Color-shaded HAMO mosaic of the asteroid Vesta.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+// ─── Galilean moons (Voyager + Galileo SSI global mosaics) ─────
+const IO_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "io_voyager_galileo",
+    title: "Voyager–Galileo SSI Mosaic (1 km)",
+    category: "basemap",
+    wmtsLayer: "Io_GalileoSSI-Voyager_Global_Mosaic_1km",
+    urlTemplate: trekUrl("Io", "Io_GalileoSSI-Voyager_Global_Mosaic_1km", "jpg"),
+    ext: "jpg",
+    maximumLevel: 6,
+    credit: "NASA / JPL / USGS · Voyager + Galileo SSI",
+    description: "Global color mosaic of Io from Voyager and Galileo imaging.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+const EUROPA_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "europa_voyager_galileo",
+    title: "Voyager–Galileo SSI Mosaic (500 m)",
+    category: "basemap",
+    wmtsLayer: "Europa_Voyager_GalileoSSI_global_mosaic_500m",
+    urlTemplate: trekUrl("Europa", "Europa_Voyager_GalileoSSI_global_mosaic_500m", "jpg"),
+    ext: "jpg",
+    maximumLevel: 7,
+    credit: "NASA / JPL / USGS · Voyager + Galileo SSI",
+    description: "Global color mosaic of Europa's icy surface.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+const GANYMEDE_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "ganymede_voyager_galileo",
+    title: "Voyager–Galileo SSI Mosaic (1 km)",
+    category: "basemap",
+    wmtsLayer: "Ganymede_Voyager_GalileoSSI_global_mosaic_1km",
+    urlTemplate: trekUrl("Ganymede", "Ganymede_Voyager_GalileoSSI_global_mosaic_1km", "jpg"),
+    ext: "jpg",
+    maximumLevel: 6,
+    credit: "NASA / JPL / USGS · Voyager + Galileo SSI",
+    description: "Global mosaic of Ganymede, the solar system's largest moon.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+const CALLISTO_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "callisto_voyager_galileo",
+    title: "Voyager–Galileo SSI Mosaic (1 km)",
+    category: "basemap",
+    wmtsLayer: "Callisto_Voyager_GalileoSSI_global_mosaic_1km",
+    urlTemplate: trekUrl("Callisto", "Callisto_Voyager_GalileoSSI_global_mosaic_1km", "jpg"),
+    ext: "jpg",
+    maximumLevel: 6,
+    credit: "NASA / JPL / USGS · Voyager + Galileo SSI",
+    description: "Global mosaic of Callisto, the most heavily cratered body in the solar system.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+const TITAN_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "titan_iss",
+    title: "Cassini ISS Global Mosaic",
+    category: "basemap",
+    wmtsLayer: "Titan_ISS_Global_Mosaic_4ppd",
+    urlTemplate: trekUrl("Titan", "Titan_ISS_Global_Mosaic_4ppd", "jpg"),
+    ext: "jpg",
+    maximumLevel: 5,
+    credit: "NASA / JPL / SSI · Cassini ISS",
+    description: "Cassini ISS infrared mosaic of Titan's surface through its haze.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+const ENCELADUS_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "enceladus_cassini",
+    title: "Cassini ISS Global Mosaic (100 m)",
+    category: "basemap",
+    wmtsLayer: "Enceladus_Cassini_ISS_Global_Mosaic_100m",
+    urlTemplate: trekUrl("Enceladus", "Enceladus_Cassini_ISS_Global_Mosaic_100m", "jpg"),
+    ext: "jpg",
+    maximumLevel: 7,
+    credit: "NASA / JPL / SSI · Cassini ISS",
+    description: "High-resolution Cassini ISS mosaic of Enceladus.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
+const PHOBOS_LAYERS: PlanetLayerDef[] = [
+  {
+    id: "phobos_viking",
+    title: "Viking Mosaic (40 m)",
+    category: "basemap",
+    wmtsLayer: "Phobos_Viking_Mosaic_40mp_Global",
+    urlTemplate: trekUrl("Phobos", "Phobos_Viking_Mosaic_40mp_Global", "jpg"),
+    ext: "jpg",
+    maximumLevel: 6,
+    credit: "NASA / JPL / USGS · Viking Orbiter",
+    description: "Global Viking mosaic of Mars' inner moon Phobos.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+];
+
 /**
  * Which planet IDs have a real WMTS tile catalog we can drape on the
  * ellipsoid. Anything not listed here has no public surface pyramid
@@ -111,6 +258,15 @@ const CERES_LAYERS: PlanetLayerDef[] = [
 const CATALOGS: Record<string, PlanetLayerDef[]> = {
   mercury: MERCURY_LAYERS,
   ceres: CERES_LAYERS,
+  venus: VENUS_LAYERS,
+  vesta: VESTA_LAYERS,
+  io: IO_LAYERS,
+  europa: EUROPA_LAYERS,
+  ganymede: GANYMEDE_LAYERS,
+  callisto: CALLISTO_LAYERS,
+  titan: TITAN_LAYERS,
+  enceladus: ENCELADUS_LAYERS,
+  phobos: PHOBOS_LAYERS,
 };
 
 export function getPlanetLayerCatalog(worldId: string): PlanetLayerDef[] | null {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Hand, ArrowUp } from "lucide-react";
-import { mobileAxes, inputPulse } from "@/components/level/locomotion/locomotionState";
+import { mobileAxes, mobileLook, inputPulse } from "@/components/level/locomotion/locomotionState";
 
 /**
  * On-screen touch controls for Play mode. Rendered only on touch-capable
@@ -18,6 +18,8 @@ export default function MobileTouchControls({ visible }: { visible: boolean }) {
   const stickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
   const activeId = useRef<number | null>(null);
+  const lookId = useRef<number | null>(null);
+  const lookLast = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     // Show whenever a touch device or coarse pointer is present.
@@ -74,6 +76,36 @@ export default function MobileTouchControls({ visible }: { visible: boolean }) {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-50 select-none" style={{ touchAction: "none" }}>
+      {/* Right-side full-height look pad — drag to yaw/pitch the camera.
+          Sits behind the action buttons (lower z) so taps on Jump/Run/
+          Interact still reach them. Transparent, no visible chrome. */}
+      <div
+        className="pointer-events-auto absolute top-0 right-0 h-full"
+        style={{ width: "45%", touchAction: "none", zIndex: 1 }}
+        onPointerDown={(e) => {
+          if (lookId.current !== null) return;
+          lookId.current = e.pointerId;
+          lookLast.current = { x: e.clientX, y: e.clientY };
+          (e.target as Element).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (lookId.current !== e.pointerId || !lookLast.current) return;
+          mobileLook.dx += e.clientX - lookLast.current.x;
+          mobileLook.dy += e.clientY - lookLast.current.y;
+          lookLast.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerUp={(e) => {
+          if (lookId.current !== e.pointerId) return;
+          lookId.current = null;
+          lookLast.current = null;
+          try { (e.target as Element).releasePointerCapture(e.pointerId); } catch {}
+        }}
+        onPointerCancel={(e) => {
+          if (lookId.current !== e.pointerId) return;
+          lookId.current = null;
+          lookLast.current = null;
+        }}
+      />
       {/* Left thumbstick */}
       <div
         ref={stickRef}
@@ -82,6 +114,7 @@ export default function MobileTouchControls({ visible }: { visible: boolean }) {
         onPointerUp={onStickEnd}
         onPointerCancel={onStickEnd}
         className="pointer-events-auto absolute bottom-6 left-6 w-32 h-32 rounded-full border border-white/25 bg-black/40 backdrop-blur-md shadow-2xl flex items-center justify-center"
+        style={{ zIndex: 2 }}
       >
         <div
           ref={knobRef}
@@ -91,7 +124,7 @@ export default function MobileTouchControls({ visible }: { visible: boolean }) {
       </div>
 
       {/* Right action cluster */}
-      <div className="pointer-events-auto absolute bottom-6 right-6 flex flex-col items-end gap-3">
+      <div className="pointer-events-auto absolute bottom-6 right-6 flex flex-col items-end gap-3" style={{ zIndex: 2 }}>
         <div className="flex items-center gap-3">
           <button
             onPointerDown={() => { inputPulse.interact = true; }}
