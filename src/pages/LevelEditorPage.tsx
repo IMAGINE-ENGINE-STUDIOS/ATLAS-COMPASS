@@ -42,6 +42,7 @@ import KeyCaptureInput from "@/components/level/KeyCaptureInput";
 import PlayBehaviorRuntime from "@/components/level/play/PlayBehaviorRuntime";
 import PlayInputManager from "@/components/level/play/PlayInputManager";
 import PlayHUD from "@/components/level/play/PlayHUD";
+import MobileTouchControls from "@/components/level/play/MobileTouchControls";
 import RigControllerRoom from "@/components/level/locomotion/RigControllerRoom";
 import BoneHierarchyPanel from "@/components/level/BoneHierarchyPanel";
 import { useCharacterAnimationNames } from "@/components/level/LevelCharacter";
@@ -2698,6 +2699,7 @@ export default function LevelEditorPage() {
       <PlayBehaviorRuntime objects={scene.objects} playing={playing} />
       <PlayInputManager playing={playing} />
       <PlayHUD visible={playing} onExit={() => setPlaying(false)} />
+      <MobileTouchControls visible={playing} />
 
       {/* Place on atlas dialog */}
       <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>

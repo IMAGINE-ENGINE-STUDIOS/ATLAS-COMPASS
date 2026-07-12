@@ -28,6 +28,7 @@ import type { PlayCameraPose } from "@/components/level/locomotion/PlayableChara
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 import { clampEyeAboveTerrain } from "@/lib/atlasCameraClamp";
 import { CameraSync, THREE_TO_ENU } from "@/lib/atlasR3F";
+import MobileTouchControls from "@/components/level/play/MobileTouchControls";
 
 export interface FreePlaySpawn {
   lat: number;
@@ -344,6 +345,7 @@ export default function AtlasFreePlayOverlay({
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] px-3 py-1.5 rounded-full bg-black/70 text-white/85 text-[11px] font-mono border border-white/15 pointer-events-none">
         WASD move · Shift run · Space jump · Mouse look · Esc exit
       </div>
+      <MobileTouchControls visible />
     </>
   );
 }

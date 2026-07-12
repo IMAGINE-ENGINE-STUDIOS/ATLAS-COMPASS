@@ -12,6 +12,7 @@ import {
   inputPulse,
   characterRegistry,
   splineDrivenIds,
+  mobileAxes,
 } from "./locomotionState";
 
 /* ----------------------------- input -------------------------------- */
@@ -112,6 +113,10 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
         // no-op: gamepad access blocked by permissions policy
       }
     }
+    // Additive mobile on-screen controls (always polled).
+    if (mobileAxes.x || mobileAxes.z) { x += mobileAxes.x; z += mobileAxes.z; }
+    if (mobileAxes.jump) jump = true;
+    if (mobileAxes.run) run = true;
     const len = Math.hypot(x, z);
     if (len > 1) { x /= len; z /= len; }
     axes.current = { x, z, jump, run };

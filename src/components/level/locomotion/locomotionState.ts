@@ -56,6 +56,14 @@ export function subscribeInteractionPrompt(cb: (p: InteractionPrompt) => void) {
 export const inputPulse = { interact: false };
 
 /**
+ * Virtual axes written by the on-screen mobile controls (joystick + buttons).
+ * Additive over keyboard/gamepad in the player controller's sample().
+ */
+export const mobileAxes: { x: number; z: number; jump: boolean; run: boolean } = {
+  x: 0, z: 0, jump: false, run: false,
+};
+
+/**
  * Set of object ids currently being driven by a trajectory/spline at play
  * time. While an id is in this set, PushableRuntime skips its own physics
  * step (gravity + horizontal collision) so the follower tracks the curve
