@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Search, Loader2, MapPin, ExternalLink, Crosshair, Download, Radio, History } from "lucide-react";
+import { X, Search, Loader2, MapPin, ExternalLink, Crosshair, Download, Radio, History, ChevronDown, ChevronUp, Activity } from "lucide-react";
 import {
   Cartesian3,
   Cartographic,
@@ -142,6 +142,10 @@ function currentViewBbox(viewer: Viewer | null): {
 }
 
 export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
+  // Detect mobile once so the widget can start collapsed and dock to the
+  // bottom instead of covering the map.
+  const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+  const [minimized, setMinimized] = useState<boolean>(isMobile);
   const [source, setSource] = useState<Source>("usgs");
   const [preset, setPreset] = useState<Preset>("week");
   const [liveMode, setLiveMode] = useState<boolean>(false);
@@ -351,22 +355,82 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
   }, [features]);
 
   return (
-    <div
-      className="draggable-window fixed z-[70] top-24 right-4 w-[360px] max-w-[92vw] max-h-[75vh] flex flex-col rounded-2xl border border-white/10 bg-black/70 backdrop-blur-xl shadow-2xl text-white pointer-events-auto"
-      style={{ overscrollBehavior: "contain" }}
-    >
+    <>
+      {/* Compact floating legend chip — always visible so users can decode
+          the map dots even when the full panel is collapsed. Docks above
+          the mobile toolbar and stays out of the way on desktop. */}
+      {minimized && (
+        <div className="fixed z-[69] left-1/2 -translate-x-1/2 bottom-20 sm:bottom-4 sm:left-4 sm:translate-x-0 pointer-events-none">
+          <div className="pointer-events-auto rounded-full border border-white/10 bg-black/60 backdrop-blur-xl px-3 py-1.5 flex items-center gap-2 shadow-2xl">
+            <div className="flex items-center gap-1">
+              {[2, 4, 6, 8].map((m) => (
+                <span key={m} className="rounded-full" style={{
+                  width: Math.max(6, magPixelSize(m) * 0.55),
+                  height: Math.max(6, magPixelSize(m) * 0.55),
+                  background: magColor(m).toCssColorString(),
+                }}/>
+              ))}
+            </div>
+            <span className="text-[10px] uppercase tracking-widest text-white/60 font-mono">M2 → M8</span>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={
+          minimized
+            // Minimized: bottom-docked pill on mobile, top-right on desktop.
+            ? "draggable-window fixed z-[70] bottom-4 right-4 sm:top-24 sm:bottom-auto rounded-full border border-white/10 bg-black/70 backdrop-blur-xl shadow-2xl text-white pointer-events-auto"
+            // Expanded: bottom sheet on mobile, right rail on desktop.
+            : "draggable-window fixed z-[70] left-2 right-2 bottom-2 sm:left-auto sm:right-4 sm:top-24 sm:bottom-auto sm:w-[360px] max-w-[96vw] sm:max-w-[92vw] max-h-[62vh] sm:max-h-[75vh] flex flex-col rounded-2xl border border-white/10 bg-black/75 backdrop-blur-xl shadow-2xl text-white pointer-events-auto"
+        }
+        style={{ overscrollBehavior: "contain" }}
+      >
+        {minimized ? (
+          <div className="flex items-center gap-2 pl-3 pr-1 py-1.5">
+            <button
+              onClick={() => setMinimized(false)}
+              className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold"
+              title="Open seismic panel"
+            >
+              <div className={`w-2 h-2 rounded-full bg-red-400 ${liveMode ? "animate-pulse" : ""} shadow-[0_0_10px_rgba(248,113,113,0.9)]`} />
+              <Activity className="w-3.5 h-3.5" />
+              <span>{summary?.count ?? 0} quakes</span>
+              {summary && <span className="text-white/60">· M {summary.max}</span>}
+              <ChevronUp className="w-3.5 h-3.5 text-white/70" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-white/10"
+              aria-label="Close earthquake search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <>
       <div className="draggable-window-handle flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]" />
           <div className="text-[11px] font-bold uppercase tracking-widest">Seismic Intelligence</div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded hover:bg-white/10"
-          aria-label="Close earthquake search"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setMinimized(true)}
+            className="p-1 rounded hover:bg-white/10"
+            aria-label="Minimize panel"
+            title="Minimize to keep map visible"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-white/10"
+            aria-label="Close earthquake search"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="p-3 space-y-3 overflow-y-auto">
