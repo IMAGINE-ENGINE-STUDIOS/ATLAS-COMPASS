@@ -53,6 +53,7 @@ import {
 } from "@/lib/planets/trekCatalogs";
 import { MARS_ELLIPSOID, ellipsoidForPlanet } from "@/lib/planets/ellipsoids";
 import { findPlanet, type PlanetId } from "@/lib/planets/config";
+import { getDeviceProfile, memoryPressure } from "@/lib/deviceProfile";
 import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
 import {
   MOON_LAYERS,
