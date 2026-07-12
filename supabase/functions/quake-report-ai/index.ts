@@ -1,13 +1,16 @@
 // Edge function: quake-report-ai
 // ---------------------------------
-// Generates or refines a full geotechnical / seismic event report from real
-// USGS event data + user-selected engineering parameters. Uses the Lovable
-// AI Gateway (google/gemini-2.5-flash by default). Supports two modes:
-//   mode = "generate"  -> author a fresh report from event + params
-//   mode = "refine"    -> take the current report + a user chat instruction
-//                         and return a revised full report
-// All output is a single markdown document — the frontend renders it and
-// exports it verbatim as .md.
+// Generates or refines a HARVARD-STYLE scientific technical paper documenting
+// a specific earthquake event and its geotechnical implications, from real
+// USGS / FDSNWS event data + user-editable template fields + user-selected
+// engineering parameters + supporting imagery URLs (ShakeMap, DYFI, PAGER,
+// moment tensor). Uses the Lovable AI Gateway (google/gemini-2.5-flash).
+//
+// Modes:
+//   mode = "generate"  -> author a fresh paper from event + params + template
+//   mode = "refine"    -> revise the current paper using user chat + fields
+// Output is a single self-contained Markdown document that the frontend
+// renders and exports verbatim as .md.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,15 +41,55 @@ interface QuakeInput {
 }
 
 interface Params {
-  siteClass?: string;       // A/B/C/D/E per NEHRP
+  siteClass?: string;
   groundwaterM?: number | null;
   structureType?: string;
   exposureUse?: string;
   designCode?: string;
-  targetAudience?: string;  // engineer | responder | public
+  targetAudience?: string;
   units?: "SI" | "US";
-  language?: string;        // en, es, ...
+  language?: string;
   extraNotes?: string;
+}
+
+/**
+ * Fully editable template fields. Anything the user has filled in is treated
+ * as authoritative — the model must preserve the user's wording verbatim (only
+ * light grammar tightening) and place it in the correct paper section. Missing
+ * fields are drafted by the model from the event facts.
+ */
+interface TemplateFields {
+  title?: string;
+  runningHead?: string;
+  authors?: string;
+  affiliations?: string;
+  correspondingAuthor?: string;
+  keywords?: string;
+  abstract?: string;
+  introduction?: string;
+  tectonicSetting?: string;
+  methodology?: string;
+  observations?: string;
+  siteResponse?: string;
+  liquefaction?: string;
+  slopeStability?: string;
+  structural?: string;
+  lifelines?: string;
+  aftershockOutlook?: string;
+  discussion?: string;
+  recommendations?: string;
+  limitations?: string;
+  acknowledgments?: string;
+  references?: string;
+  fundingStatement?: string;
+  dataAvailability?: string;
+  ethicsStatement?: string;
+}
+
+interface Figure {
+  caption: string;
+  url: string;
+  section?: string;
 }
 
 function fmtTime(ms: number) {
@@ -87,37 +130,147 @@ function buildFacts(q: QuakeInput, p: Params, source: string): string {
   ].filter(Boolean).join("\n");
 }
 
-const SYSTEM_GENERATE = `You are a senior geotechnical / seismic hazards engineer producing a rigorous
-event report for a specific earthquake. Ground every statement in the FACTS block
-the user provides. Do not invent numbers; when a value is missing, say so and
-state the assumption or recommended next step. Use the Modified Mercalli scale
-(I–XII), Gutenberg–Richter energy relation (log10 E = 4.8 + 1.5 M), NEHRP site
-classes (A–E), and standard practice references (ASCE 7, EN 1998, Youd & Idriss
-2001 for liquefaction, Newmark for slope displacement) as appropriate. Output a
-single self-contained Markdown document with the following sections, exactly in
-this order and using \`##\` for each:
+function templateBlock(t: TemplateFields | undefined): string {
+  if (!t) return "USER-PROVIDED TEMPLATE FIELDS: (none — draft everything from FACTS)";
+  const rows = Object.entries(t)
+    .filter(([, v]) => typeof v === "string" && v.trim().length > 0)
+    .map(([k, v]) => `- ${k}: ${String(v).slice(0, 4000)}`);
+  if (!rows.length) return "USER-PROVIDED TEMPLATE FIELDS: (none — draft everything from FACTS)";
+  return `USER-PROVIDED TEMPLATE FIELDS (authoritative — integrate verbatim, only light grammar):\n${rows.join("\n")}`;
+}
 
-1. Executive Summary
-2. Event Metadata
-3. Tectonic Setting & Source Mechanism
-4. Ground Motion Characterisation
-5. Site Response & NEHRP Class Implications
-6. Liquefaction Assessment
-7. Slope Stability & Landslide Hazard
-8. Structural & Foundation Implications
-9. Lifeline & Infrastructure Considerations
-10. Aftershock / Replica Outlook
-11. Recommendations & Next Actions
-12. Data Provenance & Caveats
+function figuresBlock(figs: Figure[] | undefined): string {
+  if (!figs?.length) return "FIGURES: (none provided — omit image embeds)";
+  return "FIGURES (embed each in the named section as ![caption](url) and reference in prose as \"(Figure N)\"):\n" +
+    figs.map((f, i) =>
+      `- Figure ${i + 1} | section=${f.section ?? "ground-motion"} | ${f.caption} | ${f.url}`,
+    ).join("\n");
+}
 
-Keep the tone professional but readable. Every section must have real content —
-never leave a heading with a placeholder. Length: 900–1500 words.`;
+const SYSTEM_GENERATE = `You are the lead author of a Harvard-style peer-reviewed technical scientific
+paper documenting a specific earthquake event and its geotechnical implications.
+Write in the register of a Harvard University / Bulletin of the Seismological
+Society of America / GSA Bulletin publication: precise, evidence-based,
+quantitative, hedged where warranted, and fully referenced.
 
-const SYSTEM_REFINE = `You are revising an existing seismic event report on behalf of the user.
-The user will give a short instruction (add/remove/rewrite something, change
-audience, translate, expand a section, etc.). Return the FULL revised report
-as Markdown — never a diff, never just the changed section. Preserve section
-numbering and factual accuracy. Keep every fact traceable to the FACTS block.`;
+HARD RULES
+- Ground every claim in the FACTS block. Do not invent numeric values.
+- When a value is missing, explicitly say so ("not reported by the source
+  authority") and propose the next data-acquisition step.
+- Preserve verbatim any USER-PROVIDED TEMPLATE FIELDS you receive — those are
+  the author's own words. Integrate them into the correct section; tighten
+  only grammar. Never contradict them. When a field is empty, draft it
+  yourself from the FACTS.
+- Embed every provided FIGURE as Markdown \`![caption](url)\` inside the
+  section named in its \`section\` hint (default: "Ground Motion & Intensity")
+  and cite each in the running text as "(Figure N)". Add a one-line italic
+  caption underneath each figure.
+- Use SI units unless the user requested US customary. Keep Modified Mercalli
+  in Roman numerals (I–XII).
+- Cite canonical references: Gutenberg & Richter (1956) for energy; Wells &
+  Coppersmith (1994) for rupture scaling; Youd & Idriss (2001) for
+  liquefaction; Newmark (1965) for slope displacement; Boore et al. (2014)
+  for GMPEs; ASCE 7, Eurocode 8, and NEHRP as design codes; USGS ShakeMap /
+  PAGER / DYFI product documentation where relevant.
+
+PAPER STRUCTURE — output a single self-contained Markdown document in EXACTLY
+this order, using the exact headings shown (with numbering) so the frontend
+can style them:
+
+# <Title>
+*<Running head>*
+**Authors.** <authors>
+**Affiliations.** <affiliations>
+**Corresponding author.** <email or ORCID>
+
+---
+
+## Abstract
+150–250 words, structured: (i) event context, (ii) data and methods,
+(iii) key observations, (iv) implications, (v) recommendations.
+
+**Keywords.** 4–7 comma-separated terms.
+
+## 1. Introduction
+Frame the event in seismotectonic and societal context; state objectives.
+
+## 2. Tectonic and Geological Setting
+Regional plate boundary, active faults, historical seismicity.
+
+## 3. Data and Methodology
+Source catalogs (FDSNWS provider), instrumentation, magnitude scale,
+location quality metrics (nst, gap, rms, dmin), parameter provenance.
+
+## 4. Seismological Observations
+Origin time, hypocenter, depth class, magnitude type, moment release
+(Gutenberg–Richter energy in J and TNT equivalent), tsunami / PAGER flags.
+
+## 5. Ground Motion and Intensity
+Instrumental MMI (ShakeMap), community DYFI CDI, felt-report count, expected
+PGA / PGV bracket, duration considerations. Embed intensity / PGA / DYFI
+figures here.
+
+## 6. Site Response and NEHRP Class Implications
+Given the reported / assumed NEHRP class, discuss site amplification,
+resonance windows, and code-based short / long period design spectra.
+
+## 7. Liquefaction Assessment
+Simplified Youd & Idriss (2001) framework: susceptibility from PGA,
+groundwater depth, cohesionless fines. Reason qualitatively about CSR/CRR
+when SPT/CPT is unavailable.
+
+## 8. Slope Stability and Landslide Hazard
+Newmark displacement reasoning, PGA thresholds (0.05 g screening, 0.10 g
+alerting), regional slope screening recommendation.
+
+## 9. Structural and Foundation Vulnerability
+Implications for the user-specified structure type / occupancy: shallow vs
+deep foundations, kinematic pile bending, seismic earth pressures
+(Mononobe–Okabe), non-structural drift concerns.
+
+## 10. Lifeline and Infrastructure Considerations
+Transport, water, energy, telecom, health-care exposure; cascading hazards
+(fire following, tsunami inundation if flagged).
+
+## 11. Aftershock and Replica Outlook
+Bath's law, Omori–Utsu decay expectation, largest observed aftershock so far.
+
+## 12. Recommendations
+Numbered, actionable, stakeholder-tagged (Engineer / Responder / Government /
+Insurer / Community).
+
+## 13. Limitations and Uncertainty
+Data gaps, assumption sensitivity, uncertainty propagation.
+
+## 14. Discussion
+Place findings in the broader hazard-mitigation literature; contrast with
+comparable historical events when justified.
+
+## 15. Data Availability
+FDSNWS endpoint URLs and event page.
+
+## 16. Acknowledgments
+
+## 17. Funding
+
+## 18. Ethics and Competing Interests
+
+## 19. References
+Harvard (author–date) style. At least 6 real, canonical references
+(USGS documentation, Youd & Idriss 2001, Wells & Coppersmith 1994, Newmark
+1965, Boore et al. 2014, ASCE 7, Eurocode 8 as applicable). Alphabetical.
+
+LENGTH: 1500–2400 words. Every section must have real content — never leave
+a heading with a placeholder.`;
+
+const SYSTEM_REFINE = `You are revising an existing Harvard-style seismic event paper on behalf of
+the author. The user provides a short instruction (add/remove/rewrite,
+change audience, translate, expand a section, etc.) plus possibly updated
+USER-PROVIDED TEMPLATE FIELDS and FIGURES. Return the FULL revised paper
+as Markdown — never a diff, never just a section. Preserve the numbered
+section structure, embedded figures, and factual accuracy. Treat USER-
+PROVIDED TEMPLATE FIELDS as authoritative and integrate them verbatim
+(grammar only).`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -137,6 +290,8 @@ Deno.serve(async (req) => {
       previousReport = "",
       instruction = "",
       chatHistory = [],
+      templateFields = {},
+      figures = [],
     } = body as {
       mode?: "generate" | "refine";
       quake: QuakeInput;
@@ -145,6 +300,8 @@ Deno.serve(async (req) => {
       previousReport?: string;
       instruction?: string;
       chatHistory?: { role: "user" | "assistant"; content: string }[];
+      templateFields?: TemplateFields;
+      figures?: Figure[];
     };
 
     if (!quake || typeof quake.mag !== "number" || typeof quake.lat !== "number") {
@@ -154,11 +311,13 @@ Deno.serve(async (req) => {
     }
 
     const facts = buildFacts(quake, params, source);
+    const tmpl = templateBlock(templateFields);
+    const figs = figuresBlock(figures);
     const messages: { role: string; content: string }[] = [];
 
     if (mode === "refine") {
       messages.push({ role: "system", content: SYSTEM_REFINE });
-      messages.push({ role: "user", content: `FACTS:\n${facts}` });
+      messages.push({ role: "user", content: `FACTS:\n${facts}\n\n${tmpl}\n\n${figs}` });
       if (previousReport) {
         messages.push({ role: "assistant", content: previousReport });
       }
@@ -169,13 +328,13 @@ Deno.serve(async (req) => {
       }
       messages.push({
         role: "user",
-        content: `Revision request: ${String(instruction || "Improve the report.").slice(0, 2000)}\n\nReturn the FULL revised report as Markdown.`,
+        content: `Revision request: ${String(instruction || "Improve the report.").slice(0, 2000)}\n\nReturn the FULL revised paper as Markdown, preserving structure and figures.`,
       });
     } else {
       messages.push({ role: "system", content: SYSTEM_GENERATE });
       messages.push({
         role: "user",
-        content: `FACTS:\n${facts}\n\nWrite the full report now. Language: ${params.language ?? "English"}.`,
+        content: `FACTS:\n${facts}\n\n${tmpl}\n\n${figs}\n\nWrite the full Harvard-style scientific paper now. Language: ${params.language ?? "English"}.`,
       });
     }
 
