@@ -140,12 +140,12 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
 
   const openBody = (body: SolarBodyDefinition, position: Cartesian3) => {
     const route = routeForBody(body.id);
-    if (route) {
-      setOpen(false);
-      navigate(route);
-      return;
-    }
+    setOpen(false);
     travelToBody(viewer, body, position);
+    if (route) {
+      const delay = body.id === "moon" ? 3800 : 4800;
+      window.setTimeout(() => navigate(route), delay);
+    }
   };
 
   useEffect(() => {
