@@ -20,7 +20,7 @@
  * drop it straight into a report or share it downstream.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap, History, Eye, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
+import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Sparkles, Send, RefreshCw, FolderOpen, Edit3, Image as ImageIcon, GraduationCap, History, Eye, AlertTriangle, CheckCircle2, RotateCcw, BookOpen, MessageSquare, Building2, Sliders, Printer } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { supabase } from "@/integrations/supabase/client";
