@@ -836,6 +836,14 @@ Event page: ${quake.url}
                   {report && (
                     <button
                       onClick={() => {
+                        if (citationAudit.missing.length > 0) {
+                          const proceed = window.confirm(
+                            `Warning: ${citationAudit.missing.length} in-text citation(s) are not present in the reference list:\n\n` +
+                            citationAudit.missing.slice(0, 8).map((c) => `  • (${c.author}, ${c.year})`).join("\n") +
+                            `\n\nExport anyway?`
+                          );
+                          if (!proceed) return;
+                        }
                         const blob = new Blob([report], { type: "text/markdown" });
                         const u = URL.createObjectURL(blob);
                         const a = document.createElement("a");
