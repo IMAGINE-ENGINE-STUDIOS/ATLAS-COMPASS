@@ -125,6 +125,24 @@ export default function QuakeReportModal({ quake, source, onClose }: Props) {
   const [afterLoading, setAfterLoading] = useState(false);
   const [tab, setTab] = useState<"summary" | "geotech" | "ledger" | "phases">("summary");
 
+  // ---- AI report state --------------------------------------------------
+  const [params, setParams] = useState({
+    siteClass: "D",
+    groundwaterM: "" as string,
+    structureType: "Mid-rise reinforced concrete",
+    exposureUse: "Occupancy Category II (standard)",
+    targetAudience: "engineer",
+    units: "SI" as "SI" | "US",
+    language: "en",
+    extraNotes: "",
+  });
+  const [report, setReport] = useState<string>("");
+  const [generating, setGenerating] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+
   // Aftershocks / replicas from the same source, 500 km radius, 30 days
   // after the mainshock. FDSNWS supports lat/lng/maxradiuskm.
   useEffect(() => {
@@ -202,6 +220,96 @@ export default function QuakeReportModal({ quake, source, onClose }: Props) {
     void run();
     return () => { cancelled = true; };
   }, [quake, source]);
+
+  // ---- AI report generation --------------------------------------------
+  const quakePayload = useMemo(() => ({
+    id: quake.id,
+    mag: quake.mag ?? 0,
+    place: quake.place ?? "",
+    time: quake.time,
+    lat: quake.lat,
+    lng: quake.lng,
+    depthKm: quake.depthKm ?? 0,
+    tsunami: quake.tsunami ?? 0,
+    url: quake.url,
+    alert: quake.alert ?? null,
+    magType: dp?.magType ?? null,
+    mmi: dp?.mmi ?? null,
+    cdi: dp?.cdi ?? null,
+    felt: dp?.felt ?? null,
+    nst: dp?.nst ?? null,
+    dmin: dp?.dmin ?? null,
+    rms: dp?.rms ?? null,
+    gap: dp?.gap ?? null,
+    sig: dp?.sig ?? null,
+    net: dp?.net ?? null,
+  }), [quake, dp]);
+
+  const paramsPayload = useCallback(() => ({
+    siteClass: params.siteClass,
+    groundwaterM: params.groundwaterM === "" ? null : Number(params.groundwaterM),
+    structureType: params.structureType,
+    exposureUse: params.exposureUse,
+    targetAudience: params.targetAudience,
+    units: params.units,
+    language: params.language,
+    extraNotes: params.extraNotes || undefined,
+  }), [params]);
+
+  const generate = useCallback(async () => {
+    setGenerating(true);
+    setReportError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("quake-report-ai", {
+        body: {
+          mode: "generate",
+          quake: quakePayload,
+          params: paramsPayload(),
+          source,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setReport(String(data?.report ?? ""));
+      setChat([]);
+    } catch (e) {
+      setReportError((e as Error).message || "Failed to generate report.");
+    } finally {
+      setGenerating(false);
+    }
+  }, [quakePayload, paramsPayload, source]);
+
+  const sendChat = useCallback(async (instructionOverride?: string) => {
+    const instruction = (instructionOverride ?? chatInput).trim();
+    if (!instruction || !report) return;
+    setChatSending(true);
+    setReportError(null);
+    const nextChat = [...chat, { role: "user" as const, content: instruction }];
+    setChat(nextChat);
+    setChatInput("");
+    try {
+      const { data, error } = await supabase.functions.invoke("quake-report-ai", {
+        body: {
+          mode: "refine",
+          quake: quakePayload,
+          params: paramsPayload(),
+          source,
+          previousReport: report,
+          instruction,
+          chatHistory: nextChat.slice(-8),
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const newReport = String(data?.report ?? "");
+      setReport(newReport);
+      setChat([...nextChat, { role: "assistant", content: "Report updated." }]);
+    } catch (e) {
+      setReportError((e as Error).message || "Refinement failed.");
+    } finally {
+      setChatSending(false);
+    }
+  }, [chat, chatInput, report, quakePayload, paramsPayload, source]);
 
   const mag = quake.mag ?? 0;
   const energy = energyJoules(mag);
