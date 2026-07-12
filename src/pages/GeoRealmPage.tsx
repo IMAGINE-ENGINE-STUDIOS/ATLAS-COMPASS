@@ -11,6 +11,9 @@ export default function GeoRealmPage() {
   const [showCrust, setShowCrust] = useState(true);
   const [showSurface, setShowSurface] = useState(true);
   const [hypo, setHypo] = useState<string | null>("usgs_m45_month");
+  const [showVolumetric, setShowVolumetric] = useState(true);
+  const [showMotion, setShowMotion] = useState(true);
+  const [thicknessKm, setThicknessKm] = useState(100);
   const [cam, setCam] = useState<{ alt: number; lat: number; lon: number }>({ alt: 1.6, lat: 0, lon: 0 });
   const [bundles, setBundles] = useState<GeoRealmBundle[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -43,6 +46,9 @@ export default function GeoRealmPage() {
         showCrust={showCrust}
         showSurface={showSurface}
         activeHypocenter={hypo}
+        showVolumetricPlates={showVolumetric}
+        showPlateMotion={showMotion}
+        plateThicknessKm={thicknessKm}
         onCamera={setCam}
       />
 
@@ -78,6 +84,12 @@ export default function GeoRealmPage() {
           hypo={hypo}
           setHypo={setHypo}
           bundles={bundles}
+          showVolumetric={showVolumetric}
+          setShowVolumetric={setShowVolumetric}
+          showMotion={showMotion}
+          setShowMotion={setShowMotion}
+          thicknessKm={thicknessKm}
+          setThicknessKm={setThicknessKm}
         />
       </div>
 
@@ -108,6 +120,12 @@ export default function GeoRealmPage() {
                 hypo={hypo}
                 setHypo={setHypo}
                 bundles={bundles}
+                showVolumetric={showVolumetric}
+                setShowVolumetric={setShowVolumetric}
+                showMotion={showMotion}
+                setShowMotion={setShowMotion}
+                thicknessKm={thicknessKm}
+                setThicknessKm={setThicknessKm}
               />
             ) : (
               <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
@@ -165,8 +183,19 @@ function LayersPanel(props: {
   hypo: string | null;
   setHypo: (v: string | null) => void;
   bundles: GeoRealmBundle[];
+  showVolumetric: boolean;
+  setShowVolumetric: (v: boolean) => void;
+  showMotion: boolean;
+  setShowMotion: (v: boolean) => void;
+  thicknessKm: number;
+  setThicknessKm: (v: number) => void;
 }) {
-  const { active, toggle, showCrust, setShowCrust, showSurface, setShowSurface, hypo, setHypo, bundles } = props;
+  const {
+    active, toggle, showCrust, setShowCrust, showSurface, setShowSurface,
+    hypo, setHypo, bundles,
+    showVolumetric, setShowVolumetric, showMotion, setShowMotion,
+    thicknessKm, setThicknessKm,
+  } = props;
   return (
     <>
         <div className="mb-3 text-[10px] uppercase tracking-[0.28em] text-white/45">Canonical layers</div>
@@ -219,6 +248,46 @@ function LayersPanel(props: {
           />
           Opaque surface (off = X-ray)
         </label>
+
+        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
+          Volumetric plate system
+        </div>
+        <label className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
+          <input
+            type="checkbox"
+            checked={showVolumetric}
+            onChange={(e) => setShowVolumetric(e.target.checked)}
+            className="accent-orange-400"
+          />
+          Extruded lithospheric shells
+        </label>
+        <label className="mt-1 flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
+          <input
+            type="checkbox"
+            checked={showMotion}
+            onChange={(e) => setShowMotion(e.target.checked)}
+            className="accent-orange-400"
+          />
+          Plate motion vectors (NNR-MORVEL 2010)
+        </label>
+        <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
+          <div className="mb-1.5 flex items-center justify-between text-white/70">
+            <span>Lithosphere thickness</span>
+            <span className="tabular-nums text-white/90">{thicknessKm} km</span>
+          </div>
+          <input
+            type="range"
+            min={20}
+            max={250}
+            step={5}
+            value={thicknessKm}
+            onChange={(e) => setThicknessKm(Number(e.target.value))}
+            className="w-full accent-orange-400"
+          />
+          <div className="mt-1 text-[9px] leading-snug text-white/35">
+            Conrad & Lithgow-Bertelloni (2006) global means: ~100 km oceanic, ~200 km continental.
+          </div>
+        </div>
 
         <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
           Hypocenter cloud

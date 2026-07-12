@@ -12,6 +12,7 @@ import {
   type GeoFeatureCollection,
 } from "@/lib/geoRealm/dataSources";
 import type { CanonicalDataset } from "@/lib/geoRealm/types";
+import VolumetricPlates from "./VolumetricPlates";
 
 /** Radius of the Earth shell in scene units. */
 const R = 1;
@@ -233,6 +234,9 @@ export interface GeoRealmSceneProps {
   showCrust: boolean;
   showSurface: boolean;
   activeHypocenter?: string | null;
+  showVolumetricPlates?: boolean;
+  showPlateMotion?: boolean;
+  plateThicknessKm?: number;
   onCamera?: (info: { alt: number; lat: number; lon: number }) => void;
 }
 
@@ -241,6 +245,9 @@ export default function GeoRealmScene({
   showCrust,
   showSurface,
   activeHypocenter,
+  showVolumetricPlates = false,
+  showPlateMotion = true,
+  plateThicknessKm = 100,
   onCamera,
 }: GeoRealmSceneProps) {
   const active = CANONICAL_DATASETS.filter((d) => activeCanonical.includes(d.id));
@@ -264,6 +271,13 @@ export default function GeoRealmScene({
       ))}
 
       {activeHypocenter ? <HypocenterCloud feedId={activeHypocenter} /> : null}
+
+      <VolumetricPlates
+        visible={showVolumetricPlates}
+        radius={R}
+        thicknessKm={plateThicknessKm}
+        showMotion={showPlateMotion}
+      />
 
       <OrbitControls
         enablePan={false}
