@@ -1306,6 +1306,60 @@ export type Database = {
         }
         Relationships: []
       }
+      tile_cards: {
+        Row: {
+          center_lat: number | null
+          center_lng: number | null
+          created_at: string
+          id: string
+          indicators: Json
+          is_public: boolean
+          metrics: Json
+          notes: string | null
+          owner_id: string
+          tags: string[]
+          title: string | null
+          updated_at: string
+          x: number
+          y: number
+          z: number
+        }
+        Insert: {
+          center_lat?: number | null
+          center_lng?: number | null
+          created_at?: string
+          id?: string
+          indicators?: Json
+          is_public?: boolean
+          metrics?: Json
+          notes?: string | null
+          owner_id: string
+          tags?: string[]
+          title?: string | null
+          updated_at?: string
+          x: number
+          y: number
+          z: number
+        }
+        Update: {
+          center_lat?: number | null
+          center_lng?: number | null
+          created_at?: string
+          id?: string
+          indicators?: Json
+          is_public?: boolean
+          metrics?: Json
+          notes?: string | null
+          owner_id?: string
+          tags?: string[]
+          title?: string | null
+          updated_at?: string
+          x?: number
+          y?: number
+          z?: number
+        }
+        Relationships: []
+      }
       tile_intel_actions: {
         Row: {
           config: Json
