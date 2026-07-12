@@ -28,6 +28,7 @@ import type { PlayCameraPose } from "@/components/level/locomotion/PlayableChara
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
 import { clampEyeAboveTerrain } from "@/lib/atlasCameraClamp";
 import { CameraSync, THREE_TO_ENU } from "@/lib/atlasR3F";
+import MobileTouchControls from "@/components/level/play/MobileTouchControls";
 
 export interface FreePlaySpawn {
   lat: number;
