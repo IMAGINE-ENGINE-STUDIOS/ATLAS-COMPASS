@@ -222,6 +222,7 @@ import GlyphIcon from "@/components/atlas/GlyphIcon";
 import AtlasScreenshotMenu from "@/components/atlas/AtlasScreenshotMenu";
 import EmergencyPanel from "@/components/atlas/EmergencyPanel";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
+import TileCard, { type TileCardTarget } from "@/components/atlas/tileCard/TileCard";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZjE5YWQxYi04OGE3LTQxOTEtOTBmZS1iZDdkOWNmOTIyYjYiLCJpZCI6MzIyODgyLCJpYXQiOjE3NTI4NzUyMTB9.UhWm2A1x0gFnsiPJ-XzIyK3K6kOW9jwRYjqQw4Jw9xs";
@@ -1576,6 +1577,7 @@ function SpaceshipPage({
   const [lassoPoints, setLassoPoints] = useState<{ lat: number; lng: number }[]>([]);
   const [tilesScanning, setTilesScanning] = useState(false);
   const [tilesScanResults, setTilesScanResults] = useState<SearchResult[]>([]);
+  const [openTileCard, setOpenTileCard] = useState<TileCardTarget | null>(null);
   const tileEntitiesRef = useRef<Map<TileKey, any>>(new Map());
   const lassoEntityRef = useRef<any>(null);
   const tilesToolRef = useRef<TilesToolExt>("grid");
@@ -7567,6 +7569,27 @@ function SpaceshipPage({
                           Clear
                         </button>
                       </div>
+                      {/* Per-tile widget opener */}
+                      <button
+                        disabled={selectedTiles.size === 0}
+                        title={selectedTiles.size > 1
+                          ? "Opens the tile card for the first selected tile"
+                          : "Open the tile card for the selected tile"}
+                        onClick={() => {
+                          const first = selectedTiles.values().next().value as string | undefined;
+                          if (!first) return;
+                          const { z, x, y } = parseTileKey(first);
+                          const b = tileBounds(x, y, z);
+                          setOpenTileCard({
+                            z, x, y,
+                            bounds: b,
+                            center: { lat: (b.north + b.south) / 2, lng: (b.east + b.west) / 2 },
+                          });
+                        }}
+                        className="mt-1.5 w-full px-2 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-widest bg-gradient-to-r from-violet-500/25 to-cyan-500/20 border border-violet-400/40 text-violet-100 hover:from-violet-500/35 hover:to-cyan-500/30 disabled:opacity-30"
+                      >
+                        Open Tile Card
+                      </button>
                       {tilesScanResults.length > 0 && (
                         <div className="max-h-32 overflow-y-auto space-y-0.5 mt-1.5">
                           {tilesScanResults.map((r, i) => (
@@ -8044,6 +8067,13 @@ function SpaceshipPage({
             (window as any).__atlasEmergencyMode = false;
             window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: false }));
           }} />
+
+          {/* Per-tile TileCard widget */}
+          {openTileCard && (
+            <div className="pointer-events-none fixed right-4 top-24 z-[95] max-h-[calc(100vh-8rem)]">
+              <TileCard target={openTileCard} onClose={() => setOpenTileCard(null)} />
+            </div>
+          )}
 
           {/* Intelligence — Live Traffic Cameras Panel */}
           <IntelligencePanel
