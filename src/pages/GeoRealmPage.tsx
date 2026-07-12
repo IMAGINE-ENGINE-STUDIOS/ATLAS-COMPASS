@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import GeoRealmScene from "@/components/geo-realm/GeoRealmScene";
 import GeoRealmCompiler from "@/components/geo-realm/GeoRealmCompiler";
-import { CANONICAL_DATASETS } from "@/lib/geoRealm/dataSources";
+import { CANONICAL_DATASETS, CRUST1_LAYERS, HYPOCENTER_FEEDS } from "@/lib/geoRealm/dataSources";
 import { supabase } from "@/integrations/supabase/client";
 import type { GeoRealmBundle } from "@/lib/geoRealm/types";
 
@@ -10,6 +10,7 @@ export default function GeoRealmPage() {
   const [active, setActive] = useState<string[]>(["pb2002_plates", "pb2002_boundaries"]);
   const [showCrust, setShowCrust] = useState(true);
   const [showSurface, setShowSurface] = useState(true);
+  const [hypo, setHypo] = useState<string | null>("usgs_m45_month");
   const [cam, setCam] = useState<{ alt: number; lat: number; lon: number }>({ alt: 1.6, lat: 0, lon: 0 });
   const [bundles, setBundles] = useState<GeoRealmBundle[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -40,6 +41,7 @@ export default function GeoRealmPage() {
         activeCanonical={active}
         showCrust={showCrust}
         showSurface={showSurface}
+        activeHypocenter={hypo}
         onCamera={setCam}
       />
 
@@ -116,6 +118,53 @@ export default function GeoRealmPage() {
         </label>
 
         <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
+          Hypocenter cloud
+        </div>
+        <div className="flex flex-col gap-1">
+          {[{ id: null as string | null, label: "Off" }, ...HYPOCENTER_FEEDS.map((f) => ({ id: f.id, label: f.label }))].map((opt) => {
+            const on = hypo === opt.id;
+            return (
+              <button
+                key={opt.id ?? "off"}
+                type="button"
+                onClick={() => setHypo(opt.id)}
+                className={`rounded-lg border px-2.5 py-1.5 text-left text-[11px] transition ${
+                  on
+                    ? "border-orange-400/40 bg-orange-400/10 text-white"
+                    : "border-white/5 bg-white/[0.02] text-white/70 hover:border-white/15"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+          <div className="mt-1 text-[9px] leading-snug text-white/35">
+            Points plotted at real hypocenter depth reveal Wadati-Benioff subduction slabs.
+          </div>
+        </div>
+
+        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
+          CRUST1.0 legend
+        </div>
+        <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+          {CRUST1_LAYERS.map((l) => (
+            <div key={l.id} className="flex items-center gap-2 py-0.5 text-[10px]">
+              <span
+                className="h-2 w-2 rounded-sm flex-shrink-0"
+                style={{ background: l.color }}
+              />
+              <span className="flex-1 truncate text-white/75">{l.label}</span>
+              <span className="tabular-nums text-white/45">
+                {l.thickness_km > 0 ? `${l.thickness_km.toFixed(1)} km` : "—"}
+              </span>
+            </div>
+          ))}
+          <div className="mt-1.5 text-[9px] text-white/35">
+            Laske, Masters, Ma, Pasyanos (2013) — global mean thicknesses.
+          </div>
+        </div>
+
+        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
           Your bundles · {bundles.length}
         </div>
         {bundles.length === 0 ? (
@@ -162,6 +211,7 @@ export default function GeoRealmPage() {
           </span>
           <span className="text-white/40">·</span>
           <span>{active.length} layers active</span>
+          {hypo ? <><span className="text-white/40">·</span><span>hypocenter feed on</span></> : null}
         </div>
       </div>
     </div>
