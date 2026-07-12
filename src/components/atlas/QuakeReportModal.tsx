@@ -147,6 +147,52 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
 
+  // ---- Editable Harvard-paper template fields --------------------------
+  // Any field the user fills is treated as authoritative by the AI writer.
+  // Empty fields are drafted from the event data.
+  const [tmpl, setTmpl] = useState<Record<string, string>>(() => ({
+    title: "",
+    runningHead: "",
+    authors: "",
+    affiliations: "",
+    correspondingAuthor: "",
+    keywords: "",
+    abstract: "",
+    introduction: "",
+    tectonicSetting: "",
+    methodology: "",
+    observations: "",
+    siteResponse: "",
+    liquefaction: "",
+    slopeStability: "",
+    structural: "",
+    lifelines: "",
+    aftershockOutlook: "",
+    discussion: "",
+    recommendations: "",
+    limitations: "",
+    acknowledgments: "",
+    references: "",
+    fundingStatement: "",
+    dataAvailability: "",
+    ethicsStatement: "",
+  }));
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const updateTmpl = useCallback((k: string, v: string) => {
+    setTmpl((prev) => ({ ...prev, [k]: v }));
+  }, []);
+
+  // Auto-seed the title / running head with the event once, so the paper has
+  // a sensible default even before the user opens the template editor.
+  useEffect(() => {
+    setTmpl((prev) => ({
+      ...prev,
+      title: prev.title || `Seismological and Geotechnical Characterisation of the M${quake.mag?.toFixed?.(1) ?? quake.mag} ${quake.place || "Unnamed Event"} Earthquake`,
+      runningHead: prev.runningHead || `M${quake.mag?.toFixed?.(1) ?? quake.mag} ${(quake.place || "").split(",").pop()?.trim() || "Earthquake"} — Geotechnical Assessment`,
+      dataAvailability: prev.dataAvailability || `Event data available from the ${source.toUpperCase()} FDSNWS event service. Event page: ${quake.url ?? ""}`,
+    }));
+  }, [quake, source]);
+
   // Aftershocks / replicas from the same source, 500 km radius, 30 days
   // after the mainshock. FDSNWS supports lat/lng/maxradiuskm.
   useEffect(() => {
@@ -263,6 +309,71 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
     extraNotes: params.extraNotes || undefined,
   }), [params]);
 
+  // Extract USGS product imagery (ShakeMap intensity, PGA, DYFI, PAGER,
+  // moment tensor) directly from the event detail. These URLs are stable,
+  // hot-linkable JPG/PNG hosted by USGS and render fine in Markdown.
+  const figures = useMemo(() => {
+    const out: { caption: string; url: string; section?: string }[] = [];
+    const products: any = detail?.properties?.products ?? {};
+    const shake = products?.shakemap?.[0];
+    const dyfi  = products?.dyfi?.[0];
+    const pager = products?.losspager?.[0];
+    const mt    = products?.["moment-tensor"]?.[0];
+    const pick = (p: any, ...keys: string[]) => {
+      for (const k of keys) {
+        const url = p?.contents?.[k]?.url;
+        if (typeof url === "string") return url;
+      }
+      return null;
+    };
+    const shakeIntensity = pick(shake, "download/intensity.jpg", "download/intensity.png");
+    if (shakeIntensity) out.push({
+      caption: "USGS ShakeMap instrumental intensity (MMI) contours.",
+      url: shakeIntensity, section: "ground-motion",
+    });
+    const shakePga = pick(shake, "download/pga.jpg", "download/pga.png");
+    if (shakePga) out.push({
+      caption: "USGS ShakeMap peak ground acceleration (PGA, %g).",
+      url: shakePga, section: "ground-motion",
+    });
+    const shakePgv = pick(shake, "download/pgv.jpg", "download/pgv.png");
+    if (shakePgv) out.push({
+      caption: "USGS ShakeMap peak ground velocity (PGV, cm/s).",
+      url: shakePgv, section: "ground-motion",
+    });
+    const dyfiMap = pick(dyfi, "ciim_geo.jpg", "ciim.jpg");
+    if (dyfiMap) out.push({
+      caption: "USGS Did-You-Feel-It (DYFI) community intensity map.",
+      url: dyfiMap, section: "ground-motion",
+    });
+    const pagerFatal = pick(pager, "alertfatal.png", "alertfatal_small.png");
+    if (pagerFatal) out.push({
+      caption: "USGS PAGER estimated fatalities distribution.",
+      url: pagerFatal, section: "lifelines",
+    });
+    const pagerEcon = pick(pager, "alertecon.png", "alertecon_small.png");
+    if (pagerEcon) out.push({
+      caption: "USGS PAGER estimated economic loss distribution.",
+      url: pagerEcon, section: "lifelines",
+    });
+    const mtBeachball = pick(mt, "mechanism.png", "download/mechanism.png");
+    if (mtBeachball) out.push({
+      caption: "Regional moment-tensor focal mechanism (beachball).",
+      url: mtBeachball, section: "tectonic",
+    });
+    return out;
+  }, [detail]);
+
+  const templatePayload = useCallback(() => {
+    // Send only non-empty fields; the backend treats presence as
+    // "authoritative — integrate verbatim".
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(tmpl)) {
+      if (typeof v === "string" && v.trim()) out[k] = v.trim();
+    }
+    return out;
+  }, [tmpl]);
+
   const generate = useCallback(async () => {
     setGenerating(true);
     setReportError(null);
@@ -273,6 +384,8 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
           quake: quakePayload,
           params: paramsPayload(),
           source,
+          templateFields: templatePayload(),
+          figures,
         },
       });
       if (error) throw error;
@@ -284,7 +397,7 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
     } finally {
       setGenerating(false);
     }
-  }, [quakePayload, paramsPayload, source]);
+  }, [quakePayload, paramsPayload, source, templatePayload, figures]);
 
   const sendChat = useCallback(async (instructionOverride?: string) => {
     const instruction = (instructionOverride ?? chatInput).trim();
@@ -304,6 +417,8 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
           previousReport: report,
           instruction,
           chatHistory: nextChat.slice(-8),
+          templateFields: templatePayload(),
+          figures,
         },
       });
       if (error) throw error;
@@ -316,7 +431,7 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
     } finally {
       setChatSending(false);
     }
-  }, [chat, chatInput, report, quakePayload, paramsPayload, source]);
+  }, [chat, chatInput, report, quakePayload, paramsPayload, source, templatePayload, figures]);
 
   const mag = quake.mag ?? 0;
   const energy = energyJoules(mag);
