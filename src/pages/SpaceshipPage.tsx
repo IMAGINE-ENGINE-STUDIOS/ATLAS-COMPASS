@@ -11,6 +11,7 @@ import {
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
   Sun, Brain
 } from "lucide-react";
+import { Activity } from "lucide-react";
 import { Layers } from "lucide-react";
 import { ScanLine } from "lucide-react";
 import {
@@ -32,6 +33,7 @@ import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOve
 import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import Google3DController from "@/components/atlas/Google3DController";
 import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
+import USGSEarthquakesPanel from "@/components/atlas/USGSEarthquakesPanel";
 import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
 import MeasureToolPanel from "@/components/atlas/MeasureToolPanel";
 import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligencePanel";
@@ -1169,6 +1171,14 @@ function SpaceshipPage({
   useEffect(() => {
     try { localStorage.setItem("atlas.earth-intel.open.v1", earthIntelOpen ? "1" : "0"); } catch {}
   }, [earthIntelOpen]);
+  // USGS Earthquake search panel (Earth-only). Persist open state so it
+  // re-appears the next time the user loads Atlas.
+  const [quakesOpen, setQuakesOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem("atlas.usgs-quakes.open.v1") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("atlas.usgs-quakes.open.v1", quakesOpen ? "1" : "0"); } catch {}
+  }, [quakesOpen]);
   // Geofence / Tile Intelligence tool toggle
   const [geofenceOpen, setGeofenceOpen] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").geofenceOpen === true; } catch { return false; }
@@ -6536,6 +6546,22 @@ function SpaceshipPage({
                     <Brain className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Intel</span>
                   </button>
+                  {/* USGS Earthquakes — full search dataset on Earth */}
+                  {isEarthWorld && (
+                    <button
+                      onClick={() => setQuakesOpen((v) => !v)}
+                      aria-pressed={quakesOpen}
+                      title="USGS Earthquake Search — magnitude, date, region"
+                      className={`shrink-0 h-7 px-2 rounded-md flex items-center gap-1 border font-bold text-[10px] tracking-widest uppercase transition-all ${
+                        quakesOpen
+                          ? "bg-red-500/25 border-red-300 text-red-100 shadow-[0_0_14px_rgba(248,113,113,0.55)]"
+                          : "bg-white/[0.04] border-white/20 text-white/80 hover:text-white hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Quakes</span>
+                    </button>
+                  )}
                   {/* Geofence / Tile Intelligence tool */}
                   <button
                     onClick={() => setGeofenceOpen((v) => !v)}
@@ -6588,6 +6614,10 @@ function SpaceshipPage({
 
           {isEarthWorld && earthIntelOpen && (
             <EarthIntelligenceBar viewerRef={viewerRef} onClose={() => setEarthIntelOpen(false)} />
+          )}
+
+          {isEarthWorld && quakesOpen && (
+            <USGSEarthquakesPanel viewerRef={viewerRef} onClose={() => setQuakesOpen(false)} />
           )}
 
           {geofenceOpen && (
