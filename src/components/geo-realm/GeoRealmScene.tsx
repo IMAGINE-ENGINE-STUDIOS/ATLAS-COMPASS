@@ -12,7 +12,7 @@ import {
   type GeoFeatureCollection,
 } from "@/lib/geoRealm/dataSources";
 import type { CanonicalDataset } from "@/lib/geoRealm/types";
-import VolumetricPlates from "./VolumetricPlates";
+import VolumetricPlates, { type SelectedPlate } from "./VolumetricPlates";
 
 /** Radius of the Earth shell in scene units. */
 const R = 1;
@@ -237,6 +237,8 @@ export interface GeoRealmSceneProps {
   showVolumetricPlates?: boolean;
   showPlateMotion?: boolean;
   plateThicknessKm?: number;
+  selectedPlateCode?: string | null;
+  onSelectPlate?: (p: SelectedPlate | null) => void;
   onCamera?: (info: { alt: number; lat: number; lon: number }) => void;
 }
 
@@ -248,6 +250,8 @@ export default function GeoRealmScene({
   showVolumetricPlates = false,
   showPlateMotion = true,
   plateThicknessKm = 100,
+  selectedPlateCode = null,
+  onSelectPlate,
   onCamera,
 }: GeoRealmSceneProps) {
   const active = CANONICAL_DATASETS.filter((d) => activeCanonical.includes(d.id));
@@ -277,6 +281,8 @@ export default function GeoRealmScene({
         radius={R}
         thicknessKm={plateThicknessKm}
         showMotion={showPlateMotion}
+        selectedCode={selectedPlateCode}
+        onSelect={onSelectPlate}
       />
 
       <OrbitControls
