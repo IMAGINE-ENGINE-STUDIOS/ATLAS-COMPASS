@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Plus, Trash2, Save, Loader2, Globe2, Lock, Tag as TagIcon } from "lucide-react";
+import { X, Plus, Trash2, Save, Loader2, Globe2, Lock, Tag as TagIcon, Link2 } from "lucide-react";
 import {
   INDICATOR_PRESETS,
   fetchTileCard,
@@ -303,14 +303,33 @@ export default function TileCard({
               {isPublic ? <Globe2 className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
               {isPublic ? "Public" : "Private"}
             </button>
-            <button
-              onClick={save}
-              disabled={saving}
-              className="flex items-center gap-1.5 rounded-md border border-violet-400/40 bg-violet-500/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-violet-100 hover:bg-violet-500/30 disabled:opacity-40"
-            >
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-              {record ? "Update" : "Save"}
-            </button>
+            <div className="flex items-center gap-1.5">
+              {record && isPublic && (
+                <button
+                  onClick={async () => {
+                    const url = `${window.location.origin}/tile/${record.id}`;
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      toast.success("Public link copied");
+                    } catch {
+                      toast.message(url);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-1 text-[10px] uppercase tracking-widest text-cyan-100 hover:bg-cyan-500/25"
+                  title="Copy public link"
+                >
+                  <Link2 className="h-3 w-3" /> Copy link
+                </button>
+              )}
+              <button
+                onClick={save}
+                disabled={saving}
+                className="flex items-center gap-1.5 rounded-md border border-violet-400/40 bg-violet-500/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-violet-100 hover:bg-violet-500/30 disabled:opacity-40"
+              >
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                {record ? "Update" : "Save"}
+              </button>
+            </div>
           </div>
           {record && (
             <div className="border-t border-white/5 px-3 py-1 text-center text-[9px] text-white/30">
