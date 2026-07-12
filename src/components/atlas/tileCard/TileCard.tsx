@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Plus, Trash2, Save, Loader2, Globe2, Lock, Tag as TagIcon, Link2 } from "lucide-react";
+import { X, Plus, Trash2, Save, Loader2, Globe2, Lock, Tag as TagIcon, Link2, ExternalLink } from "lucide-react";
 import {
   INDICATOR_PRESETS,
+  TOMOGRAPHY_MODELS,
   fetchTileCard,
   upsertTileCard,
   type TileCardRecord,
   type TileIndicator,
   type TileIndicatorKind,
+  type TomographyModel,
 } from "@/lib/tileCards";
 import { toast } from "sonner";
 
@@ -76,6 +78,31 @@ export default function TileCard({
     setIndicators((cur) => [
       ...cur,
       { id, kind: preset.kind, label: preset.label, color: preset.color, source: preset.source, unit: preset.unit },
+    ]);
+    setPickerOpen(false);
+  }
+
+  function addTomographyModel(model: TomographyModel) {
+    const id = `tomography-${model.id}-${Date.now().toString(36)}`;
+    setIndicators((cur) => [
+      ...cur,
+      {
+        id,
+        kind: "tomography",
+        label: `${model.name} · ${model.hub}`,
+        color: model.color,
+        source: `${model.authors} (${model.year}) — ${model.reference}`,
+        url: model.landingUrl,
+        unit: "δVs %",
+        meta: {
+          hub: model.hub,
+          modelId: model.id,
+          parameter: model.parameter,
+          depthRangeKm: model.depthRangeKm,
+          parameterization: model.parameterization,
+          thumbUrl: model.thumbUrl,
+        },
+      },
     ]);
     setPickerOpen(false);
   }
@@ -177,9 +204,9 @@ export default function TileCard({
 
             {pickerOpen && (
               <div className="mb-2 grid grid-cols-1 gap-1 rounded-lg border border-white/10 bg-black/60 p-1.5">
-                {INDICATOR_PRESETS.map((p) => (
+                {INDICATOR_PRESETS.map((p, i) => (
                   <button
-                    key={p.kind}
+                    key={`${p.kind}-${i}`}
                     onClick={() => addIndicator(p)}
                     className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-white/85 hover:bg-white/5"
                   >
@@ -195,6 +222,22 @@ export default function TileCard({
                     )}
                   </button>
                 ))}
+
+                {/* Real tomography model catalog with thumbnails + metadata */}
+                <div className="mt-1.5 border-t border-white/10 pt-1.5">
+                  <div className="px-1.5 pb-1 text-[9px] uppercase tracking-[0.28em] text-white/40">
+                    Tomography models · real data
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {TOMOGRAPHY_MODELS.map((m) => (
+                      <TomographyModelRow
+                        key={m.id}
+                        model={m}
+                        onAdd={() => addTomographyModel(m)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -347,6 +390,72 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded border border-white/5 bg-black/40 px-2 py-1">
       <div className="text-[8px] uppercase tracking-widest text-white/40">{label}</div>
       <div className="font-mono text-[11px] tabular-nums text-white/90">{value}</div>
+    </div>
+  );
+}
+
+function TomographyModelRow({
+  model,
+  onAdd,
+}: {
+  model: TomographyModel;
+  onAdd: () => void;
+}) {
+  const [imgOk, setImgOk] = useState(true);
+  return (
+    <div
+      className="group flex gap-2 rounded-md border border-white/5 bg-white/[0.02] p-1.5 transition hover:border-white/20 hover:bg-white/[0.05]"
+      style={{ borderLeftColor: model.color, borderLeftWidth: 3 }}
+    >
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex flex-1 items-start gap-2 text-left"
+        title={`Add ${model.name} indicator`}
+      >
+        <div
+          className="relative h-12 w-16 flex-shrink-0 overflow-hidden rounded border border-white/10 bg-black/60"
+          style={{ background: imgOk ? "#000" : `linear-gradient(135deg, ${model.color}55, #0000)` }}
+        >
+          {imgOk ? (
+            <img
+              src={model.thumbUrl}
+              alt={`${model.name} preview slice`}
+              loading="lazy"
+              onError={() => setImgOk(false)}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[8px] uppercase tracking-widest text-white/50">
+              {model.hub}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[11px] font-semibold text-white">{model.name}</span>
+            <span className="rounded border border-white/10 bg-black/40 px-1 py-[1px] text-[8px] uppercase tracking-widest text-white/50">
+              {model.hub}
+            </span>
+          </div>
+          <div className="mt-0.5 truncate text-[9px] text-white/50">{model.parameter}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[9px] tabular-nums text-white/40">
+            <span>{model.depthRangeKm[0]}–{model.depthRangeKm[1]} km</span>
+            <span className="text-white/25">·</span>
+            <span>{model.authors.split(",")[0]} {model.year}</span>
+          </div>
+        </div>
+      </button>
+      <a
+        href={model.landingUrl}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="flex flex-shrink-0 items-center rounded p-1 text-white/40 hover:bg-white/10 hover:text-white"
+        title={`Open ${model.name} on ${model.hub}`}
+      >
+        <ExternalLink className="h-3 w-3" />
+      </a>
     </div>
   );
 }
