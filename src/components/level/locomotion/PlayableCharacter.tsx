@@ -13,6 +13,7 @@ import {
   characterRegistry,
   splineDrivenIds,
   mobileAxes,
+  mobileLook,
 } from "./locomotionState";
 
 /* ----------------------------- input -------------------------------- */
@@ -490,6 +491,15 @@ export default function PlayableCharacter({
   useFrame((_, rawDt) => {
     if (!enabled || !rootRef.current) return;
     const dt = Math.min(0.05, rawDt); // clamp to keep physics stable
+    // Drain accumulated touch-look deltas into camOrbit (same math as the
+    // desktop mousemove handler, just sourced from MobileTouchControls).
+    if (mobileLook.dx !== 0 || mobileLook.dy !== 0) {
+      camOrbit.current.yaw += mobileLook.dx * 0.0025;
+      camOrbit.current.pitch -= mobileLook.dy * 0.0025;
+      camOrbit.current.pitch = Math.max(-1.2, Math.min(1.2, camOrbit.current.pitch));
+      mobileLook.dx = 0;
+      mobileLook.dy = 0;
+    }
     const root = rootRef.current;
     const toWorldPoint = (local: THREE.Vector3) => root.parent ? root.parent.localToWorld(local.clone()) : local.clone();
     const toLocalPoint = (world: THREE.Vector3) => root.parent ? root.parent.worldToLocal(world.clone()) : world.clone();
