@@ -679,6 +679,9 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       <div className="px-3 py-1.5 border-t border-white/10 text-[10px] text-white/40">
         Source: {SOURCE_LABELS[source]} · FDSNWS event API {liveMode ? "· live" : ""}
       </div>
-    </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
