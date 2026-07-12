@@ -32,6 +32,7 @@ import AtlasTagsOverlay, { type AtlasTag } from "@/components/atlas/AtlasTagsOve
 import GoogleAttributionPill from "@/components/atlas/GoogleAttributionPill";
 import Google3DController from "@/components/atlas/Google3DController";
 import EarthIntelligenceBar from "@/components/atlas/EarthIntelligenceBar";
+import USGSEarthquakesPanel from "@/components/atlas/USGSEarthquakesPanel";
 import GeofenceToolPanel from "@/components/atlas/GeofenceToolPanel";
 import MeasureToolPanel from "@/components/atlas/MeasureToolPanel";
 import TileIntelligencePanel from "@/components/atlas/tileIntel/TileIntelligencePanel";
