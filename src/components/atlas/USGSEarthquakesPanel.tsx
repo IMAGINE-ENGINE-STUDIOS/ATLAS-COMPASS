@@ -24,17 +24,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, Loader2, MapPin, ExternalLink, Crosshair, Download, Radio, History, ChevronDown, ChevronUp, Activity } from "lucide-react";
 import {
-  Cartesian3,
-  Cartographic,
   Color,
-  HeightReference,
-  NearFarScalar,
   Rectangle,
   Math as CesiumMath,
   type Viewer,
-  type Entity,
 } from "cesium";
 import { supabase } from "@/integrations/supabase/client";
+import QuakeTagsOverlay, { type QuakeTag } from "./QuakeTagsOverlay";
+import QuakeReportModal from "./QuakeReportModal";
 
 interface Props {
   viewerRef: React.MutableRefObject<Viewer | null>;
@@ -161,19 +158,12 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [features, setFeatures] = useState<QuakeFeature[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reportQuake, setReportQuake] = useState<QuakeTag | null>(null);
 
-  const entitiesRef = useRef<Entity[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-
-  const clearEntities = useCallback(() => {
-    const viewer = viewerRef.current;
-    if (viewer && !viewer.isDestroyed()) {
-      for (const e of entitiesRef.current) {
-        try { viewer.entities.remove(e); } catch { /* noop */ }
-      }
-    }
-    entitiesRef.current = [];
-  }, [viewerRef]);
+  // Kept as a no-op so existing effect cleanups stay unchanged; tag rendering
+  // is now handled by the React overlay, which unmounts on its own.
+  const clearEntities = useCallback(() => {}, []);
 
   const runSearch = useCallback(async () => {
     setLoading(true);
@@ -218,41 +208,6 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
         (f: any) => f?.geometry?.coordinates?.length === 3,
       );
       setFeatures(feats);
-
-      // Re-render entities on the globe.
-      clearEntities();
-      const viewer = viewerRef.current;
-      if (viewer && !viewer.isDestroyed()) {
-        for (const f of feats) {
-          const [lon, lat, depthKm] = f.geometry.coordinates;
-          const mag = f.properties.mag ?? 0;
-          const entity = viewer.entities.add({
-            id: `usgs-quake-${f.id}`,
-            name: f.properties.title || `M ${mag} — ${f.properties.place ?? ""}`,
-            position: Cartesian3.fromDegrees(lon, lat, 0),
-            point: {
-              pixelSize: magPixelSize(mag),
-              color: magColor(mag).withAlpha(0.92),
-              outlineColor: Color.WHITE.withAlpha(0.9),
-              outlineWidth: 1.2,
-              heightReference: HeightReference.CLAMP_TO_GROUND,
-              scaleByDistance: new NearFarScalar(1.5e5, 1.6, 1.5e8, 0.55),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-            description: `
-              <div style="font-family:ui-sans-serif,system-ui;color:#e5e7eb;line-height:1.4">
-                <div style="font-size:16px;font-weight:600;margin-bottom:4px">M ${mag?.toFixed?.(1) ?? mag} — ${f.properties.place ?? ""}</div>
-                <div style="font-size:12px;color:#a1a1aa">${formatTime(f.properties.time)}</div>
-                <div style="font-size:12px;margin-top:6px">Depth: <b>${depthKm?.toFixed?.(1) ?? depthKm} km</b></div>
-                ${f.properties.tsunami ? '<div style="color:#f87171;margin-top:6px">⚠ Tsunami flag</div>' : ""}
-                <div style="margin-top:10px"><a href="${f.properties.url}" target="_blank" rel="noopener" style="color:#38bdf8">USGS event page ↗</a></div>
-              </div>
-            `,
-          });
-          entitiesRef.current.push(entity);
-        }
-        viewer.scene.requestRender?.();
-      }
     } catch (e) {
       if ((e as any)?.name === "AbortError") return;
       setError(String((e as Error).message ?? e));
@@ -273,9 +228,37 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
         destination: rect,
         duration: 1.2,
       });
-      const ent = viewer.entities.getById(`usgs-quake-${f.id}`);
-      if (ent) viewer.selectedEntity = ent;
     } catch { /* noop */ }
+  }, [viewerRef]);
+
+  // Convert the raw FDSNWS features into the compact tag shape the
+  // overlay + modal expect. Memoized so identity is stable across renders.
+  const tags = useMemo<QuakeTag[]>(() => features.map((f) => {
+    const [lng, lat, depth] = f.geometry.coordinates;
+    return {
+      id: f.id,
+      mag: f.properties.mag ?? 0,
+      place: f.properties.place ?? "",
+      time: f.properties.time,
+      lat, lng, depthKm: depth,
+      tsunami: f.properties.tsunami ?? 0,
+      url: f.properties.url,
+      alert: f.properties.alert ?? null,
+    };
+  }), [features]);
+
+  const openReport = useCallback((q: QuakeTag) => {
+    setSelectedId(q.id);
+    setReportQuake(q);
+    const viewer = viewerRef.current;
+    if (viewer && !viewer.isDestroyed()) {
+      try {
+        viewer.camera.flyTo({
+          destination: Rectangle.fromDegrees(q.lng - 1.5, q.lat - 1.5, q.lng + 1.5, q.lat + 1.5),
+          duration: 1.0,
+        });
+      } catch { /* noop */ }
+    }
   }, [viewerRef]);
 
   // Auto-run once on mount so the panel is immediately useful.
@@ -356,6 +339,19 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
 
   return (
     <>
+      <QuakeTagsOverlay
+        viewer={viewerRef.current}
+        quakes={tags}
+        selectedId={selectedId}
+        onSelect={openReport}
+      />
+      {reportQuake && (
+        <QuakeReportModal
+          quake={reportQuake}
+          source={source}
+          onClose={() => setReportQuake(null)}
+        />
+      )}
       {/* Compact floating legend chip — always visible so users can decode
           the map dots even when the full panel is collapsed. Docks above
           the mobile toolbar and stays out of the way on desktop. */}
