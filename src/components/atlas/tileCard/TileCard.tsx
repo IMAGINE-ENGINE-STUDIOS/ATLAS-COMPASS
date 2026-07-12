@@ -393,3 +393,69 @@ function Stat({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function TomographyModelRow({
+  model,
+  onAdd,
+}: {
+  model: TomographyModel;
+  onAdd: () => void;
+}) {
+  const [imgOk, setImgOk] = useState(true);
+  return (
+    <div
+      className="group flex gap-2 rounded-md border border-white/5 bg-white/[0.02] p-1.5 transition hover:border-white/20 hover:bg-white/[0.05]"
+      style={{ borderLeftColor: model.color, borderLeftWidth: 3 }}
+    >
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex flex-1 items-start gap-2 text-left"
+        title={`Add ${model.name} indicator`}
+      >
+        <div
+          className="relative h-12 w-16 flex-shrink-0 overflow-hidden rounded border border-white/10 bg-black/60"
+          style={{ background: imgOk ? "#000" : `linear-gradient(135deg, ${model.color}55, #0000)` }}
+        >
+          {imgOk ? (
+            <img
+              src={model.thumbUrl}
+              alt={`${model.name} preview slice`}
+              loading="lazy"
+              onError={() => setImgOk(false)}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[8px] uppercase tracking-widest text-white/50">
+              {model.hub}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[11px] font-semibold text-white">{model.name}</span>
+            <span className="rounded border border-white/10 bg-black/40 px-1 py-[1px] text-[8px] uppercase tracking-widest text-white/50">
+              {model.hub}
+            </span>
+          </div>
+          <div className="mt-0.5 truncate text-[9px] text-white/50">{model.parameter}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[9px] tabular-nums text-white/40">
+            <span>{model.depthRangeKm[0]}–{model.depthRangeKm[1]} km</span>
+            <span className="text-white/25">·</span>
+            <span>{model.authors.split(",")[0]} {model.year}</span>
+          </div>
+        </div>
+      </button>
+      <a
+        href={model.landingUrl}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="flex flex-shrink-0 items-center rounded p-1 text-white/40 hover:bg-white/10 hover:text-white"
+        title={`Open ${model.name} on ${model.hub}`}
+      >
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    </div>
+  );
+}
