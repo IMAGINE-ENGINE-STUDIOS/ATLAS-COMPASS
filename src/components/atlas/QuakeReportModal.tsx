@@ -427,8 +427,11 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setReport(String(data?.report ?? ""));
+      const md = String(data?.report ?? "");
+      setReport(md);
       setChat([]);
+      saveVersion(md, "Generated from template");
+      setPreviewMode("ai");
     } catch (e) {
       setReportError((e as Error).message || "Failed to generate report.");
     } finally {
@@ -463,6 +466,8 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
       const newReport = String(data?.report ?? "");
       setReport(newReport);
       setChat([...nextChat, { role: "assistant", content: "Report updated." }]);
+      saveVersion(newReport, `Refine: ${instruction.slice(0, 60)}`);
+      setPreviewMode("ai");
     } catch (e) {
       setReportError((e as Error).message || "Refinement failed.");
     } finally {
