@@ -476,7 +476,7 @@ Event page: ${quake.url}
         <div className="flex items-center gap-1 px-3 pt-2 border-b border-white/10">
           {([
             ["summary", "Summary", Gauge],
-            ["geotech", "Geotechnical", Layers],
+            ["geotech", "AI Report", Sparkles],
             ["ledger",  `Replicas${after.length ? " · " + after.length : ""}`, Waves],
             ["phases",  "Phase data", Activity],
           ] as const).map(([id, label, Icon]) => (
