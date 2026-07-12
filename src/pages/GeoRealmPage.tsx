@@ -14,6 +14,7 @@ export default function GeoRealmPage() {
   const [cam, setCam] = useState<{ alt: number; lat: number; lon: number }>({ alt: 1.6, lat: 0, lon: 0 });
   const [bundles, setBundles] = useState<GeoRealmBundle[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [mobileSheet, setMobileSheet] = useState<null | "layers" | "compiler">(null);
 
   useEffect(() => {
     let cancel = false;
@@ -46,26 +47,128 @@ export default function GeoRealmPage() {
       />
 
       {/* Top rail */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4">
-        <div className="pointer-events-auto rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3 sm:p-4">
+        <div className="pointer-events-auto rounded-2xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-xl sm:px-4 sm:py-2.5">
           <div className="flex items-center gap-3">
             <span className="h-2 w-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(255,140,66,0.8)]" />
             <div>
-              <div className="text-[10px] uppercase tracking-[0.32em] text-white/45">Geo Realm</div>
-              <div className="text-sm font-semibold tracking-wide">Subsurface Compiler · M1</div>
+              <div className="text-[9px] uppercase tracking-[0.28em] text-white/45 sm:text-[10px] sm:tracking-[0.32em]">Geo Realm</div>
+              <div className="text-xs font-semibold tracking-wide sm:text-sm">Subsurface Compiler · M1</div>
             </div>
           </div>
         </div>
         <Link
           to="/atlas"
-          className="pointer-events-auto rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[11px] uppercase tracking-[0.28em] text-white/80 backdrop-blur-xl hover:bg-white/10"
+          className="pointer-events-auto rounded-full border border-white/10 bg-black/40 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/80 backdrop-blur-xl hover:bg-white/10 sm:px-4 sm:text-[11px] sm:tracking-[0.28em]"
         >
-          ← Return to Atlas
+          <span className="sm:hidden">← Atlas</span>
+          <span className="hidden sm:inline">← Return to Atlas</span>
         </Link>
       </div>
 
-      {/* Left rail — layers + library */}
-      <div className="pointer-events-auto absolute left-4 top-24 bottom-16 w-72 overflow-y-auto rounded-2xl border border-white/10 bg-black/45 p-4 backdrop-blur-2xl">
+      {/* Left rail — layers + library (desktop) */}
+      <div className="pointer-events-auto absolute left-4 top-24 bottom-16 hidden w-72 overflow-y-auto rounded-2xl border border-white/10 bg-black/45 p-4 backdrop-blur-2xl lg:block">
+        <LayersPanel
+          active={active}
+          toggle={toggle}
+          showCrust={showCrust}
+          setShowCrust={setShowCrust}
+          showSurface={showSurface}
+          setShowSurface={setShowSurface}
+          hypo={hypo}
+          setHypo={setHypo}
+          bundles={bundles}
+        />
+      </div>
+
+      {/* Right rail — compiler (desktop) */}
+      <div className="pointer-events-auto absolute right-4 top-24 bottom-16 hidden w-80 overflow-y-auto rounded-2xl border border-white/10 bg-black/45 p-4 backdrop-blur-2xl lg:block">
+        <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
+      </div>
+
+      {/* Mobile bottom sheet */}
+      {mobileSheet && (
+        <div
+          className="absolute inset-0 z-40 flex items-end bg-black/40 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileSheet(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="pointer-events-auto max-h-[78vh] w-full overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#04070f]/95 p-4 backdrop-blur-2xl"
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" />
+            {mobileSheet === "layers" ? (
+              <LayersPanel
+                active={active}
+                toggle={toggle}
+                showCrust={showCrust}
+                setShowCrust={setShowCrust}
+                showSurface={showSurface}
+                setShowSurface={setShowSurface}
+                hypo={hypo}
+                setHypo={setHypo}
+                bundles={bundles}
+              />
+            ) : (
+              <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile action bar */}
+      <div className="pointer-events-auto absolute inset-x-0 bottom-16 z-30 flex items-center justify-center gap-2 px-3 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileSheet("layers")}
+          className="flex-1 rounded-full border border-white/10 bg-black/60 px-4 py-2.5 text-[11px] uppercase tracking-[0.22em] text-white/85 backdrop-blur-xl active:bg-white/10"
+        >
+          Layers
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileSheet("compiler")}
+          className="flex-1 rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2.5 text-[11px] uppercase tracking-[0.22em] text-orange-100 backdrop-blur-xl active:bg-orange-400/20"
+        >
+          Compiler
+        </button>
+      </div>
+
+      {/* Bottom HUD */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center p-2 sm:p-4">
+        <div className="pointer-events-auto flex max-w-full items-center gap-3 overflow-x-auto rounded-full border border-white/10 bg-black/50 px-4 py-1.5 text-[10px] tabular-nums text-white/75 backdrop-blur-xl sm:gap-6 sm:px-5 sm:py-2 sm:text-[11px]">
+          <span className="whitespace-nowrap">
+            <span className="text-white/40">LAT</span> {cam.lat.toFixed(2)}°
+          </span>
+          <span className="whitespace-nowrap">
+            <span className="text-white/40">LON</span> {cam.lon.toFixed(2)}°
+          </span>
+          <span className="whitespace-nowrap">
+            <span className="text-white/40">ALT</span> {(cam.alt * 6371).toFixed(0)} km
+          </span>
+          <span className="hidden text-white/40 sm:inline">·</span>
+          <span className="hidden whitespace-nowrap sm:inline">{active.length} layers active</span>
+          {hypo ? <><span className="hidden text-white/40 sm:inline">·</span><span className="hidden whitespace-nowrap sm:inline">hypocenter feed on</span></> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LayersPanel(props: {
+  active: string[];
+  toggle: (id: string) => void;
+  showCrust: boolean;
+  setShowCrust: (v: boolean) => void;
+  showSurface: boolean;
+  setShowSurface: (v: boolean) => void;
+  hypo: string | null;
+  setHypo: (v: string | null) => void;
+  bundles: GeoRealmBundle[];
+}) {
+  const { active, toggle, showCrust, setShowCrust, showSurface, setShowSurface, hypo, setHypo, bundles } = props;
+  return (
+    <>
         <div className="mb-3 text-[10px] uppercase tracking-[0.28em] text-white/45">Canonical layers</div>
         <div className="flex flex-col gap-1.5">
           {CANONICAL_DATASETS.map((d) => {
@@ -190,30 +293,6 @@ export default function GeoRealmPage() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Right rail — compiler */}
-      <div className="pointer-events-auto absolute right-4 top-24 bottom-16 w-80 overflow-y-auto rounded-2xl border border-white/10 bg-black/45 p-4 backdrop-blur-2xl">
-        <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
-      </div>
-
-      {/* Bottom HUD */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center p-4">
-        <div className="pointer-events-auto flex items-center gap-6 rounded-full border border-white/10 bg-black/50 px-5 py-2 text-[11px] tabular-nums text-white/75 backdrop-blur-xl">
-          <span>
-            <span className="text-white/40">LAT</span> {cam.lat.toFixed(2)}°
-          </span>
-          <span>
-            <span className="text-white/40">LON</span> {cam.lon.toFixed(2)}°
-          </span>
-          <span>
-            <span className="text-white/40">ALT</span> {(cam.alt * 6371).toFixed(0)} km
-          </span>
-          <span className="text-white/40">·</span>
-          <span>{active.length} layers active</span>
-          {hypo ? <><span className="text-white/40">·</span><span>hypocenter feed on</span></> : null}
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
