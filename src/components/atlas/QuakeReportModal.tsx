@@ -531,39 +531,147 @@ Event page: ${quake.url}
 
           {tab === "geotech" && (
             <div className="space-y-3 text-[13px] leading-relaxed">
-              <Section title="1. Site & tectonic setting">
-                Epicentral coordinates {quake.lat.toFixed(4)}°, {quake.lng.toFixed(4)}°, focal depth {quake.depthKm?.toFixed?.(1)} km ({dc.label}).
-                Cross-reference the regional plate boundary and active-fault map to identify the causative structure and expected rupture mechanism.
-              </Section>
-              <Section title="2. Ground motion characterization">
-                Instrumental shaking intensity {romanMMI(mmi)} ({mmiLabel(mmi)}). Community-reported intensity {romanMMI(cdi)} across {felt ?? 0} felt reports.
-                Extract peak ground acceleration (PGA), peak ground velocity (PGV) and 5%-damped spectral accelerations from the ShakeMap grid for site-specific analysis.
-              </Section>
-              <Section title="3. Liquefaction potential">
-                Screen for saturated cohesionless soils within 15 m of surface. Trigger threshold PGA ≈ 0.10 g. Apply Youd & Idriss (2001) simplified procedure with site-specific SPT/CPT data
-                and confirm groundwater table depth.
-              </Section>
-              <Section title="4. Slope stability & landslide hazard">
-                Slopes &gt; 15° within areas experiencing PGA ≥ 0.05 g require Newmark sliding-block analysis. Prioritise cut slopes, unengineered fills and reservoir rims.
-              </Section>
-              <Section title="5. Foundation & structural implications">
-                Shallow foundations: recheck bearing capacity with seismic reduction factors. Deep foundations: evaluate kinematic bending and lateral spreading demand on piles.
-                Retaining structures: apply Mononobe–Okabe seismic earth pressure.
-              </Section>
-              <Section title="6. Surface rupture assessment">
-                {mag >= 6.5 && quake.depthKm < 15
-                  ? "Magnitude and shallow depth indicate credible potential for surface rupture — reconnaissance recommended along mapped fault trace."
-                  : "Combination of magnitude and depth makes surface rupture unlikely; screening only."}
-              </Section>
-              <Section title="7. Recommendations">
-                Update local hazard model with the moment tensor once released. Deploy portable strong-motion units if aftershock sequence remains active
-                {strongestAfter ? ` (largest replica to date M${(strongestAfter.mag ?? 0).toFixed(1)})` : ""}. Re-run consequence models for critical infrastructure within the ${dc.label.toLowerCase()}-source PGA contour.
-              </Section>
+              {/* Engineering parameters — feed the AI generator */}
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-widest text-white/60 flex items-center gap-1">
+                  <Layers className="w-3 h-3" /> Report parameters
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <ParamSelect label="Site class (NEHRP)" value={params.siteClass}
+                    onChange={(v) => setParams((p) => ({ ...p, siteClass: v }))}
+                    options={["A","B","C","D","E","Unknown"]} />
+                  <ParamInput label="Groundwater (m)" value={params.groundwaterM} type="number"
+                    onChange={(v) => setParams((p) => ({ ...p, groundwaterM: v }))} placeholder="e.g. 3" />
+                  <ParamInput label="Structure type" value={params.structureType}
+                    onChange={(v) => setParams((p) => ({ ...p, structureType: v }))} placeholder="e.g. Steel MRF" />
+                  <ParamInput label="Exposure / use" value={params.exposureUse}
+                    onChange={(v) => setParams((p) => ({ ...p, exposureUse: v }))} placeholder="Occupancy IV, hospital…" />
+                  <ParamSelect label="Audience" value={params.targetAudience}
+                    onChange={(v) => setParams((p) => ({ ...p, targetAudience: v }))}
+                    options={["engineer","responder","public","insurer","government"]} />
+                  <ParamSelect label="Units" value={params.units}
+                    onChange={(v) => setParams((p) => ({ ...p, units: v as "SI" | "US" }))}
+                    options={["SI","US"]} />
+                </div>
+                <textarea
+                  value={params.extraNotes}
+                  onChange={(e) => setParams((p) => ({ ...p, extraNotes: e.target.value }))}
+                  placeholder="Extra context or constraints (optional)…"
+                  className="w-full bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] resize-none"
+                  rows={2}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={generate}
+                    disabled={generating}
+                    className="flex-1 h-8 px-3 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[11px] font-bold uppercase tracking-widest hover:bg-sky-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {generating
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
+                      : report
+                        ? <><RefreshCw className="w-3.5 h-3.5" /> Regenerate report</>
+                        : <><Sparkles className="w-3.5 h-3.5" /> Generate full report with AI</>}
+                  </button>
+                  {report && (
+                    <button
+                      onClick={() => {
+                        const blob = new Blob([report], { type: "text/markdown" });
+                        const u = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = u; a.download = `quake_report_${quake.id}.md`;
+                        document.body.appendChild(a); a.click(); a.remove();
+                        setTimeout(() => URL.revokeObjectURL(u), 1000);
+                      }}
+                      className="h-8 px-2 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10 flex items-center gap-1"
+                      title="Download the AI report as Markdown"
+                    >
+                      <Download className="w-3 h-3" /> .md
+                    </button>
+                  )}
+                </div>
+                {reportError && (
+                  <div className="text-[11px] text-red-300 bg-red-500/10 border border-red-400/30 rounded px-2 py-1">
+                    {reportError}
+                  </div>
+                )}
+              </div>
+
+              {/* Generated report — real markdown */}
+              {report ? (
+                <div className="rounded-lg border border-white/10 bg-black/40 p-3 max-h-[46vh] overflow-y-auto">
+                  <div className="prose prose-invert prose-sm max-w-none prose-headings:text-red-200 prose-headings:font-bold prose-h2:text-[13px] prose-h2:uppercase prose-h2:tracking-widest prose-h2:mt-3 prose-h2:mb-1 prose-p:text-white/85 prose-li:text-white/85 prose-strong:text-white">
+                    <ReactMarkdown>{report}</ReactMarkdown>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[11px] text-white/50 border border-dashed border-white/10 rounded-lg p-4 text-center">
+                  No report yet. Set the parameters above and click <b>Generate</b> — the AI agent will author a full geotechnical / seismic report from this event's real data.
+                </div>
+              )}
+
+              {/* AI chat refinement */}
+              {report && (
+                <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-2">
+                  <div className="text-[10px] uppercase tracking-widest text-white/60 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> Customize with AI
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      "Make it shorter (executive brief)",
+                      "Rewrite for the public",
+                      "Add a dedicated tsunami section",
+                      "Translate to Spanish",
+                      "Add lifeline/utilities impact detail",
+                      "Focus on insurance loss estimation",
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => void sendChat(preset)}
+                        disabled={chatSending}
+                        className="px-2 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.04] hover:bg-white/10 disabled:opacity-40"
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  {chat.length > 0 && (
+                    <div className="max-h-32 overflow-y-auto space-y-1 border border-white/[0.06] rounded p-2 bg-black/30">
+                      {chat.map((m, i) => (
+                        <div key={i} className={`text-[11px] ${m.role === "user" ? "text-sky-200" : "text-white/60"}`}>
+                          <b>{m.role === "user" ? "You" : "AI"}:</b> {m.content}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); void sendChat(); }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Ask the AI to change the report…"
+                      disabled={chatSending}
+                      className="flex-1 bg-white/[0.05] border border-white/10 rounded px-2 py-1.5 text-xs"
+                    />
+                    <button
+                      type="submit"
+                      disabled={chatSending || !chatInput.trim()}
+                      className="h-8 px-2 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[11px] hover:bg-sky-500/30 disabled:opacity-40 flex items-center gap-1"
+                    >
+                      {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Static template export fallback — still available */}
               <button
                 onClick={exportReportMd}
-                className="mt-2 inline-flex items-center gap-1.5 px-3 h-8 rounded-md bg-white/[0.06] border border-white/15 text-[11px] uppercase tracking-widest hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md bg-white/[0.04] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10"
+                title="Export the deterministic template report (no AI)"
               >
-                <FileText className="w-3.5 h-3.5" /> Export full report (.md)
+                <FileText className="w-3 h-3" /> Export template only (.md)
               </button>
             </div>
           )}
