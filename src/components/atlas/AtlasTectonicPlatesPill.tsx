@@ -38,8 +38,11 @@ const BOUNDARIES_URL =
 
 // Altitude of the plate shell in metres. High enough to sit above every
 // natural feature (Everest ≈ 8.85 km) and above Google's 3D tile geometry.
-const PLATE_ALT_M = 60_000;
-const BOUNDARY_ALT_M = 62_000;
+// The shell is also given a small extruded thickness so it reads as a
+// coloured slab from every camera distance.
+const PLATE_ALT_M = 20_000;
+const PLATE_EXTRUDE_M = 80_000;
+const BOUNDARY_ALT_M = 90_000;
 
 // Deterministic color per plate code (Bird 2003 short codes).
 const PLATE_COLORS: Record<string, string> = {
@@ -82,11 +85,12 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
       props?.Code?.getValue?.() ?? props?.PlateName?.getValue?.();
     if (entity.polygon) {
       const poly: any = entity.polygon;
-      poly.material = new ColorMaterialProperty(plateColor(code, 0.42));
+      poly.material = new ColorMaterialProperty(plateColor(code, 0.55));
       poly.height = new ConstantProperty(PLATE_ALT_M);
+      poly.extrudedHeight = new ConstantProperty(PLATE_EXTRUDE_M);
       poly.outline = new ConstantProperty(false);
       poly.perPositionHeight = new ConstantProperty(false);
-      poly.arcType = new ConstantProperty(1); // ArcType.GEODESIC — hug the ellipsoid
+      poly.arcType = new ConstantProperty(1); // ArcType.GEODESIC
     }
   }
   viewer.dataSources.add(plates);
