@@ -53,6 +53,63 @@ export const CANONICAL_DATASETS: CanonicalDataset[] = [
 ];
 
 /**
+ * USGS earthquake catalog feeds. Rendered as a point cloud at real hypocenter
+ * depth, they naturally reveal Wadati-Benioff subduction slab geometry — the
+ * lightest-weight authentic "slab visualization" available at runtime.
+ */
+export const HYPOCENTER_FEEDS: {
+  id: string;
+  label: string;
+  url: string;
+  window: string;
+  color: string;
+}[] = [
+  {
+    id: "usgs_m45_month",
+    label: "USGS · M4.5+ past 30 days",
+    url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson",
+    window: "30 days",
+    color: "#ff6b3d",
+  },
+  {
+    id: "usgs_significant_month",
+    label: "USGS · Significant past 30 days",
+    url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.geojson",
+    window: "30 days",
+    color: "#ffd93d",
+  },
+];
+
+/**
+ * CRUST1.0 average-thickness reference (Laske, Masters, Ma, Pasyanos 2013).
+ * Used as label metadata on the concentric shells. Values are global means
+ * from the CRUST1.0 model; the shells are illustrative — swap for the full
+ * 1°×1° grid in a follow-up milestone.
+ */
+export const CRUST1_LAYERS = [
+  { id: "water", label: "Water", thickness_km: 3.7, color: "#4a90e2" },
+  { id: "ice", label: "Ice", thickness_km: 0.1, color: "#a8dfff" },
+  { id: "sediment", label: "Sediment", thickness_km: 2.0, color: "#c9a26b" },
+  { id: "upper_crust", label: "Upper crust", thickness_km: 12.1, color: "#8b6f47" },
+  { id: "middle_crust", label: "Middle crust", thickness_km: 8.5, color: "#6d5238" },
+  { id: "lower_crust", label: "Lower crust", thickness_km: 10.0, color: "#5c4530" },
+  { id: "moho", label: "Moho discontinuity", thickness_km: 0.0, color: "#ff2d55" },
+  { id: "upper_mantle", label: "Upper mantle (LID)", thickness_km: 60.0, color: "#c94f2b" },
+] as const;
+
+/** Convert (lon, lat, depth_km) to a scene-unit vector below the sphere. */
+export function lonLatDepthToUnit(
+  lon: number,
+  lat: number,
+  depthKm: number,
+  radius = 1,
+): [number, number, number] {
+  const earthRadiusKm = 6371;
+  const r = radius * (1 - Math.max(0, depthKm) / earthRadiusKm);
+  return lonLatToUnit(lon, lat, r);
+}
+
+/**
  * Convert geographic (lon, lat) in degrees to a unit-sphere point.
  * Z is up, matches R3F right-handed frame.
  */
