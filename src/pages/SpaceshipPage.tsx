@@ -7569,6 +7569,27 @@ function SpaceshipPage({
                           Clear
                         </button>
                       </div>
+                      {/* Per-tile widget opener */}
+                      <button
+                        disabled={selectedTiles.size === 0}
+                        title={selectedTiles.size > 1
+                          ? "Opens the tile card for the first selected tile"
+                          : "Open the tile card for the selected tile"}
+                        onClick={() => {
+                          const first = selectedTiles.values().next().value as string | undefined;
+                          if (!first) return;
+                          const { z, x, y } = parseTileKey(first);
+                          const b = tileBounds(x, y, z);
+                          setOpenTileCard({
+                            z, x, y,
+                            bounds: b,
+                            center: { lat: (b.north + b.south) / 2, lng: (b.east + b.west) / 2 },
+                          });
+                        }}
+                        className="mt-1.5 w-full px-2 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-widest bg-gradient-to-r from-violet-500/25 to-cyan-500/20 border border-violet-400/40 text-violet-100 hover:from-violet-500/35 hover:to-cyan-500/30 disabled:opacity-30"
+                      >
+                        Open Tile Card
+                      </button>
                       {tilesScanResults.length > 0 && (
                         <div className="max-h-32 overflow-y-auto space-y-0.5 mt-1.5">
                           {tilesScanResults.map((r, i) => (
