@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, Loader2, MapPin, ExternalLink, Crosshair, Download, Radio, History, ChevronDown, ChevronUp, Activity } from "lucide-react";
 import {
+  Color,
   Rectangle,
   Math as CesiumMath,
   type Viewer,
