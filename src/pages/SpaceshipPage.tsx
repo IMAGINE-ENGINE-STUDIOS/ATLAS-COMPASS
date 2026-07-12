@@ -6616,6 +6616,10 @@ function SpaceshipPage({
             <EarthIntelligenceBar viewerRef={viewerRef} onClose={() => setEarthIntelOpen(false)} />
           )}
 
+          {isEarthWorld && quakesOpen && (
+            <USGSEarthquakesPanel viewerRef={viewerRef} onClose={() => setQuakesOpen(false)} />
+          )}
+
           {geofenceOpen && (
             <GeofenceToolPanel viewerRef={viewerRef} onClose={() => setGeofenceOpen(false)} />
           )}
