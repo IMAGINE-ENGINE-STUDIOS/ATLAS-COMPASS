@@ -197,7 +197,10 @@ export function VolumetricPlates({
       {plates.map((p) => {
         const isSelected = selectedCode === p.code;
         const isHover = hoverCode === p.code;
-        const opacity = isSelected ? 0.75 : isHover ? 0.55 : 0.28;
+        const wallOpacity = isSelected ? 0.75 : isHover ? 0.55 : 0.28;
+        // Cap fill uses a stable opacity so overlapping meshes can't
+        // ping-pong the hover state and cause the fill to pulsate.
+        const fillOpacity = isSelected ? 0.42 : 0.18;
         const handlers = {
           onClick: (e: ThreeEvent<MouseEvent>) => {
             e.stopPropagation();
@@ -229,17 +232,17 @@ export function VolumetricPlates({
                 <meshBasicMaterial
                   color={p.colorObj}
                   transparent
-                  opacity={opacity * 0.55}
+                  opacity={fillOpacity}
                   side={THREE.DoubleSide}
                   depthWrite={false}
                 />
               </mesh>
             )}
-            <mesh geometry={p.walls} {...handlers}>
+            <mesh geometry={p.walls}>
               <meshBasicMaterial
                 color={p.colorObj}
                 transparent
-                opacity={opacity}
+                opacity={wallOpacity}
                 side={THREE.DoubleSide}
                 depthWrite={false}
               />
