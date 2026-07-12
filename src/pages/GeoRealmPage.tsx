@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import GeoRealmScene from "@/components/geo-realm/GeoRealmScene";
 import GeoRealmCompiler from "@/components/geo-realm/GeoRealmCompiler";
+import SelectedPlatePanel from "@/components/geo-realm/SelectedPlatePanel";
+import type { SelectedPlate } from "@/components/geo-realm/VolumetricPlates";
 import { CANONICAL_DATASETS, CRUST1_LAYERS, HYPOCENTER_FEEDS } from "@/lib/geoRealm/dataSources";
 import { supabase } from "@/integrations/supabase/client";
 import type { GeoRealmBundle } from "@/lib/geoRealm/types";
@@ -14,6 +16,7 @@ export default function GeoRealmPage() {
   const [showVolumetric, setShowVolumetric] = useState(true);
   const [showMotion, setShowMotion] = useState(true);
   const [thicknessKm, setThicknessKm] = useState(100);
+  const [selectedPlate, setSelectedPlate] = useState<SelectedPlate | null>(null);
   const [cam, setCam] = useState<{ alt: number; lat: number; lon: number }>({ alt: 1.6, lat: 0, lon: 0 });
   const [bundles, setBundles] = useState<GeoRealmBundle[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -49,6 +52,8 @@ export default function GeoRealmPage() {
         showVolumetricPlates={showVolumetric}
         showPlateMotion={showMotion}
         plateThicknessKm={thicknessKm}
+        selectedPlateCode={selectedPlate?.code ?? null}
+        onSelectPlate={setSelectedPlate}
         onCamera={setCam}
       />
 
@@ -97,6 +102,13 @@ export default function GeoRealmPage() {
       <div className="pointer-events-auto absolute right-4 top-24 bottom-16 hidden w-80 overflow-y-auto rounded-2xl border border-white/10 bg-black/45 p-4 backdrop-blur-2xl lg:block">
         <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
       </div>
+
+      {/* Selected plate panel — floats above bottom HUD, both desktop + mobile */}
+      {selectedPlate && (
+        <div className="pointer-events-none absolute left-1/2 top-24 z-30 -translate-x-1/2 lg:left-auto lg:right-[22rem] lg:top-24 lg:translate-x-0">
+          <SelectedPlatePanel plate={selectedPlate} onClose={() => setSelectedPlate(null)} />
+        </div>
+      )}
 
       {/* Mobile bottom sheet */}
       {mobileSheet && (
