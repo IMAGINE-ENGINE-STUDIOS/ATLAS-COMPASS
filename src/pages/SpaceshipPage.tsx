@@ -1171,6 +1171,14 @@ function SpaceshipPage({
   useEffect(() => {
     try { localStorage.setItem("atlas.earth-intel.open.v1", earthIntelOpen ? "1" : "0"); } catch {}
   }, [earthIntelOpen]);
+  // USGS Earthquake search panel (Earth-only). Persist open state so it
+  // re-appears the next time the user loads Atlas.
+  const [quakesOpen, setQuakesOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem("atlas.usgs-quakes.open.v1") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("atlas.usgs-quakes.open.v1", quakesOpen ? "1" : "0"); } catch {}
+  }, [quakesOpen]);
   // Geofence / Tile Intelligence tool toggle
   const [geofenceOpen, setGeofenceOpen] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem("atlas_ui") || "{}").geofenceOpen === true; } catch { return false; }
