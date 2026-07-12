@@ -213,7 +213,7 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
           outlineWidth: 2,
           style: LabelStyle.FILL_AND_OUTLINE,
           verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: { x: 0, y: -14 } as any,
+          pixelOffset: new Cartesian2(0, -14),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: new NearFarScalar(1.0e7, 1.0, 1.0e12, 0.4),
         },
