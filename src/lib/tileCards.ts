@@ -63,6 +63,114 @@ export const INDICATOR_PRESETS: {
   { kind: "note",           label: "Field note",                  color: "#c9d6ff" },
 ];
 
+/**
+ * Real, published tomography model catalog. Thumbnails are hosted on
+ * IRIS EMC (http://ds.iris.edu/ds/products/emc-earthmodels/); each entry
+ * cites the primary reference and provides a landing URL that end users
+ * can open to download the actual NetCDF / GeoCSV / GMT slices.
+ */
+export interface TomographyModel {
+  id: string;
+  hub: "IRIS EMC" | "SubMachine";
+  name: string;
+  authors: string;
+  year: number;
+  parameter: string;        // e.g. "Vs perturbation", "Vp perturbation"
+  depthRangeKm: [number, number];
+  parameterization: string; // e.g. "spherical harmonics ℓ≤40"
+  reference: string;        // journal + DOI
+  landingUrl: string;
+  thumbUrl: string;
+  color: string;
+}
+
+export const TOMOGRAPHY_MODELS: TomographyModel[] = [
+  {
+    id: "glad-m25",
+    hub: "IRIS EMC",
+    name: "GLAD-M25",
+    authors: "Lei, Ruan, Bozdağ, Peter, Lefebvre, Komatitsch, Tromp et al.",
+    year: 2020,
+    parameter: "Vs, Vp perturbation (radially anisotropic)",
+    depthRangeKm: [0, 2891],
+    parameterization: "SEM adjoint tomography, ~17 km lateral",
+    reference: "GJI 223 (1), 1–21 · doi:10.1093/gji/ggaa253",
+    landingUrl: "http://ds.iris.edu/ds/products/emc-glad-m25/",
+    thumbUrl: "http://ds.iris.edu/media/product/emc-glad-m25/images/GLAD-M25.png",
+    color: "#c94f2b",
+  },
+  {
+    id: "glad-m35",
+    hub: "IRIS EMC",
+    name: "GLAD-M35",
+    authors: "Cui, Lei, Bozdağ, Peter, Komatitsch, Tromp",
+    year: 2024,
+    parameter: "Vs, Vp, radial anisotropy",
+    depthRangeKm: [0, 2891],
+    parameterization: "35 adjoint iterations, ~15 km lateral",
+    reference: "GJI 239 (2), 1088–1109 · doi:10.1093/gji/ggae331",
+    landingUrl: "http://ds.iris.edu/ds/products/emc-glad-m35/",
+    thumbUrl: "http://ds.iris.edu/media/product/emc-glad-m35/images/GLAD-M35.png",
+    color: "#e2723a",
+  },
+  {
+    id: "semucb-wm1",
+    hub: "IRIS EMC",
+    name: "SEMUCB-WM1",
+    authors: "French & Romanowicz",
+    year: 2014,
+    parameter: "Vs, radial anisotropy (ξ)",
+    depthRangeKm: [0, 2891],
+    parameterization: "SEM waveform, ~250 km lateral upper mantle",
+    reference: "GJI 199, 1303–1327 · doi:10.1093/gji/ggu334",
+    landingUrl: "http://ds.iris.edu/ds/products/emc-semucb-wm1/",
+    thumbUrl: "http://ds.iris.edu/media/product/emc-semucb-wm1/images/semucb_vs_depth_70.png",
+    color: "#a84fff",
+  },
+  {
+    id: "s362ani",
+    hub: "IRIS EMC",
+    name: "S362ANI",
+    authors: "Kustowski, Ekström, Dziewoński",
+    year: 2008,
+    parameter: "Vs, transverse isotropy",
+    depthRangeKm: [0, 2891],
+    parameterization: "spherical splines, degree 18 lateral",
+    reference: "JGR 113, B06306 · doi:10.1029/2007JB005169",
+    landingUrl: "http://ds.iris.edu/ds/products/emc-s362ani/",
+    thumbUrl: "http://ds.iris.edu/media/product/emc-s362ani/images/S362ANI.jpg",
+    color: "#7ac4ff",
+  },
+  {
+    id: "llnl-g3dv3",
+    hub: "IRIS EMC",
+    name: "LLNL-G3Dv3",
+    authors: "Simmons, Myers, Johannesson, Matzel",
+    year: 2012,
+    parameter: "Vp perturbation",
+    depthRangeKm: [0, 2891],
+    parameterization: "regionally adaptive tessellation, ~1° lateral",
+    reference: "JGR 117, B10302 · doi:10.1029/2012JB009525",
+    landingUrl: "http://ds.iris.edu/ds/products/emc-llnl-g3dv3/",
+    thumbUrl: "http://ds.iris.edu/media/product/emc-llnl-g3dv3/images/LLNL-G3Dv3_UpperMantleModel_Iris.jpg",
+    color: "#ffb020",
+  },
+  {
+    id: "submachine-hub",
+    hub: "SubMachine",
+    name: "SubMachine (Oxford)",
+    authors: "Hosseini, Matthews, Sigloch, Shephard, Domeier, Tsekhmistrenko",
+    year: 2018,
+    parameter: "50+ global P & S models, cross-sections & vote maps",
+    depthRangeKm: [0, 2891],
+    parameterization: "web viewer over IRIS + author-hosted grids",
+    reference: "G-Cubed 19, 1464–1483 · doi:10.1029/2018GC007431",
+    landingUrl: "https://www.earth.ox.ac.uk/~smachine/cgi/index.php",
+    thumbUrl: "http://ds.iris.edu/media/product/emc-earthmodels/images/emc-earthmodels-thumb.png",
+    color: "#a84fff",
+  },
+];
+
 const TABLE = "tile_cards";
 
 export async function fetchTileCard(z: number, x: number, y: number) {
