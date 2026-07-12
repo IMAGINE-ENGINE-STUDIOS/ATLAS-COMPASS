@@ -1,12 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   fetchGeoJSON,
   lonLatToUnit,
   type GeoFeatureCollection,
 } from "@/lib/geoRealm/dataSources";
-import { poleForPlateName, velocityAt, MORVEL_EULER_POLES } from "@/lib/geoRealm/plateMotion";
+import {
+  poleForPlateName,
+  velocityAt,
+  MORVEL_EULER_POLES,
+  type EulerPole,
+} from "@/lib/geoRealm/plateMotion";
+
+export interface SelectedPlate {
+  code: string;
+  name: string;
+  areaSteradian: number;
+  centroid: { lon: number; lat: number };
+  pole: EulerPole | null;
+  velocity: { east_mm_yr: number; north_mm_yr: number; speed_mm_yr: number; azimuth_deg: number } | null;
+  source: string;
+  color: string;
+}
 
 const PB2002_PLATES = "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_plates.json";
 const EARTH_KM = 6371;
@@ -28,14 +44,19 @@ export function VolumetricPlates({
   thicknessKm = 100,
   showMotion = true,
   animate = true,
+  selectedCode = null,
+  onSelect,
 }: {
   visible: boolean;
   radius: number;
   thicknessKm?: number;
   showMotion?: boolean;
   animate?: boolean;
+  selectedCode?: string | null;
+  onSelect?: (plate: SelectedPlate | null) => void;
 }) {
   const [data, setData] = useState<GeoFeatureCollection | null>(null);
+  const [hoverCode, setHoverCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -51,100 +72,159 @@ export function VolumetricPlates({
   const rTop = radius * 1.006;
   const rBot = radius * (1 - thicknessKm / EARTH_KM) * 1.002;
 
-  const { wallsGeom, capsGeom, arrows } = useMemo(() => {
-    if (!data) return { wallsGeom: null, capsGeom: null, arrows: [] as ArrowSpec[] };
-
-    const wallsPos: number[] = [];
-    const wallsCol: number[] = [];
-    const capsPos: number[] = [];
-    const capsCol: number[] = [];
-    const arrows: ArrowSpec[] = [];
-
+  const plates = useMemo(() => {
+    if (!data) return [] as PlateEntry[];
+    const list: PlateEntry[] = [];
     for (const feature of data.features) {
       const props = (feature.properties ?? {}) as { PlateName?: string; Code?: string };
-      const pole = poleForPlateName(props.PlateName) ??
-        MORVEL_EULER_POLES.find((p) => p.code === props.Code) ?? null;
+      const code = props.Code ?? props.PlateName ?? `P${list.length}`;
+      const pole =
+        (props.Code ? MORVEL_EULER_POLES.find((p) => p.code === props.Code) : null) ??
+        poleForPlateName(props.PlateName) ??
+        null;
       const colorHex = pole?.color ?? "#5a7fa8";
       const col = new THREE.Color(colorHex);
 
+      const wallsPos: number[] = [];
+      const capsPos: number[] = [];
       const rings = extractRings(feature);
       let cLon = 0, cLat = 0, cN = 0;
 
       for (const ring of rings) {
         for (let i = 0; i < ring.length - 1; i++) {
-          const a = ring[i];
-          const b = ring[i + 1];
+          const a = ring[i]; const b = ring[i + 1];
           if (!a || !b) continue;
           const [ax, ay, az] = lonLatToUnit(a[0], a[1], rTop);
           const [bx, by, bz] = lonLatToUnit(b[0], b[1], rTop);
           const [ax2, ay2, az2] = lonLatToUnit(a[0], a[1], rBot);
           const [bx2, by2, bz2] = lonLatToUnit(b[0], b[1], rBot);
-
-          // side wall (two triangles per segment)
           wallsPos.push(ax, ay, az,  bx, by, bz,  bx2, by2, bz2);
           wallsPos.push(ax, ay, az,  bx2, by2, bz2, ax2, ay2, az2);
-          for (let k = 0; k < 6; k++) wallsCol.push(col.r, col.g, col.b);
-
-          // top edge highlight (thin ribbon slightly above)
           capsPos.push(ax, ay, az, bx, by, bz);
-          capsCol.push(col.r, col.g, col.b, col.r, col.g, col.b);
-
           cLon += a[0]; cLat += a[1]; cN += 1;
         }
       }
 
-      if (cN > 0 && pole) {
-        const clon = cLon / cN;
-        const clat = cLat / cN;
-        const v = velocityAt(pole, clat, clon);
-        arrows.push({
-          lon: clon,
-          lat: clat,
-          east: v.east_mm_yr,
-          north: v.north_mm_yr,
-          speed: v.speed_mm_yr,
-          color: colorHex,
-          name: pole.name,
-        });
-      }
+      if (wallsPos.length === 0) continue;
+      const walls = new THREE.BufferGeometry();
+      walls.setAttribute("position", new THREE.Float32BufferAttribute(wallsPos, 3));
+      walls.computeVertexNormals();
+      const caps = new THREE.BufferGeometry();
+      caps.setAttribute("position", new THREE.Float32BufferAttribute(capsPos, 3));
+
+      const centroid = cN > 0 ? { lon: cLon / cN, lat: cLat / cN } : { lon: 0, lat: 0 };
+      const v = pole ? velocityAt(pole, centroid.lat, centroid.lon) : null;
+      const velocity = v
+        ? {
+            east_mm_yr: v.east_mm_yr,
+            north_mm_yr: v.north_mm_yr,
+            speed_mm_yr: v.speed_mm_yr,
+            azimuth_deg: (Math.atan2(v.east_mm_yr, v.north_mm_yr) * 180) / Math.PI,
+          }
+        : null;
+
+      list.push({
+        code,
+        name: pole?.name ?? props.PlateName ?? code,
+        color: colorHex,
+        colorObj: col,
+        walls,
+        caps,
+        centroid,
+        pole,
+        velocity,
+      });
     }
-
-    const walls = new THREE.BufferGeometry();
-    walls.setAttribute("position", new THREE.Float32BufferAttribute(wallsPos, 3));
-    walls.setAttribute("color", new THREE.Float32BufferAttribute(wallsCol, 3));
-    walls.computeVertexNormals();
-
-    const caps = new THREE.BufferGeometry();
-    caps.setAttribute("position", new THREE.Float32BufferAttribute(capsPos, 3));
-    caps.setAttribute("color", new THREE.Float32BufferAttribute(capsCol, 3));
-
-    return { wallsGeom: walls, capsGeom: caps, arrows };
+    return list;
   }, [data, rTop, rBot]);
 
-  if (!visible || !wallsGeom || !capsGeom) return null;
+  if (!visible) return null;
 
   return (
     <group>
-      {/* side walls — the volumetric lithosphere */}
-      <mesh geometry={wallsGeom}>
-        <meshBasicMaterial
-          vertexColors
-          transparent
-          opacity={0.35}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
-      {/* bright top edge */}
-      <lineSegments geometry={capsGeom}>
-        <lineBasicMaterial vertexColors transparent opacity={0.85} />
-      </lineSegments>
+      {plates.map((p) => {
+        const isSelected = selectedCode === p.code;
+        const isHover = hoverCode === p.code;
+        const opacity = isSelected ? 0.75 : isHover ? 0.55 : 0.28;
+        return (
+          <group key={p.code}>
+            <mesh
+              geometry={p.walls}
+              onClick={(e: ThreeEvent<MouseEvent>) => {
+                e.stopPropagation();
+                onSelect?.({
+                  code: p.code,
+                  name: p.name,
+                  areaSteradian: 0,
+                  centroid: p.centroid,
+                  pole: p.pole,
+                  velocity: p.velocity,
+                  source: p.pole ? "NNR-MORVEL 2010 (DeMets, Gordon, Argus)" : "no MORVEL pole assigned",
+                  color: p.color,
+                });
+              }}
+              onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+                e.stopPropagation();
+                setHoverCode(p.code);
+                document.body.style.cursor = "pointer";
+              }}
+              onPointerOut={() => {
+                setHoverCode((c) => (c === p.code ? null : c));
+                document.body.style.cursor = "";
+              }}
+            >
+              <meshBasicMaterial
+                color={p.colorObj}
+                transparent
+                opacity={opacity}
+                side={THREE.DoubleSide}
+                depthWrite={false}
+              />
+            </mesh>
+            <lineSegments geometry={p.caps}>
+              <lineBasicMaterial
+                color={p.colorObj}
+                transparent
+                opacity={isSelected ? 1 : 0.75}
+              />
+            </lineSegments>
+          </group>
+        );
+      })}
 
-      {showMotion && arrows.map((a, i) => (
-        <PlateMotionArrow key={i} spec={a} radius={rTop * 1.008} animate={animate} />
+      {showMotion && plates.map((p) => (
+        p.velocity && p.pole ? (
+          <PlateMotionArrow
+            key={p.code}
+            spec={{
+              lon: p.centroid.lon,
+              lat: p.centroid.lat,
+              east: p.velocity.east_mm_yr,
+              north: p.velocity.north_mm_yr,
+              speed: p.velocity.speed_mm_yr,
+              color: p.color,
+              name: p.name,
+            }}
+            radius={rTop * 1.008}
+            animate={animate}
+            highlighted={selectedCode === p.code}
+          />
+        ) : null
       ))}
     </group>
   );
+}
+
+interface PlateEntry {
+  code: string;
+  name: string;
+  color: string;
+  colorObj: THREE.Color;
+  walls: THREE.BufferGeometry;
+  caps: THREE.BufferGeometry;
+  centroid: { lon: number; lat: number };
+  pole: EulerPole | null;
+  velocity: { east_mm_yr: number; north_mm_yr: number; speed_mm_yr: number; azimuth_deg: number } | null;
 }
 
 interface ArrowSpec {
@@ -161,10 +241,12 @@ function PlateMotionArrow({
   spec,
   radius,
   animate,
+  highlighted = false,
 }: {
   spec: ArrowSpec;
   radius: number;
   animate: boolean;
+  highlighted?: boolean;
 }) {
   const coneRef = useRef<THREE.Mesh>(null);
 
@@ -198,7 +280,8 @@ function PlateMotionArrow({
   useFrame(({ clock }) => {
     if (!animate) return;
     if (coneRef.current) {
-      const s = 1 + Math.sin(clock.elapsedTime * 2.2 + spec.lat) * 0.15;
+      const base = highlighted ? 1.4 : 1;
+      const s = base + Math.sin(clock.elapsedTime * 2.2 + spec.lat) * (highlighted ? 0.25 : 0.15);
       coneRef.current.scale.setScalar(s);
     }
   });
@@ -207,7 +290,7 @@ function PlateMotionArrow({
     <group>
       <line>
         <bufferGeometry attach="geometry" {...{ ref: (g: THREE.BufferGeometry | null) => g && g.copy(geom) }} />
-        <lineBasicMaterial color={spec.color} transparent opacity={0.9} linewidth={2} />
+        <lineBasicMaterial color={spec.color} transparent opacity={highlighted ? 1 : 0.9} linewidth={2} />
       </line>
       <mesh ref={coneRef} position={tip} quaternion={quat}>
         <coneGeometry args={[len * 0.18, len * 0.4, 8]} />
