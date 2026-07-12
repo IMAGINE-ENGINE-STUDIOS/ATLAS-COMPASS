@@ -251,7 +251,7 @@ export const QUAKE_INSTITUTIONS: QuakeInstitution[] = [
 
 export const QUAKE_STREAM_PRESETS: {
   id: string; label: string; url: string; kind: "websocket" | "seedlink" | "sse" | "atom";
-  provider: string; description: string;
+  provider: string; description?: string;
 }[] = [
   {
     id: "emsc-ws",
