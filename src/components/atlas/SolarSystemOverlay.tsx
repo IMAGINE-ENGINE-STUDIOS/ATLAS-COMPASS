@@ -27,6 +27,7 @@ import {
   type SolarBodyId,
   type SolarEphemerisVector,
 } from "@/lib/solarSystem";
+import { findPlanet } from "@/lib/planets/config";
 
 type CentralBody = "earth" | "moon";
 
@@ -186,7 +187,8 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
     const entities: any[] = [];
     rows.forEach(({ body }) => {
       const positionCb = new CallbackProperty(() => positionsRef.current[body.id] ?? Cartesian3.ZERO, false);
-      const material = new ImageMaterialProperty({ image: makeBodyTexture(body) });
+      const real = findPlanet(body.id as any)?.textureUrl;
+      const material = new ImageMaterialProperty({ image: real ?? makeBodyTexture(body) });
       const ent = viewer.entities.add({
         id: `solar-body-${body.id}`,
         name: body.name,
