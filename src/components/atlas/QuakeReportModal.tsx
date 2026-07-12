@@ -949,18 +949,151 @@ Event page: ${quake.url}
                 </div>
               )}
 
-              {/* Generated report — real markdown */}
-              {report ? (
-                <div className="rounded-lg border border-white/10 bg-black/40 p-3 max-h-[46vh] overflow-y-auto">
-                  <div className="prose prose-invert prose-sm max-w-none prose-headings:text-red-200 prose-headings:font-bold prose-h2:text-[13px] prose-h2:uppercase prose-h2:tracking-widest prose-h2:mt-3 prose-h2:mb-1 prose-p:text-white/85 prose-li:text-white/85 prose-strong:text-white">
-                    <ReactMarkdown>{report}</ReactMarkdown>
+              {/* Preview switcher: live template vs generated AI report */}
+              <div className="rounded-lg border border-white/10 bg-black/40 overflow-hidden">
+                <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/10 bg-white/[0.03]">
+                  <button
+                    onClick={() => setPreviewMode("live")}
+                    className={`px-2 py-1 text-[10px] uppercase tracking-widest rounded flex items-center gap-1 ${
+                      previewMode === "live" ? "bg-amber-500/25 text-amber-100 border border-amber-400/40" : "text-white/60 hover:text-white/90"
+                    }`}
+                  >
+                    <Eye className="w-3 h-3" /> Live preview
+                  </button>
+                  <button
+                    onClick={() => report && setPreviewMode("ai")}
+                    disabled={!report}
+                    className={`px-2 py-1 text-[10px] uppercase tracking-widest rounded flex items-center gap-1 disabled:opacity-40 ${
+                      previewMode === "ai" ? "bg-sky-500/25 text-sky-100 border border-sky-400/40" : "text-white/60 hover:text-white/90"
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" /> AI report{report ? "" : " (none yet)"}
+                  </button>
+                  <span className="ml-auto text-[9px] font-mono text-white/40">
+                    {previewMode === "live"
+                      ? `${Object.values(tmpl).filter((v) => v?.trim()).length}/${Object.keys(tmpl).length} fields`
+                      : `${(report.match(/\n/g)?.length ?? 0) + 1} lines`}
+                  </span>
+                </div>
+                <div className="p-3 max-h-[46vh] overflow-y-auto">
+                  <div className="prose prose-invert prose-sm max-w-none prose-headings:text-red-200 prose-headings:font-bold prose-h1:text-[15px] prose-h2:text-[13px] prose-h2:uppercase prose-h2:tracking-widest prose-h2:mt-3 prose-h2:mb-1 prose-p:text-white/85 prose-li:text-white/85 prose-strong:text-white prose-em:text-white/40 prose-img:rounded prose-img:border prose-img:border-white/10">
+                    <ReactMarkdown>{previewMode === "ai" && report ? report : livePreview}</ReactMarkdown>
                   </div>
                 </div>
-              ) : (
-                <div className="text-[11px] text-white/50 border border-dashed border-white/10 rounded-lg p-4 text-center">
-                  No report yet. Set the parameters above and click <b>Generate</b> — the AI agent will author a full geotechnical / seismic report from this event's real data.
+              </div>
+
+              {/* Citation ↔ reference audit */}
+              <div className={`rounded-lg border p-2.5 text-[11px] ${
+                citationAudit.ok
+                  ? "border-emerald-400/30 bg-emerald-500/[0.06]"
+                  : citationAudit.missing.length
+                    ? "border-red-400/40 bg-red-500/[0.08]"
+                    : "border-amber-400/30 bg-amber-500/[0.06]"
+              }`}>
+                <div className="flex items-center gap-1.5 font-bold uppercase tracking-widest text-[9px]">
+                  {citationAudit.ok
+                    ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /><span className="text-emerald-200">Citations match references</span></>
+                    : <><AlertTriangle className="w-3.5 h-3.5 text-amber-300" /><span className="text-amber-200">Citation audit — please review before export</span></>}
+                  <span className="ml-auto normal-case tracking-normal text-white/50">
+                    {citationAudit.citations} in-text · {citationAudit.references} refs
+                  </span>
                 </div>
-              )}
+                {!citationAudit.hasRefs && (
+                  <div className="mt-1 text-white/70">
+                    No Harvard references detected. Add entries under <b>19. References</b> (format: <code>Author, X. (2001) …</code>).
+                  </div>
+                )}
+                {citationAudit.missing.length > 0 && (
+                  <div className="mt-1.5">
+                    <div className="text-red-200 font-semibold">Missing from reference list ({citationAudit.missing.length}):</div>
+                    <ul className="list-disc list-inside text-red-100/90 space-y-0.5 mt-0.5">
+                      {citationAudit.missing.slice(0, 8).map((c, i) => (
+                        <li key={i}><code>({c.author}, {c.year})</code></li>
+                      ))}
+                      {citationAudit.missing.length > 8 && <li className="text-white/60">…and {citationAudit.missing.length - 8} more</li>}
+                    </ul>
+                  </div>
+                )}
+                {citationAudit.unused.length > 0 && (
+                  <div className="mt-1.5">
+                    <div className="text-white/70 font-semibold">Uncited references ({citationAudit.unused.length}):</div>
+                    <ul className="list-disc list-inside text-white/60 space-y-0.5 mt-0.5">
+                      {citationAudit.unused.slice(0, 5).map((r, i) => <li key={i} className="truncate">{r}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Version history */}
+              <div className="rounded-lg border border-white/10 bg-white/[0.03]">
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/[0.04]"
+                >
+                  <span className="flex items-center gap-1">
+                    <History className="w-3.5 h-3.5 text-sky-300" />
+                    Version history
+                    <span className="ml-2 normal-case tracking-normal text-white/40">
+                      {versions.length} saved
+                    </span>
+                  </span>
+                  {historyOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+                {historyOpen && (
+                  <div className="p-2 pt-0 border-t border-white/10 space-y-1.5">
+                    {versions.length === 0 && (
+                      <div className="text-[11px] text-white/50 py-2 text-center">
+                        No versions yet — each generation is automatically snapshotted here.
+                      </div>
+                    )}
+                    {versions.map((v) => {
+                      const isCurrent = v.report === report;
+                      const isCompare = compareId === v.id;
+                      return (
+                        <div key={v.id} className={`rounded border p-2 text-[11px] ${
+                          isCurrent ? "border-sky-400/40 bg-sky-500/[0.08]" : "border-white/10 bg-black/30"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-white/60">{new Date(v.createdAt).toLocaleString()}</span>
+                            {isCurrent && <span className="text-[9px] uppercase tracking-widest text-sky-200">current</span>}
+                            <span className="ml-auto flex items-center gap-1">
+                              <button
+                                onClick={() => setCompareId(isCompare ? null : v.id)}
+                                className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/10 text-[9px] uppercase tracking-widest hover:bg-white/10"
+                              >
+                                {isCompare ? "Hide" : "View"}
+                              </button>
+                              <button
+                                onClick={() => { setReport(v.report); setTmpl((prev) => ({ ...prev, ...v.tmplSnapshot })); setPreviewMode("ai"); }}
+                                disabled={isCurrent}
+                                className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-100 text-[9px] uppercase tracking-widest hover:bg-amber-500/30 disabled:opacity-40 flex items-center gap-1"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" /> Revert
+                              </button>
+                              <button
+                                onClick={() => persistVersions(versions.filter((x) => x.id !== v.id))}
+                                className="px-1 py-0.5 rounded text-white/40 hover:text-red-300"
+                                title="Delete this version"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          </div>
+                          <div className="text-white/70 truncate mt-0.5">{v.label}</div>
+                          {isCompare && (
+                            <div className="mt-2 max-h-48 overflow-y-auto rounded border border-white/10 bg-black/50 p-2">
+                              <div className="prose prose-invert prose-xs max-w-none prose-headings:text-red-200 prose-h1:text-[13px] prose-h2:text-[11px] prose-h2:uppercase prose-h2:tracking-widest prose-p:text-white/80">
+                                <ReactMarkdown>{v.report}</ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* AI chat refinement */}
               {report && (
