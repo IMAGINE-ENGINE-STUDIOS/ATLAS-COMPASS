@@ -672,9 +672,11 @@ Event page: ${quake.url}
     if (refs) {
       const lines = refs.split(/\n+/).map((l) => l.trim()).filter(Boolean);
       for (const line of lines) {
-        const rm = line.match(/^([A-Z][A-Za-z\-'’]+)[^()]*\((\d{4}[a-z]?)\)/);
+        // Allow list prefixes: "- ", "* ", "1. ", "1) "
+        const cleaned = line.replace(/^\s*(?:[-*•]\s+|\d+[.)]\s+)/, "");
+        const rm = cleaned.match(/^([A-Z][A-Za-z\-'’]+)[^()]*\((\d{4}[a-z]?)\)/);
         if (rm) {
-          refIndex.set(`${rm[1].toLowerCase()}|${rm[2]}`, line);
+          refIndex.set(`${rm[1].toLowerCase()}|${rm[2]}`, cleaned);
         }
       }
     }
