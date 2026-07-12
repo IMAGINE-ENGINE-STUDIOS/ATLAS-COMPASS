@@ -44,6 +44,7 @@ import FilesPage from "@/pages/FilesPage";
 import ImagineDesignLabPage from "@/pages/ImagineDesignLabPage";
 import NotFound from "./pages/NotFound.tsx";
 const GeoRealmPage = lazy(() => import("@/pages/GeoRealmPage"));
+const PublicTileCardPage = lazy(() => import("@/pages/PublicTileCardPage"));
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,9 @@ const App = () => (
 
           {/* Geo Realm — subsurface compiler & viewer */}
           <Route path="/geo-realm" element={<GeoRealmPage />} />
+
+          {/* Publicly shared tile card */}
+          <Route path="/tile/:id" element={<PublicTileCardPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
