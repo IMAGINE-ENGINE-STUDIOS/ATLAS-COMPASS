@@ -2699,6 +2699,7 @@ export default function LevelEditorPage() {
       <PlayBehaviorRuntime objects={scene.objects} playing={playing} />
       <PlayInputManager playing={playing} />
       <PlayHUD visible={playing} onExit={() => setPlaying(false)} />
+      <MobileTouchControls visible={playing} />
 
       {/* Place on atlas dialog */}
       <Dialog open={placeDialogOpen} onOpenChange={setPlaceDialogOpen}>
