@@ -6546,6 +6546,22 @@ function SpaceshipPage({
                     <Brain className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Intel</span>
                   </button>
+                  {/* USGS Earthquakes — full search dataset on Earth */}
+                  {isEarthWorld && (
+                    <button
+                      onClick={() => setQuakesOpen((v) => !v)}
+                      aria-pressed={quakesOpen}
+                      title="USGS Earthquake Search — magnitude, date, region"
+                      className={`shrink-0 h-7 px-2 rounded-md flex items-center gap-1 border font-bold text-[10px] tracking-widest uppercase transition-all ${
+                        quakesOpen
+                          ? "bg-red-500/25 border-red-300 text-red-100 shadow-[0_0_14px_rgba(248,113,113,0.55)]"
+                          : "bg-white/[0.04] border-white/20 text-white/80 hover:text-white hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Quakes</span>
+                    </button>
+                  )}
                   {/* Geofence / Tile Intelligence tool */}
                   <button
                     onClick={() => setGeofenceOpen((v) => !v)}
