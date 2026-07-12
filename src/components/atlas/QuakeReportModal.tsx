@@ -20,7 +20,7 @@
  * drop it straight into a report or share it downstream.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap } from "lucide-react";
+import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap, History, Eye, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import type { QuakeTag } from "./QuakeTagsOverlay";
@@ -146,6 +146,42 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
+
+  // ---- Version history (per-event, persisted locally) ------------------
+  interface ReportVersion {
+    id: string;
+    createdAt: number;
+    label: string; // "generate" / "refine: ..." / etc.
+    report: string;
+    tmplSnapshot: Record<string, string>;
+  }
+  const versionsKey = `quake-report-versions:${quake.id}`;
+  const [versions, setVersions] = useState<ReportVersion[]>(() => {
+    try {
+      const raw = localStorage.getItem(versionsKey);
+      return raw ? (JSON.parse(raw) as ReportVersion[]) : [];
+    } catch { return []; }
+  });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [compareId, setCompareId] = useState<string | null>(null);
+  const persistVersions = useCallback((next: ReportVersion[]) => {
+    setVersions(next);
+    try { localStorage.setItem(versionsKey, JSON.stringify(next.slice(0, 25))); } catch { /* quota */ }
+  }, [versionsKey]);
+  const saveVersion = useCallback((newReport: string, label: string) => {
+    if (!newReport.trim()) return;
+    const v: ReportVersion = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: Date.now(),
+      label,
+      report: newReport,
+      tmplSnapshot: { ...tmpl },
+    };
+    persistVersions([v, ...versions].slice(0, 25));
+  }, [tmpl, versions, persistVersions]);
+
+  // ---- Preview mode toggle: live template vs AI report -----------------
+  const [previewMode, setPreviewMode] = useState<"live" | "ai">("live");
 
   // ---- Editable Harvard-paper template fields --------------------------
   // Any field the user fills is treated as authoritative by the AI writer.
