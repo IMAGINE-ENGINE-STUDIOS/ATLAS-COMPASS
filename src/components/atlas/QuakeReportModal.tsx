@@ -784,3 +784,27 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     </div>
   );
 }
+function ParamSelect({ label, value, onChange, options }: {
+  label: string; value: string; onChange: (v: string) => void; options: string[];
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[9px] uppercase tracking-widest text-white/50">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px]">
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+}
+function ParamInput({ label, value, onChange, placeholder, type = "text" }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[9px] uppercase tracking-widest text-white/50">{label}</span>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px]" />
+    </label>
+  );
+}
