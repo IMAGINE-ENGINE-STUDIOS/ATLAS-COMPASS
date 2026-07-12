@@ -437,7 +437,7 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
     } finally {
       setGenerating(false);
     }
-  }, [quakePayload, paramsPayload, source, templatePayload, figures]);
+  }, [quakePayload, paramsPayload, source, templatePayload, figures, saveVersion]);
 
   const sendChat = useCallback(async (instructionOverride?: string) => {
     const instruction = (instructionOverride ?? chatInput).trim();
@@ -473,7 +473,7 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
     } finally {
       setChatSending(false);
     }
-  }, [chat, chatInput, report, quakePayload, paramsPayload, source, templatePayload, figures]);
+  }, [chat, chatInput, report, quakePayload, paramsPayload, source, templatePayload, figures, saveVersion]);
 
   const mag = quake.mag ?? 0;
   const energy = energyJoules(mag);
