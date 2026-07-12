@@ -128,7 +128,7 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
   const [detailLoading, setDetailLoading] = useState(false);
   const [after, setAfter] = useState<AfterEvent[]>([]);
   const [afterLoading, setAfterLoading] = useState(false);
-  const [tab, setTab] = useState<"summary" | "geotech" | "library" | "ledger" | "phases">("summary");
+  // Single consolidated report — no tabs. Everything renders as one document.
 
   // ---- AI report state --------------------------------------------------
   const [params, setParams] = useState({
@@ -733,32 +733,10 @@ Event page: ${quake.url}
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 px-3 pt-2 border-b border-white/10">
-          {([
-            ["summary", "Summary", Gauge],
-            ["geotech", "AI Report", Sparkles],
-            ["library", "Library", FolderOpen],
-            ["ledger",  `Replicas${after.length ? " · " + after.length : ""}`, Waves],
-            ["phases",  "Phase data", Activity],
-          ] as const).map(([id, label, Icon]) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`px-2.5 py-1.5 text-[10px] uppercase tracking-widest rounded-t-md flex items-center gap-1 border-b-2 ${
-                tab === id
-                  ? "border-red-400 text-white bg-white/[0.05]"
-                  : "border-transparent text-white/60 hover:text-white/90 hover:bg-white/[0.03]"
-              }`}
-            >
-              <Icon className="w-3 h-3" /> {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="p-4 space-y-4 overflow-y-auto text-sm">
-          {tab === "summary" && (
-            <>
+        <div className="p-4 space-y-6 overflow-y-auto text-sm">
+          {/* ============ § A. EVENT SUMMARY ============ */}
+          <section aria-label="Event summary" className="space-y-3">
+            <SectionHeader n="A" title="Event synopsis" icon={Gauge} />
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Stat label="Depth class" value={dc.label} tone={dc.label === "Shallow" ? "hot" : "cool"} />
                 <Stat label="Energy" value={tntEquivalent(energy)} tone="warn" />
@@ -788,11 +766,11 @@ Event page: ${quake.url}
               >
                 Open source authority event page <ExternalLink className="w-3 h-3" />
               </a>
-            </>
-          )}
+          </section>
 
-          {tab === "geotech" && (
-            <div className="space-y-3 text-[13px] leading-relaxed">
+          {/* ============ § B. HARVARD-STYLE TECHNICAL PAPER ============ */}
+          <section aria-label="Technical paper" className="space-y-3 text-[13px] leading-relaxed border-t border-white/10 pt-4">
+            <SectionHeader n="B" title="Technical seismic paper" icon={Sparkles} />
               {/* Engineering parameters — feed the AI generator */}
               <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
                 <div className="text-[10px] uppercase tracking-widest text-white/60 flex items-center gap-1">
@@ -1193,17 +1171,14 @@ Event page: ${quake.url}
               >
                 <FileText className="w-3 h-3" /> Export template only (.md)
               </button>
-            </div>
-          )}
+          </section>
 
-          {tab === "library" && (
-            <QuakeEventLibrary quake={quake} source={source} onTuneSource={(inst) => { onTuneSource?.(inst); onClose(); }} />
-          )}
-          {tab === "ledger" && (
-            <div className="space-y-2">
+          {/* ============ § C. AFTERSHOCK LEDGER ============ */}
+          <section aria-label="Aftershock ledger" className="space-y-2 border-t border-white/10 pt-4">
+            <SectionHeader n="C" title="Aftershock / replica ledger" icon={Waves} />
               <div className="flex items-center justify-between">
                 <div className="text-[11px] uppercase tracking-widest text-white/60">
-                  Aftershocks / replicas — 500 km radius · 30 days
+                  500 km radius · 30 days · source {source.toUpperCase()}
                 </div>
                 <button
                   onClick={exportLedgerCsv}
@@ -1241,14 +1216,11 @@ Event page: ${quake.url}
                   ))}
                 </div>
               )}
-            </div>
-          )}
+          </section>
 
-          {tab === "phases" && (
-            <div className="space-y-3">
-              <div className="text-[11px] uppercase tracking-widest text-white/60">
-                Seismographic raw parameters
-              </div>
+          {/* ============ § D. PHASE DATA ============ */}
+          <section aria-label="Phase data" className="space-y-3 border-t border-white/10 pt-4">
+            <SectionHeader n="D" title="Seismographic raw parameters" icon={Activity} />
               {source !== "usgs" ? (
                 <div className="text-[11px] text-white/50 p-3 rounded border border-white/10 bg-white/[0.03]">
                   Phase-data products are only exposed by the USGS NEIC catalog. Re-open this event with the USGS source selected to view station picks and location quality.
@@ -1274,10 +1246,25 @@ Event page: ${quake.url}
               >
                 Full waveform archive on source authority <ExternalLink className="w-3 h-3" />
               </a>
-            </div>
-          )}
+          </section>
+
+          {/* ============ § E. EVENT LIBRARY ============ */}
+          <section aria-label="Event library" className="space-y-3 border-t border-white/10 pt-4">
+            <SectionHeader n="E" title="Event library & institutional sources" icon={FolderOpen} />
+            <QuakeEventLibrary quake={quake} source={source} onTuneSource={(inst) => { onTuneSource?.(inst); onClose(); }} />
+          </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SectionHeader({ n, title, icon: Icon }: { n: string; title: string; icon: React.ComponentType<{ className?: string }> }) {
+  return (
+    <div className="flex items-center gap-2 pb-1 border-b border-white/[0.06]">
+      <span className="w-6 h-6 rounded-md bg-red-500/15 border border-red-400/30 text-red-200 font-mono text-[11px] font-bold flex items-center justify-center">{n}</span>
+      <Icon className="w-3.5 h-3.5 text-white/60" />
+      <h2 className="text-[11px] uppercase tracking-[0.22em] font-bold text-white/85">{title}</h2>
     </div>
   );
 }
