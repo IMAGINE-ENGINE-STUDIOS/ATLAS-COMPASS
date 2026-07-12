@@ -20,7 +20,7 @@
  * drop it straight into a report or share it downstream.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen } from "lucide-react";
+import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import type { QuakeTag } from "./QuakeTagsOverlay";
@@ -715,6 +715,98 @@ Event page: ${quake.url}
                   </div>
                 )}
               </div>
+
+              {/* Harvard-style editable template fields ------------------- */}
+              <div className="rounded-lg border border-white/10 bg-white/[0.03]">
+                <button
+                  type="button"
+                  onClick={() => setTemplateOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/[0.04] rounded-t-lg"
+                >
+                  <span className="flex items-center gap-1">
+                    <GraduationCap className="w-3.5 h-3.5 text-amber-300" />
+                    Harvard paper template — fully editable
+                    <span className="ml-2 normal-case tracking-normal text-white/40">
+                      {Object.values(tmpl).filter((v) => v?.trim()).length} field(s) filled
+                    </span>
+                  </span>
+                  {templateOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+                {templateOpen && (
+                  <div className="p-3 pt-0 space-y-2 border-t border-white/10">
+                    <div className="text-[10px] text-white/50 leading-relaxed">
+                      Whatever you write here is treated as authoritative and preserved verbatim by the AI writer.
+                      Empty fields are drafted from event data. After editing, click{" "}
+                      <b className="text-amber-200">Regenerate from my edits</b> below.
+                    </div>
+                    {/* Front matter */}
+                    <div className="grid grid-cols-1 gap-1.5">
+                      <TmplField label="Title" value={tmpl.title} onChange={(v) => updateTmpl("title", v)} />
+                      <TmplField label="Running head" value={tmpl.runningHead} onChange={(v) => updateTmpl("runningHead", v)} />
+                      <TmplField label="Authors" value={tmpl.authors} onChange={(v) => updateTmpl("authors", v)}
+                        placeholder="Doe, J.; Smith, A. K." />
+                      <TmplField label="Affiliations" value={tmpl.affiliations} onChange={(v) => updateTmpl("affiliations", v)}
+                        placeholder="Dept. of Earth & Planetary Sciences, Harvard University" />
+                      <TmplField label="Corresponding author" value={tmpl.correspondingAuthor}
+                        onChange={(v) => updateTmpl("correspondingAuthor", v)} placeholder="jdoe@example.edu / ORCID" />
+                      <TmplField label="Keywords" value={tmpl.keywords} onChange={(v) => updateTmpl("keywords", v)}
+                        placeholder="seismology; liquefaction; ShakeMap; DYFI; NEHRP" />
+                    </div>
+                    {/* Long-form sections */}
+                    <TmplArea label="Abstract (150–250 words)" value={tmpl.abstract} onChange={(v) => updateTmpl("abstract", v)} rows={4} />
+                    <TmplArea label="1. Introduction" value={tmpl.introduction} onChange={(v) => updateTmpl("introduction", v)} />
+                    <TmplArea label="2. Tectonic & Geological Setting" value={tmpl.tectonicSetting} onChange={(v) => updateTmpl("tectonicSetting", v)} />
+                    <TmplArea label="3. Data & Methodology" value={tmpl.methodology} onChange={(v) => updateTmpl("methodology", v)} />
+                    <TmplArea label="4. Seismological Observations" value={tmpl.observations} onChange={(v) => updateTmpl("observations", v)} />
+                    <TmplArea label="6. Site Response (NEHRP)" value={tmpl.siteResponse} onChange={(v) => updateTmpl("siteResponse", v)} />
+                    <TmplArea label="7. Liquefaction Assessment" value={tmpl.liquefaction} onChange={(v) => updateTmpl("liquefaction", v)} />
+                    <TmplArea label="8. Slope Stability" value={tmpl.slopeStability} onChange={(v) => updateTmpl("slopeStability", v)} />
+                    <TmplArea label="9. Structural & Foundation Vulnerability" value={tmpl.structural} onChange={(v) => updateTmpl("structural", v)} />
+                    <TmplArea label="10. Lifelines & Infrastructure" value={tmpl.lifelines} onChange={(v) => updateTmpl("lifelines", v)} />
+                    <TmplArea label="11. Aftershock Outlook" value={tmpl.aftershockOutlook} onChange={(v) => updateTmpl("aftershockOutlook", v)} />
+                    <TmplArea label="12. Recommendations" value={tmpl.recommendations} onChange={(v) => updateTmpl("recommendations", v)} />
+                    <TmplArea label="13. Limitations & Uncertainty" value={tmpl.limitations} onChange={(v) => updateTmpl("limitations", v)} />
+                    <TmplArea label="14. Discussion" value={tmpl.discussion} onChange={(v) => updateTmpl("discussion", v)} />
+                    <TmplArea label="15. Data Availability" value={tmpl.dataAvailability} onChange={(v) => updateTmpl("dataAvailability", v)} />
+                    <TmplArea label="16. Acknowledgments" value={tmpl.acknowledgments} onChange={(v) => updateTmpl("acknowledgments", v)} rows={2} />
+                    <TmplArea label="17. Funding" value={tmpl.fundingStatement} onChange={(v) => updateTmpl("fundingStatement", v)} rows={2} />
+                    <TmplArea label="18. Ethics & Competing Interests" value={tmpl.ethicsStatement} onChange={(v) => updateTmpl("ethicsStatement", v)} rows={2} />
+                    <TmplArea label="19. References (Harvard style)" value={tmpl.references} onChange={(v) => updateTmpl("references", v)} rows={4}
+                      placeholder={"Youd, T.L. & Idriss, I.M. (2001) …\nWells, D.L. & Coppersmith, K.J. (1994) …"} />
+
+                    <button
+                      onClick={generate}
+                      disabled={generating}
+                      className="w-full h-8 px-3 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-100 text-[11px] font-bold uppercase tracking-widest hover:bg-amber-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {generating
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating…</>
+                        : <><Edit3 className="w-3.5 h-3.5" /> Regenerate from my edits</>}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Figures panel — USGS product imagery embedded in the paper */}
+              {figures.length > 0 && (
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                  <div className="text-[10px] uppercase tracking-widest text-white/60 flex items-center gap-1">
+                    <ImageIcon className="w-3 h-3" /> Supporting figures ({figures.length}) — embedded in the paper
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {figures.map((f, i) => (
+                      <a key={i} href={f.url} target="_blank" rel="noopener"
+                        className="group block rounded overflow-hidden border border-white/10 bg-black/40">
+                        <img src={f.url} alt={f.caption} loading="lazy"
+                          className="w-full h-20 object-cover group-hover:opacity-90" />
+                        <div className="p-1 text-[9px] text-white/60 leading-tight truncate" title={f.caption}>
+                          Figure {i + 1}. {f.caption}
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Generated report — real markdown */}
               {report ? (
