@@ -682,6 +682,12 @@ Event page: ${quake.url}
           )}
 
           {tab === "ledger" && (
+            null
+          )}
+          {tab === "library" && (
+            <QuakeEventLibrary quake={quake} source={source} onTuneSource={(inst) => { onTuneSource?.(inst); onClose(); }} />
+          )}
+          {tab === "ledger" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-[11px] uppercase tracking-widest text-white/60">
