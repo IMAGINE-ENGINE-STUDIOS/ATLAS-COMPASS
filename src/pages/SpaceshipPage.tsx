@@ -41,6 +41,7 @@ import NotificationsBell from "@/components/atlas/tileIntel/NotificationsBell";
 import LPRPanel from "@/components/atlas/lpr/LPRPanel";
 import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
+import AtlasGeoRealmPill from "@/components/atlas/AtlasGeoRealmPill";
 import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import PlanetLayerPanel from "@/components/atlas/PlanetLayerPanel";
@@ -8258,6 +8259,7 @@ function SpaceshipPage({
                       <div className="flex items-center gap-1.5">
                         <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
                         <AtlasCommunityLayersPill viewerRef={viewerRef} isLoaded={isLoaded} />
+                        <AtlasGeoRealmPill />
                       </div>
                     )}
                   </div>

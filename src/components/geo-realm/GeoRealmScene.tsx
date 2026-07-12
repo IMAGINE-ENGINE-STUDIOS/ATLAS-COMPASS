@@ -2,7 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
-import { CANONICAL_DATASETS, fetchGeoJSON, lonLatToUnit, type GeoFeatureCollection } from "@/lib/geoRealm/dataSources";
+import {
+  CANONICAL_DATASETS,
+  CRUST1_LAYERS,
+  HYPOCENTER_FEEDS,
+  fetchGeoJSON,
+  lonLatDepthToUnit,
+  lonLatToUnit,
+  type GeoFeatureCollection,
+} from "@/lib/geoRealm/dataSources";
 import type { CanonicalDataset } from "@/lib/geoRealm/types";
 
 /** Radius of the Earth shell in scene units. */
@@ -86,14 +94,21 @@ function CanonicalLayerLoader({
 /** Concentric semi-transparent shells representing crustal layers. */
 function CrustShells({ visible }: { visible: boolean }) {
   if (!visible) return null;
+  // CRUST1.0 continental means (Laske et al. 2013) stacked from surface down,
+  // plus deep-Earth shells (upper/lower mantle, outer/inner core) at PREM
+  // radii — all rendered as back-side transparent shells for X-ray view.
+  const EARTH_KM = 6371;
+  const stacked: { r: number; color: string }[] = [];
+  let depthKm = 0;
+  for (const l of CRUST1_LAYERS) {
+    depthKm += l.thickness_km;
+    stacked.push({ r: R * (1 - depthKm / EARTH_KM), color: l.color });
+  }
   const shells = [
-    { r: R * 0.995, color: "#4a90e2", label: "Ocean / sediment" },
-    { r: R * 0.985, color: "#8b6f47", label: "Upper crust" },
-    { r: R * 0.965, color: "#5c4530", label: "Lower crust" },
-    { r: R * 0.94, color: "#c94f2b", label: "Upper mantle" },
-    { r: R * 0.55, color: "#f5a623", label: "Lower mantle" },
-    { r: R * 0.28, color: "#ffd93d", label: "Outer core" },
-    { r: R * 0.19, color: "#ffffff", label: "Inner core" },
+    ...stacked,
+    { r: R * 0.55, color: "#f5a623" }, // lower mantle
+    { r: R * 0.28, color: "#ffd93d" }, // outer core
+    { r: R * 0.19, color: "#ffffff" }, // inner core
   ];
   return (
     <group>
@@ -110,6 +125,66 @@ function CrustShells({ visible }: { visible: boolean }) {
         </mesh>
       ))}
     </group>
+  );
+}
+
+/**
+ * Hypocenter cloud — each earthquake is a point at its real (lon, lat, depth).
+ * Together they trace subducting slab geometry (Wadati-Benioff zones).
+ * Depth is color-ramped shallow→red / deep→purple. Uses THREE.Points for perf.
+ */
+function HypocenterCloud({ feedId }: { feedId: string }) {
+  const feed = HYPOCENTER_FEEDS.find((f) => f.id === feedId);
+  const [data, setData] = useState<GeoFeatureCollection | null>(null);
+  useEffect(() => {
+    if (!feed) return;
+    let cancel = false;
+    fetchGeoJSON(feed.url).then((d) => {
+      if (!cancel) setData(d);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [feed?.url]);
+  const geom = useMemo(() => {
+    if (!data) return null;
+    const positions: number[] = [];
+    const colors: number[] = [];
+    const sizes: number[] = [];
+    for (const f of data.features) {
+      const g = f.geometry;
+      if (g.type !== "Point" || !g.coordinates || g.coordinates.length < 3) continue;
+      const [lon, lat, depthKm] = g.coordinates as number[];
+      const props = (f.properties ?? {}) as { mag?: number };
+      const mag = typeof props.mag === "number" ? props.mag : 4.5;
+      const [x, y, z] = lonLatDepthToUnit(lon, lat, depthKm ?? 0, R);
+      positions.push(x, y, z);
+      // Color ramp by depth: 0 km = orange-red → 700 km = deep purple.
+      const t = Math.min(1, Math.max(0, (depthKm ?? 0) / 700));
+      const r = 1 - t * 0.75;
+      const gg = 0.35 * (1 - t);
+      const bb = 0.2 + t * 0.8;
+      colors.push(r, gg, bb);
+      sizes.push(2 + (mag - 4) * 1.8);
+    }
+    const bg = new THREE.BufferGeometry();
+    bg.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    bg.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    bg.setAttribute("size", new THREE.Float32BufferAttribute(sizes, 1));
+    return bg;
+  }, [data]);
+  if (!geom) return null;
+  return (
+    <points geometry={geom}>
+      <pointsMaterial
+        vertexColors
+        size={0.006}
+        sizeAttenuation
+        transparent
+        opacity={0.9}
+        depthWrite={false}
+      />
+    </points>
   );
 }
 
@@ -157,6 +232,7 @@ export interface GeoRealmSceneProps {
   activeCanonical: string[];
   showCrust: boolean;
   showSurface: boolean;
+  activeHypocenter?: string | null;
   onCamera?: (info: { alt: number; lat: number; lon: number }) => void;
 }
 
@@ -164,6 +240,7 @@ export default function GeoRealmScene({
   activeCanonical,
   showCrust,
   showSurface,
+  activeHypocenter,
   onCamera,
 }: GeoRealmSceneProps) {
   const active = CANONICAL_DATASETS.filter((d) => activeCanonical.includes(d.id));
@@ -185,6 +262,8 @@ export default function GeoRealmScene({
       {active.map((d) => (
         <CanonicalLayerLoader key={d.id} dataset={d} radius={R * 1.005} />
       ))}
+
+      {activeHypocenter ? <HypocenterCloud feedId={activeHypocenter} /> : null}
 
       <OrbitControls
         enablePan={false}
