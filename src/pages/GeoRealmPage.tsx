@@ -16,6 +16,7 @@ export default function GeoRealmPage() {
   const [showVolumetric, setShowVolumetric] = useState(true);
   const [showMotion, setShowMotion] = useState(true);
   const [thicknessKm, setThicknessKm] = useState(100);
+  const [plateColorMode, setPlateColorMode] = useState<"plate" | "activity">("plate");
   const [selectedPlate, setSelectedPlate] = useState<SelectedPlate | null>(null);
   const [cam, setCam] = useState<{ alt: number; lat: number; lon: number }>({ alt: 1.6, lat: 0, lon: 0 });
   const [bundles, setBundles] = useState<GeoRealmBundle[]>([]);
@@ -54,6 +55,7 @@ export default function GeoRealmPage() {
         plateThicknessKm={thicknessKm}
         selectedPlateCode={selectedPlate?.code ?? null}
         onSelectPlate={setSelectedPlate}
+        plateColorMode={plateColorMode}
         onCamera={setCam}
       />
 
@@ -95,6 +97,8 @@ export default function GeoRealmPage() {
           setShowMotion={setShowMotion}
           thicknessKm={thicknessKm}
           setThicknessKm={setThicknessKm}
+          plateColorMode={plateColorMode}
+          setPlateColorMode={setPlateColorMode}
         />
       </div>
 
@@ -138,6 +142,8 @@ export default function GeoRealmPage() {
                 setShowMotion={setShowMotion}
                 thicknessKm={thicknessKm}
                 setThicknessKm={setThicknessKm}
+                plateColorMode={plateColorMode}
+                setPlateColorMode={setPlateColorMode}
               />
             ) : (
               <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
@@ -201,12 +207,15 @@ function LayersPanel(props: {
   setShowMotion: (v: boolean) => void;
   thicknessKm: number;
   setThicknessKm: (v: number) => void;
+  plateColorMode: "plate" | "activity";
+  setPlateColorMode: (v: "plate" | "activity") => void;
 }) {
   const {
     active, toggle, showCrust, setShowCrust, showSurface, setShowSurface,
     hypo, setHypo, bundles,
     showVolumetric, setShowVolumetric, showMotion, setShowMotion,
     thicknessKm, setThicknessKm,
+    plateColorMode, setPlateColorMode,
   } = props;
   return (
     <>
@@ -282,6 +291,39 @@ function LayersPanel(props: {
           />
           Plate motion vectors (NNR-MORVEL 2010)
         </label>
+        <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
+          <div className="mb-1.5 text-white/70">Color plates by</div>
+          <div className="flex gap-1">
+            {(["plate", "activity"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPlateColorMode(m)}
+                className={`flex-1 rounded-md border px-2 py-1 text-[10px] uppercase tracking-widest transition ${
+                  plateColorMode === m
+                    ? "border-orange-400/40 bg-orange-400/15 text-white"
+                    : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                }`}
+              >
+                {m === "plate" ? "Identity" : "Activity"}
+              </button>
+            ))}
+          </div>
+          {plateColorMode === "activity" && (
+            <>
+              <div
+                className="mt-2 h-2 w-full rounded-full"
+                style={{
+                  background:
+                    "linear-gradient(to right,rgb(27,60,122),rgb(42,143,216),rgb(61,214,154),rgb(255,208,58),rgb(255,122,31),rgb(255,45,45))",
+                }}
+              />
+              <div className="mt-1 flex justify-between text-[9px] text-white/45 tabular-nums">
+                <span>0</span><span>30</span><span>60</span><span>90</span><span>130+ mm/yr</span>
+              </div>
+            </>
+          )}
+        </div>
         <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
           <div className="mb-1.5 flex items-center justify-between text-white/70">
             <span>Lithosphere thickness</span>
