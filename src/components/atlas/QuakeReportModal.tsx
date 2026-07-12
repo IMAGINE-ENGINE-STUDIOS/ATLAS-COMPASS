@@ -20,7 +20,7 @@
  * drop it straight into a report or share it downstream.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap } from "lucide-react";
+import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap, History, Eye, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import type { QuakeTag } from "./QuakeTagsOverlay";
@@ -181,6 +181,43 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
   const updateTmpl = useCallback((k: string, v: string) => {
     setTmpl((prev) => ({ ...prev, [k]: v }));
   }, []);
+
+  // ---- Version history (per-event, persisted locally) ------------------
+  interface ReportVersion {
+    id: string;
+    createdAt: number;
+    label: string;
+    report: string;
+    tmplSnapshot: Record<string, string>;
+  }
+  const versionsKey = `quake-report-versions:${quake.id}`;
+  const [versions, setVersions] = useState<ReportVersion[]>(() => {
+    try {
+      const raw = localStorage.getItem(versionsKey);
+      return raw ? (JSON.parse(raw) as ReportVersion[]) : [];
+    } catch { return []; }
+  });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [compareId, setCompareId] = useState<string | null>(null);
+  const persistVersions = useCallback((next: ReportVersion[]) => {
+    const capped = next.slice(0, 25);
+    setVersions(capped);
+    try { localStorage.setItem(versionsKey, JSON.stringify(capped)); } catch { /* quota */ }
+  }, [versionsKey]);
+  const saveVersion = useCallback((newReport: string, label: string) => {
+    if (!newReport.trim()) return;
+    const v: ReportVersion = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: Date.now(),
+      label,
+      report: newReport,
+      tmplSnapshot: { ...tmpl },
+    };
+    persistVersions([v, ...versions]);
+  }, [tmpl, versions, persistVersions]);
+
+  // Preview mode toggle: live template preview vs generated AI report
+  const [previewMode, setPreviewMode] = useState<"live" | "ai">("live");
 
   // Auto-seed the title / running head with the event once, so the paper has
   // a sensible default even before the user opens the template editor.
@@ -390,14 +427,17 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setReport(String(data?.report ?? ""));
+      const md = String(data?.report ?? "");
+      setReport(md);
       setChat([]);
+      saveVersion(md, "Generated from template");
+      setPreviewMode("ai");
     } catch (e) {
       setReportError((e as Error).message || "Failed to generate report.");
     } finally {
       setGenerating(false);
     }
-  }, [quakePayload, paramsPayload, source, templatePayload, figures]);
+  }, [quakePayload, paramsPayload, source, templatePayload, figures, saveVersion]);
 
   const sendChat = useCallback(async (instructionOverride?: string) => {
     const instruction = (instructionOverride ?? chatInput).trim();
@@ -426,12 +466,14 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
       const newReport = String(data?.report ?? "");
       setReport(newReport);
       setChat([...nextChat, { role: "assistant", content: "Report updated." }]);
+      saveVersion(newReport, `Refine: ${instruction.slice(0, 60)}`);
+      setPreviewMode("ai");
     } catch (e) {
       setReportError((e as Error).message || "Refinement failed.");
     } finally {
       setChatSending(false);
     }
-  }, [chat, chatInput, report, quakePayload, paramsPayload, source, templatePayload, figures]);
+  }, [chat, chatInput, report, quakePayload, paramsPayload, source, templatePayload, figures, saveVersion]);
 
   const mag = quake.mag ?? 0;
   const energy = energyJoules(mag);
@@ -554,6 +596,105 @@ Event page: ${quake.url}
       updateTime: pd?.updateTime ?? null,
     };
   }, [dp]);
+
+  // ---- Live template preview (Harvard-style skeleton, updates as you type)
+  const livePreview = useMemo(() => {
+    const sec = (n: string, body: string, placeholder: string) =>
+      `## ${n}\n${(body || "").trim() ? body.trim() : `*${placeholder}*`}\n`;
+    const embed = (section: string) =>
+      figures
+        .filter((f) => (f.section ?? "ground-motion") === section)
+        .map((f, i) => `![${f.caption}](${f.url})\n*Figure. ${f.caption}*`)
+        .join("\n\n");
+    const gm = embed("ground-motion");
+    const life = embed("lifelines");
+    const tec = embed("tectonic");
+    return [
+      `# ${tmpl.title || `M${mag.toFixed(1)} ${quake.place || "Unnamed Event"} — Preliminary Assessment`}`,
+      tmpl.runningHead ? `*${tmpl.runningHead}*` : `*preview — running head not set*`,
+      tmpl.authors ? `**Authors.** ${tmpl.authors}` : `**Authors.** *unassigned*`,
+      tmpl.affiliations ? `**Affiliations.** ${tmpl.affiliations}` : `**Affiliations.** *unassigned*`,
+      tmpl.correspondingAuthor ? `**Corresponding author.** ${tmpl.correspondingAuthor}` : "",
+      "",
+      "---",
+      "",
+      sec("Abstract", tmpl.abstract, "abstract will be drafted from event facts on generate"),
+      tmpl.keywords ? `**Keywords.** ${tmpl.keywords}` : `**Keywords.** *not set*`,
+      sec("1. Introduction", tmpl.introduction, "introduction will be drafted"),
+      sec("2. Tectonic and Geological Setting", tmpl.tectonicSetting, "tectonic context will be drafted") + (tec ? `\n${tec}\n` : ""),
+      sec("3. Data and Methodology", tmpl.methodology, "methodology will be drafted"),
+      sec("4. Seismological Observations", tmpl.observations,
+        `origin ${fmtTime(quake.time)}, epicenter ${quake.lat.toFixed(3)}°, ${quake.lng.toFixed(3)}°, depth ${quake.depthKm} km, M${mag.toFixed(1)}`),
+      sec("5. Ground Motion and Intensity", "", `MMI ${romanMMI(mmi)} (${mmiLabel(mmi)}), CDI ${romanMMI(cdi)}, ${felt ?? 0} felt reports`) + (gm ? `\n${gm}\n` : ""),
+      sec("6. Site Response and NEHRP Class Implications", tmpl.siteResponse, `site class ${params.siteClass}, groundwater ${params.groundwaterM || "unknown"} m`),
+      sec("7. Liquefaction Assessment", tmpl.liquefaction, "Youd & Idriss (2001) screening will be drafted"),
+      sec("8. Slope Stability and Landslide Hazard", tmpl.slopeStability, "Newmark (1965) screening will be drafted"),
+      sec("9. Structural and Foundation Vulnerability", tmpl.structural, `implications for ${params.structureType}`),
+      sec("10. Lifeline and Infrastructure Considerations", tmpl.lifelines, "lifelines will be drafted") + (life ? `\n${life}\n` : ""),
+      sec("11. Aftershock and Replica Outlook", tmpl.aftershockOutlook,
+        `${totalAftershocks} replicas logged${strongestAfter ? `; largest M${(strongestAfter.mag ?? 0).toFixed(1)}` : ""}`),
+      sec("12. Recommendations", tmpl.recommendations, "recommendations will be drafted"),
+      sec("13. Limitations and Uncertainty", tmpl.limitations, "limitations will be drafted"),
+      sec("14. Discussion", tmpl.discussion, "discussion will be drafted"),
+      sec("15. Data Availability", tmpl.dataAvailability, `event page: ${quake.url ?? "—"}`),
+      sec("16. Acknowledgments", tmpl.acknowledgments, "—"),
+      sec("17. Funding", tmpl.fundingStatement, "—"),
+      sec("18. Ethics and Competing Interests", tmpl.ethicsStatement, "—"),
+      sec("19. References", tmpl.references, "add Harvard-style author–date references here"),
+    ].filter(Boolean).join("\n");
+  }, [tmpl, figures, quake, mag, mmi, cdi, felt, params, totalAftershocks, strongestAfter]);
+
+  // ---- Harvard citation ↔ reference validator --------------------------
+  const citationAudit = useMemo(() => {
+    const md = previewMode === "ai" && report ? report : livePreview;
+    // Split reference list off (after "## 19. References" or "## References")
+    const refSplit = md.split(/##\s*(?:19\.\s*)?References/i);
+    const body = refSplit[0] ?? md;
+    const refs = (refSplit[1] ?? "").trim();
+
+    // Extract in-text citations: (Author, 2001) / (Author & Author, 2001) /
+    // (Author et al., 2001) / (Author 2001) — optional letter suffix.
+    const citeRe = /\(([A-Z][A-Za-z\-'’]+(?:\s+(?:&|and)\s+[A-Z][A-Za-z\-'’]+|\s+et\s+al\.?)?)[,\s]+((?:19|20)\d{2}[a-z]?)\)/g;
+    const cites = new Map<string, { author: string; year: string; count: number }>();
+    for (const m of body.matchAll(citeRe)) {
+      const author = m[1].trim();
+      const year = m[2].trim();
+      const key = `${author.split(/\s+/)[0].toLowerCase()}|${year}`;
+      const prev = cites.get(key);
+      if (prev) prev.count++;
+      else cites.set(key, { author, year, count: 1 });
+    }
+
+    // Reference entries: "Author, X.Y. (2001)" / "Author, X. & Other (2001)"
+    // Grab surname + year from each ref line.
+    const refIndex = new Map<string, string>(); // "surname|year" -> raw
+    if (refs) {
+      const lines = refs.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        const rm = line.match(/^([A-Z][A-Za-z\-'’]+)[^()]*\((\d{4}[a-z]?)\)/);
+        if (rm) {
+          refIndex.set(`${rm[1].toLowerCase()}|${rm[2]}`, line);
+        }
+      }
+    }
+
+    const missing: { author: string; year: string }[] = [];
+    for (const [key, v] of cites) {
+      if (!refIndex.has(key)) missing.push({ author: v.author, year: v.year });
+    }
+    const unused: string[] = [];
+    for (const [key, raw] of refIndex) {
+      if (!cites.has(key)) unused.push(raw.slice(0, 120));
+    }
+    return {
+      citations: cites.size,
+      references: refIndex.size,
+      missing,
+      unused,
+      ok: missing.length === 0 && refIndex.size > 0,
+      hasRefs: refIndex.size > 0,
+    };
+  }, [previewMode, report, livePreview]);
 
   return (
     <div
@@ -695,6 +836,14 @@ Event page: ${quake.url}
                   {report && (
                     <button
                       onClick={() => {
+                        if (citationAudit.missing.length > 0) {
+                          const proceed = window.confirm(
+                            `Warning: ${citationAudit.missing.length} in-text citation(s) are not present in the reference list:\n\n` +
+                            citationAudit.missing.slice(0, 8).map((c) => `  • (${c.author}, ${c.year})`).join("\n") +
+                            `\n\nExport anyway?`
+                          );
+                          if (!proceed) return;
+                        }
                         const blob = new Blob([report], { type: "text/markdown" });
                         const u = URL.createObjectURL(blob);
                         const a = document.createElement("a");
@@ -808,18 +957,151 @@ Event page: ${quake.url}
                 </div>
               )}
 
-              {/* Generated report — real markdown */}
-              {report ? (
-                <div className="rounded-lg border border-white/10 bg-black/40 p-3 max-h-[46vh] overflow-y-auto">
-                  <div className="prose prose-invert prose-sm max-w-none prose-headings:text-red-200 prose-headings:font-bold prose-h2:text-[13px] prose-h2:uppercase prose-h2:tracking-widest prose-h2:mt-3 prose-h2:mb-1 prose-p:text-white/85 prose-li:text-white/85 prose-strong:text-white">
-                    <ReactMarkdown>{report}</ReactMarkdown>
+              {/* Preview switcher: live template vs generated AI report */}
+              <div className="rounded-lg border border-white/10 bg-black/40 overflow-hidden">
+                <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/10 bg-white/[0.03]">
+                  <button
+                    onClick={() => setPreviewMode("live")}
+                    className={`px-2 py-1 text-[10px] uppercase tracking-widest rounded flex items-center gap-1 ${
+                      previewMode === "live" ? "bg-amber-500/25 text-amber-100 border border-amber-400/40" : "text-white/60 hover:text-white/90"
+                    }`}
+                  >
+                    <Eye className="w-3 h-3" /> Live preview
+                  </button>
+                  <button
+                    onClick={() => report && setPreviewMode("ai")}
+                    disabled={!report}
+                    className={`px-2 py-1 text-[10px] uppercase tracking-widest rounded flex items-center gap-1 disabled:opacity-40 ${
+                      previewMode === "ai" ? "bg-sky-500/25 text-sky-100 border border-sky-400/40" : "text-white/60 hover:text-white/90"
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" /> AI report{report ? "" : " (none yet)"}
+                  </button>
+                  <span className="ml-auto text-[9px] font-mono text-white/40">
+                    {previewMode === "live"
+                      ? `${Object.values(tmpl).filter((v) => v?.trim()).length}/${Object.keys(tmpl).length} fields`
+                      : `${(report.match(/\n/g)?.length ?? 0) + 1} lines`}
+                  </span>
+                </div>
+                <div className="p-3 max-h-[46vh] overflow-y-auto">
+                  <div className="prose prose-invert prose-sm max-w-none prose-headings:text-red-200 prose-headings:font-bold prose-h1:text-[15px] prose-h2:text-[13px] prose-h2:uppercase prose-h2:tracking-widest prose-h2:mt-3 prose-h2:mb-1 prose-p:text-white/85 prose-li:text-white/85 prose-strong:text-white prose-em:text-white/40 prose-img:rounded prose-img:border prose-img:border-white/10">
+                    <ReactMarkdown>{previewMode === "ai" && report ? report : livePreview}</ReactMarkdown>
                   </div>
                 </div>
-              ) : (
-                <div className="text-[11px] text-white/50 border border-dashed border-white/10 rounded-lg p-4 text-center">
-                  No report yet. Set the parameters above and click <b>Generate</b> — the AI agent will author a full geotechnical / seismic report from this event's real data.
+              </div>
+
+              {/* Citation ↔ reference audit */}
+              <div className={`rounded-lg border p-2.5 text-[11px] ${
+                citationAudit.ok
+                  ? "border-emerald-400/30 bg-emerald-500/[0.06]"
+                  : citationAudit.missing.length
+                    ? "border-red-400/40 bg-red-500/[0.08]"
+                    : "border-amber-400/30 bg-amber-500/[0.06]"
+              }`}>
+                <div className="flex items-center gap-1.5 font-bold uppercase tracking-widest text-[9px]">
+                  {citationAudit.ok
+                    ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /><span className="text-emerald-200">Citations match references</span></>
+                    : <><AlertTriangle className="w-3.5 h-3.5 text-amber-300" /><span className="text-amber-200">Citation audit — please review before export</span></>}
+                  <span className="ml-auto normal-case tracking-normal text-white/50">
+                    {citationAudit.citations} in-text · {citationAudit.references} refs
+                  </span>
                 </div>
-              )}
+                {!citationAudit.hasRefs && (
+                  <div className="mt-1 text-white/70">
+                    No Harvard references detected. Add entries under <b>19. References</b> (format: <code>Author, X. (2001) …</code>).
+                  </div>
+                )}
+                {citationAudit.missing.length > 0 && (
+                  <div className="mt-1.5">
+                    <div className="text-red-200 font-semibold">Missing from reference list ({citationAudit.missing.length}):</div>
+                    <ul className="list-disc list-inside text-red-100/90 space-y-0.5 mt-0.5">
+                      {citationAudit.missing.slice(0, 8).map((c, i) => (
+                        <li key={i}><code>({c.author}, {c.year})</code></li>
+                      ))}
+                      {citationAudit.missing.length > 8 && <li className="text-white/60">…and {citationAudit.missing.length - 8} more</li>}
+                    </ul>
+                  </div>
+                )}
+                {citationAudit.unused.length > 0 && (
+                  <div className="mt-1.5">
+                    <div className="text-white/70 font-semibold">Uncited references ({citationAudit.unused.length}):</div>
+                    <ul className="list-disc list-inside text-white/60 space-y-0.5 mt-0.5">
+                      {citationAudit.unused.slice(0, 5).map((r, i) => <li key={i} className="truncate">{r}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Version history */}
+              <div className="rounded-lg border border-white/10 bg-white/[0.03]">
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/[0.04]"
+                >
+                  <span className="flex items-center gap-1">
+                    <History className="w-3.5 h-3.5 text-sky-300" />
+                    Version history
+                    <span className="ml-2 normal-case tracking-normal text-white/40">
+                      {versions.length} saved
+                    </span>
+                  </span>
+                  {historyOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+                {historyOpen && (
+                  <div className="p-2 pt-0 border-t border-white/10 space-y-1.5">
+                    {versions.length === 0 && (
+                      <div className="text-[11px] text-white/50 py-2 text-center">
+                        No versions yet — each generation is automatically snapshotted here.
+                      </div>
+                    )}
+                    {versions.map((v) => {
+                      const isCurrent = v.report === report;
+                      const isCompare = compareId === v.id;
+                      return (
+                        <div key={v.id} className={`rounded border p-2 text-[11px] ${
+                          isCurrent ? "border-sky-400/40 bg-sky-500/[0.08]" : "border-white/10 bg-black/30"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-white/60">{new Date(v.createdAt).toLocaleString()}</span>
+                            {isCurrent && <span className="text-[9px] uppercase tracking-widest text-sky-200">current</span>}
+                            <span className="ml-auto flex items-center gap-1">
+                              <button
+                                onClick={() => setCompareId(isCompare ? null : v.id)}
+                                className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/10 text-[9px] uppercase tracking-widest hover:bg-white/10"
+                              >
+                                {isCompare ? "Hide" : "View"}
+                              </button>
+                              <button
+                                onClick={() => { setReport(v.report); setTmpl((prev) => ({ ...prev, ...v.tmplSnapshot })); setPreviewMode("ai"); }}
+                                disabled={isCurrent}
+                                className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-100 text-[9px] uppercase tracking-widest hover:bg-amber-500/30 disabled:opacity-40 flex items-center gap-1"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" /> Revert
+                              </button>
+                              <button
+                                onClick={() => persistVersions(versions.filter((x) => x.id !== v.id))}
+                                className="px-1 py-0.5 rounded text-white/40 hover:text-red-300"
+                                title="Delete this version"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          </div>
+                          <div className="text-white/70 truncate mt-0.5">{v.label}</div>
+                          {isCompare && (
+                            <div className="mt-2 max-h-48 overflow-y-auto rounded border border-white/10 bg-black/50 p-2">
+                              <div className="prose prose-invert prose-xs max-w-none prose-headings:text-red-200 prose-h1:text-[13px] prose-h2:text-[11px] prose-h2:uppercase prose-h2:tracking-widest prose-p:text-white/80">
+                                <ReactMarkdown>{v.report}</ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* AI chat refinement */}
               {report && (
