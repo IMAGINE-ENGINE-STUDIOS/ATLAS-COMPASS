@@ -12,6 +12,7 @@ export default function GeoRealmPage() {
   const [active, setActive] = useState<string[]>(["pb2002_plates", "pb2002_boundaries"]);
   const [showCrust, setShowCrust] = useState(true);
   const [showSurface, setShowSurface] = useState(true);
+  const [realistic, setRealistic] = useState(false);
   const [hypo, setHypo] = useState<string | null>("usgs_m45_month");
   const [showVolumetric, setShowVolumetric] = useState(true);
   const [showMotion, setShowMotion] = useState(true);
@@ -49,6 +50,7 @@ export default function GeoRealmPage() {
         activeCanonical={active}
         showCrust={showCrust}
         showSurface={showSurface}
+        realistic={realistic}
         activeHypocenter={hypo}
         showVolumetricPlates={showVolumetric}
         showPlateMotion={showMotion}
@@ -88,6 +90,8 @@ export default function GeoRealmPage() {
           setShowCrust={setShowCrust}
           showSurface={showSurface}
           setShowSurface={setShowSurface}
+          realistic={realistic}
+          setRealistic={setRealistic}
           hypo={hypo}
           setHypo={setHypo}
           bundles={bundles}
@@ -133,6 +137,8 @@ export default function GeoRealmPage() {
                 setShowCrust={setShowCrust}
                 showSurface={showSurface}
                 setShowSurface={setShowSurface}
+                realistic={realistic}
+                setRealistic={setRealistic}
                 hypo={hypo}
                 setHypo={setHypo}
                 bundles={bundles}
@@ -198,6 +204,8 @@ function LayersPanel(props: {
   setShowCrust: (v: boolean) => void;
   showSurface: boolean;
   setShowSurface: (v: boolean) => void;
+  realistic: boolean;
+  setRealistic: (v: boolean) => void;
   hypo: string | null;
   setHypo: (v: string | null) => void;
   bundles: GeoRealmBundle[];
@@ -212,6 +220,7 @@ function LayersPanel(props: {
 }) {
   const {
     active, toggle, showCrust, setShowCrust, showSurface, setShowSurface,
+    realistic, setRealistic,
     hypo, setHypo, bundles,
     showVolumetric, setShowVolumetric, showMotion, setShowMotion,
     thicknessKm, setThicknessKm,
@@ -268,6 +277,15 @@ function LayersPanel(props: {
             className="accent-orange-400"
           />
           Opaque surface (off = X-ray)
+        </label>
+        <label className="mt-1 flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
+          <input
+            type="checkbox"
+            checked={realistic}
+            onChange={(e) => setRealistic(e.target.checked)}
+            className="accent-orange-400"
+          />
+          Realistic Earth (NASA Blue Marble)
         </label>
 
         <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">

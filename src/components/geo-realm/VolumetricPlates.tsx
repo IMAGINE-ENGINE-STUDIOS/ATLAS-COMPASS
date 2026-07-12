@@ -87,6 +87,9 @@ export function VolumetricPlates({
         null;
       const wallsPos: number[] = [];
       const capsPos: number[] = [];
+      const capFillPos: number[] = [];
+      const capFillIdx: number[] = [];
+      let capBase = 0;
       const rings = extractRings(feature);
       let cLon = 0, cLat = 0, cN = 0;
 
@@ -106,11 +109,53 @@ export function VolumetricPlates({
       }
 
       if (wallsPos.length === 0) continue;
+
+      // Provisional centroid for stereographic projection.
+      const cLonP = cN > 0 ? cLon / cN : 0;
+      const cLatP = cN > 0 ? cLat / cN : 0;
+
+      // Triangulate each ring on a stereographic tangent plane centered on
+      // the plate's centroid — produces a full top cap that catches clicks
+      // anywhere on the plate body, not just along its outline.
+      for (const ring of rings) {
+        const pts2: THREE.Vector2[] = [];
+        const start3: number[] = [];
+        for (let i = 0; i < ring.length - 1; i++) {
+          const p = ring[i];
+          if (!p) continue;
+          const [sx, sy] = stereographic(p[0], p[1], cLonP, cLatP);
+          if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
+          pts2.push(new THREE.Vector2(sx, sy));
+          const [x, y, z] = lonLatToUnit(p[0], p[1], rTop);
+          start3.push(x, y, z);
+        }
+        if (pts2.length < 3) continue;
+        let tris: number[][] = [];
+        try {
+          tris = THREE.ShapeUtils.triangulateShape(pts2, []);
+        } catch {
+          tris = [];
+        }
+        if (tris.length === 0) continue;
+        capFillPos.push(...start3);
+        for (const t of tris) {
+          capFillIdx.push(capBase + t[0], capBase + t[1], capBase + t[2]);
+        }
+        capBase += pts2.length;
+      }
+
       const walls = new THREE.BufferGeometry();
       walls.setAttribute("position", new THREE.Float32BufferAttribute(wallsPos, 3));
       walls.computeVertexNormals();
       const caps = new THREE.BufferGeometry();
       caps.setAttribute("position", new THREE.Float32BufferAttribute(capsPos, 3));
+      let capFill: THREE.BufferGeometry | null = null;
+      if (capFillIdx.length > 0) {
+        capFill = new THREE.BufferGeometry();
+        capFill.setAttribute("position", new THREE.Float32BufferAttribute(capFillPos, 3));
+        capFill.setIndex(capFillIdx);
+        capFill.computeVertexNormals();
+      }
 
       const centroid = cN > 0 ? { lon: cLon / cN, lat: cLat / cN } : { lon: 0, lat: 0 };
       const v = pole ? velocityAt(pole, centroid.lat, centroid.lon) : null;
@@ -136,6 +181,7 @@ export function VolumetricPlates({
         colorObj: col,
         walls,
         caps,
+        capFill,
         centroid,
         pole,
         velocity,
@@ -152,33 +198,44 @@ export function VolumetricPlates({
         const isSelected = selectedCode === p.code;
         const isHover = hoverCode === p.code;
         const opacity = isSelected ? 0.75 : isHover ? 0.55 : 0.28;
+        const handlers = {
+          onClick: (e: ThreeEvent<MouseEvent>) => {
+            e.stopPropagation();
+            onSelect?.({
+              code: p.code,
+              name: p.name,
+              areaSteradian: 0,
+              centroid: p.centroid,
+              pole: p.pole,
+              velocity: p.velocity,
+              source: p.pole ? "NNR-MORVEL 2010 (DeMets, Gordon, Argus)" : "no MORVEL pole assigned",
+              color: p.color,
+            });
+          },
+          onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+            e.stopPropagation();
+            setHoverCode(p.code);
+            document.body.style.cursor = "pointer";
+          },
+          onPointerOut: () => {
+            setHoverCode((c) => (c === p.code ? null : c));
+            document.body.style.cursor = "";
+          },
+        };
         return (
           <group key={p.code}>
-            <mesh
-              geometry={p.walls}
-              onClick={(e: ThreeEvent<MouseEvent>) => {
-                e.stopPropagation();
-                onSelect?.({
-                  code: p.code,
-                  name: p.name,
-                  areaSteradian: 0,
-                  centroid: p.centroid,
-                  pole: p.pole,
-                  velocity: p.velocity,
-                  source: p.pole ? "NNR-MORVEL 2010 (DeMets, Gordon, Argus)" : "no MORVEL pole assigned",
-                  color: p.color,
-                });
-              }}
-              onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-                e.stopPropagation();
-                setHoverCode(p.code);
-                document.body.style.cursor = "pointer";
-              }}
-              onPointerOut={() => {
-                setHoverCode((c) => (c === p.code ? null : c));
-                document.body.style.cursor = "";
-              }}
-            >
+            {p.capFill && (
+              <mesh geometry={p.capFill} {...handlers}>
+                <meshBasicMaterial
+                  color={p.colorObj}
+                  transparent
+                  opacity={opacity * 0.55}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                />
+              </mesh>
+            )}
+            <mesh geometry={p.walls} {...handlers}>
               <meshBasicMaterial
                 color={p.colorObj}
                 transparent
@@ -228,6 +285,7 @@ interface PlateEntry {
   colorObj: THREE.Color;
   walls: THREE.BufferGeometry;
   caps: THREE.BufferGeometry;
+  capFill: THREE.BufferGeometry | null;
   centroid: { lon: number; lat: number };
   pole: EulerPole | null;
   velocity: { east_mm_yr: number; north_mm_yr: number; speed_mm_yr: number; azimuth_deg: number } | null;
@@ -311,6 +369,20 @@ function extractRings(f: GeoFeatureCollection["features"][number]): number[][][]
   if (g.type === "Polygon") return g.coordinates;
   if (g.type === "MultiPolygon") return g.coordinates.flat();
   return [];
+}
+
+/**
+ * Stereographic projection of (lon, lat) onto a tangent plane centered at
+ * (lon0, lat0). Well-defined everywhere except at the antipode — good enough
+ * to triangulate every tectonic plate.
+ */
+function stereographic(lon: number, lat: number, lon0: number, lat0: number): [number, number] {
+  const D = Math.PI / 180;
+  const φ = lat * D, λ = lon * D, φ0 = lat0 * D, λ0 = lon0 * D;
+  const k = 2 / (1 + Math.sin(φ0) * Math.sin(φ) + Math.cos(φ0) * Math.cos(φ) * Math.cos(λ - λ0));
+  const x = k * Math.cos(φ) * Math.sin(λ - λ0);
+  const y = k * (Math.cos(φ0) * Math.sin(φ) - Math.sin(φ0) * Math.cos(φ) * Math.cos(λ - λ0));
+  return [x, y];
 }
 
 export default VolumetricPlates;

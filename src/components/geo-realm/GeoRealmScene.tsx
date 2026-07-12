@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -212,6 +212,29 @@ function EarthShell({ opacity }: { opacity: number }) {
   );
 }
 
+/**
+ * Photoreal Earth — NASA Blue Marble day map draped on the shell so users
+ * can see continents/oceans as reference while inspecting plates.
+ */
+function RealisticEarth({ opacity }: { opacity: number }) {
+  const tex = useLoader(
+    THREE.TextureLoader,
+    "https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg",
+  );
+  return (
+    <mesh>
+      <sphereGeometry args={[R * 0.999, 128, 96]} />
+      <meshStandardMaterial
+        map={tex}
+        roughness={0.95}
+        metalness={0}
+        transparent={opacity < 1}
+        opacity={opacity}
+      />
+    </mesh>
+  );
+}
+
 function CameraHud({ onChange }: { onChange: (info: { alt: number; lat: number; lon: number }) => void }) {
   const lastRef = useRef({ alt: -1, lat: -999, lon: -999 });
   useFrame(({ camera }) => {
@@ -233,6 +256,7 @@ export interface GeoRealmSceneProps {
   activeCanonical: string[];
   showCrust: boolean;
   showSurface: boolean;
+  realistic?: boolean;
   activeHypocenter?: string | null;
   showVolumetricPlates?: boolean;
   showPlateMotion?: boolean;
@@ -247,6 +271,7 @@ export default function GeoRealmScene({
   activeCanonical,
   showCrust,
   showSurface,
+  realistic = false,
   activeHypocenter,
   showVolumetricPlates = false,
   showPlateMotion = true,
@@ -269,7 +294,11 @@ export default function GeoRealmScene({
       <directionalLight position={[-3, -2, -3]} intensity={0.3} color="#4a90ff" />
       <Stars radius={40} depth={20} count={2000} factor={2} fade speed={0.4} />
 
-      <EarthShell opacity={showSurface ? 0.6 : 0.05} />
+      {realistic ? (
+        <RealisticEarth opacity={showSurface ? 1 : 0.25} />
+      ) : (
+        <EarthShell opacity={showSurface ? 0.6 : 0.05} />
+      )}
       <CrustShells visible={showCrust} />
 
       {active.map((d) => (
