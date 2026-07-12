@@ -1023,3 +1023,32 @@ function ParamInput({ label, value, onChange, placeholder, type = "text" }: {
     </label>
   );
 }
+
+function TmplField({ label, value, onChange, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className="text-[9px] uppercase tracking-widest text-amber-200/80">{label}</span>
+      <input
+        value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-amber-400/50"
+      />
+    </label>
+  );
+}
+
+function TmplArea({ label, value, onChange, placeholder, rows = 3 }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
+}) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className="text-[9px] uppercase tracking-widest text-amber-200/80">{label}</span>
+      <textarea
+        value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        rows={rows}
+        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] leading-relaxed resize-y focus:outline-none focus:border-amber-400/50"
+      />
+    </label>
+  );
+}
