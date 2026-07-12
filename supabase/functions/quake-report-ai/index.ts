@@ -1,16 +1,18 @@
 // Edge function: quake-report-ai
 // ---------------------------------
-// Generates or refines a HARVARD-STYLE scientific technical paper documenting
-// a specific earthquake event and its geotechnical implications, from real
-// USGS / FDSNWS event data + user-editable template fields + user-selected
-// engineering parameters + supporting imagery URLs (ShakeMap, DYFI, PAGER,
-// moment tensor). Uses the Lovable AI Gateway (google/gemini-2.5-flash).
+// Generates or refines a professional consulting-style TECHNICAL SEISMIC
+// ASSESSMENT REPORT for a specific earthquake event, modelled on a
+// geotechnical engineering consulting report (BME / ASCE style). The
+// structure mirrors a real field-consulting deliverable: executive
+// summary, project information, purpose, regional context, field
+// methods, observations, evaluation, recommendations, limitations,
+// closure. Uses the Lovable AI Gateway (google/gemini-2.5-flash).
 //
 // Modes:
-//   mode = "generate"  -> author a fresh paper from event + params + template
-//   mode = "refine"    -> revise the current paper using user chat + fields
-// Output is a single self-contained Markdown document that the frontend
-// renders and exports verbatim as .md.
+//   mode = "generate" -> author a fresh report from event + params + template
+//   mode = "refine"   -> revise the current report using user chat + fields
+// Output is a single self-contained Markdown document rendered verbatim
+// on the frontend and exportable as .md / print PDF.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,37 +55,31 @@ interface Params {
 }
 
 /**
- * Fully editable template fields. Anything the user has filled in is treated
- * as authoritative — the model must preserve the user's wording verbatim (only
- * light grammar tightening) and place it in the correct paper section. Missing
- * fields are drafted by the model from the event facts.
+ * Editable consulting-report fields. Anything the user has filled is
+ * treated as authoritative — the writer must preserve wording verbatim
+ * (grammar-only edits). Empty fields are drafted from the event facts.
  */
 interface TemplateFields {
-  title?: string;
-  runningHead?: string;
-  authors?: string;
-  affiliations?: string;
-  correspondingAuthor?: string;
-  keywords?: string;
-  abstract?: string;
-  introduction?: string;
-  tectonicSetting?: string;
-  methodology?: string;
+  projectTitle?: string;
+  clientName?: string;
+  clientAddress?: string;
+  projectAddress?: string;
+  projectNumber?: string;
+  reportDate?: string;
+  engineerName?: string;
+  engineerTitle?: string;
+  engineerLicense?: string;
+  executiveSummary?: string;
+  projectInformation?: string;
+  purpose?: string;
+  regionalContext?: string;
+  fieldMethods?: string;
   observations?: string;
-  siteResponse?: string;
-  liquefaction?: string;
-  slopeStability?: string;
-  structural?: string;
-  lifelines?: string;
-  aftershockOutlook?: string;
-  discussion?: string;
+  evaluation?: string;
   recommendations?: string;
   limitations?: string;
-  acknowledgments?: string;
-  references?: string;
-  fundingStatement?: string;
-  dataAvailability?: string;
-  ethicsStatement?: string;
+  closure?: string;
+  attachments?: string;
 }
 
 interface Figure {
@@ -118,7 +114,7 @@ function buildFacts(q: QuakeInput, p: Params, source: string): string {
     `NETWORK: ${q.net ?? source}`,
     `EVENT PAGE: ${q.url ?? ""}`,
     ``,
-    `SELECTED ENGINEERING PARAMETERS:`,
+    `ENGINEERING PARAMETERS:`,
     `- Site class (NEHRP): ${p.siteClass ?? "unknown — assume D (default)"}`,
     `- Groundwater depth (m): ${p.groundwaterM ?? "unknown"}`,
     `- Structure type: ${p.structureType ?? "not specified"}`,
@@ -136,166 +132,189 @@ function templateBlock(t: TemplateFields | undefined): string {
     .filter(([, v]) => typeof v === "string" && v.trim().length > 0)
     .map(([k, v]) => `- ${k}: ${String(v).slice(0, 4000)}`);
   if (!rows.length) return "USER-PROVIDED TEMPLATE FIELDS: (none — draft everything from FACTS)";
-  return `USER-PROVIDED TEMPLATE FIELDS (authoritative — integrate verbatim, only light grammar):\n${rows.join("\n")}`;
+  return `USER-PROVIDED TEMPLATE FIELDS (authoritative — integrate verbatim, grammar-only edits):\n${rows.join("\n")}`;
 }
 
 function figuresBlock(figs: Figure[] | undefined): string {
   if (!figs?.length) return "FIGURES: (none provided — omit image embeds)";
-  return "FIGURES (embed each in the named section as ![caption](url) and reference in prose as \"(Figure N)\"):\n" +
+  return "FIGURES (embed each as ![caption](url) inside the OBSERVATIONS section and reference in prose as \"(Figure N)\"):\n" +
     figs.map((f, i) =>
-      `- Figure ${i + 1} | section=${f.section ?? "ground-motion"} | ${f.caption} | ${f.url}`,
+      `- Figure ${i + 1} | ${f.caption} | ${f.url}`,
     ).join("\n");
 }
 
-const SYSTEM_GENERATE = `You are the lead author of a concise TECHNICAL SEISMIC
-ANALYSIS PAPER — NOT a geopolitical or societal study. The paper is written
-for seismologists and geotechnical engineers. Focus is 100 % on: the raw
-event data, the seismological analysis of that data, the physical causes,
-the observed and expected effects, and evidence-based conclusions.
+const SYSTEM_GENERATE = `You are the lead author of a professional TECHNICAL
+SEISMIC ASSESSMENT REPORT written in the exact voice, structure and
+register of a working geotechnical / civil-engineering consulting
+deliverable (think a firm letter-report addressed to a named client:
+Executive Summary → Project Information → Purpose → Regional Context →
+Field Methods → Observations → Evaluation → Recommendations →
+Limitations → Closure → Attachments). The subject is a specific
+earthquake event, not a study of policy or society.
 
-STYLE — hard requirements
-- Register: Bulletin of the Seismological Society of America / GRL.
-  Every sentence is technical, quantitative, and citable. NO
-  policy/political/geopolitical/economic commentary. NO storytelling.
-- Ground every claim in the FACTS block. Never invent numeric values.
-  When a value is missing, write "not reported (source: <authority>)".
-- Preserve verbatim any USER-PROVIDED TEMPLATE FIELDS. Integrate them into
-  the correct section; only tighten grammar. Never contradict them. Empty
-  fields → you draft them from FACTS.
+VOICE — hard requirements
+- First-person plural ("we", "our field team", "it is our opinion that")
+  when speaking as the authoring firm; third-person neutral for
+  technical description. Formal, restrained, factual.
+- Every quantitative claim ties back to the FACTS block. Never invent
+  values. When a value is missing, write "not reported (source: <auth>)".
+- Preserve verbatim any USER-PROVIDED TEMPLATE FIELDS in the matching
+  section; only tighten grammar. Never contradict them. Empty fields →
+  you draft them from FACTS.
 - Units: SI unless the user requested US. MMI in Roman numerals I–XII.
-- Use canonical author–date citations only when actually relevant to a
-  numeric method: Gutenberg & Richter (1956) for radiated energy;
-  Kanamori (1977) for Mw; Wells & Coppersmith (1994) for rupture scaling;
-  Boore et al. (2014) for GMPEs; Youd & Idriss (2001) for liquefaction
-  screening; Newmark (1965) for coseismic slope displacement; Omori (1894)
-  / Utsu (1961) for aftershock decay; Båth (1965) for largest-aftershock
-  gap; USGS ShakeMap / PAGER / DYFI product docs when their outputs are
-  cited. Every in-text citation MUST appear in § 12 References.
+- No academic citation apparatus (no author-date parentheticals, no
+  references list, no "Harvard-style"). When you name a canonical
+  method (SPT, Newmark method, ASCE 7, ShakeMap, PAGER, DYFI), name it
+  in prose without a citation.
 
 FORMATTING — hard requirements
-- Use Markdown that renders with GitHub-flavored tables (GFM).
-- Between every major section leave ONE blank line. Between every
-  paragraph leave ONE blank line. Never wall-of-text.
-- Every section that presents parameters MUST use a proper Markdown table
-  (pipes and hyphens), NOT bullet lists of key: value pairs. Example
-  required tables: § 3 Event parameters, § 3 Location quality metrics,
-  § 4 Derived seismological quantities, § 5 Intensity summary, § 7
-  Aftershock catalogue summary.
-- Every numeric field must include units.
-- Embed every provided FIGURE as \`![caption](url)\` inside the section
-  named in its \`section\` hint (default: "ground-motion"). Immediately
-  after each figure, write an italic caption line: \`*Figure N. <caption>*\`
-  and reference it in prose as "(Figure N)".
-- Use fenced code blocks for any raw catalogue rows or ASCII plots.
+- GitHub-flavoured Markdown. Tables use pipes and hyphens.
+- Between every major section: ONE blank line. Between every paragraph:
+  ONE blank line. Never wall-of-text.
+- Every section that presents parameters MUST use a proper Markdown
+  table, not bullet lists of key:value pairs. Required tables:
+  Project Information (client / project / event snapshot),
+  Regional Context (nearest tectonic features), Observations
+  (event parameters + location quality metrics + intensity summary),
+  Evaluation (geotechnical hazard screening matrix), and any
+  aftershock summary. Every numeric value carries units.
+- Embed every provided FIGURE as \`![caption](url)\` inside § 6
+  Observations. Immediately after each figure write an italic caption
+  line: \`*Figure N. <caption>*\` and reference in prose as
+  "(Figure N)".
+- Use fenced code blocks only for raw catalogue rows or ASCII plots.
 
 STRUCTURE — output a single self-contained Markdown document in EXACTLY
-this order, using the exact headings shown so the frontend can style them.
-Do NOT add extra top-level sections and do NOT invent geopolitical
+this order, using the exact headings shown so the frontend can style
+them. Do NOT rename or reorder sections. Do NOT invent geopolitical
 sections.
 
-# <Title>
-*<Running head>*
+# <Project title>
 
-**Authors.** <authors>
-**Affiliations.** <affiliations>
-**Corresponding author.** <email or ORCID>
+**Prepared for:** <client name>
+<client address>
+
+**Re:** Seismic Assessment Services — <one-line event descriptor>
+<project address>
+**Project No.:** <project number>
+**Date:** <report date>
 
 ---
 
-## Abstract
-120–180 words. Structured single paragraph: (i) event, (ii) data, (iii)
-key seismological findings with numbers, (iv) engineering-relevant
-conclusions. No policy language.
+## Executive Summary
+3–5 short paragraphs. Open with the event and the questions this
+assessment answers. State the principal findings in numeric terms
+(magnitude, depth, intensity, distance to key infrastructure). Close
+with a bulleted list of "our opinion" statements — the concrete
+engineering conclusions that follow from the data (e.g. bearing
+capacity, liquefaction screening outcome, aftershock outlook).
 
-**Keywords.** 4–7 comma-separated terms (all technical).
+## 1. Project Information
+One short prose paragraph naming the client, the site, and the event
+that triggered this assessment. Immediately follow with a Markdown
+table titled *Project & Event Snapshot* with columns
+\`Field | Value\` covering: Client, Project address, Project number,
+Report date, Event ID, Origin time (UTC), Epicenter, Focal depth,
+Magnitude (and type), Source authority, Event page.
 
-## 1. Introduction
-2 short paragraphs. Purpose of the analysis and the specific technical
-questions this paper answers. No societal framing.
+## 2. Purpose
+2–4 sentences: the specific technical questions this report answers
+and the scope of services performed. Consulting register.
 
-## 2. Tectonic Context and Probable Causes
-Local plate boundary, regional stress regime, nearest mapped active
-faults, and the *physical cause* of this event (e.g. reverse slip on a
-subduction interface, intraplate strike-slip). If a moment-tensor figure
-is provided, cite it (Figure N).
+## 3. Regional and Tectonic Context
+Prose paragraph on the plate-tectonic setting, regional stress
+regime, and nearest mapped active faults. If a moment-tensor figure
+is available, describe the mechanism (reverse / normal / strike-slip)
+in words. Follow with a small table \`Feature | Distance | Notes\`
+listing the nearest tectonic features you referenced.
 
-## 3. Raw Event Data
-### 3.1 Event parameters
-Render a Markdown table with columns \`Parameter | Value | Unit | Source\`
-covering: origin time (UTC), latitude, longitude, depth, magnitude,
-magnitude type, network, event id.
-### 3.2 Location quality metrics
-Render a Markdown table with columns \`Metric | Value | Interpretation\`
-covering: number of stations (nst), minimum epicentral distance (dmin,
-deg), azimuthal gap (deg), location RMS (s), review status.
+## 4. Field Data and Methodology
+Describe the observation network and instrumentation used to
+characterise the event (regional broadband stations, ShakeMap
+interpolation, DYFI community reports, PAGER exposure model). Note
+the source authority (§ SOURCE AUTHORITY) and any data quality
+caveats (location RMS, azimuthal gap, number of stations).
 
-## 4. Seismological Analysis
-### 4.1 Derived quantities
-Render a Markdown table \`Quantity | Formula | Value | Unit\` computing at
-least: radiated energy E (Gutenberg & Richter, 1956, log10 E = 4.8 + 1.5 M),
-TNT equivalent, expected rupture length (Wells & Coppersmith, 1994),
-expected rupture width, expected average slip.
-### 4.2 Focal mechanism and rupture model
-Discuss the mechanism and stress orientation. Reference the beachball
-figure if provided. State clearly what remains uncertain.
+## 5. Regional Ground Conditions
+If the ENGINEERING PARAMETERS supply a site class / groundwater
+depth / structure type, describe the assumed subsurface profile in
+prose. If parameters are missing, state the default assumption
+(NEHRP D unless overridden) and flag that the user should refine.
 
-## 5. Ground Motion and Intensity
-Prose paragraph plus a table \`Metric | Value | Source\` covering:
-instrumental MMI (ShakeMap), community CDI (DYFI), felt-report count,
-PAGER alert level, tsunami flag, and — where derivable — expected PGA /
-PGV brackets from a GMPE (Boore et al., 2014). Embed intensity, PGA,
-PGV, DYFI figures here.
+## 6. Observations
+Sub-sections:
+### 6.1 Event Parameters
+Markdown table \`Parameter | Value | Unit | Source\` covering origin
+time, latitude, longitude, depth, magnitude, magnitude type, network,
+event id.
+### 6.2 Location Quality
+Markdown table \`Metric | Value | Interpretation\` covering nst, dmin
+(deg), azimuthal gap (deg), location RMS (s), review status.
+### 6.3 Ground Motion and Intensity
+Prose paragraph + table \`Metric | Value | Source\` covering
+instrumental MMI, community CDI, felt-report count, PAGER alert,
+tsunami flag, and — where derivable from ShakeMap contours — expected
+PGA / PGV brackets. Embed the provided FIGURES here with italic
+captions.
+### 6.4 Aftershock Sequence
+Short prose plus a Markdown table of up to 10 aftershocks so far
+with columns \`# | UTC time | M | Δ (km) | Depth (km) | Region\`. If
+none logged, say so explicitly.
 
-## 6. Geotechnical Effects
-ONE subsection per relevant hazard, each with a short technical paragraph.
-Only include a subsection when the FACTS support it.
-### 6.1 Site response (NEHRP class)
-### 6.2 Liquefaction potential (Youd & Idriss, 2001)
-### 6.3 Coseismic slope displacement (Newmark, 1965)
-### 6.4 Fault surface rupture potential
+## 7. Evaluation
+ONE subsection per relevant hazard. Only include a subsection when
+the FACTS or PARAMETERS support it. Each subsection is a compact
+technical paragraph.
+### 7.1 Site Response (NEHRP)
+### 7.2 Liquefaction Potential
+### 7.3 Coseismic Slope Displacement
+### 7.4 Foundation and Structural Implications
+### 7.5 Fault Surface Rupture Potential
+Close § 7 with a Markdown *Hazard Screening Matrix* table:
+\`Hazard | Screening basis | Outcome | Action\`.
 
-## 7. Aftershock Sequence
-Short prose (Båth, 1965; Omori–Utsu decay) plus a Markdown table of the
-top 10 replicas so far with columns \`# | UTC time | M | Δ (km) |
-Depth (km) | Region\`. If none logged, say so explicitly.
+## 8. Recommendations
+Numbered list (1., 2., 3., …). Each item is a single actionable
+engineering recommendation tied to a finding in § 6 or § 7. Aim for
+5–9 recommendations. Use consulting register ("It is recommended
+that…", "The design team should…").
 
-## 8. Effects on the Built Environment
-STRICTLY structural / infrastructure engineering effects derivable from
-the ground-motion products (not casualty numbers, not policy). Foundations,
-non-structural drift, lifelines, cascading physical hazards.
+## 9. Report Limitations
+3–5 sentences describing the scope of the services, the data
+limitations (e.g. "PGA estimated from ShakeMap contours, not
+instrument records"), and the disclaimer that this report is
+prepared for the exclusive use of the named client.
 
-## 9. Conclusions
-Numbered list (1., 2., 3., …). Each item is a single, evidence-based
-technical conclusion tying an observed number back to a physical cause or
-engineering effect. Aim for 4–7 conclusions.
+## 10. Closure
+Two short paragraphs, signed by the engineer.
 
-## 10. Limitations and Uncertainty
-Bullet list of the specific data gaps and assumption sensitivities in
-THIS paper (e.g. "PGA estimated from ShakeMap contours, not station
-records"). Keep it short and specific.
+Sincerely,
 
-## 11. Data Availability
-FDSNWS endpoint(s) and the event page URL as inline links.
+<engineer name>
+<engineer title>
+<engineer license>
 
-## 12. References
-Harvard (author–date) style, alphabetical. Only include entries actually
-cited in the body. Each entry on its own line, format:
-\`Author, X.Y. & Other, Z. (YEAR) Title. Journal, vol(iss), pp–pp.\`
+## Attachments
+Bullet list of the artefacts referenced (Vicinity map, ShakeMap
+intensity, DYFI CIIM, PAGER exposure, Moment tensor, Aftershock
+ledger, Event page URL). Include the source authority's event page
+as an inline link.
 
-LENGTH: 900–1500 words total (this is a focused technical note, not a
-monograph). Prefer tables over prose whenever quantitative. Never leave a
-heading with a placeholder.`;
+LENGTH: 900–1600 words total. Prefer tables over prose for
+quantitative content. Never leave a heading with a placeholder.`;
 
-const SYSTEM_REFINE = `You are revising an existing TECHNICAL SEISMIC ANALYSIS
-PAPER. Return the FULL revised paper as Markdown — never a diff, never
-just a section. Preserve the exact numbered section structure defined in
-the generator prompt (12 sections), the Markdown tables (GFM), embedded
-figures with italic captions, one blank line between paragraphs, and
-every citation must remain present in § 12 References. Treat USER-
-PROVIDED TEMPLATE FIELDS as authoritative (grammar-only edits). Never
-introduce geopolitical, casualty, or policy content unless the FACTS
-explicitly support it. Never drop the Markdown tables — if the user asks
-to shorten, shrink prose first, keep the tables.`;
+const SYSTEM_REFINE = `You are revising an existing TECHNICAL SEISMIC
+ASSESSMENT REPORT. Return the FULL revised report as Markdown —
+never a diff, never just a section. Preserve the exact 10-section
+consulting structure defined in the generator prompt (Executive
+Summary + § 1–10 + Attachments), the Markdown tables, embedded
+figures with italic captions, one blank line between paragraphs,
+and the consulting voice ("we", "our opinion"). Never introduce
+academic author-date citations or a "References" section. Treat
+USER-PROVIDED TEMPLATE FIELDS as authoritative (grammar-only
+edits). Never introduce geopolitical, casualty, or policy content
+unless the FACTS explicitly support it. If the user asks to
+shorten, shrink prose first — keep the tables.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -353,13 +372,13 @@ Deno.serve(async (req) => {
       }
       messages.push({
         role: "user",
-        content: `Revision request: ${String(instruction || "Improve the report.").slice(0, 2000)}\n\nReturn the FULL revised paper as Markdown, preserving structure and figures.`,
+        content: `Revision request: ${String(instruction || "Improve the report.").slice(0, 2000)}\n\nReturn the FULL revised consulting report as Markdown, preserving structure and figures.`,
       });
     } else {
       messages.push({ role: "system", content: SYSTEM_GENERATE });
       messages.push({
         role: "user",
-        content: `FACTS:\n${facts}\n\n${tmpl}\n\n${figs}\n\nWrite the full Harvard-style scientific paper now. Language: ${params.language ?? "English"}.`,
+        content: `FACTS:\n${facts}\n\n${tmpl}\n\n${figs}\n\nWrite the full consulting-style Technical Seismic Assessment Report now. Language: ${params.language ?? "English"}.`,
       });
     }
 
