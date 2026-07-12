@@ -222,7 +222,9 @@ export default function QuakeReportModal({ quake, source, onClose }: Props) {
   }, [quake, source]);
 
   // ---- AI report generation --------------------------------------------
-  const quakePayload = useMemo(() => ({
+  const quakePayload = useMemo(() => {
+    const p = detail?.properties;
+    return {
     id: quake.id,
     mag: quake.mag ?? 0,
     place: quake.place ?? "",
@@ -233,17 +235,18 @@ export default function QuakeReportModal({ quake, source, onClose }: Props) {
     tsunami: quake.tsunami ?? 0,
     url: quake.url,
     alert: quake.alert ?? null,
-    magType: dp?.magType ?? null,
-    mmi: dp?.mmi ?? null,
-    cdi: dp?.cdi ?? null,
-    felt: dp?.felt ?? null,
-    nst: dp?.nst ?? null,
-    dmin: dp?.dmin ?? null,
-    rms: dp?.rms ?? null,
-    gap: dp?.gap ?? null,
-    sig: dp?.sig ?? null,
-    net: dp?.net ?? null,
-  }), [quake, dp]);
+    magType: p?.magType ?? null,
+    mmi: p?.mmi ?? null,
+    cdi: p?.cdi ?? null,
+    felt: p?.felt ?? null,
+    nst: p?.nst ?? null,
+    dmin: p?.dmin ?? null,
+    rms: p?.rms ?? null,
+    gap: p?.gap ?? null,
+    sig: p?.sig ?? null,
+    net: p?.net ?? null,
+    };
+  }, [quake, detail]);
 
   const paramsPayload = useCallback(() => ({
     siteClass: params.siteClass,
