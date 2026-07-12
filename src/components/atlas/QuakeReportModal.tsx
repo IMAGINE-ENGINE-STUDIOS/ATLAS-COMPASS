@@ -20,7 +20,9 @@
  * drop it straight into a report or share it downstream.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge } from "lucide-react";
+import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { supabase } from "@/integrations/supabase/client";
 import type { QuakeTag } from "./QuakeTagsOverlay";
 
 interface Props {
