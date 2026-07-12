@@ -64,6 +64,14 @@ export const mobileAxes: { x: number; z: number; jump: boolean; run: boolean } =
 };
 
 /**
+ * Accumulated look deltas from the on-screen touch look pad. Consumed and
+ * zeroed each frame by the player controller — same code path as the
+ * mouse-move handler so first/third person camera rotation is identical
+ * between desktop pointer-lock and mobile touch.
+ */
+export const mobileLook: { dx: number; dy: number } = { dx: 0, dy: 0 };
+
+/**
  * Set of object ids currently being driven by a trajectory/spline at play
  * time. While an id is in this set, PushableRuntime skips its own physics
  * step (gravity + horizontal collision) so the follower tracks the curve
