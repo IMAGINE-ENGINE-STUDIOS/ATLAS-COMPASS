@@ -94,3 +94,35 @@ export function poleForPlateName(name: string | undefined): EulerPole | null {
   );
   return match ?? null;
 }
+
+/**
+ * Map a plate surface velocity (mm/yr) to an activity color ramp:
+ *   slow (0)   → deep blue
+ *   moderate   → cyan → green → yellow
+ *   fast (100+)→ orange → red
+ * Anchored to observed range: Eurasia ~5–20, Nazca ~60–80, Rivera >100.
+ */
+export function activityColor(speedMmYr: number | null | undefined): string {
+  if (speedMmYr == null || Number.isNaN(speedMmYr)) return "#3a4c66";
+  const stops: Array<[number, [number, number, number]]> = [
+    [0,   [0x1b, 0x3c, 0x7a]], // deep blue
+    [15,  [0x2a, 0x8f, 0xd8]], // cyan
+    [35,  [0x3d, 0xd6, 0x9a]], // green
+    [60,  [0xff, 0xd0, 0x3a]], // yellow
+    [90,  [0xff, 0x7a, 0x1f]], // orange
+    [130, [0xff, 0x2d, 0x2d]], // red
+  ];
+  const v = Math.max(0, speedMmYr);
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [a, ca] = stops[i];
+    const [b, cb] = stops[i + 1];
+    if (v <= b) {
+      const t = (v - a) / (b - a || 1);
+      const r = Math.round(ca[0] + (cb[0] - ca[0]) * t);
+      const g = Math.round(ca[1] + (cb[1] - ca[1]) * t);
+      const bl = Math.round(ca[2] + (cb[2] - ca[2]) * t);
+      return `rgb(${r},${g},${bl})`;
+    }
+  }
+  return "rgb(255,45,45)";
+}

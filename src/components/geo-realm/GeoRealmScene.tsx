@@ -239,6 +239,7 @@ export interface GeoRealmSceneProps {
   plateThicknessKm?: number;
   selectedPlateCode?: string | null;
   onSelectPlate?: (p: SelectedPlate | null) => void;
+  plateColorMode?: "plate" | "activity";
   onCamera?: (info: { alt: number; lat: number; lon: number }) => void;
 }
 
@@ -252,6 +253,7 @@ export default function GeoRealmScene({
   plateThicknessKm = 100,
   selectedPlateCode = null,
   onSelectPlate,
+  plateColorMode = "plate",
   onCamera,
 }: GeoRealmSceneProps) {
   const active = CANONICAL_DATASETS.filter((d) => activeCanonical.includes(d.id));
@@ -283,6 +285,7 @@ export default function GeoRealmScene({
         showMotion={showPlateMotion}
         selectedCode={selectedPlateCode}
         onSelect={onSelectPlate}
+        colorMode={plateColorMode}
       />
 
       <OrbitControls

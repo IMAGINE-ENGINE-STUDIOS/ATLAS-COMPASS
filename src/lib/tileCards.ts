@@ -48,10 +48,12 @@ export const INDICATOR_PRESETS: {
   color: string;
   source?: string;
   unit?: string;
+  url?: string;
 }[] = [
   { kind: "topography",     label: "Topography · SRTM",           color: "#8b6f47", source: "NASA SRTM v3",         unit: "m" },
   { kind: "bathymetry",     label: "Bathymetry · GEBCO",          color: "#3aa8ff", source: "GEBCO 2024",          unit: "m" },
-  { kind: "tomography",     label: "Ground tomography",           color: "#c94f2b", source: "S40RTS / user upload", unit: "δVs %" },
+  { kind: "tomography",     label: "Tomography · IRIS EMC",       color: "#c94f2b", source: "IRIS Earth Model Collaboration (S40RTS, SEMUCB-WM1, GLAD-M25…)", unit: "δVs %", url: "http://ds.iris.edu/ds/products/emc-earthmodels/" },
+  { kind: "tomography",     label: "Tomography · SubMachine",     color: "#a84fff", source: "Univ. of Oxford SubMachine mantle models", unit: "δVs %", url: "https://www.earth.ox.ac.uk/~smachine/cgi/index.php" },
   { kind: "geology",        label: "Surface geology",             color: "#ffb020", source: "USGS / OneGeology" },
   { kind: "seismic",        label: "Seismic section",             color: "#ff2d55", source: "SEG-Y bundle" },
   { kind: "hypocenters",    label: "Recent hypocenters",          color: "#ff6b3d", source: "USGS 30 d" },
@@ -107,6 +109,21 @@ export async function upsertTileCard(input: {
 export async function deleteTileCard(id: string) {
   const { error } = await (supabase as any).from(TABLE).delete().eq("id", id);
   if (error) throw error;
+}
+
+/** Fetch a tile card by id, only if it is publicly shared. Works signed-out. */
+export async function fetchPublicTileCard(id: string) {
+  const { data, error } = await (supabase as any)
+    .from(TABLE)
+    .select("*")
+    .eq("id", id)
+    .eq("is_public", true)
+    .maybeSingle();
+  if (error) {
+    console.warn("fetchPublicTileCard failed", error);
+    return null;
+  }
+  return data as TileCardRecord | null;
 }
 
 export function tileKeyOf(z: number, x: number, y: number) {

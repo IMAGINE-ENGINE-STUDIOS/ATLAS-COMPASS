@@ -10,6 +10,7 @@ import {
   poleForPlateName,
   velocityAt,
   MORVEL_EULER_POLES,
+  activityColor,
   type EulerPole,
 } from "@/lib/geoRealm/plateMotion";
 
@@ -46,6 +47,7 @@ export function VolumetricPlates({
   animate = true,
   selectedCode = null,
   onSelect,
+  colorMode = "plate",
 }: {
   visible: boolean;
   radius: number;
@@ -54,6 +56,7 @@ export function VolumetricPlates({
   animate?: boolean;
   selectedCode?: string | null;
   onSelect?: (plate: SelectedPlate | null) => void;
+  colorMode?: "plate" | "activity";
 }) {
   const [data, setData] = useState<GeoFeatureCollection | null>(null);
   const [hoverCode, setHoverCode] = useState<string | null>(null);
@@ -82,9 +85,6 @@ export function VolumetricPlates({
         (props.Code ? MORVEL_EULER_POLES.find((p) => p.code === props.Code) : null) ??
         poleForPlateName(props.PlateName) ??
         null;
-      const colorHex = pole?.color ?? "#5a7fa8";
-      const col = new THREE.Color(colorHex);
-
       const wallsPos: number[] = [];
       const capsPos: number[] = [];
       const rings = extractRings(feature);
@@ -123,6 +123,12 @@ export function VolumetricPlates({
           }
         : null;
 
+      const colorHex =
+        colorMode === "activity"
+          ? activityColor(velocity?.speed_mm_yr ?? null)
+          : pole?.color ?? "#5a7fa8";
+      const col = new THREE.Color(colorHex);
+
       list.push({
         code,
         name: pole?.name ?? props.PlateName ?? code,
@@ -136,7 +142,7 @@ export function VolumetricPlates({
       });
     }
     return list;
-  }, [data, rTop, rBot]);
+  }, [data, rTop, rBot, colorMode]);
 
   if (!visible) return null;
 
