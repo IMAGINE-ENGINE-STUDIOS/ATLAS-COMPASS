@@ -681,9 +681,6 @@ Event page: ${quake.url}
             </div>
           )}
 
-          {tab === "ledger" && (
-            null
-          )}
           {tab === "library" && (
             <QuakeEventLibrary quake={quake} source={source} onTuneSource={(inst) => { onTuneSource?.(inst); onClose(); }} />
           )}
