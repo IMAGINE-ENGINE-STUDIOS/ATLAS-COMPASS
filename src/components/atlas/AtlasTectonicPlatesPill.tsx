@@ -16,10 +16,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Globe2, Loader2 } from "lucide-react";
 import {
+  Cartesian3,
+  Cartographic,
   Color,
   ColorMaterialProperty,
   ConstantProperty,
   GeoJsonDataSource,
+  Ellipsoid,
   type Viewer,
 } from "cesium";
 
@@ -97,12 +100,13 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
       line.width = new ConstantProperty(3);
       line.clampToGround = new ConstantProperty(false);
       line.arcType = new ConstantProperty(1);
-      // Re-project each vertex to the boundary altitude so lines float
-      // just above the fill without altering lon/lat.
-      const positions = entity.polyline.positions?.getValue?.(undefined as any);
-      if (Array.isArray(positions)) {
-        // Positions are Cartesian3 in ECEF — we need to lift them along the
-        // ellipsoid normal. Cesium exposes Cartographic for that.
+      const raw = entity.polyline.positions?.getValue?.(undefined as any) as Cartesian3[] | undefined;
+      if (Array.isArray(raw)) {
+        const lifted = raw.map((c) => {
+          const carto = Cartographic.fromCartesian(c, Ellipsoid.WGS84, new Cartographic());
+          return Cartesian3.fromRadians(carto.longitude, carto.latitude, BOUNDARY_ALT_M);
+        });
+        line.positions = new ConstantProperty(lifted);
       }
     }
   }
