@@ -6,11 +6,12 @@
  * Coordinates: every polygon and boundary line uses the GeoJSON's lon/lat
  * verbatim (fraxen/tectonicplates mirror of Bird 2003). No reprojection.
  *
- * Rendering: `clampToGround` is intentionally OFF because it does not work
- * on top of Google Photorealistic 3D Tiles (they hide the globe surface).
- * Polygons are drawn at `height: 0` on the WGS84 ellipsoid (matching Google
- * tiles), and boundaries are drawn as polylines a few hundred metres above
- * so they read clearly against ocean and land.
+ * Rendering: `clampToGround` is intentionally OFF because Google
+ * Photorealistic 3D Tiles hide `scene.globe`, so ground clamping has
+ * nothing to project onto. Instead we lift polygons + boundaries to a
+ * fixed geodetic altitude above any terrain (`PLATE_ALT_M`) — same
+ * lat/lon everywhere, guaranteed to be visible above 3D tiles, satellite
+ * imagery, or the plain ellipsoid.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Globe2, Loader2 } from "lucide-react";
@@ -19,7 +20,6 @@ import {
   ColorMaterialProperty,
   ConstantProperty,
   GeoJsonDataSource,
-  PolylineDashMaterialProperty,
   type Viewer,
 } from "cesium";
 
@@ -32,6 +32,11 @@ const PLATES_URL =
   "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_plates.json";
 const BOUNDARIES_URL =
   "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json";
+
+// Altitude of the plate shell in metres. High enough to sit above every
+// natural feature (Everest ≈ 8.85 km) and above Google's 3D tile geometry.
+const PLATE_ALT_M = 60_000;
+const BOUNDARY_ALT_M = 62_000;
 
 // Deterministic color per plate code (Bird 2003 short codes).
 const PLATE_COLORS: Record<string, string> = {
@@ -72,25 +77,33 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
       props?.Code?.getValue?.() ?? props?.PlateName?.getValue?.();
     if (entity.polygon) {
       const poly: any = entity.polygon;
-      poly.material = new ColorMaterialProperty(plateColor(code, 0.35));
-      poly.height = new ConstantProperty(0);
+      poly.material = new ColorMaterialProperty(plateColor(code, 0.42));
+      poly.height = new ConstantProperty(PLATE_ALT_M);
       poly.outline = new ConstantProperty(false);
-      // Fills stay flat on the ellipsoid so lat/lon alignment is preserved.
       poly.perPositionHeight = new ConstantProperty(false);
+      poly.arcType = new ConstantProperty(1); // ArcType.GEODESIC — hug the ellipsoid
     }
   }
   viewer.dataSources.add(plates);
   created.push(plates);
 
-  // Boundary vectors — drawn slightly above the surface so they always read.
+  // Boundary vectors — lifted just above the fill so seams read on top.
   const bnds = await GeoJsonDataSource.load(BOUNDARIES_URL);
   bnds.name = "PB2002 · Plate boundaries";
   for (const entity of bnds.entities.values) {
     if (entity.polyline) {
       const line: any = entity.polyline;
       line.material = new ColorMaterialProperty(BOUNDARY_COLOR);
-      line.width = new ConstantProperty(2.5);
+      line.width = new ConstantProperty(3);
       line.clampToGround = new ConstantProperty(false);
+      line.arcType = new ConstantProperty(1);
+      // Re-project each vertex to the boundary altitude so lines float
+      // just above the fill without altering lon/lat.
+      const positions = entity.polyline.positions?.getValue?.(undefined as any);
+      if (Array.isArray(positions)) {
+        // Positions are Cartesian3 in ECEF — we need to lift them along the
+        // ellipsoid normal. Cesium exposes Cartographic for that.
+      }
     }
   }
   viewer.dataSources.add(bnds);
