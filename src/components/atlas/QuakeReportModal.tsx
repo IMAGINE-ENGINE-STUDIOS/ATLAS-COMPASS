@@ -597,6 +597,105 @@ Event page: ${quake.url}
     };
   }, [dp]);
 
+  // ---- Live template preview (Harvard-style skeleton, updates as you type)
+  const livePreview = useMemo(() => {
+    const sec = (n: string, body: string, placeholder: string) =>
+      `## ${n}\n${(body || "").trim() ? body.trim() : `*${placeholder}*`}\n`;
+    const embed = (section: string) =>
+      figures
+        .filter((f) => (f.section ?? "ground-motion") === section)
+        .map((f, i) => `![${f.caption}](${f.url})\n*Figure. ${f.caption}*`)
+        .join("\n\n");
+    const gm = embed("ground-motion");
+    const life = embed("lifelines");
+    const tec = embed("tectonic");
+    return [
+      `# ${tmpl.title || `M${mag.toFixed(1)} ${quake.place || "Unnamed Event"} — Preliminary Assessment`}`,
+      tmpl.runningHead ? `*${tmpl.runningHead}*` : `*preview — running head not set*`,
+      tmpl.authors ? `**Authors.** ${tmpl.authors}` : `**Authors.** *unassigned*`,
+      tmpl.affiliations ? `**Affiliations.** ${tmpl.affiliations}` : `**Affiliations.** *unassigned*`,
+      tmpl.correspondingAuthor ? `**Corresponding author.** ${tmpl.correspondingAuthor}` : "",
+      "",
+      "---",
+      "",
+      sec("Abstract", tmpl.abstract, "abstract will be drafted from event facts on generate"),
+      tmpl.keywords ? `**Keywords.** ${tmpl.keywords}` : `**Keywords.** *not set*`,
+      sec("1. Introduction", tmpl.introduction, "introduction will be drafted"),
+      sec("2. Tectonic and Geological Setting", tmpl.tectonicSetting, "tectonic context will be drafted") + (tec ? `\n${tec}\n` : ""),
+      sec("3. Data and Methodology", tmpl.methodology, "methodology will be drafted"),
+      sec("4. Seismological Observations", tmpl.observations,
+        `origin ${fmtTime(quake.time)}, epicenter ${quake.lat.toFixed(3)}°, ${quake.lng.toFixed(3)}°, depth ${quake.depthKm} km, M${mag.toFixed(1)}`),
+      sec("5. Ground Motion and Intensity", "", `MMI ${romanMMI(mmi)} (${mmiLabel(mmi)}), CDI ${romanMMI(cdi)}, ${felt ?? 0} felt reports`) + (gm ? `\n${gm}\n` : ""),
+      sec("6. Site Response and NEHRP Class Implications", tmpl.siteResponse, `site class ${params.siteClass}, groundwater ${params.groundwaterM || "unknown"} m`),
+      sec("7. Liquefaction Assessment", tmpl.liquefaction, "Youd & Idriss (2001) screening will be drafted"),
+      sec("8. Slope Stability and Landslide Hazard", tmpl.slopeStability, "Newmark (1965) screening will be drafted"),
+      sec("9. Structural and Foundation Vulnerability", tmpl.structural, `implications for ${params.structureType}`),
+      sec("10. Lifeline and Infrastructure Considerations", tmpl.lifelines, "lifelines will be drafted") + (life ? `\n${life}\n` : ""),
+      sec("11. Aftershock and Replica Outlook", tmpl.aftershockOutlook,
+        `${totalAftershocks} replicas logged${strongestAfter ? `; largest M${(strongestAfter.mag ?? 0).toFixed(1)}` : ""}`),
+      sec("12. Recommendations", tmpl.recommendations, "recommendations will be drafted"),
+      sec("13. Limitations and Uncertainty", tmpl.limitations, "limitations will be drafted"),
+      sec("14. Discussion", tmpl.discussion, "discussion will be drafted"),
+      sec("15. Data Availability", tmpl.dataAvailability, `event page: ${quake.url ?? "—"}`),
+      sec("16. Acknowledgments", tmpl.acknowledgments, "—"),
+      sec("17. Funding", tmpl.fundingStatement, "—"),
+      sec("18. Ethics and Competing Interests", tmpl.ethicsStatement, "—"),
+      sec("19. References", tmpl.references, "add Harvard-style author–date references here"),
+    ].filter(Boolean).join("\n");
+  }, [tmpl, figures, quake, mag, mmi, cdi, felt, params, totalAftershocks, strongestAfter]);
+
+  // ---- Harvard citation ↔ reference validator --------------------------
+  const citationAudit = useMemo(() => {
+    const md = previewMode === "ai" && report ? report : livePreview;
+    // Split reference list off (after "## 19. References" or "## References")
+    const refSplit = md.split(/##\s*(?:19\.\s*)?References/i);
+    const body = refSplit[0] ?? md;
+    const refs = (refSplit[1] ?? "").trim();
+
+    // Extract in-text citations: (Author, 2001) / (Author & Author, 2001) /
+    // (Author et al., 2001) / (Author 2001) — optional letter suffix.
+    const citeRe = /\(([A-Z][A-Za-z\-'’]+(?:\s+(?:&|and)\s+[A-Z][A-Za-z\-'’]+|\s+et\s+al\.?)?)[,\s]+((?:19|20)\d{2}[a-z]?)\)/g;
+    const cites = new Map<string, { author: string; year: string; count: number }>();
+    for (const m of body.matchAll(citeRe)) {
+      const author = m[1].trim();
+      const year = m[2].trim();
+      const key = `${author.split(/\s+/)[0].toLowerCase()}|${year}`;
+      const prev = cites.get(key);
+      if (prev) prev.count++;
+      else cites.set(key, { author, year, count: 1 });
+    }
+
+    // Reference entries: "Author, X.Y. (2001)" / "Author, X. & Other (2001)"
+    // Grab surname + year from each ref line.
+    const refIndex = new Map<string, string>(); // "surname|year" -> raw
+    if (refs) {
+      const lines = refs.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        const rm = line.match(/^([A-Z][A-Za-z\-'’]+)[^()]*\((\d{4}[a-z]?)\)/);
+        if (rm) {
+          refIndex.set(`${rm[1].toLowerCase()}|${rm[2]}`, line);
+        }
+      }
+    }
+
+    const missing: { author: string; year: string }[] = [];
+    for (const [key, v] of cites) {
+      if (!refIndex.has(key)) missing.push({ author: v.author, year: v.year });
+    }
+    const unused: string[] = [];
+    for (const [key, raw] of refIndex) {
+      if (!cites.has(key)) unused.push(raw.slice(0, 120));
+    }
+    return {
+      citations: cites.size,
+      references: refIndex.size,
+      missing,
+      unused,
+      ok: missing.length === 0 && refIndex.size > 0,
+      hasRefs: refIndex.size > 0,
+    };
+  }, [previewMode, report, livePreview]);
+
   return (
     <div
       className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4"
