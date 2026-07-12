@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings2, X, RotateCcw } from "lucide-react";
+import { Settings2, X, RotateCcw, Layers3 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { applyAtlasVisuals, getAtlasVisualsPreset, setAtlasVisualsPreset, type AtlasVisualsPreset } from "@/lib/atlasVisuals";
 
 interface Props {
@@ -214,6 +215,18 @@ export default function Google3DController({ viewer, visible }: Props) {
             Settings persist locally and apply live to the tile.googleapis.com feed.
             Per Google ToS the attribution must remain visible.
           </p>
+
+          <div className="h-px bg-white/10 my-2" />
+          <Link
+            to="/geo-realm"
+            className="flex items-center justify-between gap-2 rounded-lg border border-orange-400/30 bg-orange-400/10 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.18em] text-orange-100 hover:border-orange-400/60 hover:bg-orange-400/15 transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <Layers3 className="w-3 h-3" strokeWidth={2.2} />
+              Open Geo Lab
+            </span>
+            <span className="text-[8px] text-orange-200/70">subsurface · plates</span>
+          </Link>
         </div>
       )}
     </div>
