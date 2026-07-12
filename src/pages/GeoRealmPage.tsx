@@ -11,6 +11,9 @@ export default function GeoRealmPage() {
   const [showCrust, setShowCrust] = useState(true);
   const [showSurface, setShowSurface] = useState(true);
   const [hypo, setHypo] = useState<string | null>("usgs_m45_month");
+  const [showVolumetric, setShowVolumetric] = useState(true);
+  const [showMotion, setShowMotion] = useState(true);
+  const [thicknessKm, setThicknessKm] = useState(100);
   const [cam, setCam] = useState<{ alt: number; lat: number; lon: number }>({ alt: 1.6, lat: 0, lon: 0 });
   const [bundles, setBundles] = useState<GeoRealmBundle[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -43,6 +46,9 @@ export default function GeoRealmPage() {
         showCrust={showCrust}
         showSurface={showSurface}
         activeHypocenter={hypo}
+        showVolumetricPlates={showVolumetric}
+        showPlateMotion={showMotion}
+        plateThicknessKm={thicknessKm}
         onCamera={setCam}
       />
 
@@ -78,6 +84,12 @@ export default function GeoRealmPage() {
           hypo={hypo}
           setHypo={setHypo}
           bundles={bundles}
+          showVolumetric={showVolumetric}
+          setShowVolumetric={setShowVolumetric}
+          showMotion={showMotion}
+          setShowMotion={setShowMotion}
+          thicknessKm={thicknessKm}
+          setThicknessKm={setThicknessKm}
         />
       </div>
 
@@ -108,6 +120,12 @@ export default function GeoRealmPage() {
                 hypo={hypo}
                 setHypo={setHypo}
                 bundles={bundles}
+                showVolumetric={showVolumetric}
+                setShowVolumetric={setShowVolumetric}
+                showMotion={showMotion}
+                setShowMotion={setShowMotion}
+                thicknessKm={thicknessKm}
+                setThicknessKm={setThicknessKm}
               />
             ) : (
               <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
