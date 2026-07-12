@@ -20,16 +20,20 @@
  * drop it straight into a report or share it downstream.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw } from "lucide-react";
+import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import type { QuakeTag } from "./QuakeTagsOverlay";
+import QuakeEventLibrary from "./QuakeEventLibrary";
+import type { QuakeInstitution } from "./quakeInstitutions";
 
 interface Props {
   quake: QuakeTag;
   /** Data-source ID from the panel, e.g. "usgs" / "emsc" / "iris". */
   source: string;
   onClose: () => void;
+  /** Called when a user picks an institution to tune the main panel to. */
+  onTuneSource?: (institution: QuakeInstitution) => void;
 }
 
 interface AfterEvent {
@@ -118,12 +122,12 @@ function fmtTime(ms: number): string {
   catch { return String(ms); }
 }
 
-export default function QuakeReportModal({ quake, source, onClose }: Props) {
+export default function QuakeReportModal({ quake, source, onClose, onTuneSource }: Props) {
   const [detail, setDetail] = useState<UsgsDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [after, setAfter] = useState<AfterEvent[]>([]);
   const [afterLoading, setAfterLoading] = useState(false);
-  const [tab, setTab] = useState<"summary" | "geotech" | "ledger" | "phases">("summary");
+  const [tab, setTab] = useState<"summary" | "geotech" | "library" | "ledger" | "phases">("summary");
 
   // ---- AI report state --------------------------------------------------
   const [params, setParams] = useState({
@@ -477,6 +481,7 @@ Event page: ${quake.url}
           {([
             ["summary", "Summary", Gauge],
             ["geotech", "AI Report", Sparkles],
+            ["library", "Library", FolderOpen],
             ["ledger",  `Replicas${after.length ? " · " + after.length : ""}`, Waves],
             ["phases",  "Phase data", Activity],
           ] as const).map(([id, label, Icon]) => (
@@ -676,6 +681,9 @@ Event page: ${quake.url}
             </div>
           )}
 
+          {tab === "library" && (
+            <QuakeEventLibrary quake={quake} source={source} onTuneSource={(inst) => { onTuneSource?.(inst); onClose(); }} />
+          )}
           {tab === "ledger" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">

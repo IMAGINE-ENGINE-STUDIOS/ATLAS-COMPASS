@@ -350,6 +350,9 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
           quake={reportQuake}
           source={source}
           onClose={() => setReportQuake(null)}
+          onTuneSource={(inst) => {
+            if (inst.fdsnSource) setSource(inst.fdsnSource);
+          }}
         />
       )}
       {/* Compact floating legend chip — always visible so users can decode

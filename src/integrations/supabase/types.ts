@@ -1021,6 +1021,66 @@ export type Database = {
         }
         Relationships: []
       }
+      quake_event_files: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_id: string
+          event_mag: number | null
+          event_place: string | null
+          event_source: string
+          external_url: string | null
+          id: string
+          is_raw_seismogram: boolean
+          kind: string
+          metadata: Json
+          mime_type: string | null
+          name: string
+          owner_id: string
+          size_bytes: number | null
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_id: string
+          event_mag?: number | null
+          event_place?: string | null
+          event_source?: string
+          external_url?: string | null
+          id?: string
+          is_raw_seismogram?: boolean
+          kind?: string
+          metadata?: Json
+          mime_type?: string | null
+          name: string
+          owner_id: string
+          size_bytes?: number | null
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_id?: string
+          event_mag?: number | null
+          event_place?: string | null
+          event_source?: string
+          external_url?: string | null
+          id?: string
+          is_raw_seismogram?: boolean
+          kind?: string
+          metadata?: Json
+          mime_type?: string | null
+          name?: string
+          owner_id?: string
+          size_bytes?: number | null
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       resources: {
         Row: {
           author_id: string | null
