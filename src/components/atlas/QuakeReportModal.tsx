@@ -182,6 +182,43 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
     setTmpl((prev) => ({ ...prev, [k]: v }));
   }, []);
 
+  // ---- Version history (per-event, persisted locally) ------------------
+  interface ReportVersion {
+    id: string;
+    createdAt: number;
+    label: string;
+    report: string;
+    tmplSnapshot: Record<string, string>;
+  }
+  const versionsKey = `quake-report-versions:${quake.id}`;
+  const [versions, setVersions] = useState<ReportVersion[]>(() => {
+    try {
+      const raw = localStorage.getItem(versionsKey);
+      return raw ? (JSON.parse(raw) as ReportVersion[]) : [];
+    } catch { return []; }
+  });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [compareId, setCompareId] = useState<string | null>(null);
+  const persistVersions = useCallback((next: ReportVersion[]) => {
+    const capped = next.slice(0, 25);
+    setVersions(capped);
+    try { localStorage.setItem(versionsKey, JSON.stringify(capped)); } catch { /* quota */ }
+  }, [versionsKey]);
+  const saveVersion = useCallback((newReport: string, label: string) => {
+    if (!newReport.trim()) return;
+    const v: ReportVersion = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: Date.now(),
+      label,
+      report: newReport,
+      tmplSnapshot: { ...tmpl },
+    };
+    persistVersions([v, ...versions]);
+  }, [tmpl, versions, persistVersions]);
+
+  // Preview mode toggle: live template preview vs generated AI report
+  const [previewMode, setPreviewMode] = useState<"live" | "ai">("live");
+
   // Auto-seed the title / running head with the event once, so the paper has
   // a sensible default even before the user opens the template editor.
   useEffect(() => {
