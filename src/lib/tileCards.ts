@@ -111,6 +111,21 @@ export async function deleteTileCard(id: string) {
   if (error) throw error;
 }
 
+/** Fetch a tile card by id, only if it is publicly shared. Works signed-out. */
+export async function fetchPublicTileCard(id: string) {
+  const { data, error } = await (supabase as any)
+    .from(TABLE)
+    .select("*")
+    .eq("id", id)
+    .eq("is_public", true)
+    .maybeSingle();
+  if (error) {
+    console.warn("fetchPublicTileCard failed", error);
+    return null;
+  }
+  return data as TileCardRecord | null;
+}
+
 export function tileKeyOf(z: number, x: number, y: number) {
   return `${z}/${x}/${y}`;
 }
