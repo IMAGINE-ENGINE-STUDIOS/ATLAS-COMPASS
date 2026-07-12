@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Plus, Trash2, Save, Loader2, Globe2, Lock, Tag as TagIcon, Link2 } from "lucide-react";
+import { X, Plus, Trash2, Save, Loader2, Globe2, Lock, Tag as TagIcon, Link2, ExternalLink } from "lucide-react";
 import {
   INDICATOR_PRESETS,
+  TOMOGRAPHY_MODELS,
   fetchTileCard,
   upsertTileCard,
   type TileCardRecord,
   type TileIndicator,
   type TileIndicatorKind,
+  type TomographyModel,
 } from "@/lib/tileCards";
 import { toast } from "sonner";
 
@@ -76,6 +78,31 @@ export default function TileCard({
     setIndicators((cur) => [
       ...cur,
       { id, kind: preset.kind, label: preset.label, color: preset.color, source: preset.source, unit: preset.unit },
+    ]);
+    setPickerOpen(false);
+  }
+
+  function addTomographyModel(model: TomographyModel) {
+    const id = `tomography-${model.id}-${Date.now().toString(36)}`;
+    setIndicators((cur) => [
+      ...cur,
+      {
+        id,
+        kind: "tomography",
+        label: `${model.name} · ${model.hub}`,
+        color: model.color,
+        source: `${model.authors} (${model.year}) — ${model.reference}`,
+        url: model.landingUrl,
+        unit: "δVs %",
+        meta: {
+          hub: model.hub,
+          modelId: model.id,
+          parameter: model.parameter,
+          depthRangeKm: model.depthRangeKm,
+          parameterization: model.parameterization,
+          thumbUrl: model.thumbUrl,
+        },
+      },
     ]);
     setPickerOpen(false);
   }
@@ -177,9 +204,9 @@ export default function TileCard({
 
             {pickerOpen && (
               <div className="mb-2 grid grid-cols-1 gap-1 rounded-lg border border-white/10 bg-black/60 p-1.5">
-                {INDICATOR_PRESETS.map((p) => (
+                {INDICATOR_PRESETS.map((p, i) => (
                   <button
-                    key={p.kind}
+                    key={`${p.kind}-${i}`}
                     onClick={() => addIndicator(p)}
                     className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-white/85 hover:bg-white/5"
                   >
@@ -195,6 +222,22 @@ export default function TileCard({
                     )}
                   </button>
                 ))}
+
+                {/* Real tomography model catalog with thumbnails + metadata */}
+                <div className="mt-1.5 border-t border-white/10 pt-1.5">
+                  <div className="px-1.5 pb-1 text-[9px] uppercase tracking-[0.28em] text-white/40">
+                    Tomography models · real data
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {TOMOGRAPHY_MODELS.map((m) => (
+                      <TomographyModelRow
+                        key={m.id}
+                        model={m}
+                        onAdd={() => addTomographyModel(m)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
