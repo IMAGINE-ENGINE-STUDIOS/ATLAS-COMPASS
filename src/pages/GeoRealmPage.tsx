@@ -12,7 +12,7 @@ export default function GeoRealmPage() {
   const [active, setActive] = useState<string[]>(["pb2002_plates", "pb2002_boundaries"]);
   const [showCrust, setShowCrust] = useState(true);
   const [showSurface, setShowSurface] = useState(true);
-  const [realistic, setRealistic] = useState(false);
+  const [realistic, setRealistic] = useState(true);
   const [hypo, setHypo] = useState<string | null>("usgs_m45_month");
   const [showVolumetric, setShowVolumetric] = useState(true);
   const [showMotion, setShowMotion] = useState(true);
