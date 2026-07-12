@@ -88,14 +88,28 @@ export function detectKindFromFile(file: File): {
   return { kind: "custom", hint: "Unknown format — will store raw" };
 }
 
+export interface GeoFeatureCollection {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    properties: Record<string, unknown> | null;
+    geometry:
+      | { type: "Polygon"; coordinates: number[][][] }
+      | { type: "MultiPolygon"; coordinates: number[][][][] }
+      | { type: "LineString"; coordinates: number[][] }
+      | { type: "MultiLineString"; coordinates: number[][][] }
+      | { type: "Point"; coordinates: number[] };
+  }>;
+}
+
 /** Simple in-memory cache for canonical GeoJSON fetches. */
-const geojsonCache = new Map<string, Promise<GeoJSON.FeatureCollection>>();
-export function fetchGeoJSON(url: string): Promise<GeoJSON.FeatureCollection> {
+const geojsonCache = new Map<string, Promise<GeoFeatureCollection>>();
+export function fetchGeoJSON(url: string): Promise<GeoFeatureCollection> {
   let hit = geojsonCache.get(url);
   if (!hit) {
     hit = fetch(url).then((r) => {
       if (!r.ok) throw new Error(`Fetch failed ${r.status}: ${url}`);
-      return r.json() as Promise<GeoJSON.FeatureCollection>;
+      return r.json() as Promise<GeoFeatureCollection>;
     });
     geojsonCache.set(url, hit);
   }
