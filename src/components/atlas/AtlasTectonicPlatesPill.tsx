@@ -86,7 +86,7 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
     }
   }
   console.log(`[Plates] ${plates.entities.values.length} polygons prepared`);
-  viewer.dataSources.add(plates);
+  await viewer.dataSources.add(plates);
   created.push(plates);
 
   const bnds = await GeoJsonDataSource.load(BOUNDARIES_URL, {
@@ -108,7 +108,7 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
       line.positions = new ConstantProperty(lifted);
     }
   }
-  viewer.dataSources.add(bnds);
+  await viewer.dataSources.add(bnds);
   created.push(bnds);
 
   console.log(`[Plates] rendered ${created.length} datasources`);
@@ -122,6 +122,8 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
     firstEntityHasPolygon: !!plates.entities.values[0]?.polygon,
   });
   viewer.scene.requestRender?.();
+  // Extra kicks for logarithmicDepthBuffer / requestRenderMode combos.
+  requestAnimationFrame(() => viewer.scene.requestRender?.());
   return created;
 }
 
