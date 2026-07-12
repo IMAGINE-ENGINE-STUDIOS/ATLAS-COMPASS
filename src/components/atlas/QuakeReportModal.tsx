@@ -20,7 +20,7 @@
  * drop it straight into a report or share it downstream.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap, History, Eye, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
+import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Sparkles, Send, RefreshCw, FolderOpen, Edit3, Image as ImageIcon, GraduationCap, History, Eye, AlertTriangle, CheckCircle2, RotateCcw, BookOpen, MessageSquare, Building2, Sliders, Printer } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { supabase } from "@/integrations/supabase/client";
@@ -672,9 +672,11 @@ Event page: ${quake.url}
     if (refs) {
       const lines = refs.split(/\n+/).map((l) => l.trim()).filter(Boolean);
       for (const line of lines) {
-        const rm = line.match(/^([A-Z][A-Za-z\-'’]+)[^()]*\((\d{4}[a-z]?)\)/);
+        // Allow list prefixes: "- ", "* ", "1. ", "1) "
+        const cleaned = line.replace(/^\s*(?:[-*•]\s+|\d+[.)]\s+)/, "");
+        const rm = cleaned.match(/^([A-Z][A-Za-z\-'’]+)[^()]*\((\d{4}[a-z]?)\)/);
         if (rm) {
-          refIndex.set(`${rm[1].toLowerCase()}|${rm[2]}`, line);
+          refIndex.set(`${rm[1].toLowerCase()}|${rm[2]}`, cleaned);
         }
       }
     }
@@ -697,611 +699,526 @@ Event page: ${quake.url}
     };
   }, [previewMode, report, livePreview]);
 
+
+  const [tab, setTab] = useState<"parameters" | "template" | "figures" | "chat" | "history" | "aftershocks" | "phase" | "library">("parameters");
+  const filledCount = Object.values(tmpl).filter((v) => v?.trim()).length;
+
+  const doExportMd = useCallback(() => {
+    const md = report || livePreview;
+    if (!md.trim()) return;
+    if (report && citationAudit.missing.length > 0) {
+      const proceed = window.confirm(
+        `Warning: ${citationAudit.missing.length} in-text citation(s) are missing from the reference list:\n\n` +
+        citationAudit.missing.slice(0, 8).map((c) => `  • (${c.author}, ${c.year})`).join("\n") +
+        `\n\nExport anyway?`
+      );
+      if (!proceed) return;
+    }
+    const blob = new Blob([md], { type: "text/markdown" });
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = u; a.download = `quake_report_${quake.id}.md`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 1000);
+  }, [report, livePreview, citationAudit, quake.id]);
+
+  const doPrint = useCallback(() => window.print(), []);
+
   return (
     <div
-      className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-md flex items-center justify-center p-2 sm:p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-[720px] max-h-[92vh] overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/95 backdrop-blur-2xl shadow-2xl text-white flex flex-col"
+        className="w-full max-w-[1240px] h-[94vh] overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/95 backdrop-blur-2xl shadow-2xl text-white flex flex-col"
       >
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-white/10 flex items-start gap-3">
+        {/* ───── HEADER ───── */}
+        <div className="px-4 sm:px-5 py-3 border-b border-white/10 flex items-start gap-3 bg-gradient-to-r from-neutral-950 via-neutral-900 to-neutral-950">
           <div
-            className="rounded-full flex items-center justify-center font-mono font-bold text-sm shrink-0"
+            className="rounded-xl flex flex-col items-center justify-center font-mono font-bold shrink-0"
             style={{
-              width: 44, height: 44,
+              width: 54, height: 54,
               background: mag >= 6 ? "#ef4444" : mag >= 4 ? "#f59e0b" : "#84cc16",
               color: "#0b0b0f",
-              boxShadow: `0 0 24px ${mag >= 6 ? "#ef4444aa" : mag >= 4 ? "#f59e0baa" : "#84cc16aa"}`,
+              boxShadow: `0 0 28px ${mag >= 6 ? "#ef4444aa" : mag >= 4 ? "#f59e0baa" : "#84cc16aa"}`,
             }}
           >
-            {mag.toFixed(1)}
+            <span className="text-[9px] uppercase tracking-widest opacity-80 -mb-0.5">Mag</span>
+            <span className="text-lg leading-none">{mag.toFixed(1)}</span>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold truncate">{quake.place || "Unknown region"}</div>
-            <div className="text-[11px] text-white/60 font-mono flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.22em] text-white/50">
+              <BookOpen className="w-3 h-3 text-amber-300" /> Harvard technical brief · {source.toUpperCase()} feed
+            </div>
+            <div className="text-sm sm:text-base font-bold truncate leading-tight">{quake.place || "Unknown region"}</div>
+            <div className="text-[11px] text-white/60 font-mono flex items-center gap-2 flex-wrap mt-0.5">
               <MapPin className="w-3 h-3" />
-              {quake.lat.toFixed(3)}°, {quake.lng.toFixed(3)}° · depth {quake.depthKm?.toFixed?.(1) ?? quake.depthKm} km
-              <span className="text-white/40">·</span>
+              {quake.lat.toFixed(3)}°, {quake.lng.toFixed(3)}° · {quake.depthKm?.toFixed?.(1) ?? quake.depthKm} km · {dc.label}
+              <span className="text-white/30">·</span>
               {fmtTime(quake.time)}
             </div>
+          </div>
+          <div className="hidden md:flex items-center gap-1.5 shrink-0">
+            <button onClick={generate} disabled={generating}
+              className="h-8 px-3 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[10px] font-bold uppercase tracking-widest hover:bg-sky-500/30 disabled:opacity-50 flex items-center gap-1.5">
+              {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : report ? <RefreshCw className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+              {generating ? "Generating" : report ? "Regenerate" : "Generate"}
+            </button>
+            <button onClick={doExportMd}
+              className="h-8 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10 flex items-center gap-1"
+              title="Download the paper as Markdown">
+              <Download className="w-3 h-3" /> .md
+            </button>
+            <button onClick={doPrint}
+              className="h-8 px-2.5 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10 flex items-center gap-1"
+              title="Print / Save as PDF">
+              <Printer className="w-3 h-3" />
+            </button>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-white/10 shrink-0" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-4 space-y-6 overflow-y-auto text-sm">
-          {/* ============ § A. EVENT SUMMARY ============ */}
-          <section aria-label="Event summary" className="space-y-3">
-            <SectionHeader n="A" title="Event synopsis" icon={Gauge} />
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <Stat label="Depth class" value={dc.label} tone={dc.label === "Shallow" ? "hot" : "cool"} />
-                <Stat label="Energy" value={tntEquivalent(energy)} tone="warn" />
-                <Stat label="Instrumental MMI" value={`${romanMMI(mmi)} · ${mmiLabel(mmi)}`} />
-                <Stat label="Felt reports" value={felt ? String(felt) : "—"} />
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-[13px] leading-relaxed">
-                A <b>{mmiLabel(mmi).toLowerCase()}</b> magnitude <b>{mag.toFixed(1)}</b> event ruptured
-                {" "}<b>{dc.label.toLowerCase()}</b> crust at <b>{quake.depthKm?.toFixed?.(1) ?? quake.depthKm} km</b> depth.
-                {" "}{dc.note} Radiated energy is on the order of <b>{tntEquivalent(energy)}</b>
-                {" "}({energy.toExponential(2)} J).
-                {quake.tsunami ? " A tsunami flag was raised by the source authority." : ""}
-                {dp?.alert && dp.alert !== "green" ? ` PAGER alert level: ${dp.alert.toUpperCase()}.` : ""}
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-white/70">
-                <KV k="Magnitude type" v={dp?.magType ?? "—"} />
-                <KV k="Event type" v={dp?.type ?? "earthquake"} />
-                <KV k="Network" v={dp?.net ?? source} />
-                <KV k="Significance" v={dp?.sig != null ? String(dp.sig) : "—"} />
-                <KV k="Community CDI" v={romanMMI(cdi)} />
-                <KV k="Alert" v={dp?.alert ?? quake.alert ?? "none"} />
-              </div>
-              <a
-                href={quake.url}
-                target="_blank" rel="noopener"
-                className="inline-flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200"
-              >
-                Open source authority event page <ExternalLink className="w-3 h-3" />
-              </a>
-          </section>
+        {/* Preview-mode toggle bar (also the "citation status" chip) */}
+        <div className="px-3 sm:px-5 py-1.5 border-b border-white/10 flex items-center gap-2 bg-black/40 text-[10px] uppercase tracking-widest">
+          <button onClick={() => setPreviewMode("live")}
+            className={`px-2 py-1 rounded flex items-center gap-1 transition ${previewMode === "live" ? "bg-amber-500/25 text-amber-100 border border-amber-400/40" : "text-white/50 hover:text-white/90 border border-transparent"}`}>
+            <Eye className="w-3 h-3" /> Live template
+          </button>
+          <button onClick={() => report && setPreviewMode("ai")} disabled={!report}
+            className={`px-2 py-1 rounded flex items-center gap-1 transition disabled:opacity-40 ${previewMode === "ai" ? "bg-sky-500/25 text-sky-100 border border-sky-400/40" : "text-white/50 hover:text-white/90 border border-transparent"}`}>
+            <Sparkles className="w-3 h-3" /> AI paper{report ? "" : " (empty)"}
+          </button>
+          <span className="ml-auto flex items-center gap-2 normal-case tracking-normal text-[11px] font-mono">
+            <span className="text-white/40">{filledCount}/{Object.keys(tmpl).length} fields</span>
+            {citationAudit.hasRefs ? (
+              citationAudit.ok
+                ? <span className="flex items-center gap-1 text-emerald-300"><CheckCircle2 className="w-3 h-3" /> refs ok</span>
+                : <span className="flex items-center gap-1 text-red-300"><AlertTriangle className="w-3 h-3" /> {citationAudit.missing.length} missing</span>
+            ) : (
+              <span className="flex items-center gap-1 text-amber-300"><AlertTriangle className="w-3 h-3" /> no refs</span>
+            )}
+          </span>
+        </div>
 
-          {/* ============ § B. HARVARD-STYLE TECHNICAL PAPER ============ */}
-          <section aria-label="Technical paper" className="space-y-3 text-[13px] leading-relaxed border-t border-white/10 pt-4">
-            <SectionHeader n="B" title="Technical seismic paper" icon={Sparkles} />
-              {/* Engineering parameters — feed the AI generator */}
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
-                <div className="text-[10px] uppercase tracking-widest text-white/60 flex items-center gap-1">
-                  <Layers className="w-3 h-3" /> Report parameters
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <ParamSelect label="Site class (NEHRP)" value={params.siteClass}
-                    onChange={(v) => setParams((p) => ({ ...p, siteClass: v }))}
-                    options={["A","B","C","D","E","Unknown"]} />
-                  <ParamInput label="Groundwater (m)" value={params.groundwaterM} type="number"
-                    onChange={(v) => setParams((p) => ({ ...p, groundwaterM: v }))} placeholder="e.g. 3" />
-                  <ParamInput label="Structure type" value={params.structureType}
-                    onChange={(v) => setParams((p) => ({ ...p, structureType: v }))} placeholder="e.g. Steel MRF" />
-                  <ParamInput label="Exposure / use" value={params.exposureUse}
-                    onChange={(v) => setParams((p) => ({ ...p, exposureUse: v }))} placeholder="Occupancy IV, hospital…" />
-                  <ParamSelect label="Audience" value={params.targetAudience}
-                    onChange={(v) => setParams((p) => ({ ...p, targetAudience: v }))}
-                    options={["engineer","responder","public","insurer","government"]} />
-                  <ParamSelect label="Units" value={params.units}
-                    onChange={(v) => setParams((p) => ({ ...p, units: v as "SI" | "US" }))}
-                    options={["SI","US"]} />
-                </div>
-                <textarea
-                  value={params.extraNotes}
-                  onChange={(e) => setParams((p) => ({ ...p, extraNotes: e.target.value }))}
-                  placeholder="Extra context or constraints (optional)…"
-                  className="w-full bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] resize-none"
-                  rows={2}
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={generate}
-                    disabled={generating}
-                    className="flex-1 h-8 px-3 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[11px] font-bold uppercase tracking-widest hover:bg-sky-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {generating
-                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
-                      : report
-                        ? <><RefreshCw className="w-3.5 h-3.5" /> Regenerate report</>
-                        : <><Sparkles className="w-3.5 h-3.5" /> Generate full report with AI</>}
-                  </button>
-                  {report && (
-                    <button
-                      onClick={() => {
-                        if (citationAudit.missing.length > 0) {
-                          const proceed = window.confirm(
-                            `Warning: ${citationAudit.missing.length} in-text citation(s) are not present in the reference list:\n\n` +
-                            citationAudit.missing.slice(0, 8).map((c) => `  • (${c.author}, ${c.year})`).join("\n") +
-                            `\n\nExport anyway?`
-                          );
-                          if (!proceed) return;
-                        }
-                        const blob = new Blob([report], { type: "text/markdown" });
-                        const u = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = u; a.download = `quake_report_${quake.id}.md`;
-                        document.body.appendChild(a); a.click(); a.remove();
-                        setTimeout(() => URL.revokeObjectURL(u), 1000);
-                      }}
-                      className="h-8 px-2 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10 flex items-center gap-1"
-                      title="Download the AI report as Markdown"
-                    >
-                      <Download className="w-3 h-3" /> .md
-                    </button>
-                  )}
-                </div>
-                {reportError && (
-                  <div className="text-[11px] text-red-300 bg-red-500/10 border border-red-400/30 rounded px-2 py-1">
-                    {reportError}
-                  </div>
-                )}
-              </div>
-
-              {/* Harvard-style editable template fields ------------------- */}
-              <div className="rounded-lg border border-white/10 bg-white/[0.03]">
-                <button
-                  type="button"
-                  onClick={() => setTemplateOpen((v) => !v)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/[0.04] rounded-t-lg"
-                >
-                  <span className="flex items-center gap-1">
-                    <GraduationCap className="w-3.5 h-3.5 text-amber-300" />
-                    Harvard paper template — fully editable
-                    <span className="ml-2 normal-case tracking-normal text-white/40">
-                      {Object.values(tmpl).filter((v) => v?.trim()).length} field(s) filled
-                    </span>
-                  </span>
-                  {templateOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                </button>
-                {templateOpen && (
-                  <div className="p-3 pt-0 space-y-2 border-t border-white/10">
-                    <div className="text-[10px] text-white/50 leading-relaxed">
-                      Whatever you write here is treated as authoritative and preserved verbatim by the AI writer.
-                      Empty fields are drafted from event data. After editing, click{" "}
-                      <b className="text-amber-200">Regenerate from my edits</b> below.
-                    </div>
-                    {/* Front matter */}
-                    <div className="grid grid-cols-1 gap-1.5">
-                      <TmplField label="Title" value={tmpl.title} onChange={(v) => updateTmpl("title", v)} />
-                      <TmplField label="Running head" value={tmpl.runningHead} onChange={(v) => updateTmpl("runningHead", v)} />
-                      <TmplField label="Authors" value={tmpl.authors} onChange={(v) => updateTmpl("authors", v)}
-                        placeholder="Doe, J.; Smith, A. K." />
-                      <TmplField label="Affiliations" value={tmpl.affiliations} onChange={(v) => updateTmpl("affiliations", v)}
-                        placeholder="Dept. of Earth & Planetary Sciences, Harvard University" />
-                      <TmplField label="Corresponding author" value={tmpl.correspondingAuthor}
-                        onChange={(v) => updateTmpl("correspondingAuthor", v)} placeholder="jdoe@example.edu / ORCID" />
-                      <TmplField label="Keywords" value={tmpl.keywords} onChange={(v) => updateTmpl("keywords", v)}
-                        placeholder="seismology; liquefaction; ShakeMap; DYFI; NEHRP" />
-                    </div>
-                    {/* Long-form sections */}
-                    <TmplArea label="Abstract (150–250 words)" value={tmpl.abstract} onChange={(v) => updateTmpl("abstract", v)} rows={4} />
-                    <TmplArea label="1. Introduction" value={tmpl.introduction} onChange={(v) => updateTmpl("introduction", v)} />
-                    <TmplArea label="2. Tectonic & Geological Setting" value={tmpl.tectonicSetting} onChange={(v) => updateTmpl("tectonicSetting", v)} />
-                    <TmplArea label="3. Data & Methodology" value={tmpl.methodology} onChange={(v) => updateTmpl("methodology", v)} />
-                    <TmplArea label="4. Seismological Observations" value={tmpl.observations} onChange={(v) => updateTmpl("observations", v)} />
-                    <TmplArea label="6. Site Response (NEHRP)" value={tmpl.siteResponse} onChange={(v) => updateTmpl("siteResponse", v)} />
-                    <TmplArea label="7. Liquefaction Assessment" value={tmpl.liquefaction} onChange={(v) => updateTmpl("liquefaction", v)} />
-                    <TmplArea label="8. Slope Stability" value={tmpl.slopeStability} onChange={(v) => updateTmpl("slopeStability", v)} />
-                    <TmplArea label="9. Structural & Foundation Vulnerability" value={tmpl.structural} onChange={(v) => updateTmpl("structural", v)} />
-                    <TmplArea label="10. Lifelines & Infrastructure" value={tmpl.lifelines} onChange={(v) => updateTmpl("lifelines", v)} />
-                    <TmplArea label="11. Aftershock Outlook" value={tmpl.aftershockOutlook} onChange={(v) => updateTmpl("aftershockOutlook", v)} />
-                    <TmplArea label="12. Recommendations" value={tmpl.recommendations} onChange={(v) => updateTmpl("recommendations", v)} />
-                    <TmplArea label="13. Limitations & Uncertainty" value={tmpl.limitations} onChange={(v) => updateTmpl("limitations", v)} />
-                    <TmplArea label="14. Discussion" value={tmpl.discussion} onChange={(v) => updateTmpl("discussion", v)} />
-                    <TmplArea label="15. Data Availability" value={tmpl.dataAvailability} onChange={(v) => updateTmpl("dataAvailability", v)} />
-                    <TmplArea label="16. Acknowledgments" value={tmpl.acknowledgments} onChange={(v) => updateTmpl("acknowledgments", v)} rows={2} />
-                    <TmplArea label="17. Funding" value={tmpl.fundingStatement} onChange={(v) => updateTmpl("fundingStatement", v)} rows={2} />
-                    <TmplArea label="18. Ethics & Competing Interests" value={tmpl.ethicsStatement} onChange={(v) => updateTmpl("ethicsStatement", v)} rows={2} />
-                    <TmplArea label="19. References (Harvard style)" value={tmpl.references} onChange={(v) => updateTmpl("references", v)} rows={4}
-                      placeholder={"Youd, T.L. & Idriss, I.M. (2001) …\nWells, D.L. & Coppersmith, K.J. (1994) …"} />
-
-                    <button
-                      onClick={generate}
-                      disabled={generating}
-                      className="w-full h-8 px-3 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-100 text-[11px] font-bold uppercase tracking-widest hover:bg-amber-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {generating
-                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating…</>
-                        : <><Edit3 className="w-3.5 h-3.5" /> Regenerate from my edits</>}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Figures panel — USGS product imagery embedded in the paper */}
-              {figures.length > 0 && (
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
-                  <div className="text-[10px] uppercase tracking-widest text-white/60 flex items-center gap-1">
-                    <ImageIcon className="w-3 h-3" /> Supporting figures ({figures.length}) — embedded in the paper
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {figures.map((f, i) => (
-                      <a key={i} href={f.url} target="_blank" rel="noopener"
-                        className="group block rounded overflow-hidden border border-white/10 bg-black/40">
-                        <img src={f.url} alt={f.caption} loading="lazy"
-                          className="w-full h-20 object-cover group-hover:opacity-90" />
-                        <div className="p-1 text-[9px] text-white/60 leading-tight truncate" title={f.caption}>
-                          Figure {i + 1}. {f.caption}
-                        </div>
-                      </a>
-                    ))}
-                  </div>
+        {/* ───── BODY: paper (left) + tool sidebar (right) ───── */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_380px]">
+          {/* PAPER CANVAS */}
+          <div className="min-h-0 overflow-y-auto bg-gradient-to-b from-[#0b0b0f] to-[#111114] px-3 sm:px-8 py-5 sm:py-8">
+            <article className="quake-paper mx-auto max-w-[720px] prose prose-invert prose-sm
+              prose-headings:font-serif prose-headings:tracking-tight
+              prose-h1:text-[22px] prose-h1:leading-tight prose-h1:mb-4 prose-h1:mt-0 prose-h1:text-white prose-h1:border-b prose-h1:border-white/15 prose-h1:pb-3
+              prose-h2:text-[12px] prose-h2:uppercase prose-h2:tracking-[0.22em] prose-h2:text-amber-300/90 prose-h2:mt-8 prose-h2:mb-2 prose-h2:font-bold
+              prose-h3:text-[11px] prose-h3:uppercase prose-h3:tracking-widest prose-h3:text-white/70 prose-h3:mt-5 prose-h3:mb-1.5
+              prose-p:text-white/85 prose-p:leading-[1.7] prose-p:my-3
+              prose-li:text-white/85 prose-li:my-1
+              prose-strong:text-white
+              prose-em:text-white/50 prose-em:text-[11px]
+              prose-a:text-sky-300 hover:prose-a:text-sky-200
+              prose-img:rounded prose-img:border prose-img:border-white/15 prose-img:my-4 prose-img:mx-auto prose-img:shadow-lg
+              prose-code:text-emerald-200 prose-code:bg-white/[0.06] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+              prose-pre:bg-black/60 prose-pre:border prose-pre:border-white/10 prose-pre:text-[11px]
+              prose-hr:border-white/10 prose-hr:my-6 max-w-none">
+              {reportError && (
+                <div className="not-prose mb-4 text-[11px] text-red-300 bg-red-500/10 border border-red-400/30 rounded px-3 py-2">
+                  {reportError}
                 </div>
               )}
-
-              {/* Preview switcher: live template vs generated AI report */}
-              <div className="rounded-lg border border-white/10 bg-black/40 overflow-hidden">
-                <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/10 bg-white/[0.03]">
-                  <button
-                    onClick={() => setPreviewMode("live")}
-                    className={`px-2 py-1 text-[10px] uppercase tracking-widest rounded flex items-center gap-1 ${
-                      previewMode === "live" ? "bg-amber-500/25 text-amber-100 border border-amber-400/40" : "text-white/60 hover:text-white/90"
-                    }`}
-                  >
-                    <Eye className="w-3 h-3" /> Live preview
-                  </button>
-                  <button
-                    onClick={() => report && setPreviewMode("ai")}
-                    disabled={!report}
-                    className={`px-2 py-1 text-[10px] uppercase tracking-widest rounded flex items-center gap-1 disabled:opacity-40 ${
-                      previewMode === "ai" ? "bg-sky-500/25 text-sky-100 border border-sky-400/40" : "text-white/60 hover:text-white/90"
-                    }`}
-                  >
-                    <Sparkles className="w-3 h-3" /> AI report{report ? "" : " (none yet)"}
-                  </button>
-                  <span className="ml-auto text-[9px] font-mono text-white/40">
-                    {previewMode === "live"
-                      ? `${Object.values(tmpl).filter((v) => v?.trim()).length}/${Object.keys(tmpl).length} fields`
-                      : `${(report.match(/\n/g)?.length ?? 0) + 1} lines`}
-                  </span>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ node, ...props }) => (
+                    <div className="not-prose my-4 overflow-x-auto rounded border border-white/10">
+                      <table {...props} className="w-full text-[11px] border-collapse" />
+                    </div>
+                  ),
+                  thead: ({ node, ...props }) => <thead {...props} className="bg-white/[0.06] text-amber-100" />,
+                  th: ({ node, ...props }) => <th {...props} className="text-left font-semibold uppercase tracking-widest text-[9px] px-2 py-1.5 border-b border-white/10" />,
+                  td: ({ node, ...props }) => <td {...props} className="px-2 py-1 border-b border-white/[0.06] font-mono text-white/85 align-top" />,
+                }}
+              >{previewMode === "ai" && report ? report : livePreview}</ReactMarkdown>
+              {previewMode === "live" && !report && (
+                <div className="not-prose mt-8 rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-4 text-[11px] text-white/60 leading-relaxed">
+                  <div className="text-amber-300 font-bold uppercase tracking-widest text-[10px] mb-1">Draft preview</div>
+                  This is a live scaffold from your template fields. Fill any section on the right and hit <b className="text-amber-200">Generate</b> to have the AI turn it into a full Harvard-style paper with citations, tables and figures.
                 </div>
-                <div className="p-4 sm:p-5 max-h-[52vh] overflow-y-auto bg-[#0b0b0f]">
-                  <article className="quake-paper prose prose-invert prose-sm max-w-none
-                    prose-headings:text-red-200 prose-headings:font-bold prose-headings:tracking-tight
-                    prose-h1:text-[17px] prose-h1:mb-3 prose-h1:mt-0 prose-h1:leading-snug prose-h1:border-b prose-h1:border-white/10 prose-h1:pb-2
-                    prose-h2:text-[12px] prose-h2:uppercase prose-h2:tracking-[0.18em] prose-h2:text-amber-200/90 prose-h2:mt-6 prose-h2:mb-2
-                    prose-h3:text-[11px] prose-h3:uppercase prose-h3:tracking-widest prose-h3:text-white/70 prose-h3:mt-4 prose-h3:mb-1.5
-                    prose-p:text-white/85 prose-p:leading-relaxed prose-p:my-2
-                    prose-li:text-white/85 prose-li:my-0.5
-                    prose-strong:text-white
-                    prose-em:text-white/45 prose-em:text-[11px]
-                    prose-a:text-sky-300 hover:prose-a:text-sky-200
-                    prose-img:rounded-md prose-img:border prose-img:border-white/10 prose-img:my-3 prose-img:mx-auto
-                    prose-code:text-emerald-200 prose-code:bg-white/[0.06] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
-                    prose-pre:bg-black/60 prose-pre:border prose-pre:border-white/10 prose-pre:text-[11px]
-                    prose-hr:border-white/10 prose-hr:my-4">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        table: ({ node, ...props }) => (
-                          <div className="my-3 overflow-x-auto rounded border border-white/10">
-                            <table {...props} className="w-full text-[11px] border-collapse" />
+              )}
+            </article>
+          </div>
+
+          {/* TOOL SIDEBAR */}
+          <aside className="min-h-0 flex flex-col border-t md:border-t-0 md:border-l border-white/10 bg-neutral-950/80">
+            {/* tab strip */}
+            <div className="flex overflow-x-auto no-scrollbar border-b border-white/10 bg-black/40 text-[10px] uppercase tracking-widest">
+              {[
+                { id: "parameters", icon: Sliders, label: "Params" },
+                { id: "template",   icon: GraduationCap, label: "Template", badge: filledCount || undefined },
+                { id: "figures",    icon: ImageIcon, label: "Figures", badge: figures.length || undefined },
+                { id: "chat",       icon: MessageSquare, label: "AI chat", disabled: !report },
+                { id: "history",    icon: History, label: "History", badge: versions.length || undefined },
+                { id: "aftershocks", icon: Waves, label: "Replicas", badge: after.length || undefined },
+                { id: "phase",      icon: Activity, label: "Phase" },
+                { id: "library",    icon: FolderOpen, label: "Library" },
+              ].map((t) => {
+                const active = tab === t.id;
+                const Icon = t.icon;
+                return (
+                  <button key={t.id}
+                    onClick={() => !t.disabled && setTab(t.id as typeof tab)}
+                    disabled={t.disabled}
+                    className={`shrink-0 px-2.5 py-2 flex items-center gap-1.5 border-b-2 transition disabled:opacity-30 ${active ? "border-amber-400 text-amber-200 bg-white/[0.04]" : "border-transparent text-white/55 hover:text-white/90"}`}>
+                    <Icon className="w-3 h-3" />
+                    {t.label}
+                    {t.badge != null && <span className="ml-0.5 text-[9px] font-mono bg-white/10 rounded px-1">{t.badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* tab content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 text-[12px]">
+              {tab === "parameters" && (
+                <>
+                  <PanelTitle icon={Sliders}>Engineering parameters</PanelTitle>
+                  <div className="grid grid-cols-2 gap-2">
+                    <ParamSelect label="Site class (NEHRP)" value={params.siteClass} onChange={(v) => setParams((p) => ({ ...p, siteClass: v }))} options={["A","B","C","D","E","Unknown"]} />
+                    <ParamInput label="Groundwater (m)" value={params.groundwaterM} type="number" onChange={(v) => setParams((p) => ({ ...p, groundwaterM: v }))} placeholder="e.g. 3" />
+                    <ParamInput label="Structure type" value={params.structureType} onChange={(v) => setParams((p) => ({ ...p, structureType: v }))} placeholder="Steel MRF…" />
+                    <ParamInput label="Exposure / use" value={params.exposureUse} onChange={(v) => setParams((p) => ({ ...p, exposureUse: v }))} placeholder="Hospital, cat IV…" />
+                    <ParamSelect label="Audience" value={params.targetAudience} onChange={(v) => setParams((p) => ({ ...p, targetAudience: v }))} options={["engineer","responder","public","insurer","government"]} />
+                    <ParamSelect label="Units" value={params.units} onChange={(v) => setParams((p) => ({ ...p, units: v as "SI" | "US" }))} options={["SI","US"]} />
+                  </div>
+                  <textarea value={params.extraNotes} onChange={(e) => setParams((p) => ({ ...p, extraNotes: e.target.value }))} placeholder="Extra constraints…" rows={2}
+                    className="w-full bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] resize-none" />
+
+                  <PanelTitle icon={Layers}>Live event facts</PanelTitle>
+                  <div className="grid grid-cols-1 gap-1.5 text-[11px] font-mono">
+                    <KV k="Magnitude type" v={dp?.magType ?? "—"} />
+                    <KV k="Network" v={dp?.net ?? source} />
+                    <KV k="Instrumental MMI" v={`${romanMMI(mmi)} · ${mmiLabel(mmi)}`} />
+                    <KV k="Community CDI" v={romanMMI(cdi)} />
+                    <KV k="Felt reports" v={felt ? String(felt) : "—"} />
+                    <KV k="Energy" v={`${tntEquivalent(energy)} (${energy.toExponential(2)} J)`} />
+                    <KV k="Alert" v={dp?.alert ?? quake.alert ?? "none"} />
+                    <KV k="Tsunami" v={quake.tsunami ? "issued" : "none"} />
+                    <KV k="Significance" v={dp?.sig != null ? String(dp.sig) : "—"} />
+                  </div>
+                  <a href={quake.url} target="_blank" rel="noopener"
+                    className="inline-flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200">
+                    Source authority event page <ExternalLink className="w-3 h-3" />
+                  </a>
+
+                  <button onClick={generate} disabled={generating}
+                    className="w-full h-9 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[11px] font-bold uppercase tracking-widest hover:bg-sky-500/30 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
+                      : report ? <><RefreshCw className="w-3.5 h-3.5" /> Regenerate paper</>
+                      : <><Sparkles className="w-3.5 h-3.5" /> Generate paper</>}
+                  </button>
+                </>
+              )}
+
+              {tab === "template" && (
+                <>
+                  <PanelTitle icon={GraduationCap}>Editable Harvard template</PanelTitle>
+                  <div className="text-[10px] text-white/50 leading-relaxed">
+                    Anything you type here is preserved verbatim by the AI writer. Empty fields are drafted from the event data.
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <TmplField label="Title" value={tmpl.title} onChange={(v) => updateTmpl("title", v)} />
+                    <TmplField label="Running head" value={tmpl.runningHead} onChange={(v) => updateTmpl("runningHead", v)} />
+                    <TmplField label="Authors" value={tmpl.authors} onChange={(v) => updateTmpl("authors", v)} placeholder="Doe, J.; Smith, A. K." />
+                    <TmplField label="Affiliations" value={tmpl.affiliations} onChange={(v) => updateTmpl("affiliations", v)} placeholder="Dept. of Earth & Planetary Sciences, Harvard University" />
+                    <TmplField label="Corresponding author" value={tmpl.correspondingAuthor} onChange={(v) => updateTmpl("correspondingAuthor", v)} placeholder="jdoe@example.edu / ORCID" />
+                    <TmplField label="Keywords" value={tmpl.keywords} onChange={(v) => updateTmpl("keywords", v)} placeholder="seismology; liquefaction; ShakeMap; DYFI" />
+                  </div>
+                  <TmplArea label="Abstract (150–250 w)" value={tmpl.abstract} onChange={(v) => updateTmpl("abstract", v)} rows={4} />
+                  <TmplArea label="1. Introduction" value={tmpl.introduction} onChange={(v) => updateTmpl("introduction", v)} />
+                  <TmplArea label="2. Tectonic & Geological Setting" value={tmpl.tectonicSetting} onChange={(v) => updateTmpl("tectonicSetting", v)} />
+                  <TmplArea label="3. Data & Methodology" value={tmpl.methodology} onChange={(v) => updateTmpl("methodology", v)} />
+                  <TmplArea label="4. Seismological Observations" value={tmpl.observations} onChange={(v) => updateTmpl("observations", v)} />
+                  <TmplArea label="6. Site Response (NEHRP)" value={tmpl.siteResponse} onChange={(v) => updateTmpl("siteResponse", v)} />
+                  <TmplArea label="7. Liquefaction Assessment" value={tmpl.liquefaction} onChange={(v) => updateTmpl("liquefaction", v)} />
+                  <TmplArea label="8. Slope Stability" value={tmpl.slopeStability} onChange={(v) => updateTmpl("slopeStability", v)} />
+                  <TmplArea label="9. Structural & Foundation" value={tmpl.structural} onChange={(v) => updateTmpl("structural", v)} />
+                  <TmplArea label="10. Lifelines & Infrastructure" value={tmpl.lifelines} onChange={(v) => updateTmpl("lifelines", v)} />
+                  <TmplArea label="11. Aftershock Outlook" value={tmpl.aftershockOutlook} onChange={(v) => updateTmpl("aftershockOutlook", v)} />
+                  <TmplArea label="12. Recommendations" value={tmpl.recommendations} onChange={(v) => updateTmpl("recommendations", v)} />
+                  <TmplArea label="13. Limitations" value={tmpl.limitations} onChange={(v) => updateTmpl("limitations", v)} />
+                  <TmplArea label="14. Discussion" value={tmpl.discussion} onChange={(v) => updateTmpl("discussion", v)} />
+                  <TmplArea label="15. Data Availability" value={tmpl.dataAvailability} onChange={(v) => updateTmpl("dataAvailability", v)} />
+                  <TmplArea label="16. Acknowledgments" value={tmpl.acknowledgments} onChange={(v) => updateTmpl("acknowledgments", v)} rows={2} />
+                  <TmplArea label="17. Funding" value={tmpl.fundingStatement} onChange={(v) => updateTmpl("fundingStatement", v)} rows={2} />
+                  <TmplArea label="18. Ethics" value={tmpl.ethicsStatement} onChange={(v) => updateTmpl("ethicsStatement", v)} rows={2} />
+                  <TmplArea label="19. References (Harvard)" value={tmpl.references} onChange={(v) => updateTmpl("references", v)} rows={4}
+                    placeholder={"Youd, T.L. & Idriss, I.M. (2001) …\nWells, D.L. & Coppersmith, K.J. (1994) …"} />
+
+                  <button onClick={generate} disabled={generating}
+                    className="w-full h-9 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-100 text-[11px] font-bold uppercase tracking-widest hover:bg-amber-500/30 disabled:opacity-50 flex items-center justify-center gap-2 sticky bottom-0">
+                    {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Regenerating…</> : <><Edit3 className="w-3.5 h-3.5" /> Regenerate from my edits</>}
+                  </button>
+                </>
+              )}
+
+              {tab === "figures" && (
+                <>
+                  <PanelTitle icon={ImageIcon}>Embedded figures</PanelTitle>
+                  {figures.length === 0 ? (
+                    <div className="text-[11px] text-white/50 p-3 rounded border border-white/10 bg-white/[0.03]">
+                      No USGS product imagery available for this event. Figures (ShakeMap, DYFI, PAGER, moment-tensor) surface automatically when the source is USGS and products are published.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {figures.map((f, i) => (
+                        <a key={i} href={f.url} target="_blank" rel="noopener"
+                          className="group block rounded overflow-hidden border border-white/10 bg-black/40">
+                          <img src={f.url} alt={f.caption} loading="lazy" className="w-full h-24 object-cover group-hover:opacity-90" />
+                          <div className="p-1 text-[9px] text-white/60 leading-tight" title={f.caption}>
+                            <b>Fig {i + 1}.</b> {f.caption}
                           </div>
-                        ),
-                        thead: ({ node, ...props }) => <thead {...props} className="bg-white/[0.06] text-amber-100" />,
-                        th: ({ node, ...props }) => <th {...props} className="text-left font-semibold uppercase tracking-widest text-[9px] px-2 py-1.5 border-b border-white/10" />,
-                        td: ({ node, ...props }) => <td {...props} className="px-2 py-1 border-b border-white/[0.06] font-mono text-white/85 align-top" />,
-                      }}
-                    >{previewMode === "ai" && report ? report : livePreview}</ReactMarkdown>
-                  </article>
-                </div>
-              </div>
-
-              {/* Citation ↔ reference audit */}
-              <div className={`rounded-lg border p-2.5 text-[11px] ${
-                citationAudit.ok
-                  ? "border-emerald-400/30 bg-emerald-500/[0.06]"
-                  : citationAudit.missing.length
-                    ? "border-red-400/40 bg-red-500/[0.08]"
-                    : "border-amber-400/30 bg-amber-500/[0.06]"
-              }`}>
-                <div className="flex items-center gap-1.5 font-bold uppercase tracking-widest text-[9px]">
-                  {citationAudit.ok
-                    ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /><span className="text-emerald-200">Citations match references</span></>
-                    : <><AlertTriangle className="w-3.5 h-3.5 text-amber-300" /><span className="text-amber-200">Citation audit — please review before export</span></>}
-                  <span className="ml-auto normal-case tracking-normal text-white/50">
-                    {citationAudit.citations} in-text · {citationAudit.references} refs
-                  </span>
-                </div>
-                {!citationAudit.hasRefs && (
-                  <div className="mt-1 text-white/70">
-                    No Harvard references detected. Add entries under <b>19. References</b> (format: <code>Author, X. (2001) …</code>).
-                  </div>
-                )}
-                {citationAudit.missing.length > 0 && (
-                  <div className="mt-1.5">
-                    <div className="text-red-200 font-semibold">Missing from reference list ({citationAudit.missing.length}):</div>
-                    <ul className="list-disc list-inside text-red-100/90 space-y-0.5 mt-0.5">
-                      {citationAudit.missing.slice(0, 8).map((c, i) => (
-                        <li key={i}><code>({c.author}, {c.year})</code></li>
+                        </a>
                       ))}
-                      {citationAudit.missing.length > 8 && <li className="text-white/60">…and {citationAudit.missing.length - 8} more</li>}
-                    </ul>
-                  </div>
-                )}
-                {citationAudit.unused.length > 0 && (
-                  <div className="mt-1.5">
-                    <div className="text-white/70 font-semibold">Uncited references ({citationAudit.unused.length}):</div>
-                    <ul className="list-disc list-inside text-white/60 space-y-0.5 mt-0.5">
-                      {citationAudit.unused.slice(0, 5).map((r, i) => <li key={i} className="truncate">{r}</li>)}
-                    </ul>
-                  </div>
-                )}
-              </div>
+                    </div>
+                  )}
+                </>
+              )}
 
-              {/* Version history */}
-              <div className="rounded-lg border border-white/10 bg-white/[0.03]">
-                <button
-                  type="button"
-                  onClick={() => setHistoryOpen((v) => !v)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/[0.04]"
-                >
-                  <span className="flex items-center gap-1">
-                    <History className="w-3.5 h-3.5 text-sky-300" />
-                    Version history
-                    <span className="ml-2 normal-case tracking-normal text-white/40">
-                      {versions.length} saved
-                    </span>
-                  </span>
-                  {historyOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                </button>
-                {historyOpen && (
-                  <div className="p-2 pt-0 border-t border-white/10 space-y-1.5">
-                    {versions.length === 0 && (
-                      <div className="text-[11px] text-white/50 py-2 text-center">
-                        No versions yet — each generation is automatically snapshotted here.
+              {tab === "chat" && (
+                <>
+                  <PanelTitle icon={MessageSquare}>Refine with AI</PanelTitle>
+                  {!report ? (
+                    <div className="text-[11px] text-white/50">Generate a paper first, then iterate here.</div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          "Make it shorter (executive brief)",
+                          "Rewrite for the public",
+                          "Add a dedicated tsunami section",
+                          "Translate to Spanish",
+                          "Add lifeline/utilities detail",
+                          "Focus on insurance loss",
+                        ].map((preset) => (
+                          <button key={preset} onClick={() => void sendChat(preset)} disabled={chatSending}
+                            className="px-2 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.04] hover:bg-white/10 disabled:opacity-40">
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                      {chat.length > 0 && (
+                        <div className="max-h-60 overflow-y-auto space-y-1 border border-white/[0.06] rounded p-2 bg-black/30">
+                          {chat.map((m, i) => (
+                            <div key={i} className={`text-[11px] ${m.role === "user" ? "text-sky-200" : "text-white/60"}`}>
+                              <b>{m.role === "user" ? "You" : "AI"}:</b> {m.content}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <form onSubmit={(e) => { e.preventDefault(); void sendChat(); }} className="flex items-center gap-2">
+                        <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Ask the AI…" disabled={chatSending}
+                          className="flex-1 bg-white/[0.05] border border-white/10 rounded px-2 py-1.5 text-xs" />
+                        <button type="submit" disabled={chatSending || !chatInput.trim()}
+                          className="h-8 px-2 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[11px] hover:bg-sky-500/30 disabled:opacity-40 flex items-center gap-1">
+                          {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        </button>
+                      </form>
+                    </>
+                  )}
+
+                  {/* Citation audit panel */}
+                  <div className={`rounded-lg border p-2.5 text-[11px] ${citationAudit.ok ? "border-emerald-400/30 bg-emerald-500/[0.06]" : citationAudit.missing.length ? "border-red-400/40 bg-red-500/[0.08]" : "border-amber-400/30 bg-amber-500/[0.06]"}`}>
+                    <div className="flex items-center gap-1.5 font-bold uppercase tracking-widest text-[9px]">
+                      {citationAudit.ok
+                        ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /><span className="text-emerald-200">Citations match references</span></>
+                        : <><AlertTriangle className="w-3.5 h-3.5 text-amber-300" /><span className="text-amber-200">Citation audit — review before export</span></>}
+                      <span className="ml-auto normal-case tracking-normal text-white/50">
+                        {citationAudit.citations} in-text · {citationAudit.references} refs
+                      </span>
+                    </div>
+                    {!citationAudit.hasRefs && (
+                      <div className="mt-1 text-white/70">Add entries under <b>19. References</b> (format: <code>Author, X. (2001) …</code>).</div>
+                    )}
+                    {citationAudit.missing.length > 0 && (
+                      <div className="mt-1.5">
+                        <div className="text-red-200 font-semibold">Missing ({citationAudit.missing.length}):</div>
+                        <ul className="list-disc list-inside text-red-100/90 space-y-0.5 mt-0.5">
+                          {citationAudit.missing.slice(0, 8).map((c, i) => <li key={i}><code>({c.author}, {c.year})</code></li>)}
+                          {citationAudit.missing.length > 8 && <li className="text-white/60">…and {citationAudit.missing.length - 8} more</li>}
+                        </ul>
                       </div>
                     )}
-                    {versions.map((v) => {
-                      const isCurrent = v.report === report;
-                      const isCompare = compareId === v.id;
-                      return (
-                        <div key={v.id} className={`rounded border p-2 text-[11px] ${
-                          isCurrent ? "border-sky-400/40 bg-sky-500/[0.08]" : "border-white/10 bg-black/30"
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-white/60">{new Date(v.createdAt).toLocaleString()}</span>
-                            {isCurrent && <span className="text-[9px] uppercase tracking-widest text-sky-200">current</span>}
-                            <span className="ml-auto flex items-center gap-1">
-                              <button
-                                onClick={() => setCompareId(isCompare ? null : v.id)}
-                                className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/10 text-[9px] uppercase tracking-widest hover:bg-white/10"
-                              >
-                                {isCompare ? "Hide" : "View"}
-                              </button>
-                              <button
-                                onClick={() => { setReport(v.report); setTmpl((prev) => ({ ...prev, ...v.tmplSnapshot })); setPreviewMode("ai"); }}
-                                disabled={isCurrent}
-                                className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-100 text-[9px] uppercase tracking-widest hover:bg-amber-500/30 disabled:opacity-40 flex items-center gap-1"
-                              >
-                                <RotateCcw className="w-2.5 h-2.5" /> Revert
-                              </button>
-                              <button
-                                onClick={() => persistVersions(versions.filter((x) => x.id !== v.id))}
-                                className="px-1 py-0.5 rounded text-white/40 hover:text-red-300"
-                                title="Delete this version"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          </div>
-                          <div className="text-white/70 truncate mt-0.5">{v.label}</div>
-                          {isCompare && (
-                            <div className="mt-2 max-h-48 overflow-y-auto rounded border border-white/10 bg-black/50 p-2">
-                              <div className="prose prose-invert prose-xs max-w-none prose-headings:text-red-200 prose-h1:text-[13px] prose-h2:text-[11px] prose-h2:uppercase prose-h2:tracking-widest prose-p:text-white/80">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{v.report}</ReactMarkdown>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {citationAudit.unused.length > 0 && (
+                      <div className="mt-1.5">
+                        <div className="text-white/70 font-semibold">Uncited ({citationAudit.unused.length}):</div>
+                        <ul className="list-disc list-inside text-white/60 space-y-0.5 mt-0.5">
+                          {citationAudit.unused.slice(0, 5).map((r, i) => <li key={i} className="truncate">{r}</li>)}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
-              {/* AI chat refinement */}
-              {report && (
-                <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-2">
-                  <div className="text-[10px] uppercase tracking-widest text-white/60 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> Customize with AI
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {[
-                      "Make it shorter (executive brief)",
-                      "Rewrite for the public",
-                      "Add a dedicated tsunami section",
-                      "Translate to Spanish",
-                      "Add lifeline/utilities impact detail",
-                      "Focus on insurance loss estimation",
-                    ].map((preset) => (
-                      <button
-                        key={preset}
-                        onClick={() => void sendChat(preset)}
-                        disabled={chatSending}
-                        className="px-2 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.04] hover:bg-white/10 disabled:opacity-40"
-                      >
-                        {preset}
-                      </button>
-                    ))}
-                  </div>
-                  {chat.length > 0 && (
-                    <div className="max-h-32 overflow-y-auto space-y-1 border border-white/[0.06] rounded p-2 bg-black/30">
-                      {chat.map((m, i) => (
-                        <div key={i} className={`text-[11px] ${m.role === "user" ? "text-sky-200" : "text-white/60"}`}>
-                          <b>{m.role === "user" ? "You" : "AI"}:</b> {m.content}
+              {tab === "history" && (
+                <>
+                  <PanelTitle icon={History}>Version history ({versions.length})</PanelTitle>
+                  {versions.length === 0 ? (
+                    <div className="text-[11px] text-white/50 text-center py-3">
+                      No versions yet — each generation is snapshotted here automatically.
+                    </div>
+                  ) : versions.map((v) => {
+                    const isCurrent = v.report === report;
+                    const isCompare = compareId === v.id;
+                    return (
+                      <div key={v.id} className={`rounded border p-2 text-[11px] ${isCurrent ? "border-sky-400/40 bg-sky-500/[0.08]" : "border-white/10 bg-black/30"}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-white/60 text-[10px]">{new Date(v.createdAt).toLocaleString()}</span>
+                          {isCurrent && <span className="text-[9px] uppercase tracking-widest text-sky-200">current</span>}
+                          <span className="ml-auto flex items-center gap-1">
+                            <button onClick={() => setCompareId(isCompare ? null : v.id)}
+                              className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/10 text-[9px] uppercase tracking-widest hover:bg-white/10">
+                              {isCompare ? "Hide" : "View"}
+                            </button>
+                            <button onClick={() => { setReport(v.report); setTmpl((prev) => ({ ...prev, ...v.tmplSnapshot })); setPreviewMode("ai"); }} disabled={isCurrent}
+                              className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-100 text-[9px] uppercase tracking-widest hover:bg-amber-500/30 disabled:opacity-40 flex items-center gap-1">
+                              <RotateCcw className="w-2.5 h-2.5" /> Revert
+                            </button>
+                            <button onClick={() => persistVersions(versions.filter((x) => x.id !== v.id))}
+                              className="px-1 py-0.5 rounded text-white/40 hover:text-red-300" title="Delete">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        </div>
+                        <div className="text-white/70 truncate mt-0.5">{v.label}</div>
+                        {isCompare && (
+                          <div className="mt-2 max-h-56 overflow-y-auto rounded border border-white/10 bg-black/50 p-2">
+                            <div className="prose prose-invert prose-xs max-w-none prose-headings:text-amber-200 prose-h1:text-[13px] prose-h2:text-[11px] prose-h2:uppercase prose-h2:tracking-widest prose-p:text-white/80">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{v.report}</ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {tab === "aftershocks" && (
+                <>
+                  <PanelTitle icon={Waves}>
+                    Replica ledger ({after.length})
+                    <button onClick={exportLedgerCsv} disabled={!after.length}
+                      className="ml-auto inline-flex items-center gap-1 px-2 h-6 rounded bg-white/[0.05] border border-white/10 text-[9px] uppercase tracking-widest hover:bg-white/10 disabled:opacity-40">
+                      <Download className="w-3 h-3" /> CSV
+                    </button>
+                  </PanelTitle>
+                  <div className="text-[10px] text-white/50">500 km radius · 30 days · source {source.toUpperCase()}</div>
+                  {afterLoading ? (
+                    <div className="flex items-center gap-2 text-white/60 text-xs py-3"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</div>
+                  ) : after.length === 0 ? (
+                    <div className="text-[11px] text-white/50 text-center py-3">No aftershocks logged in this window.</div>
+                  ) : (
+                    <div className="rounded-lg border border-white/10 divide-y divide-white/[0.06]">
+                      <div className="grid grid-cols-[46px_1fr_50px_50px] gap-2 px-2 py-1 text-[9px] uppercase tracking-widest text-white/40 bg-white/[0.03] font-mono">
+                        <span>Mag</span><span>Time · place</span><span className="text-right">Δkm</span><span className="text-right">Dkm</span>
+                      </div>
+                      {after.map((a) => (
+                        <div key={a.id} className="grid grid-cols-[46px_1fr_50px_50px] gap-2 px-2 py-1 text-[11px] items-center hover:bg-white/[0.04]">
+                          <span className="font-mono font-bold" style={{ color: a.mag >= 5 ? "#f97316" : a.mag >= 3 ? "#facc15" : "#84cc16" }}>M{(a.mag ?? 0).toFixed(1)}</span>
+                          <span className="min-w-0 truncate">
+                            <span className="text-white/60 font-mono">{fmtTime(a.time).slice(5, 16)}</span>
+                            <span className="text-white/80"> · {a.place}</span>
+                          </span>
+                          <span className="text-right font-mono text-white/70">{a.distanceKm.toFixed(0)}</span>
+                          <span className="text-right font-mono text-white/70">{a.depthKm?.toFixed?.(0) ?? a.depthKm}</span>
                         </div>
                       ))}
                     </div>
                   )}
-                  <form
-                    onSubmit={(e) => { e.preventDefault(); void sendChat(); }}
-                    className="flex items-center gap-2"
-                  >
-                    <input
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Ask the AI to change the report…"
-                      disabled={chatSending}
-                      className="flex-1 bg-white/[0.05] border border-white/10 rounded px-2 py-1.5 text-xs"
-                    />
-                    <button
-                      type="submit"
-                      disabled={chatSending || !chatInput.trim()}
-                      className="h-8 px-2 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[11px] hover:bg-sky-500/30 disabled:opacity-40 flex items-center gap-1"
-                    >
-                      {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    </button>
-                  </form>
-                </div>
+                </>
               )}
 
-              {/* Static template export fallback — still available */}
-              <button
-                onClick={exportReportMd}
-                className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md bg-white/[0.04] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10"
-                title="Export the deterministic template report (no AI)"
-              >
-                <FileText className="w-3 h-3" /> Export template only (.md)
-              </button>
-          </section>
-
-          {/* ============ § C. AFTERSHOCK LEDGER ============ */}
-          <section aria-label="Aftershock ledger" className="space-y-2 border-t border-white/10 pt-4">
-            <SectionHeader n="C" title="Aftershock / replica ledger" icon={Waves} />
-              <div className="flex items-center justify-between">
-                <div className="text-[11px] uppercase tracking-widest text-white/60">
-                  500 km radius · 30 days · source {source.toUpperCase()}
-                </div>
-                <button
-                  onClick={exportLedgerCsv}
-                  disabled={!after.length}
-                  className="inline-flex items-center gap-1 px-2 h-7 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10 disabled:opacity-40"
-                >
-                  <Download className="w-3 h-3" /> CSV
-                </button>
-              </div>
-              {afterLoading ? (
-                <div className="flex items-center gap-2 text-white/60 text-xs py-4">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading replicas…
-                </div>
-              ) : after.length === 0 ? (
-                <div className="text-[11px] text-white/50 text-center py-4">
-                  No aftershocks logged in this window.
-                </div>
-              ) : (
-                <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/[0.06]">
-                  <div className="grid grid-cols-[52px_1fr_60px_60px] gap-2 px-2 py-1 text-[9px] uppercase tracking-widest text-white/40 bg-white/[0.03] font-mono">
-                    <span>Mag</span><span>Time · place</span><span className="text-right">Dist km</span><span className="text-right">Depth km</span>
-                  </div>
-                  {after.map((a) => (
-                    <div key={a.id} className="grid grid-cols-[52px_1fr_60px_60px] gap-2 px-2 py-1.5 text-[11px] items-center hover:bg-white/[0.04]">
-                      <span className="font-mono font-bold" style={{ color: a.mag >= 5 ? "#f97316" : a.mag >= 3 ? "#facc15" : "#84cc16" }}>
-                        M{(a.mag ?? 0).toFixed(1)}
-                      </span>
-                      <span className="min-w-0 truncate">
-                        <span className="text-white/60 font-mono">{fmtTime(a.time).slice(5, 16)}</span>
-                        <span className="text-white/80"> · {a.place}</span>
-                      </span>
-                      <span className="text-right font-mono text-white/70">{a.distanceKm.toFixed(0)}</span>
-                      <span className="text-right font-mono text-white/70">{a.depthKm?.toFixed?.(0) ?? a.depthKm}</span>
+              {tab === "phase" && (
+                <>
+                  <PanelTitle icon={Activity}>Seismographic phase data</PanelTitle>
+                  {source !== "usgs" ? (
+                    <div className="text-[11px] text-white/50 p-3 rounded border border-white/10 bg-white/[0.03]">
+                      Phase-data products are only exposed by the USGS NEIC catalog. Reopen this event with USGS selected.
                     </div>
-                  ))}
-                </div>
+                  ) : detailLoading ? (
+                    <div className="flex items-center gap-2 text-white/60 text-xs"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-1.5 text-[11px] font-mono">
+                      <KV k="Stations used (nst)" v={phases.nst != null ? String(phases.nst) : "—"} />
+                      <KV k="Min distance (°)" v={phases.minDist != null ? String(phases.minDist) : "—"} />
+                      <KV k="Location RMS (s)" v={phases.rms != null ? String(phases.rms) : "—"} />
+                      <KV k="Azimuthal gap (°)" v={phases.gap != null ? String(phases.gap) : "—"} />
+                      <KV k="Review status" v={String(phases.review ?? "—")} />
+                      <KV k="Magnitude source" v={String(phases.magSource ?? "—")} />
+                      <KV k="Updated" v={phases.updateTime ? new Date(phases.updateTime).toISOString().slice(0, 19) + "Z" : "—"} />
+                    </div>
+                  )}
+                  <a href={quake.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200">
+                    Waveform archive on source authority <ExternalLink className="w-3 h-3" />
+                  </a>
+                </>
               )}
-          </section>
 
-          {/* ============ § D. PHASE DATA ============ */}
-          <section aria-label="Phase data" className="space-y-3 border-t border-white/10 pt-4">
-            <SectionHeader n="D" title="Seismographic raw parameters" icon={Activity} />
-              {source !== "usgs" ? (
-                <div className="text-[11px] text-white/50 p-3 rounded border border-white/10 bg-white/[0.03]">
-                  Phase-data products are only exposed by the USGS NEIC catalog. Re-open this event with the USGS source selected to view station picks and location quality.
-                </div>
-              ) : detailLoading ? (
-                <div className="flex items-center gap-2 text-white/60 text-xs">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading phase data…
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-white/70">
-                  <KV k="Stations used" v={phases.nst != null ? String(phases.nst) : "—"} />
-                  <KV k="Minimum distance (°)" v={phases.minDist != null ? String(phases.minDist) : "—"} />
-                  <KV k="Location RMS (s)" v={phases.rms != null ? String(phases.rms) : "—"} />
-                  <KV k="Azimuthal gap (°)" v={phases.gap != null ? String(phases.gap) : "—"} />
-                  <KV k="Review status" v={String(phases.review ?? "—")} />
-                  <KV k="Magnitude source" v={String(phases.magSource ?? "—")} />
-                </div>
+              {tab === "library" && (
+                <>
+                  <PanelTitle icon={Building2}>Event library & institutions</PanelTitle>
+                  <QuakeEventLibrary quake={quake} source={source} onTuneSource={(inst) => { onTuneSource?.(inst); onClose(); }} />
+                </>
               )}
-              <a
-                href={quake.url}
-                target="_blank" rel="noopener"
-                className="inline-flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200"
-              >
-                Full waveform archive on source authority <ExternalLink className="w-3 h-3" />
-              </a>
-          </section>
+            </div>
 
-          {/* ============ § E. EVENT LIBRARY ============ */}
-          <section aria-label="Event library" className="space-y-3 border-t border-white/10 pt-4">
-            <SectionHeader n="E" title="Event library & institutional sources" icon={FolderOpen} />
-            <QuakeEventLibrary quake={quake} source={source} onTuneSource={(inst) => { onTuneSource?.(inst); onClose(); }} />
-          </section>
+            {/* footer actions (mobile-visible export) */}
+            <div className="md:hidden border-t border-white/10 bg-black/40 p-2 flex items-center gap-2">
+              <button onClick={generate} disabled={generating}
+                className="flex-1 h-8 rounded-md bg-sky-500/20 border border-sky-400/40 text-sky-100 text-[10px] font-bold uppercase tracking-widest hover:bg-sky-500/30 disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                {generating ? "…" : report ? "Regenerate" : "Generate"}
+              </button>
+              <button onClick={doExportMd} className="h-8 px-3 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10 flex items-center gap-1">
+                <Download className="w-3 h-3" /> .md
+              </button>
+              <button onClick={exportReportMd} className="h-8 px-2 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest hover:bg-white/10 flex items-center gap-1" title="Static template">
+                <FileText className="w-3 h-3" />
+              </button>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
   );
 }
 
-function SectionHeader({ n, title, icon: Icon }: { n: string; title: string; icon: React.ComponentType<{ className?: string }> }) {
+function PanelTitle({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 pb-1 border-b border-white/[0.06]">
-      <span className="w-6 h-6 rounded-md bg-red-500/15 border border-red-400/30 text-red-200 font-mono text-[11px] font-bold flex items-center justify-center">{n}</span>
-      <Icon className="w-3.5 h-3.5 text-white/60" />
-      <h2 className="text-[11px] uppercase tracking-[0.22em] font-bold text-white/85">{title}</h2>
+    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/60 border-b border-white/[0.06] pb-1.5">
+      <Icon className="w-3 h-3 text-amber-300" />
+      {children}
     </div>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "hot" | "cool" | "warn" }) {
-  const color = tone === "hot" ? "#ef4444" : tone === "warn" ? "#f59e0b" : "#22d3ee";
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5">
-      <div className="text-[9px] uppercase tracking-widest text-white/50">{label}</div>
-      <div className="text-xs font-bold" style={{ color }}>{value}</div>
-    </div>
-  );
-}
 function KV({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex items-center justify-between rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1">
-      <span className="text-white/50">{k}</span>
-      <span className="text-white/90 truncate max-w-[60%] text-right">{v}</span>
+    <div className="flex items-center justify-between rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1 gap-2">
+      <span className="text-white/50 shrink-0">{k}</span>
+      <span className="text-white/90 truncate text-right">{v}</span>
     </div>
   );
 }
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-widest text-red-300/80 font-bold mb-1">{title}</div>
-      <div className="text-white/85">{children}</div>
-    </div>
-  );
-}
+
 function ParamSelect({ label, value, onChange, options }: {
   label: string; value: string; onChange: (v: string) => void; options: string[];
 }) {
   return (
     <label className="flex flex-col gap-1">
       <span className="text-[9px] uppercase tracking-widest text-white/50">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px]">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px]">
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     </label>
@@ -1318,32 +1235,25 @@ function ParamInput({ label, value, onChange, placeholder, type = "text" }: {
     </label>
   );
 }
-
 function TmplField({ label, value, onChange, placeholder }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string;
 }) {
   return (
     <label className="flex flex-col gap-0.5">
       <span className="text-[9px] uppercase tracking-widest text-amber-200/80">{label}</span>
-      <input
-        value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-amber-400/50"
-      />
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-amber-400/50" />
     </label>
   );
 }
-
 function TmplArea({ label, value, onChange, placeholder, rows = 3 }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
 }) {
   return (
     <label className="flex flex-col gap-0.5">
       <span className="text-[9px] uppercase tracking-widest text-amber-200/80">{label}</span>
-      <textarea
-        value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        rows={rows}
-        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] leading-relaxed resize-y focus:outline-none focus:border-amber-400/50"
-      />
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+        className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] leading-relaxed resize-y focus:outline-none focus:border-amber-400/50" />
     </label>
   );
 }
