@@ -1577,6 +1577,7 @@ function SpaceshipPage({
   const [lassoPoints, setLassoPoints] = useState<{ lat: number; lng: number }[]>([]);
   const [tilesScanning, setTilesScanning] = useState(false);
   const [tilesScanResults, setTilesScanResults] = useState<SearchResult[]>([]);
+  const [openTileCard, setOpenTileCard] = useState<TileCardTarget | null>(null);
   const tileEntitiesRef = useRef<Map<TileKey, any>>(new Map());
   const lassoEntityRef = useRef<any>(null);
   const tilesToolRef = useRef<TilesToolExt>("grid");
