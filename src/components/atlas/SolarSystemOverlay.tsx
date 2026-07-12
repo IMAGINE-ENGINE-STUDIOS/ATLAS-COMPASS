@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BoundingSphere,
   CallbackProperty,
   Cartesian3,
+  Cartesian2,
   Color,
   HeadingPitchRange,
   ImageMaterialProperty,
@@ -105,6 +107,14 @@ function fixedPositionFromIcrf(vec: SolarEphemerisVector, central: CentralBody, 
   return Matrix3.multiplyByVector(matrix, rel, new Cartesian3());
 }
 
+function routeForBody(id: SolarBodyId): string | null {
+  if (id === "earth") return "/atlas";
+  if (id === "moon") return "/moon";
+  if (id === "mars") return "/mars";
+  if (id === "sun") return null; // no surface — keep fly-to
+  return `/planet/${id}`;
+}
+
 function travelToBody(viewer: any, body: SolarBodyDefinition, position: Cartesian3) {
   if (!viewer || viewer.isDestroyed?.()) return;
   viewer.trackedEntity = undefined;
@@ -121,11 +131,22 @@ function travelToBody(viewer: any, body: SolarBodyDefinition, position: Cartesia
 }
 
 export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vectors, setVectors] = useState<SolarEphemerisVector[]>([]);
   const positionsRef = useRef<Record<string, Cartesian3>>({});
+
+  const openBody = (body: SolarBodyDefinition, position: Cartesian3) => {
+    const route = routeForBody(body.id);
+    if (route) {
+      setOpen(false);
+      navigate(route);
+      return;
+    }
+    travelToBody(viewer, body, position);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -192,7 +213,7 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
           outlineWidth: 2,
           style: LabelStyle.FILL_AND_OUTLINE,
           verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: { x: 0, y: -14 } as any,
+          pixelOffset: new Cartesian2(0, -14),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: new NearFarScalar(1.0e7, 1.0, 1.0e12, 0.4),
         },
@@ -208,7 +229,7 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
       if (!id) return;
       const body = SOLAR_BODY_BY_ID[id];
       const position = positionsRef.current[id];
-      if (body && position) travelToBody(viewer, body, position);
+      if (body && position) openBody(body, position);
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     try { viewer.scene.requestRender?.(); } catch {}
@@ -243,7 +264,7 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
             {rows.map(({ body, position, distanceM }) => (
               <button
                 key={body.id}
-                onClick={() => travelToBody(viewer, body, position)}
+                onClick={() => openBody(body, position)}
                 className="w-full flex items-center gap-2 rounded-xl px-2 py-2 text-left hover:bg-white/10 transition-colors"
               >
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ background: body.color, boxShadow: `0 0 14px ${body.accent}` }} />
