@@ -8068,6 +8068,13 @@ function SpaceshipPage({
             window.dispatchEvent(new CustomEvent("atlas:emergency-mode", { detail: false }));
           }} />
 
+          {/* Per-tile TileCard widget */}
+          {openTileCard && (
+            <div className="pointer-events-none fixed right-4 top-24 z-[95] max-h-[calc(100vh-8rem)]">
+              <TileCard target={openTileCard} onClose={() => setOpenTileCard(null)} />
+            </div>
+          )}
+
           {/* Intelligence — Live Traffic Cameras Panel */}
           <IntelligencePanel
             open={intelligenceOpen}
