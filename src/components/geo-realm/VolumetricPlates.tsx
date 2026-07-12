@@ -166,7 +166,6 @@ function PlateMotionArrow({
   radius: number;
   animate: boolean;
 }) {
-  const matRef = useRef<THREE.LineDashedMaterial>(null);
   const coneRef = useRef<THREE.Mesh>(null);
 
   const { geom, tip, quat, len } = useMemo(() => {
@@ -198,7 +197,6 @@ function PlateMotionArrow({
 
   useFrame(({ clock }) => {
     if (!animate) return;
-    if (matRef.current) matRef.current.dashOffset = -clock.elapsedTime * 0.5;
     if (coneRef.current) {
       const s = 1 + Math.sin(clock.elapsedTime * 2.2 + spec.lat) * 0.15;
       coneRef.current.scale.setScalar(s);
