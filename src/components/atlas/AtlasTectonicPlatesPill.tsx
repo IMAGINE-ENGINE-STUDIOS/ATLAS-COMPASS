@@ -1,15 +1,25 @@
 /**
- * AtlasTectonicPlatesPill — toggles Bird (2003) PB2002 tectonic plates &
- * boundaries as GeoJsonDataSources on the Cesium globe. Coordinates are
- * loaded verbatim from the fraxen/tectonicplates mirror — no reprojection,
- * no interpolation — so every polygon sits at its exact real lat/lon.
+ * AtlasTectonicPlatesPill
+ * -----------------------
+ * Toggles Bird (2003) PB2002 tectonic plates on the Cesium globe.
+ *
+ * Coordinates: every polygon and boundary line uses the GeoJSON's lon/lat
+ * verbatim (fraxen/tectonicplates mirror of Bird 2003). No reprojection.
+ *
+ * Rendering: `clampToGround` is intentionally OFF because it does not work
+ * on top of Google Photorealistic 3D Tiles (they hide the globe surface).
+ * Polygons are drawn at `height: 0` on the WGS84 ellipsoid (matching Google
+ * tiles), and boundaries are drawn as polylines a few hundred metres above
+ * so they read clearly against ocean and land.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Globe2, ChevronUp } from "lucide-react";
+import { Globe2, Loader2 } from "lucide-react";
 import {
-  Cartesian3,
   Color,
+  ColorMaterialProperty,
+  ConstantProperty,
   GeoJsonDataSource,
+  PolylineDashMaterialProperty,
   type Viewer,
 } from "cesium";
 
@@ -23,8 +33,7 @@ const PLATES_URL =
 const BOUNDARIES_URL =
   "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json";
 
-// Bird 2003 plate color palette — matches the Geo Realm identity ramp so a
-// plate has the same hue in both surfaces.
+// Deterministic color per plate code (Bird 2003 short codes).
 const PLATE_COLORS: Record<string, string> = {
   PA: "#4a90e2", NA: "#e74c3c", SA: "#f39c12", EU: "#9b59b6",
   AF: "#e67e22", AN: "#95a5a6", AU: "#1abc9c", NB: "#3498db",
@@ -32,47 +41,58 @@ const PLATE_COLORS: Record<string, string> = {
   CA: "#ff9ff3", AR: "#5f27cd", JF: "#00d2d3", RI: "#ff6348",
   SC: "#7bed9f", SW: "#a29bfe", SU: "#fd79a8", BU: "#fdcb6e",
   MO: "#6c5ce7", MA: "#00cec9", SO: "#e17055", YA: "#74b9ff",
-  PM: "#a29bfe", TI: "#fab1a0", SB: "#55efc4", NH: "#81ecec",
-  ND: "#ffeaa7", MS: "#dfe6e9", AT: "#b2bec3",
+  PM: "#8e44ad", TI: "#fab1a0", SB: "#55efc4", NH: "#81ecec",
+  ND: "#ffeaa7", MS: "#dfe6e9", AT: "#b2bec3", OK: "#00b894",
+  ON: "#fdcb6e", SL: "#e17055", KE: "#0984e3", NI: "#d63031",
+  AS: "#fab1a0", GP: "#00cec9", JZ: "#e84393", TO: "#fdcb6e",
+  MN: "#b71540", CL: "#78e08f", CR: "#f8c291", EA: "#82ccdd",
+  FT: "#b8e994", GA: "#f6b93b", NB2: "#eb2f06", SS: "#78e08f",
+  BR: "#b8e994", BS: "#fa983a", BH: "#eb2f06", SG: "#e58e26",
+  KL: "#079992", MT: "#78e08f",
 };
 
-function colorForPlate(code?: string, alpha = 0.28): Color {
+function plateColor(code: string | undefined, alpha: number): Color {
   const hex = (code && PLATE_COLORS[code]) || "#5a7fa8";
-  const c = Color.fromCssColorString(hex).withAlpha(alpha);
-  return c;
+  return Color.fromCssColorString(hex).withAlpha(alpha);
 }
+
+// Bright, high-contrast boundary color regardless of type — one shade so the
+// tectonic seams read instantly against Google 3D imagery.
+const BOUNDARY_COLOR = Color.fromCssColorString("#ff1f4e");
 
 async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
   const created: GeoJsonDataSource[] = [];
 
-  // Filled polygons — one entity per plate, real lon/lat verbatim.
-  const plates = await GeoJsonDataSource.load(PLATES_URL, {
-    stroke: Color.WHITE.withAlpha(0.55),
-    strokeWidth: 1,
-    clampToGround: true,
-  });
+  // Filled polygons — coords are used verbatim from the GeoJSON.
+  const plates = await GeoJsonDataSource.load(PLATES_URL);
   plates.name = "PB2002 · Tectonic plates";
   for (const entity of plates.entities.values) {
     const props: any = entity.properties;
-    const code = props?.Code?.getValue?.() ?? props?.PlateName?.getValue?.();
+    const code: string | undefined =
+      props?.Code?.getValue?.() ?? props?.PlateName?.getValue?.();
     if (entity.polygon) {
-      (entity.polygon as any).material = colorForPlate(code, 0.32);
-      (entity.polygon as any).outline = true;
-      (entity.polygon as any).outlineColor = Color.WHITE.withAlpha(0.7);
-      (entity.polygon as any).height = 0;
+      const poly: any = entity.polygon;
+      poly.material = new ColorMaterialProperty(plateColor(code, 0.35));
+      poly.height = new ConstantProperty(0);
+      poly.outline = new ConstantProperty(false);
+      // Fills stay flat on the ellipsoid so lat/lon alignment is preserved.
+      poly.perPositionHeight = new ConstantProperty(false);
     }
   }
   viewer.dataSources.add(plates);
   created.push(plates);
 
-  // Boundary vectors — bright red so convergent/divergent/transform lines
-  // read clearly against any base map.
-  const bnds = await GeoJsonDataSource.load(BOUNDARIES_URL, {
-    stroke: Color.fromCssColorString("#ff2d55"),
-    strokeWidth: 2,
-    clampToGround: true,
-  });
+  // Boundary vectors — drawn slightly above the surface so they always read.
+  const bnds = await GeoJsonDataSource.load(BOUNDARIES_URL);
   bnds.name = "PB2002 · Plate boundaries";
+  for (const entity of bnds.entities.values) {
+    if (entity.polyline) {
+      const line: any = entity.polyline;
+      line.material = new ColorMaterialProperty(BOUNDARY_COLOR);
+      line.width = new ConstantProperty(2.5);
+      line.clampToGround = new ConstantProperty(false);
+    }
+  }
   viewer.dataSources.add(bnds);
   created.push(bnds);
 
@@ -86,16 +106,22 @@ export default function AtlasTectonicPlatesPill({ viewerRef, isLoaded }: Props) 
   const [error, setError] = useState<string | null>(null);
   const dsRef = useRef<GeoJsonDataSource[]>([]);
 
+  const removeAll = () => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed?.()) return;
+    for (const ds of dsRef.current) {
+      try { viewer.dataSources.remove(ds, true); } catch {}
+    }
+    dsRef.current = [];
+    viewer.scene?.requestRender?.();
+  };
+
   const toggle = async () => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed?.()) return;
     if (on) {
-      for (const ds of dsRef.current) {
-        try { viewer.dataSources.remove(ds, true); } catch {}
-      }
-      dsRef.current = [];
+      removeAll();
       setOn(false);
-      viewer.scene.requestRender?.();
       return;
     }
     setLoading(true);
@@ -111,16 +137,7 @@ export default function AtlasTectonicPlatesPill({ viewerRef, isLoaded }: Props) 
     }
   };
 
-  // Cleanup on unmount.
-  useEffect(() => {
-    return () => {
-      const viewer = viewerRef.current;
-      if (!viewer || viewer.isDestroyed?.()) return;
-      for (const ds of dsRef.current) {
-        try { viewer.dataSources.remove(ds, true); } catch {}
-      }
-    };
-  }, [viewerRef]);
+  useEffect(() => () => removeAll(), []); // cleanup on unmount
 
   if (!isLoaded) return null;
 
@@ -128,21 +145,22 @@ export default function AtlasTectonicPlatesPill({ viewerRef, isLoaded }: Props) 
     <button
       type="button"
       onClick={toggle}
-      title={on ? "Hide tectonic plates" : "Show tectonic plates (Bird 2003)"}
+      title={on ? "Hide tectonic plates" : "Show tectonic plates (Bird 2003 · PB2002)"}
       className={`group flex items-center gap-1.5 h-8 px-3 rounded-full border backdrop-blur-md text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors ${
         on
           ? "border-orange-400/60 bg-orange-400/15 text-white"
           : "border-white/15 bg-black/60 text-white/85 hover:border-orange-400/50 hover:bg-orange-400/10 hover:text-white"
       }`}
     >
-      <Globe2
-        className={`w-3.5 h-3.5 ${on ? "text-orange-300" : "text-orange-300/80 group-hover:text-orange-200"}`}
-        strokeWidth={2.2}
-      />
-      <span>Plates</span>
-      {loading && (
-        <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-orange-300 animate-pulse" />
+      {loading ? (
+        <Loader2 className="w-3.5 h-3.5 text-orange-300 animate-spin" strokeWidth={2.2} />
+      ) : (
+        <Globe2
+          className={`w-3.5 h-3.5 ${on ? "text-orange-300" : "text-orange-300/80 group-hover:text-orange-200"}`}
+          strokeWidth={2.2}
+        />
       )}
+      <span>Plates</span>
       {error && <span className="ml-0.5 text-[9px] text-red-300">!</span>}
     </button>
   );
