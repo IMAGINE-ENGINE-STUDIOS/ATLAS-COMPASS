@@ -112,20 +112,30 @@ export default function PlanetLayerPanel({
   };
 
   if (isReferenceSphere || !catalog) {
+    const wid = worldId.toLowerCase();
+    const isGas = ["jupiter", "saturn", "uranus", "neptune"].includes(wid);
+    const isSun = wid === "sun";
+    const layerLabel = isSun
+      ? "Photosphere · SDO composite"
+      : isGas
+        ? "Cloud-top mosaic · Cassini / Voyager"
+        : "Global albedo mosaic";
+    const note = isSun
+      ? "Live photospheric skin draped on the solar ellipsoid. No sub-surface tile pyramid exists."
+      : isGas
+        ? "Full-resolution NASA cloud-top mosaic wrapped on the Atlas ellipsoid. Gas giants have no solid surface, so deeper tile pyramids do not exist."
+        : "Full-resolution NASA global mosaic wrapped on the Atlas ellipsoid.";
     return (
       <div className="absolute top-20 right-4 z-30 pointer-events-none">
-        <div
-          className="pointer-events-auto rounded-2xl px-3.5 py-2 max-w-[280px]
-            backdrop-blur-xl bg-white/5 border border-white/10
-            shadow-[0_4px_24px_rgba(0,0,0,0.4)]"
-        >
-          <p className="text-[11px] uppercase tracking-widest text-white/50">
-            {worldName}
-          </p>
-          <p className="text-xs text-white/80 mt-1 leading-snug">
-            No public GIS pyramid exists for this world — displaying a
-            reference sphere from NASA-derived albedo imagery.
-          </p>
+        <div className="pointer-events-auto rounded-2xl px-3.5 py-2 max-w-[300px]
+            backdrop-blur-xl bg-white/[0.06] border border-white/10
+            shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-widest text-white/60">{worldName}</span>
+            <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-400/15 border border-emerald-300/25 text-emerald-200">Live</span>
+          </div>
+          <div className="text-[12px] font-medium text-white mt-1">{layerLabel}</div>
+          <p className="text-[11px] text-white/60 mt-1 leading-snug">{note}</p>
         </div>
       </div>
     );
