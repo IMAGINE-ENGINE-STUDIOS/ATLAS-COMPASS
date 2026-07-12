@@ -222,6 +222,7 @@ import GlyphIcon from "@/components/atlas/GlyphIcon";
 import AtlasScreenshotMenu from "@/components/atlas/AtlasScreenshotMenu";
 import EmergencyPanel from "@/components/atlas/EmergencyPanel";
 import { atlasWorldScheduler } from "@/lib/atlasWorldScheduler";
+import TileCard, { type TileCardTarget } from "@/components/atlas/tileCard/TileCard";
 
 /* ── Cesium Token (publishable key) ── */
 const CESIUM_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZjE5YWQxYi04OGE3LTQxOTEtOTBmZS1iZDdkOWNmOTIyYjYiLCJpZCI6MzIyODgyLCJpYXQiOjE3NTI4NzUyMTB9.UhWm2A1x0gFnsiPJ-XzIyK3K6kOW9jwRYjqQw4Jw9xs";
