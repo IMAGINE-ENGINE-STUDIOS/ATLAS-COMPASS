@@ -112,6 +112,15 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
   created.push(bnds);
 
   console.log(`[Plates] rendered ${created.length} datasources`);
+  (window as any).__viewer = viewer;
+  (window as any).__plates = plates;
+  console.log("[Plates] scene", {
+    globeShow: viewer.scene.globe.show,
+    logDepth: viewer.scene.logarithmicDepthBuffer,
+    requestRenderMode: viewer.scene.requestRenderMode,
+    dsCount: viewer.dataSources.length,
+    firstEntityHasPolygon: !!plates.entities.values[0]?.polygon,
+  });
   viewer.scene.requestRender?.();
   return created;
 }
