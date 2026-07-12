@@ -70,10 +70,12 @@ const BOUNDARY_COLOR = Color.fromCssColorString("#ff1f4e");
 
 async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
   const created: GeoJsonDataSource[] = [];
+  console.log("[Plates] loading PB2002…");
 
   // Filled polygons — coords are used verbatim from the GeoJSON.
   const plates = await GeoJsonDataSource.load(PLATES_URL);
   plates.name = "PB2002 · Tectonic plates";
+  console.log(`[Plates] loaded ${plates.entities.values.length} plate polygons`);
   for (const entity of plates.entities.values) {
     const props: any = entity.properties;
     const code: string | undefined =
@@ -113,6 +115,7 @@ async function loadPlates(viewer: Viewer): Promise<GeoJsonDataSource[]> {
   viewer.dataSources.add(bnds);
   created.push(bnds);
 
+  console.log(`[Plates] added ${created.length} datasources, requesting render`);
   viewer.scene.requestRender?.();
   return created;
 }
