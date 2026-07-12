@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Search, Loader2, MapPin, ExternalLink, Crosshair } from "lucide-react";
+import { X, Search, Loader2, MapPin, ExternalLink, Crosshair, Download, Radio, History } from "lucide-react";
 import {
   Cartesian3,
   Cartographic,
@@ -42,6 +42,25 @@ interface Props {
 }
 
 type OrderBy = "time" | "time-asc" | "magnitude" | "magnitude-asc";
+type Source = "usgs" | "emsc" | "iris" | "isc" | "geofon";
+type Preset =
+  | "live-hour"
+  | "today"
+  | "week"
+  | "month"
+  | "year"
+  | "5y"
+  | "20y"
+  | "significant-1900"
+  | "custom";
+
+const SOURCE_LABELS: Record<Source, string> = {
+  usgs:   "USGS (NEIC)",
+  emsc:   "EMSC (Europe)",
+  iris:   "IRIS DMC",
+  isc:    "ISC (Reviewed)",
+  geofon: "GEOFON / GFZ",
+};
 
 interface QuakeFeature {
   id: string;
@@ -64,6 +83,22 @@ function isoDaysAgo(days: number): string {
 }
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Named presets → (start, end, minMag). Historic + live coverage. */
+function applyPreset(p: Preset): { start: string; end: string; min: number; limit: number } | null {
+  const end = isoToday();
+  switch (p) {
+    case "live-hour":         return { start: isoDaysAgo(1),      end, min: 0,   limit: 500 };
+    case "today":             return { start: isoDaysAgo(1),      end, min: 1,   limit: 1000 };
+    case "week":              return { start: isoDaysAgo(7),      end, min: 2.5, limit: 2000 };
+    case "month":             return { start: isoDaysAgo(30),     end, min: 3.5, limit: 3000 };
+    case "year":              return { start: isoDaysAgo(365),    end, min: 4.5, limit: 5000 };
+    case "5y":                return { start: isoDaysAgo(365*5),  end, min: 5.5, limit: 8000 };
+    case "20y":               return { start: isoDaysAgo(365*20), end, min: 6,   limit: 12000 };
+    case "significant-1900":  return { start: "1900-01-01",       end, min: 7,   limit: 20000 };
+    default: return null;
+  }
 }
 
 // Magnitude → RGB. Approximates the color ramp on the USGS map so the
@@ -107,12 +142,15 @@ function currentViewBbox(viewer: Viewer | null): {
 }
 
 export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
+  const [source, setSource] = useState<Source>("usgs");
+  const [preset, setPreset] = useState<Preset>("week");
+  const [liveMode, setLiveMode] = useState<boolean>(false);
   const [startTime, setStartTime] = useState<string>(() => isoDaysAgo(7));
   const [endTime, setEndTime] = useState<string>(() => isoToday());
   const [minMag, setMinMag] = useState<number>(2.5);
   const [maxMag, setMaxMag] = useState<number>(10);
   const [useBbox, setUseBbox] = useState<boolean>(false);
-  const [limit, setLimit] = useState<number>(500);
+  const [limit, setLimit] = useState<number>(2000);
   const [orderBy, setOrderBy] = useState<OrderBy>("time");
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -143,6 +181,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
     try {
       const q = new URLSearchParams();
       q.set("mode", "search");
+      q.set("source", source);
       q.set("starttime", startTime);
       q.set("endtime", endTime);
       q.set("minmagnitude", String(minMag));
@@ -217,7 +256,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [startTime, endTime, minMag, maxMag, limit, orderBy, useBbox, viewerRef, clearEntities]);
+  }, [source, startTime, endTime, minMag, maxMag, limit, orderBy, useBbox, viewerRef, clearEntities]);
 
   const flyTo = useCallback((f: QuakeFeature) => {
     const viewer = viewerRef.current;
@@ -245,6 +284,63 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live mode: re-poll every 60 s while enabled.
+  useEffect(() => {
+    if (!liveMode) return;
+    const id = window.setInterval(() => { void runSearch(); }, 60_000);
+    return () => window.clearInterval(id);
+  }, [liveMode, runSearch]);
+
+  // Applying a preset updates all inputs, then triggers a search.
+  const onPreset = useCallback((p: Preset) => {
+    setPreset(p);
+    const cfg = applyPreset(p);
+    if (!cfg) return;
+    setStartTime(cfg.start);
+    setEndTime(cfg.end);
+    setMinMag(cfg.min);
+    setLimit(cfg.limit);
+  }, []);
+
+  // Re-run search when a preset changes state above.
+  useEffect(() => {
+    if (preset === "custom") return;
+    void runSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, source]);
+
+  // ---- Export helpers -----------------------------------------------------
+  const downloadBlob = (name: string, mime: string, data: string) => {
+    const blob = new Blob([data], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  };
+  const exportGeoJSON = useCallback(() => {
+    const fc = { type: "FeatureCollection", features };
+    downloadBlob(`quakes_${source}_${startTime}_${endTime}.geojson`,
+      "application/geo+json", JSON.stringify(fc, null, 2));
+  }, [features, source, startTime, endTime]);
+  const exportCSV = useCallback(() => {
+    const header = ["id","time_utc","magnitude","place","longitude","latitude","depth_km","tsunami","alert","url"];
+    const esc = (v: unknown) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = features.map((f) => {
+      const [lon, lat, depth] = f.geometry.coordinates;
+      return [
+        f.id, new Date(f.properties.time).toISOString(),
+        f.properties.mag ?? "", f.properties.place ?? "",
+        lon, lat, depth, f.properties.tsunami ?? 0,
+        f.properties.alert ?? "", f.properties.url,
+      ].map(esc).join(",");
+    });
+    downloadBlob(`quakes_${source}_${startTime}_${endTime}.csv`,
+      "text/csv", [header.join(","), ...rows].join("\n"));
+  }, [features, source, startTime, endTime]);
+
   const summary = useMemo(() => {
     if (!features.length) return null;
     const mags = features
@@ -262,7 +358,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       <div className="draggable-window-handle flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]" />
-          <div className="text-[11px] font-bold uppercase tracking-widest">USGS Earthquake Search</div>
+          <div className="text-[11px] font-bold uppercase tracking-widest">Seismic Intelligence</div>
         </div>
         <button
           onClick={onClose}
@@ -274,13 +370,68 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       </div>
 
       <div className="p-3 space-y-3 overflow-y-auto">
+        {/* Data source + live toggle */}
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-widest text-white/60">Data center</span>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value as Source)}
+              className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-xs"
+              title="Institutional seismic authority (FDSNWS)"
+            >
+              {(Object.keys(SOURCE_LABELS) as Source[]).map((s) => (
+                <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={() => setLiveMode((v) => !v)}
+            className={`h-8 px-2 rounded-md border text-[10px] uppercase tracking-widest flex items-center gap-1 ${
+              liveMode
+                ? "bg-red-500/25 border-red-400/60 text-red-100 animate-pulse"
+                : "bg-white/[0.05] border-white/10 text-white/70 hover:bg-white/10"
+            }`}
+            title="Auto-refresh every 60 seconds"
+          >
+            <Radio className="w-3 h-3" /> {liveMode ? "Live" : "Live off"}
+          </button>
+        </div>
+
+        {/* Preset chips: cover full historic range */}
+        <div className="flex flex-wrap gap-1">
+          {([
+            ["live-hour",        "Live 24h"],
+            ["today",            "Today"],
+            ["week",             "7 days"],
+            ["month",            "30 days"],
+            ["year",             "1 yr"],
+            ["5y",               "5 yr"],
+            ["20y",              "20 yr"],
+            ["significant-1900", "M7+ since 1900"],
+          ] as [Preset, string][]).map(([p, label]) => (
+            <button
+              key={p}
+              onClick={() => onPreset(p)}
+              className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest border ${
+                preset === p
+                  ? "bg-red-500/25 border-red-400/60 text-red-100"
+                  : "bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/10"
+              }`}
+            >
+              {p === "significant-1900" ? <History className="w-3 h-3 inline -mt-0.5 mr-1" /> : null}
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-widest text-white/60">Start (UTC)</span>
             <input
               type="date"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => { setStartTime(e.target.value); setPreset("custom"); }}
               className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-xs"
             />
           </label>
@@ -289,7 +440,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
             <input
               type="date"
               value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
+              onChange={(e) => { setEndTime(e.target.value); setPreset("custom"); }}
               className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-xs"
             />
           </label>
@@ -298,7 +449,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
             <input
               type="number" step={0.1} min={-2} max={10}
               value={minMag}
-              onChange={(e) => setMinMag(Number(e.target.value))}
+              onChange={(e) => { setMinMag(Number(e.target.value)); setPreset("custom"); }}
               className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-xs"
             />
           </label>
@@ -307,7 +458,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
             <input
               type="number" step={0.1} min={-2} max={10}
               value={maxMag}
-              onChange={(e) => setMaxMag(Number(e.target.value))}
+              onChange={(e) => { setMaxMag(Number(e.target.value)); setPreset("custom"); }}
               className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-xs"
             />
           </label>
@@ -316,7 +467,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
             <input
               type="number" step={100} min={1} max={20000}
               value={limit}
-              onChange={(e) => setLimit(Math.max(1, Math.min(20000, Number(e.target.value) | 0)))}
+              onChange={(e) => { setLimit(Math.max(1, Math.min(20000, Number(e.target.value) | 0))); setPreset("custom"); }}
               className="bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-xs"
             />
           </label>
@@ -353,16 +504,24 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
             className="flex-1 h-8 px-3 rounded-md bg-red-500/20 border border-red-400/40 text-red-100 text-xs font-bold uppercase tracking-widest hover:bg-red-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-            {loading ? "Searching…" : "Search USGS"}
+            {loading ? "Searching…" : "Search"}
           </button>
-          <a
-            href="https://earthquake.usgs.gov/earthquakes/search/"
-            target="_blank" rel="noopener"
-            className="h-8 px-2 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/10 flex items-center gap-1"
-            title="Open the official USGS earthquake search"
+          <button
+            onClick={exportCSV}
+            disabled={!features.length}
+            title="Export current results as CSV"
+            className="h-8 px-2 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/10 disabled:opacity-40 flex items-center gap-1"
           >
-            USGS <ExternalLink className="w-3 h-3" />
-          </a>
+            <Download className="w-3 h-3" /> CSV
+          </button>
+          <button
+            onClick={exportGeoJSON}
+            disabled={!features.length}
+            title="Export current results as GeoJSON"
+            className="h-8 px-2 rounded-md bg-white/[0.05] border border-white/10 text-[10px] uppercase tracking-widest text-white/70 hover:bg-white/10 disabled:opacity-40 flex items-center gap-1"
+          >
+            <Download className="w-3 h-3" /> GeoJSON
+          </button>
         </div>
 
         {error && (
@@ -377,6 +536,42 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
             <span>largest M {summary.max}</span>
           </div>
         )}
+
+        {/* Magnitude legend: color ramp + size scale, keyed to the map. */}
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-white/60 mb-1.5">
+            <span>Magnitude scale</span>
+            <a
+              href="https://earthquake.usgs.gov/learn/topics/mag-intensity/"
+              target="_blank" rel="noopener"
+              className="text-white/50 hover:text-white/80 flex items-center gap-1"
+            >
+              guide <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          </div>
+          <div className="flex items-end justify-between gap-1">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((m) => (
+              <div key={m} className="flex flex-col items-center gap-1 flex-1">
+                <span
+                  className="rounded-full"
+                  style={{
+                    width: magPixelSize(m),
+                    height: magPixelSize(m),
+                    background: magColor(m).toCssColorString(),
+                    boxShadow: `0 0 6px ${magColor(m).withAlpha(0.7).toCssColorString()}`,
+                  }}
+                />
+                <span className="text-[9px] text-white/60 font-mono">M{m}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-1.5 h-1.5 rounded-full" style={{
+            background: "linear-gradient(90deg,#22c55e 0%,#84cc16 15%,#facc15 30%,#f59e0b 50%,#f97316 65%,#ef4444 82%,#b91c1c 100%)",
+          }} />
+          <div className="flex justify-between text-[9px] text-white/50 mt-0.5 font-mono">
+            <span>Micro</span><span>Minor</span><span>Light</span><span>Moderate</span><span>Strong</span><span>Major</span><span>Great</span>
+          </div>
+        </div>
 
         <div className="border-t border-white/10 pt-2 space-y-1 max-h-[32vh] overflow-y-auto">
           {features.slice(0, 500).map((f) => {
@@ -418,7 +613,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       </div>
 
       <div className="px-3 py-1.5 border-t border-white/10 text-[10px] text-white/40">
-        Source: earthquake.usgs.gov · FDSNWS event API
+        Source: {SOURCE_LABELS[source]} · FDSNWS event API {liveMode ? "· live" : ""}
       </div>
     </div>
   );
