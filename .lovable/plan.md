@@ -89,3 +89,17 @@ Perf: providers created lazily on world switch, `viewer.imageryLayers.removeAll(
 3. Phase 3 (per-planet tile stacks).
 4. Phase 5 (POIs/models per world).
 5. Phase 4/6/7 (rotation refinement, sim, polish).
+
+## Delivered this pass
+- Mobile play-mode camera control: on-screen look pad (right 45% of the
+  viewport) drains into `mobileLook` deltas that `PlayableCharacter`
+  consumes the same way as desktop pointer-lock mouse move → identical
+  yaw/pitch behavior between mouse and touch.
+- Phase 3 tile stacks extended: added real NASA Trek WMTS catalogs for
+  Venus (Magellan C3-MDIR), Vesta (Dawn HAMO), the four Galilean moons
+  (Io, Europa, Ganymede, Callisto), Titan (Cassini ISS), Enceladus
+  (Cassini ISS 100 m), and Phobos (Viking 40 m). Registered in
+  `trekCatalogs.CATALOGS`, so `SpaceshipPage`'s generic-planet branch
+  auto-mounts them with the existing `ImageryLayer` + tuning pipeline;
+  each body now tile-zooms into real surface imagery instead of the
+  single-tile albedo skin.
