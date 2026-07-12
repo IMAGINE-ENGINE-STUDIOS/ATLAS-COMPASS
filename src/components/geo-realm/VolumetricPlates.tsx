@@ -235,23 +235,28 @@ export function VolumetricPlates({
                   opacity={fillOpacity}
                   side={THREE.DoubleSide}
                   depthWrite={false}
+                  polygonOffset
+                  polygonOffsetFactor={-1}
+                  polygonOffsetUnits={-1}
                 />
               </mesh>
             )}
-            <mesh geometry={p.walls}>
-              <meshBasicMaterial
-                color={p.colorObj}
-                transparent
-                opacity={wallOpacity}
-                side={THREE.DoubleSide}
-                depthWrite={false}
-              />
-            </mesh>
+            {isSelected && (
+              <mesh geometry={p.walls}>
+                <meshBasicMaterial
+                  color={p.colorObj}
+                  transparent
+                  opacity={0.55}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                />
+              </mesh>
+            )}
             <lineSegments geometry={p.caps}>
               <lineBasicMaterial
                 color={p.colorObj}
                 transparent
-                opacity={isSelected ? 1 : 0.75}
+                opacity={isSelected ? 1 : isHover ? 0.9 : 0.6}
               />
             </lineSegments>
           </group>
