@@ -432,6 +432,57 @@ export type Database = {
         }
         Relationships: []
       }
+      geo_realm_bundles: {
+        Row: {
+          bbox: Json | null
+          created_at: string
+          depth_range: Json | null
+          description: string | null
+          id: string
+          is_public: boolean
+          kind: string
+          layers: Json
+          manifest_url: string | null
+          name: string
+          owner_id: string | null
+          source_meta: Json
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          bbox?: Json | null
+          created_at?: string
+          depth_range?: Json | null
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          kind: string
+          layers?: Json
+          manifest_url?: string | null
+          name: string
+          owner_id?: string | null
+          source_meta?: Json
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bbox?: Json | null
+          created_at?: string
+          depth_range?: Json | null
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          kind?: string
+          layers?: Json
+          manifest_url?: string | null
+          name?: string
+          owner_id?: string | null
+          source_meta?: Json
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       geofences: {
         Row: {
           color: string
