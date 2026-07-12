@@ -91,6 +91,29 @@ Perf: providers created lazily on world switch, `viewer.imageryLayers.removeAll(
 5. Phase 4/6/7 (rotation refinement, sim, polish).
 
 ## Delivered this pass
+- **Crash / OOM hardening** (mobile-first):
+  - New `src/lib/deviceProfile.ts` reports a per-device tier
+    (`mobile-low` / `mobile` / `desktop` / `desktop-high`) from
+    `deviceMemory`, `hardwareConcurrency`, and pointer coarseness. Every
+    downstream memory budget derives from it.
+  - `tuneAtlasTileset` in `SpaceshipPage.tsx` no longer hard-codes a
+    2 GiB tile RAM cache (that was OOM-killing mobile Safari on rapid
+    zoom). It now scales cacheBytes / SSE by tier — 192 MiB & SSE 24 on
+    low-end phones, up to 2 GiB & SSE 8 on desktop-high — and shrinks
+    further under live `performance.memory` pressure > 80 %.
+  - `src/lib/globalCrashGuard.ts` installs once at boot and swallows
+    unhandledrejection / non-React `error` events for known-benign
+    categories (AbortError, aborted tile fetches, chunk load races) so
+    they can never blank the app. It also wires
+    `webglcontextlost` / `webglcontextrestored` on every canvas —
+    Cesium and R3F both recover, but only if the default "context is
+    permanently lost" is prevented. Under memory pressure it messages
+    the tile SW to trim its disk cache proactively.
+  - Service worker bumped to `atlas-tiles-v8`: 16 000-entry disk cache
+    (2× previous), and a new `postMessage({type:"trim", ratio})` path
+    the crash guard uses to release space when the tab is stressed.
+  - Wired in `src/main.tsx` before `createRoot` so early boot errors
+    never bubble into a hard reload.
 - Mobile play-mode camera control: on-screen look pad (right 45% of the
   viewport) drains into `mobileLook` deltas that `PlayableCharacter`
   consumes the same way as desktop pointer-lock mouse move → identical

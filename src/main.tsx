@@ -2,6 +2,11 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { installDraggableWindows } from "./lib/draggableWindows";
+import { installGlobalCrashGuard } from "./lib/globalCrashGuard";
+
+// Install BEFORE React mounts so any early Cesium/R3F promise rejection
+// during boot is swallowed instead of showing a red overlay + reloading.
+installGlobalCrashGuard();
 
 createRoot(document.getElementById("root")!).render(<App />);
 

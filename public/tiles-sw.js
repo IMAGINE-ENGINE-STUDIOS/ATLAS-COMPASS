@@ -3,12 +3,14 @@
  * Stale tiles are served instantly, fresh tiles stream directly to Cesium, and
  * cache maintenance is batched so rapid camera movement cannot freeze loading.
  */
-// v6 — larger persistent tile cache on the user's disk so revisits and
-// higher-LOD walks are instant. CacheStorage is durable across reloads and
-// tabs; Chrome will only evict under global storage pressure.
-const CACHE = "atlas-tiles-v7";
-const MAX_ENTRIES = 8000;
-const TRIM_EVERY_PUTS = 100;
+// v8 — bigger persistent tile cache + external trim messages from the
+// main thread's crash guard. CacheStorage is durable across reloads and
+// tabs; Chrome will only evict under global storage pressure. The size
+// bump matters most for users who revisit the same city — the tiles are
+// served from disk instead of re-hitting the Google session.
+const CACHE = "atlas-tiles-v8";
+const MAX_ENTRIES = 16000;
+const TRIM_EVERY_PUTS = 200;
 const MAX_CACHEABLE_BYTES = 96 * 1024 * 1024;
 
 const TILE_HOST_RE = /(assets\.ion\.cesium\.com|assets\.cesium\.com|api\.cesium\.com|tile\.googleapis\.com|tile\.openstreetmap\.org|data\.osmbuildings\.org|trek\.nasa\.gov)/i;
@@ -25,6 +27,23 @@ self.addEventListener("activate", (event) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
+  })());
+});
+
+// Main-thread `crashGuard` can post {type:"trim", ratio:0..1} when the JS
+// heap is under pressure. We drop that fraction of the oldest cache
+// entries in the background so incoming tile writes have space.
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "trim") return;
+  const ratio = Math.max(0.1, Math.min(0.9, Number(data.ratio) || 0.5));
+  event.waitUntil((async () => {
+    try {
+      const cache = await getCache();
+      const keys = await cache.keys();
+      const drop = Math.floor(keys.length * ratio);
+      if (drop > 0) await Promise.all(keys.slice(0, drop).map((k) => cache.delete(k)));
+    } catch {}
   })());
 });
 

@@ -53,6 +53,7 @@ import {
 } from "@/lib/planets/trekCatalogs";
 import { MARS_ELLIPSOID, ellipsoidForPlanet } from "@/lib/planets/ellipsoids";
 import { findPlanet, type PlanetId } from "@/lib/planets/config";
+import { getDeviceProfile, memoryPressure } from "@/lib/deviceProfile";
 import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
 import {
   MOON_LAYERS,
@@ -284,36 +285,44 @@ const advanceAtlasMapSerial = (viewer: any) => {
 
 const tuneAtlasTileset = (ts: any, profile: "boot" | "move" | "idle" | "far" = "boot") => {
   if (!ts) return;
-  // Minimal, Cesium-default-aligned tuning. The only deltas vs defaults:
-  //  - bigger memory cache so revisits don't re-download
-  //  - shadows off (huge perf hit on photoreal tiles)
-  //  - skipLevelOfDetail OFF (prevents far-side tile bleed-through)
-  //  - dynamicScreenSpaceError ON (street-level recommended setting)
-  // SSE tweaked slightly per profile; everything else stays at Cesium defaults
-  // so we never fight the engine's own refinement scheduler.
-  // Push more detail across the board. Lower SSE = higher LOD = sharper tiles.
-  // The `move` profile stays a hair looser to avoid stutters while panning.
-  const sse = profile === "far" ? 20 : profile === "move" ? 12 : 8;
+  // Device-adaptive tuning. The old defaults were desktop-tuned (2 GiB
+  // in-RAM cache, SSE 8) which reliably OOM-crashed mobile Safari and low-
+  // RAM Android on rapid zoom. We now pick the cache/SSE budget from the
+  // detected device tier, and further back off under live memory pressure
+  // so the tab never gets killed by the OS.
+  const dp = getDeviceProfile();
+  const pressure = memoryPressure(); // 0..1
+  const stressed = pressure > 0.8;
+  // Base SSE is a function of the profile *and* the device tier — mobiles
+  // get a looser SSE so we render fewer tiles per frame.
+  const tierBoot = dp.bootSse; // 8 desktop-high → 24 mobile-low
+  const sse = profile === "far"
+    ? Math.max(20, tierBoot + 8)
+    : profile === "move"
+      ? Math.max(12, tierBoot + 4)
+      : tierBoot;
+  const cacheMiB = stressed ? Math.round(dp.tileCacheMiB * 0.6) : dp.tileCacheMiB;
+  const overflowMiB = stressed ? Math.round(dp.tileCacheOverflowMiB * 0.5) : dp.tileCacheOverflowMiB;
   try {
     ts.maximumScreenSpaceError = sse;
-    // Aggressive in-memory cache: keep a *much* larger set of already-loaded
-    // tiles pinned so revisits (walking back around a corner, orbiting, or
-    // toggling map modes) never re-download. Combined with the browser disk
-    // cache in `tiles-sw.js`, this virtually eliminates re-fetches for tiles
-    // the user has already seen this session.
-    ts.cacheBytes = 2048 * TILE_MIB;               // 2 GiB in RAM
-    ts.maximumCacheOverflowBytes = 512 * TILE_MIB; // + 512 MiB slack
+    // RAM cache pinned to what this device can actually hold. Cross-session
+    // reuse is still handled by the on-disk service worker cache in
+    // `public/tiles-sw.js`, so shrinking the RAM cap only affects intra-
+    // session churn, not repeated network fetches.
+    ts.cacheBytes = cacheMiB * TILE_MIB;
+    ts.maximumCacheOverflowBytes = overflowMiB * TILE_MIB;
     ts.skipLevelOfDetail = false;
     ts.dynamicScreenSpaceError = true;
     ts.dynamicScreenSpaceErrorDensity = 0.00278;
     ts.dynamicScreenSpaceErrorFactor = 4;
     ts.cullRequestsWhileMoving = true;
-    // Preload tiles that will be visible after camera flights and keep hidden
-    // tiles warm so returning to a view is instant.
-    ts.preloadWhenHidden = true;
-    ts.preloadFlightDestinations = true;
+    // Aggressive preloading is a memory amplifier — only enable it on
+    // devices with headroom to spare.
+    const preloadOk = !dp.conservativePreload && !stressed;
+    ts.preloadWhenHidden = preloadOk;
+    ts.preloadFlightDestinations = preloadOk;
     ts.immediatelyLoadDesiredLevelOfDetail = false;
-    ts.loadSiblings = true;
+    ts.loadSiblings = preloadOk;
     ts.foveatedScreenSpaceError = true;
     ts.shadows = 0;
   } catch {}
