@@ -43,6 +43,7 @@ import LevelEditorPage from "@/pages/LevelEditorPage";
 import FilesPage from "@/pages/FilesPage";
 import ImagineDesignLabPage from "@/pages/ImagineDesignLabPage";
 import NotFound from "./pages/NotFound.tsx";
+const GeoRealmPage = lazy(() => import("@/pages/GeoRealmPage"));
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,9 @@ const App = () => (
 
           {/* Imagine Engine design sandbox */}
           <Route path="/imagine-lab" element={<ImagineDesignLabPage />} />
+
+          {/* Geo Realm — subsurface compiler & viewer */}
+          <Route path="/geo-realm" element={<GeoRealmPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
