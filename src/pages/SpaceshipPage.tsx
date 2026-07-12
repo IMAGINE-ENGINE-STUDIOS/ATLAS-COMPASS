@@ -11,6 +11,7 @@ import {
   GraduationCap, Stethoscope, ShoppingCart, Coffee, Ship, Truck, ShoppingBag, Cctv, Film,
   Sun, Brain
 } from "lucide-react";
+import { Activity } from "lucide-react";
 import { Layers } from "lucide-react";
 import { ScanLine } from "lucide-react";
 import {
