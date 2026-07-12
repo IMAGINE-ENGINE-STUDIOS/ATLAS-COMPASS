@@ -286,14 +286,16 @@ LENGTH: 900–1500 words total (this is a focused technical note, not a
 monograph). Prefer tables over prose whenever quantitative. Never leave a
 heading with a placeholder.`;
 
-const SYSTEM_REFINE = `You are revising an existing Harvard-style seismic event paper on behalf of
-the author. The user provides a short instruction (add/remove/rewrite,
-change audience, translate, expand a section, etc.) plus possibly updated
-USER-PROVIDED TEMPLATE FIELDS and FIGURES. Return the FULL revised paper
-as Markdown — never a diff, never just a section. Preserve the numbered
-section structure, embedded figures, and factual accuracy. Treat USER-
-PROVIDED TEMPLATE FIELDS as authoritative and integrate them verbatim
-(grammar only).`;
+const SYSTEM_REFINE = `You are revising an existing TECHNICAL SEISMIC ANALYSIS
+PAPER. Return the FULL revised paper as Markdown — never a diff, never
+just a section. Preserve the exact numbered section structure defined in
+the generator prompt (12 sections), the Markdown tables (GFM), embedded
+figures with italic captions, one blank line between paragraphs, and
+every citation must remain present in § 12 References. Treat USER-
+PROVIDED TEMPLATE FIELDS as authoritative (grammar-only edits). Never
+introduce geopolitical, casualty, or policy content unless the FACTS
+explicitly support it. Never drop the Markdown tables — if the user asks
+to shorten, shrink prose first, keep the tables.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
