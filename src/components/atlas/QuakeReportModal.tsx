@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X, Download, ExternalLink, Loader2, Waves, Activity, FileText, Layers, MapPin, Gauge, Sparkles, Send, RefreshCw, FolderOpen, Edit3, ChevronDown, ChevronRight, Image as ImageIcon, GraduationCap, History, Eye, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { supabase } from "@/integrations/supabase/client";
 import type { QuakeTag } from "./QuakeTagsOverlay";
 import QuakeEventLibrary from "./QuakeEventLibrary";
@@ -983,10 +984,35 @@ Event page: ${quake.url}
                       : `${(report.match(/\n/g)?.length ?? 0) + 1} lines`}
                   </span>
                 </div>
-                <div className="p-3 max-h-[46vh] overflow-y-auto">
-                  <div className="prose prose-invert prose-sm max-w-none prose-headings:text-red-200 prose-headings:font-bold prose-h1:text-[15px] prose-h2:text-[13px] prose-h2:uppercase prose-h2:tracking-widest prose-h2:mt-3 prose-h2:mb-1 prose-p:text-white/85 prose-li:text-white/85 prose-strong:text-white prose-em:text-white/40 prose-img:rounded prose-img:border prose-img:border-white/10">
-                    <ReactMarkdown>{previewMode === "ai" && report ? report : livePreview}</ReactMarkdown>
-                  </div>
+                <div className="p-4 sm:p-5 max-h-[52vh] overflow-y-auto bg-[#0b0b0f]">
+                  <article className="quake-paper prose prose-invert prose-sm max-w-none
+                    prose-headings:text-red-200 prose-headings:font-bold prose-headings:tracking-tight
+                    prose-h1:text-[17px] prose-h1:mb-3 prose-h1:mt-0 prose-h1:leading-snug prose-h1:border-b prose-h1:border-white/10 prose-h1:pb-2
+                    prose-h2:text-[12px] prose-h2:uppercase prose-h2:tracking-[0.18em] prose-h2:text-amber-200/90 prose-h2:mt-6 prose-h2:mb-2
+                    prose-h3:text-[11px] prose-h3:uppercase prose-h3:tracking-widest prose-h3:text-white/70 prose-h3:mt-4 prose-h3:mb-1.5
+                    prose-p:text-white/85 prose-p:leading-relaxed prose-p:my-2
+                    prose-li:text-white/85 prose-li:my-0.5
+                    prose-strong:text-white
+                    prose-em:text-white/45 prose-em:text-[11px]
+                    prose-a:text-sky-300 hover:prose-a:text-sky-200
+                    prose-img:rounded-md prose-img:border prose-img:border-white/10 prose-img:my-3 prose-img:mx-auto
+                    prose-code:text-emerald-200 prose-code:bg-white/[0.06] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+                    prose-pre:bg-black/60 prose-pre:border prose-pre:border-white/10 prose-pre:text-[11px]
+                    prose-hr:border-white/10 prose-hr:my-4">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ node, ...props }) => (
+                          <div className="my-3 overflow-x-auto rounded border border-white/10">
+                            <table {...props} className="w-full text-[11px] border-collapse" />
+                          </div>
+                        ),
+                        thead: ({ node, ...props }) => <thead {...props} className="bg-white/[0.06] text-amber-100" />,
+                        th: ({ node, ...props }) => <th {...props} className="text-left font-semibold uppercase tracking-widest text-[9px] px-2 py-1.5 border-b border-white/10" />,
+                        td: ({ node, ...props }) => <td {...props} className="px-2 py-1 border-b border-white/[0.06] font-mono text-white/85 align-top" />,
+                      }}
+                    >{previewMode === "ai" && report ? report : livePreview}</ReactMarkdown>
+                  </article>
                 </div>
               </div>
 
@@ -1092,7 +1118,7 @@ Event page: ${quake.url}
                           {isCompare && (
                             <div className="mt-2 max-h-48 overflow-y-auto rounded border border-white/10 bg-black/50 p-2">
                               <div className="prose prose-invert prose-xs max-w-none prose-headings:text-red-200 prose-h1:text-[13px] prose-h2:text-[11px] prose-h2:uppercase prose-h2:tracking-widest prose-p:text-white/80">
-                                <ReactMarkdown>{v.report}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{v.report}</ReactMarkdown>
                               </div>
                             </div>
                           )}
