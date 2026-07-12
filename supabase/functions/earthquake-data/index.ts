@@ -43,8 +43,21 @@ Deno.serve(async (req) => {
       // Cap limit so a bad request can't ask USGS for 20 000 events.
       const lim = Number(q.get('limit') ?? '1000');
       q.set('limit', String(Math.max(1, Math.min(20000, isNaN(lim) ? 1000 : lim))));
-      upstream = `https://earthquake.usgs.gov/fdsnws/event/1/query?${q.toString()}`;
-      cacheSeconds = 30;
+      // Institutional-grade FDSNWS event data centers. Every one of these
+      // is a nationally/internationally operated seismic authority that
+      // publishes near-real-time and historic catalog data using the same
+      // FDSN standard, so we can proxy them with a single whitelist.
+      const source = (url.searchParams.get('source') ?? 'usgs').toLowerCase();
+      const SOURCES: Record<string, string> = {
+        usgs:   'https://earthquake.usgs.gov/fdsnws/event/1/query',       // U.S. Geological Survey (NEIC)
+        emsc:   'https://www.seismicportal.eu/fdsnws/event/1/query',      // European-Mediterranean Seismological Centre
+        iris:   'https://service.iris.edu/fdsnws/event/1/query',          // IRIS DMC (global research consortium)
+        isc:    'https://www.isc.ac.uk/fdsnws/event/1/query',             // International Seismological Centre
+        geofon: 'https://geofon.gfz-potsdam.de/fdsnws/event/1/query',     // GEOFON / GFZ Potsdam
+      };
+      const base = SOURCES[source] ?? SOURCES.usgs;
+      upstream = `${base}?${q.toString()}`;
+      cacheSeconds = source === 'usgs' || source === 'emsc' ? 30 : 120;
     } else {
       const feed = url.searchParams.get('feed') ?? '2.5_day';
       if (!/^[a-z0-9._]+_(hour|day|week|month)$/i.test(feed)) {
