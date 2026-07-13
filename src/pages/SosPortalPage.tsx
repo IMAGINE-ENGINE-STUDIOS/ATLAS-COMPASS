@@ -164,7 +164,6 @@ export default function SosPortalPage() {
         await navigator.clipboard.writeText(url);
         toast.success("Link copied to clipboard");
       }
-      await supabase.rpc("noop").catch(() => {});
       await supabase.from("sos_posts").update({ share_count: post.share_count + 1 }).eq("id", post.id);
       setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, share_count: p.share_count + 1 } : p)));
     } catch {
