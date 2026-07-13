@@ -8290,7 +8290,10 @@ function SpaceshipPage({
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
+                        <ModeCarousel
+                          value={(viewMode === "google" ? "realistic" : viewMode) as "realistic" | "osm" | "mapbox"}
+                          onChange={(v) => switchViewMode(v)}
+                        />
                         <AtlasCommunityLayersPill viewerRef={viewerRef} isLoaded={isLoaded} />
                         <AtlasTectonicPlatesPill viewerRef={viewerRef} isLoaded={isLoaded} />
                         <AtlasGeoRealmPill />
