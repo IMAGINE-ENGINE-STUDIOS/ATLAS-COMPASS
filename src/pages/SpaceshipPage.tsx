@@ -1241,7 +1241,9 @@ function SpaceshipPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
-  const [viewMode, setViewMode] = useState<AtlasViewMode>(savedUI.viewMode ?? "google");
+  const [viewMode, setViewMode] = useState<AtlasViewMode>(
+    savedUI.viewMode && savedUI.viewMode !== "google" ? savedUI.viewMode : "realistic",
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   // Altitude readout lives in a module-level pub-sub store (see
@@ -1679,7 +1681,7 @@ function SpaceshipPage({
   // 3D Tiles are the only visible surface — Cesium's CLAMP_TO_GROUND falls
   // back to sea level there, dropping pins under buildings. CLAMP_TO_3D_TILE
   // anchors them to the photogrammetry top instead.
-  const viewModeRef = useRef<AtlasViewMode>("google");
+  const viewModeRef = useRef<AtlasViewMode>("realistic");
   const pinHeightRef = useCallback(() => (
     moonModeRef.current
       ? HeightReference.CLAMP_TO_GROUND
@@ -8288,7 +8290,10 @@ function SpaceshipPage({
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <ModeCarousel value={viewMode as "google" | "realistic" | "osm" | "mapbox"} onChange={(v) => switchViewMode(v)} />
+                        <ModeCarousel
+                          value={(viewMode === "google" ? "realistic" : viewMode) as "realistic" | "osm" | "mapbox"}
+                          onChange={(v) => switchViewMode(v)}
+                        />
                         <AtlasCommunityLayersPill viewerRef={viewerRef} isLoaded={isLoaded} />
                         <AtlasTectonicPlatesPill viewerRef={viewerRef} isLoaded={isLoaded} />
                         <AtlasGeoRealmPill />
