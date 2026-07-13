@@ -221,6 +221,17 @@ function RealisticEarth({ opacity }: { opacity: number }) {
     THREE.TextureLoader,
     "https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg",
   );
+  // Three.js SphereGeometry maps texture u=0 to −X (longitude −180°) and
+  // u=0.25 to +Z (longitude −90°). Our `lonLatToUnit` places longitude 0°
+  // at +X and longitude +90° at +Z — i.e. the two conventions are
+  // east/west mirrored (opposite chirality). Every geo layer in this
+  // scene (plates, hypocenters, arrows) uses `lonLatToUnit`, so we align
+  // the reference texture to them by mirroring it horizontally instead
+  // of rotating the sphere (a rotation can't fix a chirality flip).
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.x = -1;
+  tex.offset.x = 1;
+  tex.needsUpdate = true;
   return (
     <mesh>
       <sphereGeometry args={[R * 0.999, 128, 96]} />
