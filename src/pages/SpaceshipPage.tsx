@@ -1241,7 +1241,9 @@ function SpaceshipPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [cursorInfo, setCursorInfo] = useState<CursorInfo | null>(null);
   const [showBuildings, setShowBuildings] = useState<boolean>(savedUI.showBuildings ?? true);
-  const [viewMode, setViewMode] = useState<AtlasViewMode>(savedUI.viewMode ?? "google");
+  const [viewMode, setViewMode] = useState<AtlasViewMode>(
+    savedUI.viewMode && savedUI.viewMode !== "google" ? savedUI.viewMode : "realistic",
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState<boolean>(savedUI.hudVisible ?? true);
   // Altitude readout lives in a module-level pub-sub store (see
