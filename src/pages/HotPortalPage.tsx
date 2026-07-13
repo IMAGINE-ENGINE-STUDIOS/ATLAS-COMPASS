@@ -4,7 +4,7 @@ import {
   AlertTriangle, Bell, BellRing, Bookmark, Film, Heart, Home, MapPin,
   MessageCircle, Newspaper, Play, PlusSquare, Radio, Search, Send,
   Share2, Shield, Sparkles, Video, X, Loader2, ExternalLink,
-  Flame, Waves, Wind, Zap, Cloud, Activity, ArrowLeft, MoreHorizontal,
+  Flame, Waves, Wind, Zap, Cloud, Activity, ArrowLeft, MoreHorizontal, BadgeCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
