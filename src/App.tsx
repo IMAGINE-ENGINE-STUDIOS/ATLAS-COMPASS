@@ -48,6 +48,7 @@ const PublicTileCardPage = lazy(() => import("@/pages/PublicTileCardPage"));
 const AlertsSettingsPage = lazy(() => import("@/pages/AlertsSettingsPage"));
 const AlertReportPage = lazy(() => import("@/pages/AlertReportPage"));
 const UnsubscribePage = lazy(() => import("@/pages/UnsubscribePage"));
+const SosPortalPage = lazy(() => import("@/pages/SosPortalPage"));
 
 const queryClient = new QueryClient();
 
@@ -92,6 +93,9 @@ const App = () => (
           <Route path="/alerts/:id/report" element={<AlertReportPage />} />
           <Route path="/alerts/:id" element={<AlertReportPage />} />
           <Route path="/unsubscribe" element={<UnsubscribePage />} />
+
+          {/* SOS Portal — social feed for climate & catastrophes */}
+          <Route path="/sos" element={<SosPortalPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
