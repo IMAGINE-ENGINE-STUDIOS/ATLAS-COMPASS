@@ -73,9 +73,9 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d`;
 }
 
-function handleFor(id: string | null, fallback = "sos_reporter") {
+function handleFor(id: string | null, fallback = "hot_reporter") {
   if (!id) return fallback;
-  return "sos_" + id.replace(/-/g, "").slice(0, 8);
+  return "hot_" + id.replace(/-/g, "").slice(0, 8);
 }
 
 function avatarGradient(seed: string) {
@@ -92,7 +92,7 @@ function avatarGradient(seed: string) {
   return palettes[Math.abs(h) % palettes.length];
 }
 
-export default function SosPortalPage() {
+export default function HotPortalPage() {
   const [posts, setPosts] = useState<SosPost[]>([]);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
@@ -132,7 +132,7 @@ export default function SosPortalPage() {
         setPosts((prev) => [row, ...prev.filter((x) => x.id !== row.id)].slice(0, 100));
         if (row.kind === "warning") {
           toast.warning(`⚠️ ${row.title}`, { description: row.body?.slice(0, 120) });
-          maybePush(`⚠️ ${row.title}`, row.body ?? "New warning posted on SOS.");
+          maybePush(`⚠️ ${row.title}`, row.body ?? "New warning posted on HOT.");
         }
       })
       .subscribe();
@@ -169,13 +169,13 @@ export default function SosPortalPage() {
     setPushEnabled(res === "granted");
     if (res === "granted") {
       toast.success("You'll be warned in real time.");
-      new Notification("SOS notifications enabled", { body: "You will receive warnings as they happen." });
+      new Notification("HOT notifications enabled", { body: "You will receive warnings as they happen." });
     }
   }
 
   async function share(post: SosPost) {
-    const url = `${window.location.origin}/sos#post-${post.id}`;
-    const shareData = { title: `SOS · ${post.title}`, text: post.body ?? post.title, url };
+    const url = `${window.location.origin}/hot#post-${post.id}`;
+    const shareData = { title: `HOT · ${post.title}`, text: post.body ?? post.title, url };
     try {
       if (navigator.share) await navigator.share(shareData);
       else {
@@ -227,7 +227,7 @@ export default function SosPortalPage() {
               <Shield className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="text-xl tracking-tight font-bold" style={{ fontFamily: "'SF Pro Display', system-ui" }}>
-              sos<span className="text-gradient bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">gram</span>
+              hot<span className="text-gradient bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">gram</span>
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3">
@@ -537,9 +537,9 @@ function StoryViewer({ alert, onClose }: { alert: AlertEvent; onClose: () => voi
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col" onClick={onClose}>
       <div className="h-1 mx-4 mt-3 rounded-full bg-white/20 overflow-hidden">
-        <div className="h-full w-full bg-white origin-left" style={{ animation: "sosStory 10s linear forwards" }} />
+        <div className="h-full w-full bg-white origin-left" style={{ animation: "hotStory 10s linear forwards" }} />
       </div>
-      <style>{`@keyframes sosStory { from { transform: scaleX(0) } to { transform: scaleX(1) } }`}</style>
+      <style>{`@keyframes hotStory { from { transform: scaleX(0) } to { transform: scaleX(1) } }`}</style>
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-red-500 via-orange-500 to-amber-400">
           <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
@@ -630,7 +630,7 @@ function Composer({
       <div className={`w-full max-w-lg rounded-2xl border ${isWarn ? "border-red-500/50 bg-red-950/50" : "border-white/10 bg-[#0e0e18]"} backdrop-blur-xl shadow-2xl`}>
         <div className="flex items-center gap-2 p-4 border-b border-white/10">
           {isWarn ? <AlertTriangle className="w-5 h-5 text-red-400" /> : <Send className="w-5 h-5 text-white/70" />}
-          <div className="font-semibold text-white">{isWarn ? "Broadcast a warning" : "New SOS post"}</div>
+          <div className="font-semibold text-white">{isWarn ? "Broadcast a warning" : "New HOT post"}</div>
           <button onClick={onClose} className="ml-auto text-white/60 hover:text-white">
             <X className="w-5 h-5" />
           </button>
