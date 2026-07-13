@@ -4,7 +4,7 @@ import {
   AlertTriangle, Bell, BellRing, Bookmark, Film, Heart, Home, MapPin,
   MessageCircle, Newspaper, Play, PlusSquare, Radio, Search, Send,
   Share2, Shield, Sparkles, Video, X, Loader2, ExternalLink,
-  Flame, Waves, Wind, Zap, Cloud, Activity, ArrowLeft, MoreHorizontal,
+  Flame, Waves, Wind, Zap, Cloud, Activity, ArrowLeft, MoreHorizontal, BadgeCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -43,6 +43,28 @@ type AlertEvent = {
   url: string | null;
 };
 
+type Broadcast = {
+  id: string;
+  agency: string;
+  agency_handle: string;
+  agency_verified: boolean;
+  kind: "warning" | "news";
+  title: string;
+  body: string | null;
+  hazard_type: string | null;
+  severity: number | null;
+  region: string | null;
+  source_url: string;
+  event_time: string;
+  lat: number | null;
+  lon: number | null;
+};
+
+// Any item rendered in the feed: user posts OR agency broadcasts.
+type FeedItem =
+  | { type: "post"; post: SosPost; ts: number }
+  | { type: "broadcast"; item: Broadcast; ts: number };
+
 const HAZARD_ICON: Record<string, typeof Flame> = {
   earthquake: Activity,
   wildfire: Flame,
@@ -73,9 +95,9 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d`;
 }
 
-function handleFor(id: string | null, fallback = "sos_reporter") {
+function handleFor(id: string | null, fallback = "hot_reporter") {
   if (!id) return fallback;
-  return "sos_" + id.replace(/-/g, "").slice(0, 8);
+  return "hot_" + id.replace(/-/g, "").slice(0, 8);
 }
 
 function avatarGradient(seed: string) {
@@ -92,9 +114,10 @@ function avatarGradient(seed: string) {
   return palettes[Math.abs(h) % palettes.length];
 }
 
-export default function SosPortalPage() {
+export default function HotPortalPage() {
   const [posts, setPosts] = useState<SosPost[]>([]);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
+  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [composerOpen, setComposerOpen] = useState(false);
   const [warnOpen, setWarnOpen] = useState(false);
@@ -124,6 +147,21 @@ export default function SosPortalPage() {
     })();
   }, []);
 
+  // Free news broadcasts from USGS, NASA EONET, GDACS, ReliefWeb, NOAA.
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const { data, error } = await supabase.functions.invoke("hot-news", { body: {} });
+        if (cancelled || error || !data?.items) return;
+        setBroadcasts(data.items as Broadcast[]);
+      } catch { /* offline / edge fn cold */ }
+    }
+    load();
+    const t = setInterval(load, 5 * 60 * 1000); // refresh every 5 min
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
   useEffect(() => {
     const postCh = supabase
       .channel("sos_posts_rt")
@@ -132,7 +170,7 @@ export default function SosPortalPage() {
         setPosts((prev) => [row, ...prev.filter((x) => x.id !== row.id)].slice(0, 100));
         if (row.kind === "warning") {
           toast.warning(`⚠️ ${row.title}`, { description: row.body?.slice(0, 120) });
-          maybePush(`⚠️ ${row.title}`, row.body ?? "New warning posted on SOS.");
+          maybePush(`⚠️ ${row.title}`, row.body ?? "New warning posted on HOT.");
         }
       })
       .subscribe();
@@ -169,13 +207,13 @@ export default function SosPortalPage() {
     setPushEnabled(res === "granted");
     if (res === "granted") {
       toast.success("You'll be warned in real time.");
-      new Notification("SOS notifications enabled", { body: "You will receive warnings as they happen." });
+      new Notification("HOT notifications enabled", { body: "You will receive warnings as they happen." });
     }
   }
 
   async function share(post: SosPost) {
-    const url = `${window.location.origin}/sos#post-${post.id}`;
-    const shareData = { title: `SOS · ${post.title}`, text: post.body ?? post.title, url };
+    const url = `${window.location.origin}/hot#post-${post.id}`;
+    const shareData = { title: `HOT · ${post.title}`, text: post.body ?? post.title, url };
     try {
       if (navigator.share) await navigator.share(shareData);
       else {
@@ -203,10 +241,16 @@ export default function SosPortalPage() {
     setSaved(next);
   }
 
-  const feed = useMemo(() => {
-    if (filter === "all") return posts;
-    return posts.filter((p) => p.kind === filter);
-  }, [posts, filter]);
+  const feed = useMemo<FeedItem[]>(() => {
+    const p: FeedItem[] = posts
+      .filter((x) => filter === "all" || x.kind === filter)
+      .map((post) => ({ type: "post" as const, post, ts: +new Date(post.created_at) }));
+    const b: FeedItem[] = broadcasts
+      .filter((x) => filter === "all" || filter === "news" || filter === "warning" ? true : false)
+      .filter((x) => filter === "all" || x.kind === filter)
+      .map((item) => ({ type: "broadcast" as const, item, ts: +new Date(item.event_time) }));
+    return [...p, ...b].sort((a, z) => z.ts - a.ts).slice(0, 120);
+  }, [posts, broadcasts, filter]);
 
   return (
     <div className="min-h-screen bg-black text-white pb-24 sm:pb-6">
@@ -227,7 +271,7 @@ export default function SosPortalPage() {
               <Shield className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="text-xl tracking-tight font-bold" style={{ fontFamily: "'SF Pro Display', system-ui" }}>
-              sos<span className="text-gradient bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">gram</span>
+              hot<span className="text-gradient bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">gram</span>
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3">
@@ -316,17 +360,23 @@ export default function SosPortalPage() {
               Nothing here yet. Tap the <span className="text-white">+</span> to post.
             </div>
           )}
-          {feed.map((p) => (
-            <PostCard
-              key={p.id}
-              post={p}
-              liked={liked.has(p.id)}
-              saved={saved.has(p.id)}
-              onLike={() => toggleLike(p)}
-              onSave={() => toggleSave(p.id)}
-              onShare={() => share(p)}
-            />
-          ))}
+          {feed.map((entry) => {
+            if (entry.type === "broadcast") {
+              return <BroadcastCard key={entry.item.id} item={entry.item} />;
+            }
+            const p = entry.post;
+            return (
+              <PostCard
+                key={p.id}
+                post={p}
+                liked={liked.has(p.id)}
+                saved={saved.has(p.id)}
+                onLike={() => toggleLike(p)}
+                onSave={() => toggleSave(p.id)}
+                onShare={() => share(p)}
+              />
+            );
+          })}
         </section>
       </main>
 
@@ -372,6 +422,110 @@ export default function SosPortalPage() {
         />
       )}
     </div>
+  );
+}
+
+function BroadcastCard({ item }: { item: Broadcast }) {
+  const Icon = HAZARD_ICON[item.hazard_type ?? ""] ?? Newspaper;
+  const isWarn = item.kind === "warning";
+  const ring = isWarn
+    ? "from-red-500 via-orange-500 to-amber-400"
+    : "from-sky-400 via-cyan-400 to-blue-500";
+
+  async function shareThis() {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item.title, text: item.body ?? "", url: item.source_url });
+      } else {
+        await navigator.clipboard.writeText(item.source_url);
+        toast.success("Source link copied");
+      }
+    } catch { /* cancelled */ }
+  }
+
+  return (
+    <article className={isWarn ? "bg-gradient-to-b from-red-950/40 to-transparent" : ""}>
+      {/* Header — agency identity */}
+      <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+        <div className={`w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr ${ring}`}>
+          <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
+            <Icon className="w-4 h-4 text-white/95" />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold truncate">{item.agency_handle}</span>
+            {item.agency_verified && <BadgeCheck className="w-3.5 h-3.5 text-sky-400 fill-sky-400/20 shrink-0" />}
+            {isWarn && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/90 text-white">WARN</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-white/50">
+            <span className="truncate">{item.agency}</span>
+            <span>·</span>
+            <span>{timeAgo(item.event_time)}</span>
+          </div>
+        </div>
+        <a
+          href={item.source_url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-white/60 hover:text-white"
+          aria-label="Open source"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+
+      {/* Media tile — typographic (broadcasts are text-first, agency-branded) */}
+      <div className={`relative overflow-hidden aspect-square flex items-center justify-center p-8 ${
+        isWarn
+          ? "bg-gradient-to-br from-red-900 via-red-950 to-black"
+          : "bg-gradient-to-br from-neutral-900 via-black to-neutral-950"
+      }`}>
+        <div aria-hidden className={`absolute inset-0 opacity-30 bg-gradient-to-br ${ring}`} style={{ mixBlendMode: "overlay" }} />
+        <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur text-white text-[10px] font-bold uppercase tracking-wider">
+          <BadgeCheck className="w-3 h-3 text-sky-400" /> Broadcast
+          {item.severity != null && <span className="ml-1 opacity-80">S{item.severity}</span>}
+        </div>
+        <h3 className="relative text-xl font-bold leading-tight text-center text-white">
+          {item.title}
+        </h3>
+      </div>
+
+      {/* Action bar */}
+      <div className="px-4 pt-3 pb-1 flex items-center gap-4">
+        <a href={item.source_url} target="_blank" rel="noreferrer" aria-label="Open source">
+          <ExternalLink className="w-6 h-6 text-white" />
+        </a>
+        <button onClick={shareThis} className="transition active:scale-90" aria-label="Share">
+          <Send className="w-6 h-6 text-white -rotate-12" />
+        </button>
+        <div className="ml-auto text-[10px] uppercase tracking-wider text-white/50">Official source</div>
+      </div>
+
+      {/* Caption */}
+      <div className="px-4 pb-4 text-sm">
+        <div>
+          <span className="font-semibold mr-2">{item.agency_handle}</span>
+          <span className="text-white/90">{item.title}</span>
+        </div>
+        {item.body && (
+          <p className="mt-1 text-white/75 whitespace-pre-wrap line-clamp-4">{item.body}</p>
+        )}
+        <div className="mt-2 flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/50">
+          {item.hazard_type && <span className="text-sky-300">#{item.hazard_type}</span>}
+          {item.region && (
+            <span className="flex items-center gap-0.5">
+              <MapPin className="w-3 h-3" /> {item.region}
+            </span>
+          )}
+          <a href={item.source_url} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-0.5 hover:text-white">
+            <ExternalLink className="w-3 h-3" /> Source
+          </a>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -537,9 +691,9 @@ function StoryViewer({ alert, onClose }: { alert: AlertEvent; onClose: () => voi
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col" onClick={onClose}>
       <div className="h-1 mx-4 mt-3 rounded-full bg-white/20 overflow-hidden">
-        <div className="h-full w-full bg-white origin-left" style={{ animation: "sosStory 10s linear forwards" }} />
+        <div className="h-full w-full bg-white origin-left" style={{ animation: "hotStory 10s linear forwards" }} />
       </div>
-      <style>{`@keyframes sosStory { from { transform: scaleX(0) } to { transform: scaleX(1) } }`}</style>
+      <style>{`@keyframes hotStory { from { transform: scaleX(0) } to { transform: scaleX(1) } }`}</style>
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-red-500 via-orange-500 to-amber-400">
           <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
@@ -630,7 +784,7 @@ function Composer({
       <div className={`w-full max-w-lg rounded-2xl border ${isWarn ? "border-red-500/50 bg-red-950/50" : "border-white/10 bg-[#0e0e18]"} backdrop-blur-xl shadow-2xl`}>
         <div className="flex items-center gap-2 p-4 border-b border-white/10">
           {isWarn ? <AlertTriangle className="w-5 h-5 text-red-400" /> : <Send className="w-5 h-5 text-white/70" />}
-          <div className="font-semibold text-white">{isWarn ? "Broadcast a warning" : "New SOS post"}</div>
+          <div className="font-semibold text-white">{isWarn ? "Broadcast a warning" : "New HOT post"}</div>
           <button onClick={onClose} className="ml-auto text-white/60 hover:text-white">
             <X className="w-5 h-5" />
           </button>
