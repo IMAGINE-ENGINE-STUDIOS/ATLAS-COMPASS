@@ -1,90 +1,70 @@
+## Goal
 
-# Reliable Multi-Hazard Warning System
+On `/dashboard`, add two new sections:
 
-## Coverage (v1)
-- **Earthquakes** — USGS FDSN (`all_hour`, `significant_week`) + EMSC-CSEM fallback
-- **Tsunamis** — NOAA NTWC/PTWC bulletins
-- **Severe weather / floods / hurricanes / tornadoes** — NOAA NWS `api.weather.gov/alerts/active` + GDACS + Copernicus GloFAS
-- **Wildfires** — NASA FIRMS (VIIRS 24h)
-- **Volcanoes** — Smithsonian GVP weekly + USGS VHP
-- **All-hazard aggregator** — GDACS (catches everything above + drought, industrial)
-- **Localized incidents ("collapsing building in NY")** — GDELT 2.0 event stream filtered to disaster categories + USGS "Did You Feel It" reports. This is our safety net for one-off events no scientific feed publishes.
+1. **Feed Health Monitor** — live status for USGS, NASA EONET, GDACS, ReliefWeb, NOAA/NWS. Shows OK / Delayed / Down, last successful poll, latency, and item count per source.
+2. **Disaster Operations** — top warnings, currently active emergencies, catastrophe ledger, and per-hazard indicators (earthquake, flood, wildfire, storm, volcano, hurricane, tornado, heat, drought, other).
 
-Default earthquake threshold M6; tunable per user.
+Both hook into the existing HOT pipeline — no simulated data.
 
-## Architecture
+## What the user sees
+
+Two new panels on the admin dashboard, above the existing "Live Activity" block:
+
 ```text
-┌─ pollers (cron / 60s) ─┐   ┌─ dedup + normalize ─┐   ┌─ match subscriptions ─┐   ┌─ fan-out ─────────┐
-│ usgs-quakes            │   │ disaster_events     │   │ user_alert_subs       │   │ in-app (realtime)  │
-│ noaa-weather-alerts    │──▶│ (source,ext_id)     │──▶│ + admin firehose      │──▶│ email (Lovable)    │
-│ nasa-firms-fires       │   │ severity, geom,     │   │ geofence match        │   │ sms (Twilio)       │
-│ gdacs-global           │   │ magnitude, ts       │   │ min severity          │   │ whatsapp (Twilio)  │
-│ smithsonian-volcanoes  │   │                     │   │ quiet hours           │   │ web push           │
-│ noaa-tsunami           │   └─────────────────────┘   └───────────────────────┘   └────────────────────┘
-│ gdelt-incidents        │              │
-└────────────────────────┘              ▼
-                                heartbeat + watchdog
+┌─────────── Feed Health ──────────────────────────────────┐
+│  USGS     ● OK     42ms   updated 3s ago   18 items      │
+│  NOAA/NWS ● OK    118ms   updated 4s ago   25 items      │
+│  GDACS    ◐ Delay  —      updated 4m ago   12 items      │
+│  EONET    ● OK    210ms   updated 2s ago   20 items      │
+│  Relief   ● Down   —      last ok 12m ago   0 items      │
+└──────────────────────────────────────────────────────────┘
+
+┌───── Top Warnings ─────────┐ ┌──── Active Emergencies ────┐
+│ ⚠ M6.8 Peru — USGS   Sev 5 │ │ 7 open · 2 escalating       │
+│ ⚠ Tornado Warning OK NWS 5 │ │ list of live events         │
+│ ⚠ Red Cyclone GDACS   5    │ │                             │
+└────────────────────────────┘ └─────────────────────────────┘
+
+┌── Hazard Indicators (last 24h) ────────────────────────────┐
+│ 🜨 Quake 34   🌊 Flood 8   🔥 Fire 12   🌀 Hurricane 2      │
+│ 🌪 Tornado 4  🌋 Volcano 1  ⚡ Storm 19  ☀ Heat 6  ⋯       │
+└────────────────────────────────────────────────────────────┘
+
+┌── Catastrophe Ledger ──────────────────────────────────────┐
+│ time · agency · hazard · severity · region · link          │
+└────────────────────────────────────────────────────────────┘
 ```
 
-## Database (one migration)
-- `disaster_events` — normalized event store. Cols: `id`, `source`, `external_id` (unique together), `hazard_type`, `severity` (1-5), `magnitude` (nullable), `title`, `summary`, `lat`, `lon`, `region`, `country`, `event_time`, `raw` (jsonb), `updated_at`. Public read; service role write.
-- `user_alert_subscriptions` — per-user rules. Cols: `user_id`, `hazard_types[]`, `min_severity`, `min_magnitude`, `geofences` (jsonb: `[{lat,lon,radius_km,label}]`), `channels[]` (`in_app`,`email`,`sms`,`whatsapp`,`push`), `phone_e164`, `quiet_hours_start/end`, `enabled`. Owner-only RLS.
-- `alert_notifications` — per-recipient delivery log with idempotency key `(event_id, user_id, channel)`. Owner read + service role write.
-- `feed_heartbeats` — one row per poller, `updated_at` + last event count. Admin read.
-- `admin_alert_settings` — global firehose recipients + min severity for admin channel.
-- `web_push_subscriptions` — browser push endpoints per user.
+Auto-refreshes every 5s using the already-cached `hot-news` edge function (10s TTL), so upstream APIs stay protected.
 
-## Edge functions
-- `ingest-usgs-quakes`, `ingest-noaa-weather`, `ingest-nasa-firms`, `ingest-gdacs`, `ingest-smithsonian-volcanoes`, `ingest-noaa-tsunami`, `ingest-gdelt-incidents` — each polls, normalizes, upserts into `disaster_events` on `(source, external_id)` conflict, writes heartbeat.
-- `alert-dispatcher` — trigger on new/updated `disaster_events` rows (pg_net cron every 30s reads unprocessed), matches subscriptions, writes to `alert_notifications` with idempotency, invokes `send-transactional-email`, calls Twilio for SMS/WhatsApp, pushes web push. Realtime channel already delivers in-app.
-- `feed-watchdog` — alerts admin if any heartbeat > 5min stale.
+## Data model
 
-## Scheduling
-`pg_cron` jobs:
-- Quakes/weather/tsunami/incidents: every 1 min
-- Fires/volcanoes: every 5 min
-- GDACS: every 2 min
-- Dispatcher: every 30s
-- Watchdog: every 5 min
+- **Feed health** — new edge function `hot-status` returns per-source `{status: "ok"|"delayed"|"down", latency_ms, last_success_iso, item_count, http_status}`. Uses the same `safeFetch` pattern but with a 4s timeout per source, run in parallel. Result is cached in-memory 10s.
+  - `ok` = 2xx within 5s
+  - `delayed` = 2xx but > 5s, or cache >5min stale
+  - `down` = non-2xx / timeout / network error
+- **Top warnings / active emergencies / hazard indicators / ledger** — derived on the client from:
+  - `hot-news` edge function (already returns unified `Broadcast[]` including `kind`, `hazard_type`, `severity`, `event_time`, `agency`, `source_url`)
+  - `disaster_events` table (already has `hazard_type`, `severity`, `magnitude`, `event_time`, `region`, `country`)
+  - `sos_posts` table filtered to `kind='warning'` and unresolved
+- No schema changes required.
 
-## Frontend
-- **`/alerts`** — live feed (Realtime subscription) of all events matching user's subscriptions, filter bar, severity color coding, map view + list view toggle.
-- **`/alerts/:id`** — one-pager: title, severity badge, epicenter/impact map, magnitude, felt-population estimate, time-to-impact, nearest cities, tsunami risk, source citations, "notify me of aftershocks" button.
-- **`/alerts/:id/report`** — extensive report: AI-generated situation summary (Lovable AI Gateway, no key needed), aftershock live feed, historical context ("6th M6+ in this region this year"), USGS PAGER loss estimate when present, NOAA bulletin text, evacuation resources from existing `resources` table nearby, auto-refresh.
-- **`/settings/alerts`** — subscription UI: hazard checkboxes, severity slider, magnitude slider, geofence picker (reuses your Atlas map + POI patterns — click to add radius zones), channel toggles with phone number field, quiet hours, test-send buttons per channel.
-- **Global** — bell icon in top nav with unread badge + toast for high-severity events (M6+, severity 4+).
+## Technical details
 
-## Email templates (Lovable Emails)
-- `disaster-alert-one-pager` — subject `⚠ M{mag} {hazard} near {region} · {relative_time}`. Body: badge, key facts table, static map image, one-pager link, report link, unsubscribe (auto-appended).
-- `disaster-report-daily` — optional daily digest of events below individual threshold.
+- New file `supabase/functions/hot-status/index.ts` — pings each source's cheapest endpoint (USGS 1-hour feed, EONET `/events?limit=1`, GDACS RSS HEAD, ReliefWeb `?limit=1`, NOAA `/alerts/active?limit=1`) in parallel with `AbortController` 4s timeout, records latency, caches result 10s. Returns `{sources: [...], generated_at}`. Uses `verify_jwt` default.
+- New component `src/components/dashboard/FeedHealthCard.tsx` — polls `hot-status` every 5s, renders 5-row list with colored dot (success/warning/destructive tokens), tabular-nums latency, relative time.
+- New component `src/components/dashboard/DisasterOpsSection.tsx` — polls `hot-news` every 5s and reads `disaster_events` + `sos_posts` warnings once + realtime subscription. Renders:
+  - **Top Warnings** list (`kind === 'warning'` sorted by severity desc, top 6)
+  - **Active Emergencies** count + list from `sos_posts` where `kind='warning'` and `resolved_at IS NULL` (fallback: recent severity ≥ 4)
+  - **Hazard Indicators** grid — count by `hazard_type` over the last 24h, one tile per category with lucide icon (Waves, Flame, Wind, Mountain, Zap, Sun, CloudRain, Snowflake)
+  - **Catastrophe Ledger** — scrollable list of the last 30 broadcasts + `disaster_events` merged, newest first, with agency chip, severity dot, region, "open source" link.
+- Wire both into `src/pages/DashboardPage.tsx` as a new section directly under the `HeroHeader`, above the stats grid, behind an `EditorialDivider label="Global Hazard Watch"`.
+- Follow existing dashboard styling (`GlassCard`, `PageContainer`, `AnimatedSection`, semantic tokens `success` / `warning` / `destructive`). Uses framer-motion already imported on that page.
 
-## Reliability guarantees
-- **Dedup**: `(source, external_id)` unique; cross-source dedup for quakes via `(round(lat,1), round(lon,1), floor(event_time/60s))` bucket.
-- **Idempotency**: `alert_notifications (event_id, user_id, channel)` unique — dispatcher can safely re-run.
-- **Retry**: Lovable Emails queue handles email retries + DLQ. Dispatcher marks notification `status` (`queued`, `sent`, `failed`) with `attempt_count`; retries up to 5×.
-- **Heartbeat + watchdog**: any silent feed pages admin within 5min.
-- **Suppression**: honors existing `suppressed_emails` table automatically via Lovable Emails.
+## Out of scope
 
-## Secrets needed
-- **Twilio** — I'll walk you through connecting the Twilio connector for SMS + WhatsApp (uses their sandbox for WhatsApp initially; production WhatsApp needs Meta business verification which I'll flag).
-- **NASA FIRMS MAP_KEY** — free, I'll request it.
-- **GDELT, USGS, NOAA, GDACS, Smithsonian** — no keys required.
-- Web push VAPID keys — auto-generated via `generate_secret`.
-
-## Build order (single continuous build)
-1. Database migration (all tables + RLS + grants + heartbeat seeds).
-2. Set up Lovable Emails infrastructure (domain + queue + scaffold transactional).
-3. Ingestion edge functions (7 pollers).
-4. Dispatcher + watchdog edge functions.
-5. Twilio connector link + FIRMS/VAPID secret requests.
-6. `pg_cron` schedule inserts.
-7. Email template.
-8. Frontend: `/alerts`, `/alerts/:id`, `/alerts/:id/report`, `/settings/alerts`, global bell + toast.
-9. Web push service worker + subscription flow.
-10. Smoke test: force a synthetic M6 event through the pipeline end-to-end.
-
-## Out of scope for v1 (call out for later)
-- Native mobile push (Apple/Android APNs/FCM) — web push covers PWA installs.
-- Predictive/AI forecasting (only reporting confirmed events).
-- Direct siren/PA integrations.
-- Paid feeds (USGS ShakeAlert requires licensing for early-warning use in critical apps).
+- No changes to the HOT portal UI.
+- No new tables; no changes to RLS.
+- No push-notification changes.
+- No auth/role gating change (dashboard already lives behind `AppLayout`).
