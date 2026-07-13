@@ -148,18 +148,46 @@ export default function HotPortalPage() {
   }, []);
 
   // Free news broadcasts from USGS, NASA EONET, GDACS, ReliefWeb, NOAA.
+  // Near-realtime: client polls the edge function every 2s. The edge function
+  // serves a 10s-TTL cache so upstream agency APIs are hit ≤6x/min per isolate
+  // — safe for their rate limits while feeling instantaneous for the user.
+  // Any *new* item ID triggers an in-app toast/notification so life-critical
+  // warnings surface within seconds of publication.
   useEffect(() => {
     let cancelled = false;
+    let inflight = false;
+    const seen = new Set<string>();
+    let primed = false;
     async function load() {
+      if (inflight || document.hidden) return;
+      inflight = true;
       try {
         const { data, error } = await supabase.functions.invoke("hot-news", { body: {} });
         if (cancelled || error || !data?.items) return;
-        setBroadcasts(data.items as Broadcast[]);
+        const items = data.items as Broadcast[];
+        if (primed) {
+          for (const b of items) {
+            if (!seen.has(b.id) && b.kind === "warning") {
+              toast.warning(`⚠️ ${b.agency}`, { description: b.title });
+              maybePush(`⚠️ ${b.agency}`, b.title);
+            }
+          }
+        }
+        items.forEach((b) => seen.add(b.id));
+        primed = true;
+        setBroadcasts(items);
       } catch { /* offline / edge fn cold */ }
+      finally { inflight = false; }
     }
     load();
-    const t = setInterval(load, 5 * 60 * 1000); // refresh every 5 min
-    return () => { cancelled = true; clearInterval(t); };
+    const t = setInterval(load, 2_000); // near-realtime refresh
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   useEffect(() => {

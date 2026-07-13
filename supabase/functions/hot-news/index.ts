@@ -217,15 +217,17 @@ async function fetchNOAA(): Promise<Broadcast[]> {
 
 // Very small in-memory cache per isolate — reduces upstream load if the same
 // isolate handles multiple requests inside the freshness window.
+// Short TTL lets the client poll aggressively (near-realtime) while shielding
+// upstream agency APIs from being hit more than ~6x/min per edge isolate.
 let CACHE: { at: number; items: Broadcast[] } | null = null;
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 10_000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     if (CACHE && Date.now() - CACHE.at < CACHE_TTL_MS) {
-      return new Response(JSON.stringify({ items: CACHE.items, cached: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=60" },
+      return new Response(JSON.stringify({ items: CACHE.items, cached: true, fetched_at: CACHE.at }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=10" },
       });
     }
     const [a, b, c, d, e] = await Promise.all([
@@ -236,8 +238,8 @@ Deno.serve(async (req) => {
       .sort((x, y) => +new Date(y.event_time) - +new Date(x.event_time))
       .slice(0, 80);
     CACHE = { at: Date.now(), items: all };
-    return new Response(JSON.stringify({ items: all, cached: false }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=60" },
+    return new Response(JSON.stringify({ items: all, cached: false, fetched_at: CACHE.at }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=10" },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err), items: [] }), {
