@@ -1,117 +1,90 @@
-# Geo Realm — Subsurface Layer for Atlas
 
-Bring the level of detail in your reference images (interpreted seismic sections, 3D bathymetry with megasplay/décollement/oceanic crust) into Atlas as a first-class **subsurface mode**, fed by a dedicated **Geo Realm Compiler**.
+# Reliable Multi-Hazard Warning System
 
----
+## Coverage (v1)
+- **Earthquakes** — USGS FDSN (`all_hour`, `significant_week`) + EMSC-CSEM fallback
+- **Tsunamis** — NOAA NTWC/PTWC bulletins
+- **Severe weather / floods / hurricanes / tornadoes** — NOAA NWS `api.weather.gov/alerts/active` + GDACS + Copernicus GloFAS
+- **Wildfires** — NASA FIRMS (VIIRS 24h)
+- **Volcanoes** — Smithsonian GVP weekly + USGS VHP
+- **All-hazard aggregator** — GDACS (catches everything above + drought, industrial)
+- **Localized incidents ("collapsing building in NY")** — GDELT 2.0 event stream filtered to disaster categories + USGS "Did You Feel It" reports. This is our safety net for one-off events no scientific feed publishes.
 
-## 1 · Architecture
+Default earthquake threshold M6; tunable per user.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  ATLAS (Cesium)                                             │
-│    + Subsurface Mode: transparent Earth, camera dives below │
-│    + R3F overlay synced via ECEF matrix for slabs/volumes   │
-├─────────────────────────────────────────────────────────────┤
-│  GeoRealmProvider (client)                                  │
-│    - Loads bundles from CDN + user storage                  │
-│    - LOD by camera altitude & focus lat/lon                 │
-├─────────────────────────────────────────────────────────────┤
-│  Geo Realm Compiler                                         │
-│    - Route: /geo-realm  (workbench)                         │
-│    - Inline drop zone in Atlas subsurface panel             │
-│    - Edge function `geo-realm-compile` orchestrates parse   │
-│    - WASM parsers (SEG-Y, NetCDF) in a Web Worker           │
-│    - Outputs: glTF meshes + KTX2 textures + manifest JSON   │
-├─────────────────────────────────────────────────────────────┤
-│  Storage: `geo-realm-bundles` bucket                        │
-│  Table:  `geo_realm_bundles` (owner, bbox, layers, url)     │
-│  Prefetched: `geo-realm-canonical` public read bucket       │
-│    - Bird2003 plates, GEM faults, Slab2 depth grids,        │
-│      CRUST1.0 layer stack, S40RTS tomography (KTX2 3D tex)  │
-└─────────────────────────────────────────────────────────────┘
+## Architecture
+```text
+┌─ pollers (cron / 60s) ─┐   ┌─ dedup + normalize ─┐   ┌─ match subscriptions ─┐   ┌─ fan-out ─────────┐
+│ usgs-quakes            │   │ disaster_events     │   │ user_alert_subs       │   │ in-app (realtime)  │
+│ noaa-weather-alerts    │──▶│ (source,ext_id)     │──▶│ + admin firehose      │──▶│ email (Lovable)    │
+│ nasa-firms-fires       │   │ severity, geom,     │   │ geofence match        │   │ sms (Twilio)       │
+│ gdacs-global           │   │ magnitude, ts       │   │ min severity          │   │ whatsapp (Twilio)  │
+│ smithsonian-volcanoes  │   │                     │   │ quiet hours           │   │ web push           │
+│ noaa-tsunami           │   └─────────────────────┘   └───────────────────────┘   └────────────────────┘
+│ gdelt-incidents        │              │
+└────────────────────────┘              ▼
+                                heartbeat + watchdog
 ```
 
----
+## Database (one migration)
+- `disaster_events` — normalized event store. Cols: `id`, `source`, `external_id` (unique together), `hazard_type`, `severity` (1-5), `magnitude` (nullable), `title`, `summary`, `lat`, `lon`, `region`, `country`, `event_time`, `raw` (jsonb), `updated_at`. Public read; service role write.
+- `user_alert_subscriptions` — per-user rules. Cols: `user_id`, `hazard_types[]`, `min_severity`, `min_magnitude`, `geofences` (jsonb: `[{lat,lon,radius_km,label}]`), `channels[]` (`in_app`,`email`,`sms`,`whatsapp`,`push`), `phone_e164`, `quiet_hours_start/end`, `enabled`. Owner-only RLS.
+- `alert_notifications` — per-recipient delivery log with idempotency key `(event_id, user_id, channel)`. Owner read + service role write.
+- `feed_heartbeats` — one row per poller, `updated_at` + last event count. Admin read.
+- `admin_alert_settings` — global firehose recipients + min severity for admin channel.
+- `web_push_subscriptions` — browser push endpoints per user.
 
-## 2 · Data pipeline (real sources only, per your authenticity rule)
+## Edge functions
+- `ingest-usgs-quakes`, `ingest-noaa-weather`, `ingest-nasa-firms`, `ingest-gdacs`, `ingest-smithsonian-volcanoes`, `ingest-noaa-tsunami`, `ingest-gdelt-incidents` — each polls, normalizes, upserts into `disaster_events` on `(source, external_id)` conflict, writes heartbeat.
+- `alert-dispatcher` — trigger on new/updated `disaster_events` rows (pg_net cron every 30s reads unprocessed), matches subscriptions, writes to `alert_notifications` with idempotency, invokes `send-transactional-email`, calls Twilio for SMS/WhatsApp, pushes web push. Realtime channel already delivers in-app.
+- `feed-watchdog` — alerts admin if any heartbeat > 5min stale.
 
-| Input file | Parser | Output |
-|---|---|---|
-| **SEG-Y** (.sgy/.segy) reflection | `segyio-wasm` in worker | Downsampled PNG panel + geo-header JSON → textured plane |
-| **NetCDF** slab depth (Slab2) | `netcdfjs` | Depth heightfield → triangulated glTF slab mesh |
-| **NetCDF** tomography (S40RTS) | `netcdfjs` | 3D texture packed to KTX2 for volumetric raymarching |
-| **GeoJSON** plates / faults | native | Extruded prisms (glTF) in ECEF |
-| **ASCII** CRUST1.0 | native | Per-cell layer thickness → stacked concentric shells |
-| **GeoTIFF** bathymetry (GEBCO) | `geotiff.js` | Heightmap for the surface shell |
-| **DXF / DWG** (CAD borings) | Autodesk APS (already integrated) | glTF |
+## Scheduling
+`pg_cron` jobs:
+- Quakes/weather/tsunami/incidents: every 1 min
+- Fires/volcanoes: every 5 min
+- GDACS: every 2 min
+- Dispatcher: every 30s
+- Watchdog: every 5 min
 
-Rejected samples fall back to a clear error toast — no fake output.
+## Frontend
+- **`/alerts`** — live feed (Realtime subscription) of all events matching user's subscriptions, filter bar, severity color coding, map view + list view toggle.
+- **`/alerts/:id`** — one-pager: title, severity badge, epicenter/impact map, magnitude, felt-population estimate, time-to-impact, nearest cities, tsunami risk, source citations, "notify me of aftershocks" button.
+- **`/alerts/:id/report`** — extensive report: AI-generated situation summary (Lovable AI Gateway, no key needed), aftershock live feed, historical context ("6th M6+ in this region this year"), USGS PAGER loss estimate when present, NOAA bulletin text, evacuation resources from existing `resources` table nearby, auto-refresh.
+- **`/settings/alerts`** — subscription UI: hazard checkboxes, severity slider, magnitude slider, geofence picker (reuses your Atlas map + POI patterns — click to add radius zones), channel toggles with phone number field, quiet hours, test-send buttons per channel.
+- **Global** — bell icon in top nav with unread badge + toast for high-severity events (M6+, severity 4+).
 
----
+## Email templates (Lovable Emails)
+- `disaster-alert-one-pager` — subject `⚠ M{mag} {hazard} near {region} · {relative_time}`. Body: badge, key facts table, static map image, one-pager link, report link, unsubscribe (auto-appended).
+- `disaster-report-daily` — optional daily digest of events below individual threshold.
 
-## 3 · Rendering (max realism = 5)
+## Reliability guarantees
+- **Dedup**: `(source, external_id)` unique; cross-source dedup for quakes via `(round(lat,1), round(lon,1), floor(event_time/60s))` bucket.
+- **Idempotency**: `alert_notifications (event_id, user_id, channel)` unique — dispatcher can safely re-run.
+- **Retry**: Lovable Emails queue handles email retries + DLQ. Dispatcher marks notification `status` (`queued`, `sent`, `failed`) with `attempt_count`; retries up to 5×.
+- **Heartbeat + watchdog**: any silent feed pages admin within 5min.
+- **Suppression**: honors existing `suppressed_emails` table automatically via Lovable Emails.
 
-- **Volumetric mantle**: WebGL2 raymarcher sampling the S40RTS KTX2 texture; Vs perturbation → color ramp (blue slabs / red plumes)
-- **Slab meshes**: glTF from Slab2 depth grids, transparent contour bands
-- **Crustal shells**: stacked semi-transparent ellipsoid segments (sediment, upper crust, lower crust, mantle lid) with per-cell thickness from CRUST1.0
-- **Fault surfaces**: GEM faults triangulated + neon fluorescent stroke (matches your reference styling)
-- **Seismic sections**: user-placed vertical planes with the reflection PNG, snapped to real lat/lon/depth, labeled annotations
-- **Bathymetry inset**: exaggerated relief tile like your 3D reference image, cropped to camera focus
+## Secrets needed
+- **Twilio** — I'll walk you through connecting the Twilio connector for SMS + WhatsApp (uses their sandbox for WhatsApp initially; production WhatsApp needs Meta business verification which I'll flag).
+- **NASA FIRMS MAP_KEY** — free, I'll request it.
+- **GDELT, USGS, NOAA, GDACS, Smithsonian** — no keys required.
+- Web push VAPID keys — auto-generated via `generate_secret`.
 
-Perf: LOD by camera altitude, tile-based volume sampling (only 512³ region around focus), off-thread WASM parsing.
+## Build order (single continuous build)
+1. Database migration (all tables + RLS + grants + heartbeat seeds).
+2. Set up Lovable Emails infrastructure (domain + queue + scaffold transactional).
+3. Ingestion edge functions (7 pollers).
+4. Dispatcher + watchdog edge functions.
+5. Twilio connector link + FIRMS/VAPID secret requests.
+6. `pg_cron` schedule inserts.
+7. Email template.
+8. Frontend: `/alerts`, `/alerts/:id`, `/alerts/:id/report`, `/settings/alerts`, global bell + toast.
+9. Web push service worker + subscription flow.
+10. Smoke test: force a synthetic M6 event through the pipeline end-to-end.
 
----
-
-## 4 · UI
-
-- **Atlas → new "Subsurface" toggle** in the layer rail. When on:
-  - Terrain becomes semi-transparent
-  - Camera unlocks below sea level
-  - New floating panel: "Geo Realm" with layer checkboxes (Plates / Slabs / Crust / Faults / Tomography / My Bundles) and a drop zone
-- **`/geo-realm` workbench** (Atlas UI style, glass rail):
-  - Left rail: bundle library (canonical + owned)
-  - Center: preview canvas (R3F with tilted world section)
-  - Right rail: compile queue, layer metadata editor, publish button
-- Every mesh clickable → POI-Card widget with metadata (matches your existing pattern)
-
----
-
-## 5 · Backend
-
-- Table `geo_realm_bundles` (id, owner_id, name, kind, bbox, depth_range, source_meta, manifest_url, layers jsonb, is_public) with the standard GRANT + RLS block
-- Storage bucket `geo-realm-bundles` (private, owner read/write)
-- Storage bucket `geo-realm-canonical` (public read, admin write) — canonical datasets seeded by an edge function `seed-geo-realm-canonical` I invoke once
-- Edge function `geo-realm-compile`: takes an uploaded file, runs the WASM parser server-side when file > worker threshold, writes bundle to storage, records row
-
----
-
-## 6 · Rollout — 4 shippable milestones
-
-**M1 · Foundation (this pass)**
-- Table, buckets, RLS, `/geo-realm` route shell, Atlas Subsurface toggle, transparent-Earth mode, R3F overlay wired to Cesium camera
-- Prefetch + render **Bird 2003 plates** and **GEM faults** (small GeoJSONs, no WASM needed)
-- Compiler UI skeleton with drop zone (parsers stubbed)
-
-**M2 · Slabs + Crust**
-- Slab2 NetCDF parser + glTF mesh generator (edge function)
-- CRUST1.0 stacked shells
-- Canonical seeder run
-
-**M3 · Seismic sections**
-- SEG-Y WASM parser in worker
-- Vertical plane placement + annotation tools
-- Bathymetry heightmap inset
-
-**M4 · Volumetric tomography**
-- S40RTS → KTX2 3D texture pipeline
-- Raymarched mantle shader with color ramp + slice controls
-
----
-
-## 7 · Things I need from you before M1
-
-- Confirm the route name `/geo-realm` (or you'd prefer `/atlas/subsurface`)
-- OK to add ~3 client deps: `three-stdlib`, `geotiff`, `netcdfjs`? (SEG-Y stays worker-only, no bundle bloat)
-- The canonical datasets are ~40 MB total after compression — OK to store in a public Cloud storage bucket seeded once, or should users trigger the seed themselves from the workbench?
-
-Once you green-light, I'll ship M1 in the next turn — DB migration + Atlas subsurface toggle + `/geo-realm` shell + plates/faults renderer.
+## Out of scope for v1 (call out for later)
+- Native mobile push (Apple/Android APNs/FCM) — web push covers PWA installs.
+- Predictive/AI forecasting (only reporting confirmed events).
+- Direct siren/PA integrations.
+- Paid feeds (USGS ShakeAlert requires licensing for early-warning use in critical apps).
