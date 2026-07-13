@@ -117,6 +117,7 @@ function avatarGradient(seed: string) {
 export default function HotPortalPage() {
   const [posts, setPosts] = useState<SosPost[]>([]);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
+  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [composerOpen, setComposerOpen] = useState(false);
   const [warnOpen, setWarnOpen] = useState(false);
