@@ -360,17 +360,23 @@ export default function HotPortalPage() {
               Nothing here yet. Tap the <span className="text-white">+</span> to post.
             </div>
           )}
-          {feed.map((p) => (
-            <PostCard
-              key={p.id}
-              post={p}
-              liked={liked.has(p.id)}
-              saved={saved.has(p.id)}
-              onLike={() => toggleLike(p)}
-              onSave={() => toggleSave(p.id)}
-              onShare={() => share(p)}
-            />
-          ))}
+          {feed.map((entry) => {
+            if (entry.type === "broadcast") {
+              return <BroadcastCard key={entry.item.id} item={entry.item} />;
+            }
+            const p = entry.post;
+            return (
+              <PostCard
+                key={p.id}
+                post={p}
+                liked={liked.has(p.id)}
+                saved={saved.has(p.id)}
+                onLike={() => toggleLike(p)}
+                onSave={() => toggleSave(p.id)}
+                onShare={() => share(p)}
+              />
+            );
+          })}
         </section>
       </main>
 
