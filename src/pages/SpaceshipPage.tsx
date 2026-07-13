@@ -1681,7 +1681,7 @@ function SpaceshipPage({
   // 3D Tiles are the only visible surface — Cesium's CLAMP_TO_GROUND falls
   // back to sea level there, dropping pins under buildings. CLAMP_TO_3D_TILE
   // anchors them to the photogrammetry top instead.
-  const viewModeRef = useRef<AtlasViewMode>("google");
+  const viewModeRef = useRef<AtlasViewMode>("realistic");
   const pinHeightRef = useCallback(() => (
     moonModeRef.current
       ? HeightReference.CLAMP_TO_GROUND
