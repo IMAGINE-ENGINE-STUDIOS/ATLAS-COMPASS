@@ -2,6 +2,8 @@ import { DollarSign, ShoppingCart, Users, Package, Truck, Globe, ArrowUpRight, A
 import { motion } from "framer-motion";
 import { PageContainer, AnimatedSection, HeroHeader, GlassCard, EditorialDivider, MetricHighlight, fadeUp, staggerContainer } from "@/components/AnimatedLayout";
 import { StatusBadge } from "@/components/DashboardWidgets";
+import { FeedHealthCard } from "@/components/dashboard/FeedHealthCard";
+import { DisasterOpsSection } from "@/components/dashboard/DisasterOpsSection";
 
 const stats = [
   { title: "Total Revenue", value: "$847.2M", change: "+12.4%", up: true, icon: <DollarSign className="w-5 h-5" /> },
@@ -43,6 +45,16 @@ export default function DashboardPage() {
         title="Global Economic Intelligence"
         subtitle="Real-time supply chain analytics across 194 markets — monitoring $847M in active trade volume"
       />
+
+      <EditorialDivider label="Global Hazard Watch" />
+
+      <AnimatedSection>
+        <FeedHealthCard />
+      </AnimatedSection>
+
+      <AnimatedSection>
+        <DisasterOpsSection />
+      </AnimatedSection>
 
       {/* Stats Bento Grid */}
       <AnimatedSection>
