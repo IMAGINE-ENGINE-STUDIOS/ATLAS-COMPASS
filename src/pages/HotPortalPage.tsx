@@ -425,6 +425,110 @@ export default function HotPortalPage() {
   );
 }
 
+function BroadcastCard({ item }: { item: Broadcast }) {
+  const Icon = HAZARD_ICON[item.hazard_type ?? ""] ?? Newspaper;
+  const isWarn = item.kind === "warning";
+  const ring = isWarn
+    ? "from-red-500 via-orange-500 to-amber-400"
+    : "from-sky-400 via-cyan-400 to-blue-500";
+
+  async function shareThis() {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item.title, text: item.body ?? "", url: item.source_url });
+      } else {
+        await navigator.clipboard.writeText(item.source_url);
+        toast.success("Source link copied");
+      }
+    } catch { /* cancelled */ }
+  }
+
+  return (
+    <article className={isWarn ? "bg-gradient-to-b from-red-950/40 to-transparent" : ""}>
+      {/* Header — agency identity */}
+      <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+        <div className={`w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr ${ring}`}>
+          <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
+            <Icon className="w-4 h-4 text-white/95" />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold truncate">{item.agency_handle}</span>
+            {item.agency_verified && <BadgeCheck className="w-3.5 h-3.5 text-sky-400 fill-sky-400/20 shrink-0" />}
+            {isWarn && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/90 text-white">WARN</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-white/50">
+            <span className="truncate">{item.agency}</span>
+            <span>·</span>
+            <span>{timeAgo(item.event_time)}</span>
+          </div>
+        </div>
+        <a
+          href={item.source_url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-white/60 hover:text-white"
+          aria-label="Open source"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+
+      {/* Media tile — typographic (broadcasts are text-first, agency-branded) */}
+      <div className={`relative overflow-hidden aspect-square flex items-center justify-center p-8 ${
+        isWarn
+          ? "bg-gradient-to-br from-red-900 via-red-950 to-black"
+          : "bg-gradient-to-br from-neutral-900 via-black to-neutral-950"
+      }`}>
+        <div aria-hidden className={`absolute inset-0 opacity-30 bg-gradient-to-br ${ring}`} style={{ mixBlendMode: "overlay" }} />
+        <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur text-white text-[10px] font-bold uppercase tracking-wider">
+          <BadgeCheck className="w-3 h-3 text-sky-400" /> Broadcast
+          {item.severity != null && <span className="ml-1 opacity-80">S{item.severity}</span>}
+        </div>
+        <h3 className="relative text-xl font-bold leading-tight text-center text-white">
+          {item.title}
+        </h3>
+      </div>
+
+      {/* Action bar */}
+      <div className="px-4 pt-3 pb-1 flex items-center gap-4">
+        <a href={item.source_url} target="_blank" rel="noreferrer" aria-label="Open source">
+          <ExternalLink className="w-6 h-6 text-white" />
+        </a>
+        <button onClick={shareThis} className="transition active:scale-90" aria-label="Share">
+          <Send className="w-6 h-6 text-white -rotate-12" />
+        </button>
+        <div className="ml-auto text-[10px] uppercase tracking-wider text-white/50">Official source</div>
+      </div>
+
+      {/* Caption */}
+      <div className="px-4 pb-4 text-sm">
+        <div>
+          <span className="font-semibold mr-2">{item.agency_handle}</span>
+          <span className="text-white/90">{item.title}</span>
+        </div>
+        {item.body && (
+          <p className="mt-1 text-white/75 whitespace-pre-wrap line-clamp-4">{item.body}</p>
+        )}
+        <div className="mt-2 flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/50">
+          {item.hazard_type && <span className="text-sky-300">#{item.hazard_type}</span>}
+          {item.region && (
+            <span className="flex items-center gap-0.5">
+              <MapPin className="w-3 h-3" /> {item.region}
+            </span>
+          )}
+          <a href={item.source_url} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-0.5 hover:text-white">
+            <ExternalLink className="w-3 h-3" /> Source
+          </a>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function TabButton({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
   return (
     <button
