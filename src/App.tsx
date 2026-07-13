@@ -45,6 +45,9 @@ import ImagineDesignLabPage from "@/pages/ImagineDesignLabPage";
 import NotFound from "./pages/NotFound.tsx";
 const GeoRealmPage = lazy(() => import("@/pages/GeoRealmPage"));
 const PublicTileCardPage = lazy(() => import("@/pages/PublicTileCardPage"));
+const AlertsSettingsPage = lazy(() => import("@/pages/AlertsSettingsPage"));
+const AlertReportPage = lazy(() => import("@/pages/AlertReportPage"));
+const UnsubscribePage = lazy(() => import("@/pages/UnsubscribePage"));
 
 const queryClient = new QueryClient();
 
@@ -83,6 +86,12 @@ const App = () => (
 
           {/* Publicly shared tile card */}
           <Route path="/tile/:id" element={<PublicTileCardPage />} />
+
+          {/* Disaster alerts */}
+          <Route path="/settings/alerts" element={<AlertsSettingsPage />} />
+          <Route path="/alerts/:id/report" element={<AlertReportPage />} />
+          <Route path="/alerts/:id" element={<AlertReportPage />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
