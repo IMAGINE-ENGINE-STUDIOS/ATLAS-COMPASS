@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronUp, Globe, Satellite, Building2, Sun } from "lucide-react";
-import modeGoogle from "@/assets/mode-google.jpg";
 import modeRealistic from "@/assets/mode-realistic.jpg";
 import modeOsm from "@/assets/mode-osm.jpg";
 import modeMapbox from "@/assets/mode-mapbox.jpg";
 
-export type ViewMode = "google" | "realistic" | "osm" | "mapbox";
+export type ViewMode = "realistic" | "osm" | "mapbox";
 
 interface ModeMeta {
   id: ViewMode;
@@ -19,7 +18,6 @@ interface ModeMeta {
 }
 
 const MODES: ModeMeta[] = [
-  { id: "google",    label: "Google 3D",  short: "G3D", thumb: modeGoogle,    Icon: Globe,      tone: "text-emerald-300", toneBg: "bg-emerald-500/20 ring-emerald-400/50", glow: "#34d399" },
   { id: "realistic", label: "Realistic",  short: "3D",  thumb: modeRealistic, Icon: Satellite,  tone: "text-cyan-300",    toneBg: "bg-cyan-500/20 ring-cyan-400/50",       glow: "#22d3ee" },
   { id: "osm",       label: "OSM",        short: "OSM", thumb: modeOsm,       Icon: Building2,  tone: "text-orange-300",  toneBg: "bg-orange-500/20 ring-orange-400/50",   glow: "#fb923c" },
   { id: "mapbox",    label: "Satellite",  short: "Sat", thumb: modeMapbox,    Icon: Sun,        tone: "text-amber-300",   toneBg: "bg-amber-400/20 ring-amber-400/50",     glow: "#fbbf24" },
