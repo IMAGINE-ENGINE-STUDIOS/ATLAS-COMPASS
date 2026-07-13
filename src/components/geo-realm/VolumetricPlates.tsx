@@ -197,10 +197,11 @@ export function VolumetricPlates({
       {plates.map((p) => {
         const isSelected = selectedCode === p.code;
         const isHover = hoverCode === p.code;
-        const wallOpacity = isSelected ? 0.75 : isHover ? 0.55 : 0.28;
         // Cap fill uses a stable opacity so overlapping meshes can't
         // ping-pong the hover state and cause the fill to pulsate.
-        const fillOpacity = isSelected ? 0.42 : 0.18;
+        // Keep unselected fill low so the realistic Earth imagery
+        // remains legible underneath.
+        const fillOpacity = isSelected ? 0.36 : isHover ? 0.16 : 0.1;
         const handlers = {
           onClick: (e: ThreeEvent<MouseEvent>) => {
             e.stopPropagation();
@@ -256,7 +257,8 @@ export function VolumetricPlates({
               <lineBasicMaterial
                 color={p.colorObj}
                 transparent
-                opacity={isSelected ? 1 : isHover ? 0.9 : 0.6}
+                opacity={isSelected ? 1 : isHover ? 0.85 : 0.5}
+                depthWrite={false}
               />
             </lineSegments>
           </group>
