@@ -14,6 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_alert_settings: {
+        Row: {
+          channels: string[]
+          emails: string[]
+          id: number
+          min_magnitude: number
+          min_severity: number
+          phones_e164: string[]
+          updated_at: string
+        }
+        Insert: {
+          channels?: string[]
+          emails?: string[]
+          id?: number
+          min_magnitude?: number
+          min_severity?: number
+          phones_e164?: string[]
+          updated_at?: string
+        }
+        Update: {
+          channels?: string[]
+          emails?: string[]
+          id?: number
+          min_magnitude?: number
+          min_severity?: number
+          phones_e164?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      alert_notifications: {
+        Row: {
+          attempt_count: number
+          channel: string
+          created_at: string
+          error: string | null
+          event_id: string
+          id: string
+          read_at: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          channel: string
+          created_at?: string
+          error?: string | null
+          event_id: string
+          id?: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          channel?: string
+          created_at?: string
+          error?: string | null
+          event_id?: string
+          id?: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_notifications_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "disaster_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atlas_level_placements: {
         Row: {
           altitude: number
@@ -315,6 +395,69 @@ export type Database = {
         }
         Relationships: []
       }
+      disaster_events: {
+        Row: {
+          country: string | null
+          created_at: string
+          dispatched_at: string | null
+          event_time: string
+          external_id: string
+          hazard_type: string
+          id: string
+          lat: number | null
+          lon: number | null
+          magnitude: number | null
+          raw: Json
+          region: string | null
+          severity: number
+          source: string
+          summary: string | null
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          event_time: string
+          external_id: string
+          hazard_type: string
+          id?: string
+          lat?: number | null
+          lon?: number | null
+          magnitude?: number | null
+          raw?: Json
+          region?: string | null
+          severity?: number
+          source: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          event_time?: string
+          external_id?: string
+          hazard_type?: string
+          id?: string
+          lat?: number | null
+          lon?: number | null
+          magnitude?: number | null
+          raw?: Json
+          region?: string | null
+          severity?: number
+          source?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       dynamic_objects: {
         Row: {
           created_at: string
@@ -350,6 +493,33 @@ export type Database = {
           payload?: Json
           tags?: string[]
           thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      feed_heartbeats: {
+        Row: {
+          last_error: string | null
+          last_event_count: number
+          last_run_at: string
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          last_error?: string | null
+          last_event_count?: number
+          last_run_at?: string
+          source: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          last_error?: string | null
+          last_event_count?: number
+          last_run_at?: string
+          source?: string
+          status?: string
           updated_at?: string
         }
         Relationships: []
@@ -1615,6 +1785,57 @@ export type Database = {
           },
         ]
       }
+      user_alert_subscriptions: {
+        Row: {
+          channels: string[]
+          created_at: string
+          enabled: boolean
+          geofences: Json
+          hazard_types: string[]
+          id: string
+          min_magnitude: number
+          min_severity: number
+          phone_e164: string | null
+          quiet_hours_end: number | null
+          quiet_hours_start: number | null
+          updated_at: string
+          user_id: string
+          worldwide: boolean
+        }
+        Insert: {
+          channels?: string[]
+          created_at?: string
+          enabled?: boolean
+          geofences?: Json
+          hazard_types?: string[]
+          id?: string
+          min_magnitude?: number
+          min_severity?: number
+          phone_e164?: string | null
+          quiet_hours_end?: number | null
+          quiet_hours_start?: number | null
+          updated_at?: string
+          user_id: string
+          worldwide?: boolean
+        }
+        Update: {
+          channels?: string[]
+          created_at?: string
+          enabled?: boolean
+          geofences?: Json
+          hazard_types?: string[]
+          id?: string
+          min_magnitude?: number
+          min_severity?: number
+          phone_e164?: string | null
+          quiet_hours_end?: number | null
+          quiet_hours_start?: number | null
+          updated_at?: string
+          user_id?: string
+          worldwide?: boolean
+        }
+        Relationships: []
+      }
       user_datasets: {
         Row: {
           bbox: Json | null
@@ -1680,6 +1901,39 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      web_push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: []
