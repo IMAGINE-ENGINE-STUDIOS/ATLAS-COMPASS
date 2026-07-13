@@ -1503,6 +1503,72 @@ export type Database = {
         }
         Relationships: []
       }
+      sos_posts: {
+        Row: {
+          author_id: string | null
+          body: string | null
+          created_at: string
+          hazard_type: string | null
+          id: string
+          is_pinned: boolean
+          kind: string
+          lat: number | null
+          like_count: number
+          lon: number | null
+          media_url: string | null
+          region: string | null
+          severity: number | null
+          share_count: number
+          source_url: string | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body?: string | null
+          created_at?: string
+          hazard_type?: string | null
+          id?: string
+          is_pinned?: boolean
+          kind: string
+          lat?: number | null
+          like_count?: number
+          lon?: number | null
+          media_url?: string | null
+          region?: string | null
+          severity?: number | null
+          share_count?: number
+          source_url?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string | null
+          created_at?: string
+          hazard_type?: string | null
+          id?: string
+          is_pinned?: boolean
+          kind?: string
+          lat?: number | null
+          like_count?: number
+          lon?: number | null
+          media_url?: string | null
+          region?: string | null
+          severity?: number | null
+          share_count?: number
+          source_url?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       splat_landmarks: {
         Row: {
           altitude: number
