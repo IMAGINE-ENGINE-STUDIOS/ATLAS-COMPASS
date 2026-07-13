@@ -43,6 +43,28 @@ type AlertEvent = {
   url: string | null;
 };
 
+type Broadcast = {
+  id: string;
+  agency: string;
+  agency_handle: string;
+  agency_verified: boolean;
+  kind: "warning" | "news";
+  title: string;
+  body: string | null;
+  hazard_type: string | null;
+  severity: number | null;
+  region: string | null;
+  source_url: string;
+  event_time: string;
+  lat: number | null;
+  lon: number | null;
+};
+
+// Any item rendered in the feed: user posts OR agency broadcasts.
+type FeedItem =
+  | { type: "post"; post: SosPost; ts: number }
+  | { type: "broadcast"; item: Broadcast; ts: number };
+
 const HAZARD_ICON: Record<string, typeof Flame> = {
   earthquake: Activity,
   wildfire: Flame,
