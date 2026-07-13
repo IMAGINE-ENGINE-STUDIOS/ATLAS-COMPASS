@@ -147,6 +147,21 @@ export default function HotPortalPage() {
     })();
   }, []);
 
+  // Free news broadcasts from USGS, NASA EONET, GDACS, ReliefWeb, NOAA.
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const { data, error } = await supabase.functions.invoke("hot-news", { body: {} });
+        if (cancelled || error || !data?.items) return;
+        setBroadcasts(data.items as Broadcast[]);
+      } catch { /* offline / edge fn cold */ }
+    }
+    load();
+    const t = setInterval(load, 5 * 60 * 1000); // refresh every 5 min
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
   useEffect(() => {
     const postCh = supabase
       .channel("sos_posts_rt")
