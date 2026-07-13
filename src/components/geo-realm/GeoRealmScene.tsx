@@ -217,9 +217,12 @@ function EarthShell({ opacity }: { opacity: number }) {
  * can see continents/oceans as reference while inspecting plates.
  */
 function RealisticEarth({ opacity }: { opacity: number }) {
+  // Higher-resolution NASA Blue Marble day map (Solar System Scope, CC BY 4.0)
+  // gives the realistic mode enough continent detail to visually verify
+  // plate alignment against known landmarks.
   const tex = useLoader(
     THREE.TextureLoader,
-    "https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg",
+    "https://raw.githubusercontent.com/solar-system-scope/textures/main/2k_earth_daymap.jpg",
   );
   // Three.js SphereGeometry maps texture u=0 to −X (longitude −180°) and
   // u=0.25 to +Z (longitude −90°). Our `lonLatToUnit` places longitude 0°
