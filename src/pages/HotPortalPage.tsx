@@ -241,10 +241,16 @@ export default function HotPortalPage() {
     setSaved(next);
   }
 
-  const feed = useMemo(() => {
-    if (filter === "all") return posts;
-    return posts.filter((p) => p.kind === filter);
-  }, [posts, filter]);
+  const feed = useMemo<FeedItem[]>(() => {
+    const p: FeedItem[] = posts
+      .filter((x) => filter === "all" || x.kind === filter)
+      .map((post) => ({ type: "post" as const, post, ts: +new Date(post.created_at) }));
+    const b: FeedItem[] = broadcasts
+      .filter((x) => filter === "all" || filter === "news" || filter === "warning" ? true : false)
+      .filter((x) => filter === "all" || x.kind === filter)
+      .map((item) => ({ type: "broadcast" as const, item, ts: +new Date(item.event_time) }));
+    return [...p, ...b].sort((a, z) => z.ts - a.ts).slice(0, 120);
+  }, [posts, broadcasts, filter]);
 
   return (
     <div className="min-h-screen bg-black text-white pb-24 sm:pb-6">
