@@ -49,6 +49,8 @@ const AlertsSettingsPage = lazy(() => import("@/pages/AlertsSettingsPage"));
 const AlertReportPage = lazy(() => import("@/pages/AlertReportPage"));
 const UnsubscribePage = lazy(() => import("@/pages/UnsubscribePage"));
 const HotPortalPage = lazy(() => import("@/pages/HotPortalPage"));
+const ShareLocationPage = lazy(() => import("@/pages/ShareLocationPage"));
+const HazardKeywordsPage = lazy(() => import("@/pages/HazardKeywordsPage"));
 
 const queryClient = new QueryClient();
 
@@ -97,6 +99,8 @@ const App = () => (
           {/* HOT Portal — social feed for climate & catastrophes */}
           <Route path="/hot" element={<HotPortalPage />} />
           <Route path="/sos" element={<HotPortalPage />} />
+          <Route path="/loc/:token" element={<ShareLocationPage />} />
+          <Route path="/keywords" element={<HazardKeywordsPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>

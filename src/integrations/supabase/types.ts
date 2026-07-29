@@ -821,6 +821,39 @@ export type Database = {
         }
         Relationships: []
       }
+      hazard_keywords: {
+        Row: {
+          created_at: string
+          hazard: string
+          id: string
+          is_primary: boolean
+          keyword: string
+          lang: string
+          lang_name: string | null
+          normalized: string
+        }
+        Insert: {
+          created_at?: string
+          hazard: string
+          id?: string
+          is_primary?: boolean
+          keyword: string
+          lang: string
+          lang_name?: string | null
+          normalized: string
+        }
+        Update: {
+          created_at?: string
+          hazard?: string
+          id?: string
+          is_primary?: boolean
+          keyword?: string
+          lang?: string
+          lang_name?: string | null
+          normalized?: string
+        }
+        Relationships: []
+      }
       level_snapshots: {
         Row: {
           client_saved_at: string
@@ -1500,6 +1533,186 @@ export type Database = {
           owner_id?: string
           recipient_id?: string
           share_count?: number
+        }
+        Relationships: []
+      }
+      sms_inbox: {
+        Row: {
+          body: string | null
+          channel: string
+          detected_language: string | null
+          from_phone: string
+          id: string
+          matched_hazards: string[]
+          message_sid: string | null
+          received_at: string
+          reply_sent: string | null
+          to_phone: string | null
+        }
+        Insert: {
+          body?: string | null
+          channel?: string
+          detected_language?: string | null
+          from_phone: string
+          id?: string
+          matched_hazards?: string[]
+          message_sid?: string | null
+          received_at?: string
+          reply_sent?: string | null
+          to_phone?: string | null
+        }
+        Update: {
+          body?: string | null
+          channel?: string
+          detected_language?: string | null
+          from_phone?: string
+          id?: string
+          matched_hazards?: string[]
+          message_sid?: string | null
+          received_at?: string
+          reply_sent?: string | null
+          to_phone?: string | null
+        }
+        Relationships: []
+      }
+      sms_location_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          phone_e164: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          phone_e164: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          phone_e164?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      sms_outbox: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          error: string | null
+          event_id: string | null
+          hazard_type: string | null
+          id: string
+          message_sid: string | null
+          severity: number | null
+          status: string
+          to_phone: string
+        }
+        Insert: {
+          body: string
+          channel?: string
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          hazard_type?: string | null
+          id?: string
+          message_sid?: string | null
+          severity?: number | null
+          status?: string
+          to_phone: string
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          hazard_type?: string | null
+          id?: string
+          message_sid?: string | null
+          severity?: number | null
+          status?: string
+          to_phone?: string
+        }
+        Relationships: []
+      }
+      sms_subscribers: {
+        Row: {
+          city: string | null
+          consent_at: string | null
+          country: string | null
+          country_code: string | null
+          created_at: string
+          hazards: string[]
+          id: string
+          language: string
+          last_inbound_at: string | null
+          last_outbound_at: string | null
+          lat: number | null
+          lon: number | null
+          min_severity: number
+          pending_hazards: string[]
+          phone_e164: string
+          precise_location: boolean
+          radius_km: number
+          region: string | null
+          state: string
+          stopped_at: string | null
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          city?: string | null
+          consent_at?: string | null
+          country?: string | null
+          country_code?: string | null
+          created_at?: string
+          hazards?: string[]
+          id?: string
+          language?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          lat?: number | null
+          lon?: number | null
+          min_severity?: number
+          pending_hazards?: string[]
+          phone_e164: string
+          precise_location?: boolean
+          radius_km?: number
+          region?: string | null
+          state?: string
+          stopped_at?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          city?: string | null
+          consent_at?: string | null
+          country?: string | null
+          country_code?: string | null
+          created_at?: string
+          hazards?: string[]
+          id?: string
+          language?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          lat?: number | null
+          lon?: number | null
+          min_severity?: number
+          pending_hazards?: string[]
+          phone_e164?: string
+          precise_location?: boolean
+          radius_km?: number
+          region?: string | null
+          state?: string
+          stopped_at?: string | null
+          updated_at?: string
+          username?: string | null
         }
         Relationships: []
       }
