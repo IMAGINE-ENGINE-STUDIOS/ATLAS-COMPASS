@@ -1,9 +1,21 @@
-// Direct Twilio REST client (Basic auth with Account SID + Auth Token).
-const ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
-const AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
-const FROM_NUMBER = Deno.env.get("TWILIO_PHONE_NUMBER") ?? "";
+// Direct Twilio REST client.
+// Auth supports both styles Twilio offers:
+//   * Account SID (AC…) + Auth Token
+//   * API Key SID (SK…) + API Key Secret, with the Account SID still in the URL
+const ACCOUNT_SID = (Deno.env.get("TWILIO_ACCOUNT_SID") ?? "").trim();
+const AUTH_TOKEN = (Deno.env.get("TWILIO_AUTH_TOKEN") ?? "").trim();
+const API_KEY_SID = (Deno.env.get("TWILIO_API_KEY_SID") ?? "").trim();
+// Strip spaces, dashes and parentheses so a pasted "+1 415 555 1234" still works.
+const FROM_NUMBER = (Deno.env.get("TWILIO_PHONE_NUMBER") ?? "").replace(/[^\d+]/g, "");
 
-export const twilioConfigured = () => Boolean(ACCOUNT_SID && AUTH_TOKEN && FROM_NUMBER);
+/** The username half of Basic auth: the API key SID when present, else the account SID. */
+const AUTH_USER = API_KEY_SID || ACCOUNT_SID;
+
+export const authHeader = () => `Basic ${btoa(`${AUTH_USER}:${AUTH_TOKEN}`)}`;
+export const accountSid = () => ACCOUNT_SID;
+
+export const twilioConfigured = () =>
+  Boolean(ACCOUNT_SID.startsWith("AC") && AUTH_TOKEN && AUTH_USER && FROM_NUMBER);
 export const twilioFrom = () => FROM_NUMBER;
 
 export interface SendResult {
@@ -20,7 +32,10 @@ export async function sendMessage(
   channel: "sms" | "whatsapp" = "sms",
 ): Promise<SendResult> {
   if (!twilioConfigured()) {
-    return { ok: false, error: "Twilio is not configured (missing SID, token, or from number)" };
+    return {
+      ok: false,
+      error: "Twilio is not configured (need an AC… account SID, a token, and a from number)",
+    };
   }
 
   const prefix = channel === "whatsapp" ? "whatsapp:" : "";
@@ -35,7 +50,7 @@ export async function sendMessage(
     {
       method: "POST",
       headers: {
-        Authorization: `Basic ${btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`)}`,
+        Authorization: authHeader(),
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: form,
