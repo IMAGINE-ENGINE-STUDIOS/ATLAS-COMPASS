@@ -2,6 +2,8 @@
 
 ![ATLAS — Global Command Center](docs/media/screenshot.jpg)
 
+By [Imagine Engine Studios Corp](https://www.imagineengine.space)
+
 ATLAS is a real-time 3D command center for supply, demand, delivery and disaster
 response. It combines a photoreal planetary globe, tectonic and geophysical data,
 live hazard feeds and an operations dashboard in a single workbench.
@@ -43,3 +45,5 @@ bun run build
 ## License
 
 Released under the [MIT License](LICENSE) — Copyright (c) 2026 Imagine Engine Studios Corp.
+
+Website: [www.imagineengine.space](https://www.imagineengine.space)
