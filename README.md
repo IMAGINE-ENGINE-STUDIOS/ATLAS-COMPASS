@@ -1,6 +1,6 @@
 # ATLAS — Global Command Center
 
-![ATLAS — Global Command Center](docs/media/screenshot.png)
+![ATLAS — Global Command Center](docs/media/screenshot.jpg)
 
 ATLAS is a real-time 3D command center for supply, demand, delivery and disaster
 response. It combines a photoreal planetary globe, tectonic and geophysical data,
