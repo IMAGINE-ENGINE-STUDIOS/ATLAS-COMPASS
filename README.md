@@ -45,3 +45,5 @@ bun run build
 ## License
 
 Released under the [MIT License](LICENSE) — Copyright (c) 2026 Imagine Engine Studios Corp.
+
+Website: [www.imagineengine.space](https://www.imagineengine.space)
