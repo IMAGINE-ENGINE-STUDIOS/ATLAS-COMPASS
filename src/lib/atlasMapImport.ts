@@ -42,7 +42,7 @@ export function pickMapFile(): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".map,application/json,application/x-lovable-map+json";
+    input.accept = ".map,application/json,application/x-atlas-map+json,application/x-lovable-map+json";
     input.style.display = "none";
     input.onchange = () => {
       const file = input.files?.[0] ?? null;

@@ -1,5 +1,5 @@
 // Streaming AI chat & forecast for Tile Intelligence.
-// Uses the user's selected model via Lovable AI Gateway.
+// Uses the user's selected model via the managed AI gateway.
 // Body: { model?: string, mode?: "chat"|"forecast", messages?: [...], context?: {...} }
 import { corsHeaders } from "../_shared/cors.ts";
 

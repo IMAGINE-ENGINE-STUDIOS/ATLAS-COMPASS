@@ -6,7 +6,7 @@
 // structure mirrors a real field-consulting deliverable: executive
 // summary, project information, purpose, regional context, field
 // methods, observations, evaluation, recommendations, limitations,
-// closure. Uses the Lovable AI Gateway (google/gemini-2.5-flash).
+// closure. Uses the managed AI gateway (google/gemini-2.5-flash).
 //
 // Modes:
 //   mode = "generate" -> author a fresh report from event + params + template

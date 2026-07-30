@@ -94,7 +94,7 @@ function useInput(scheme: "keyboard" | "gamepad" | "both") {
     if (scheme !== "keyboard") {
       // Gamepad polling can throw SecurityError in embedded/iframed
       // previews where the "gamepad" permissions-policy is disallowed
-      // (Lovable preview). Guarding here prevents the whole locomotion
+      // (embedded preview). Guarding here prevents the whole locomotion
       // frame from crashing — which would silently unmount the playable
       // character and leave the scene empty on "Play from here".
       try {

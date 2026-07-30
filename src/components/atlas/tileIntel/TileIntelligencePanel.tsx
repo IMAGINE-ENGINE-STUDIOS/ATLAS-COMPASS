@@ -752,7 +752,7 @@ function HeatmapRow({ h, onChange }: { h: HeatmapConfig; onChange: () => void })
 const ACTION_KINDS: { k: ActionKind; label: string; icon: JSX.Element; hint: string; fields: { key: string; placeholder: string; label: string }[] }[] = [
   { k: "in_app",   label: "In-app alert", icon: <Bell className="w-3.5 h-3.5" />,  hint: "Ping the bell in your Atlas toolbar in real time.", fields: [] },
   { k: "webhook",  label: "Webhook",      icon: <Radio className="w-3.5 h-3.5" />, hint: "POST the event JSON to any HTTPS URL. Signed with a shared secret.", fields: [{ key: "url", label: "URL", placeholder: "https://your.server/hook" }] },
-  { k: "email",    label: "Email",        icon: <Send className="w-3.5 h-3.5" />,  hint: "Send an email through Lovable Cloud transactional mail.", fields: [{ key: "to", label: "Recipient", placeholder: "you@example.com" }] },
+  { k: "email",    label: "Email",        icon: <Send className="w-3.5 h-3.5" />,  hint: "Send an email through the ATLAS transactional mail service.", fields: [{ key: "to", label: "Recipient", placeholder: "you@example.com" }] },
   { k: "sms",      label: "SMS",          icon: <Zap className="w-3.5 h-3.5" />,   hint: "Send an SMS via GatewayAPI (needs GATEWAYAPI_TOKEN secret).", fields: [{ key: "recipient", label: "Number (E.164)", placeholder: "+14155551234" }] },
   { k: "pipeline", label: "Pipeline",     icon: <Waves className="w-3.5 h-3.5" />, hint: "Push into an internal pipeline queue (name it however you like).", fields: [{ key: "queue", label: "Queue name", placeholder: "my-queue" }] },
 ];
