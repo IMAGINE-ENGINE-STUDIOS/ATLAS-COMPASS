@@ -1,6 +1,6 @@
 # Real-Time Camera System — Export Package
 
-Drop-in package for adding real-time traffic camera support to another Lovable/Supabase app.
+Drop-in package for adding real-time traffic camera support to another Supabase-backed app.
 
 ## Contents
 

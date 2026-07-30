@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     const upstream = await fetch(u.toString(), {
       headers: {
         Accept: "application/json, text/csv, application/geo+json, */*",
-        "User-Agent": "Atlas-TileIntelligence/1.0 (+https://lovable.app)",
+        "User-Agent": "Atlas-TileIntelligence/1.0 (+https://www.imagineengine.space)",
       },
     });
     const body = await upstream.arrayBuffer();

@@ -1,6 +1,6 @@
 /**
  * CRUD helpers for the `geofences` table.
- * Backing store is Lovable Cloud; falls back to localStorage for signed-out
+ * Backing store is the ATLAS cloud database; falls back to localStorage for signed-out
  * users so the tool is usable immediately without authentication.
  */
 import { supabase } from "@/integrations/supabase/client";

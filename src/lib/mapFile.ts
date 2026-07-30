@@ -29,7 +29,9 @@ import type { LevelScene } from "./levelTypes";
 import { EMPTY_SCENE } from "./levelTypes";
 
 export const MAP_FILE_VERSION = 1;
-export const MAP_FILE_MIME = "application/x-lovable-map+json";
+export const MAP_FILE_MIME = "application/x-atlas-map+json";
+/** Legacy MIME emitted by builds before the ATLAS rename; still accepted on import. */
+export const MAP_FILE_MIME_LEGACY = "application/x-lovable-map+json";
 export const MAP_FILE_EXT = ".map";
 
 export interface MapAnchor {
@@ -47,7 +49,7 @@ export interface MapAnchor {
 
 export interface MapFile {
   /** Marker tag so a JSON.parse round-trip can sanity-check the file. */
-  kind: "lovable.map";
+  kind: "atlas.map";
   version: typeof MAP_FILE_VERSION;
   /** Stable id of the source level row, if exported from one. */
   sourceLevelId?: string;
@@ -124,7 +126,7 @@ export function coerceMapFile(input: unknown): MapFile {
   const obj = input as Record<string, any>;
 
   // Already a MapFile? Trust the shape after a couple of cheap checks.
-  if (obj.kind === "lovable.map" && obj.scene && obj.anchor) {
+  if ((obj.kind === "atlas.map" || obj.kind === "lovable.map") && obj.scene && obj.anchor) {
     const anchor = normalizeAnchor(obj.anchor as MapAnchor);
     return {
       kind: "lovable.map",

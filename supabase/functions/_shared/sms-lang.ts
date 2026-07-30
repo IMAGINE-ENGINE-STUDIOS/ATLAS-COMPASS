@@ -276,7 +276,7 @@ const LANG_NAMES: Record<string, string> = {
 export const languageName = (code: string) => LANG_NAMES[code.toLowerCase()] ?? code;
 
 /**
- * Translate an outbound SMS into the subscriber's language via Lovable AI.
+ * Translate an outbound SMS into the subscriber's language via the managed AI gateway.
  * Falls back to the original English text on any failure — a warning must
  * never be dropped because translation was unavailable.
  */
