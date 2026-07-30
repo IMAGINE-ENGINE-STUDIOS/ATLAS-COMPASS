@@ -303,8 +303,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const url = new URL(req.url);
-  const path = url.pathname.replace(/^\/functions\/v1\/signal-api/, "").replace(/\/+$/, "") || "/";
-  const segs = path.split("/").filter(Boolean); // ["v1","messages", ...]
+  const path = url.pathname;
+  // Depending on the gateway the path may arrive as /signal-api/v1/... or
+  // /functions/v1/signal-api/v1/... — anchor on the function name.
+  const all = path.split("/").filter(Boolean);
+  const anchor = all.lastIndexOf("signal-api");
+  const segs = anchor >= 0 ? all.slice(anchor + 1) : all;
 
   try {
     if (segs[0] !== "v1") {
