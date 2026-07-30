@@ -1,0 +1,2 @@
+REVOKE ALL ON FUNCTION public.signal_reserve_credits(uuid, bigint, text, text, uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.signal_reserve_credits(uuid, bigint, text, text, uuid, text) TO service_role;

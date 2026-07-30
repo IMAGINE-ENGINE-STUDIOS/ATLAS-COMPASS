@@ -51,6 +51,9 @@ const UnsubscribePage = lazy(() => import("@/pages/UnsubscribePage"));
 const HotPortalPage = lazy(() => import("@/pages/HotPortalPage"));
 const ShareLocationPage = lazy(() => import("@/pages/ShareLocationPage"));
 const HazardKeywordsPage = lazy(() => import("@/pages/HazardKeywordsPage"));
+const DevelopersPage = lazy(() => import("@/pages/DevelopersPage"));
+const SignalDocsPage = lazy(() => import("@/pages/SignalDocsPage"));
+const SignalPricingPage = lazy(() => import("@/pages/SignalPricingPage"));
 
 const queryClient = new QueryClient();
 
@@ -101,6 +104,12 @@ const App = () => (
           <Route path="/sos" element={<HotPortalPage />} />
           <Route path="/loc/:token" element={<ShareLocationPage />} />
           <Route path="/keywords" element={<HazardKeywordsPage />} />
+
+          {/* ATLAS Signal — developer API */}
+          <Route path="/developers" element={<DevelopersPage />} />
+          <Route path="/developers/docs" element={<SignalDocsPage />} />
+          <Route path="/docs" element={<SignalDocsPage />} />
+          <Route path="/pricing" element={<SignalPricingPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>
