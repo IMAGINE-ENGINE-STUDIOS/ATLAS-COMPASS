@@ -99,7 +99,10 @@ Deno.serve(async (req) => {
 
   const { data: keywords } = await admin
     .from("hazard_keywords")
-    .select("hazard, lang, normalized");
+    // The dictionary is larger than PostgREST's default 1000-row page; without
+    // an explicit range, later languages silently drop out of matching.
+    .select("hazard, lang, normalized")
+    .range(0, 19999);
 
   const match = matchHazards(body, keywords ?? []);
   let lang = match.language ?? existing?.language ?? "en";
