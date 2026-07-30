@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/DashboardWidgets";
 import { FeedHealthCard } from "@/components/dashboard/FeedHealthCard";
 import { DisasterOpsSection } from "@/components/dashboard/DisasterOpsSection";
 import { ManualBroadcast } from "@/components/dashboard/ManualBroadcast";
+import SignalRevenueSection from "@/components/dashboard/SignalRevenueSection";
 
 const stats = [
   { title: "Total Revenue", value: "$847.2M", change: "+12.4%", up: true, icon: <DollarSign className="w-5 h-5" /> },
@@ -59,6 +60,10 @@ export default function DashboardPage() {
 
       <AnimatedSection>
         <ManualBroadcast />
+      </AnimatedSection>
+
+      <AnimatedSection>
+        <SignalRevenueSection />
       </AnimatedSection>
 
       {/* Stats Bento Grid */}
