@@ -67,6 +67,47 @@ export interface MatchResult {
 }
 
 /**
+ * Script detection. Many hazard words are shared across languages that use the
+ * same script ("terremoto" is Spanish *and* Portuguese, "地震" is Japanese *and*
+ * Chinese), so the writing system is the strongest signal we have from a single
+ * SMS. A script hit outranks keyword tallies.
+ */
+export function detectScript(body: string): string | null {
+  if (/[\u3040-\u309f\u30a0-\u30ff]/u.test(body)) return "ja"; // hiragana / katakana
+  if (/[\uac00-\ud7af\u1100-\u11ff]/u.test(body)) return "ko"; // hangul
+  if (/[\u0e00-\u0e7f]/u.test(body)) return "th";
+  if (/[\u0590-\u05ff]/u.test(body)) return "he";
+  if (/[\u0980-\u09ff]/u.test(body)) return "bn";
+  if (/[\u0900-\u097f]/u.test(body)) return "hi";
+  if (/[\u0a80-\u0aff]/u.test(body)) return "gu";
+  if (/[\u0b80-\u0bff]/u.test(body)) return "ta";
+  if (/[\u0c00-\u0c7f]/u.test(body)) return "te";
+  if (/[\u0d00-\u0d7f]/u.test(body)) return "ml";
+  if (/[\u0f00-\u0fff]/u.test(body)) return "bo";
+  if (/[\u1200-\u137f]/u.test(body)) return "am";
+  if (/[\u10a0-\u10ff]/u.test(body)) return "ka";
+  if (/[\u0530-\u058f]/u.test(body)) return "hy";
+  if (/[\u0400-\u04ff]/u.test(body)) return "ru"; // Cyrillic default
+  if (/[\u0370-\u03ff]/u.test(body)) return "el";
+  if (/[\u0600-\u06ff\u0750-\u077f]/u.test(body)) return "ar"; // Arabic script default
+  if (/[\u4e00-\u9fff]/u.test(body)) return "zh"; // Han without kana
+  return null;
+}
+
+/**
+ * Deterministic tie-break when several languages share the exact same keyword.
+ * Without it the winner depends on database row order, so "#terremoto" could
+ * answer in Portuguese one day and Spanish the next.
+ */
+const LANG_PRIORITY = [
+  "es", "pt", "fr", "de", "it", "id", "tr", "vi", "pl", "nl", "ro", "sw", "tl", "en",
+];
+const priority = (lang: string) => {
+  const i = LANG_PRIORITY.indexOf(lang);
+  return i === -1 ? LANG_PRIORITY.length : i;
+};
+
+/**
  * Match hashtags first (explicit intent), then fall back to bare words.
  * Language is inferred from the language of the matched keywords.
  */
@@ -77,6 +118,8 @@ export function matchHazards(body: string, rows: KeywordRow[]): MatchResult {
     if (list) list.push(r);
     else index.set(r.normalized, [r]);
   }
+
+  const scriptLang = detectScript(body);
 
   const tally = (tokens: string[]) => {
     const hazards = new Set<string>();
@@ -90,13 +133,17 @@ export function matchHazards(body: string, rows: KeywordRow[]): MatchResult {
     let language: string | null = null;
     let best = 0;
     for (const [lang, n] of langs) {
-      // Prefer a non-English match so "#terremoto" replies in Spanish.
-      const weight = lang === "en" ? n - 0.5 : n;
-      if (weight > best) {
+      // Prefer a non-English match so "#terremoto" replies in Spanish, and let
+      // the detected script win outright when it is one of the candidates.
+      let weight = lang === "en" ? n - 0.5 : n;
+      if (scriptLang && lang === scriptLang) weight += 10;
+      if (weight > best || (weight === best && language && priority(lang) < priority(language))) {
         best = weight;
         language = lang;
       }
     }
+    // The script is unambiguous even when no keyword row for it matched.
+    if (scriptLang && hazards.size && !langs.has(scriptLang)) language = scriptLang;
     return { hazards: [...hazards], language };
   };
 
