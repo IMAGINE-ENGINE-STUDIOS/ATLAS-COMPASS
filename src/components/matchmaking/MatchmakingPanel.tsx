@@ -98,9 +98,8 @@ export default function MatchmakingPanel() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Backed by Lovable Cloud Realtime. Postgres + Realtime fan-out handle very high concurrency without
-        managing pods. (Kubernetes is not a Lovable Cloud primitive — for custom container workloads you'd
-        deploy outside Lovable.)
+        Backed by managed Postgres + Realtime fan-out, which handles very high concurrency without managing
+        pods or container orchestration.
       </p>
     </div>
   );
