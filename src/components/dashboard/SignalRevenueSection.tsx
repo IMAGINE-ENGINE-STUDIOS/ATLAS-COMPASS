@@ -27,8 +27,18 @@ const SignalRevenueSection = () => {
   const [multiplier, setMultiplier] = useState(2);
   const [floor, setFloor] = useState(0.02);
   const [saving, setSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = useCallback(async () => {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth?.user) { setIsAdmin(false); setLoading(false); return; }
+    const { data: admin } = await supabase.rpc("has_role", {
+      _user_id: auth.user.id,
+      _role: "atlas_admin",
+    });
+    setIsAdmin(Boolean(admin));
+    if (!admin) { setLoading(false); return; }
+
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
     const [u, a, r, c] = await Promise.all([
       supabase.from("signal_usage_daily").select("day, account_id, credits_spent, cost_usd, revenue_usd").gte("day", since),
@@ -108,6 +118,8 @@ const SignalRevenueSection = () => {
       </div>
     );
   }
+
+  if (!isAdmin) return null;
 
   return (
     <section className="space-y-5">
