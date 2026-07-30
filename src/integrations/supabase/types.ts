@@ -1536,6 +1536,586 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_accounts: {
+        Row: {
+          auto_topup_enabled: boolean
+          auto_topup_pack: string | null
+          balance_credits: number
+          company_name: string | null
+          contact_email: string | null
+          country_allowlist: string[]
+          created_at: string
+          id: string
+          lifetime_purchased_credits: number
+          lifetime_spent_credits: number
+          low_balance_threshold: number
+          owner_id: string
+          rate_limit_per_day: number
+          rate_limit_per_second: number
+          status: string
+          suspended_reason: string | null
+          trial_spend_cap_usd: number
+          updated_at: string
+        }
+        Insert: {
+          auto_topup_enabled?: boolean
+          auto_topup_pack?: string | null
+          balance_credits?: number
+          company_name?: string | null
+          contact_email?: string | null
+          country_allowlist?: string[]
+          created_at?: string
+          id?: string
+          lifetime_purchased_credits?: number
+          lifetime_spent_credits?: number
+          low_balance_threshold?: number
+          owner_id: string
+          rate_limit_per_day?: number
+          rate_limit_per_second?: number
+          status?: string
+          suspended_reason?: string | null
+          trial_spend_cap_usd?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_topup_enabled?: boolean
+          auto_topup_pack?: string | null
+          balance_credits?: number
+          company_name?: string | null
+          contact_email?: string | null
+          country_allowlist?: string[]
+          created_at?: string
+          id?: string
+          lifetime_purchased_credits?: number
+          lifetime_spent_credits?: number
+          low_balance_threshold?: number
+          owner_id?: string
+          rate_limit_per_day?: number
+          rate_limit_per_second?: number
+          status?: string
+          suspended_reason?: string | null
+          trial_spend_cap_usd?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signal_alerts: {
+        Row: {
+          account_id: string
+          body: string
+          created_at: string
+          credits_charged: number
+          hazard: string
+          headline: string
+          id: string
+          lat: number | null
+          lon: number | null
+          mode: string
+          owner_id: string
+          radius_km: number
+          recipients: number
+          severity: number
+          status: string
+        }
+        Insert: {
+          account_id: string
+          body: string
+          created_at?: string
+          credits_charged?: number
+          hazard: string
+          headline: string
+          id?: string
+          lat?: number | null
+          lon?: number | null
+          mode?: string
+          owner_id: string
+          radius_km?: number
+          recipients?: number
+          severity?: number
+          status?: string
+        }
+        Update: {
+          account_id?: string
+          body?: string
+          created_at?: string
+          credits_charged?: number
+          hazard?: string
+          headline?: string
+          id?: string
+          lat?: number | null
+          lon?: number | null
+          mode?: string
+          owner_id?: string
+          radius_km?: number
+          recipients?: number
+          severity?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_alerts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_api_keys: {
+        Row: {
+          account_id: string
+          created_at: string
+          id: string
+          key_hash: string
+          last_four: string
+          last_used_at: string | null
+          mode: string
+          name: string
+          owner_id: string
+          paused: boolean
+          prefix: string
+          revoked_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          id?: string
+          key_hash: string
+          last_four: string
+          last_used_at?: string | null
+          mode?: string
+          name: string
+          owner_id: string
+          paused?: boolean
+          prefix: string
+          revoked_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          id?: string
+          key_hash?: string
+          last_four?: string
+          last_used_at?: string | null
+          mode?: string
+          name?: string
+          owner_id?: string
+          paused?: boolean
+          prefix?: string
+          revoked_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_api_keys_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_credit_transactions: {
+        Row: {
+          account_id: string
+          balance_after: number
+          created_at: string
+          credits: number
+          id: string
+          kind: string
+          message_id: string | null
+          note: string | null
+          owner_id: string
+          reference: string | null
+          usd_amount: number | null
+        }
+        Insert: {
+          account_id: string
+          balance_after: number
+          created_at?: string
+          credits: number
+          id?: string
+          kind: string
+          message_id?: string | null
+          note?: string | null
+          owner_id: string
+          reference?: string | null
+          usd_amount?: number | null
+        }
+        Update: {
+          account_id?: string
+          balance_after?: number
+          created_at?: string
+          credits?: number
+          id?: string
+          kind?: string
+          message_id?: string | null
+          note?: string | null
+          owner_id?: string
+          reference?: string | null
+          usd_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_credit_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_messages: {
+        Row: {
+          account_id: string
+          alert_id: string | null
+          api_key_id: string | null
+          body: string
+          callback_url: string | null
+          cost_usd: number
+          country_iso: string | null
+          created_at: string
+          credits_charged: number
+          delivered_at: string | null
+          direction: string
+          encoding: string
+          error_code: string | null
+          error_detail: string | null
+          from_phone: string | null
+          id: string
+          mode: string
+          owner_id: string
+          revenue_usd: number
+          segments: number
+          status: string
+          to_phone: string
+          updated_at: string
+          upstream_ref: string | null
+        }
+        Insert: {
+          account_id: string
+          alert_id?: string | null
+          api_key_id?: string | null
+          body: string
+          callback_url?: string | null
+          cost_usd?: number
+          country_iso?: string | null
+          created_at?: string
+          credits_charged?: number
+          delivered_at?: string | null
+          direction?: string
+          encoding?: string
+          error_code?: string | null
+          error_detail?: string | null
+          from_phone?: string | null
+          id?: string
+          mode?: string
+          owner_id: string
+          revenue_usd?: number
+          segments?: number
+          status?: string
+          to_phone: string
+          updated_at?: string
+          upstream_ref?: string | null
+        }
+        Update: {
+          account_id?: string
+          alert_id?: string | null
+          api_key_id?: string | null
+          body?: string
+          callback_url?: string | null
+          cost_usd?: number
+          country_iso?: string | null
+          created_at?: string
+          credits_charged?: number
+          delivered_at?: string | null
+          direction?: string
+          encoding?: string
+          error_code?: string | null
+          error_detail?: string | null
+          from_phone?: string | null
+          id?: string
+          mode?: string
+          owner_id?: string
+          revenue_usd?: number
+          segments?: number
+          status?: string
+          to_phone?: string
+          updated_at?: string
+          upstream_ref?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_messages_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_pricing_config: {
+        Row: {
+          credit_usd_value: number
+          floor_usd_per_segment: number
+          id: number
+          markup_multiplier: number
+          updated_at: string
+        }
+        Insert: {
+          credit_usd_value?: number
+          floor_usd_per_segment?: number
+          id?: number
+          markup_multiplier?: number
+          updated_at?: string
+        }
+        Update: {
+          credit_usd_value?: number
+          floor_usd_per_segment?: number
+          id?: number
+          markup_multiplier?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signal_pricing_rates: {
+        Row: {
+          channel: string
+          cost_usd_per_segment: number
+          country_iso: string
+          country_name: string
+          created_at: string
+          effective_from: string
+          id: string
+          sell_usd_per_segment: number
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          cost_usd_per_segment: number
+          country_iso: string
+          country_name: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          sell_usd_per_segment: number
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          cost_usd_per_segment?: number
+          country_iso?: string
+          country_name?: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          sell_usd_per_segment?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signal_subscriptions: {
+        Row: {
+          account_id: string
+          country_iso: string | null
+          created_at: string
+          external_ref: string | null
+          hazards: string[]
+          id: string
+          language: string
+          lat: number | null
+          lon: number | null
+          min_severity: number
+          owner_id: string
+          phone_e164: string
+          radius_km: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          country_iso?: string | null
+          created_at?: string
+          external_ref?: string | null
+          hazards?: string[]
+          id?: string
+          language?: string
+          lat?: number | null
+          lon?: number | null
+          min_severity?: number
+          owner_id: string
+          phone_e164: string
+          radius_km?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          country_iso?: string | null
+          created_at?: string
+          external_ref?: string | null
+          hazards?: string[]
+          id?: string
+          language?: string
+          lat?: number | null
+          lon?: number | null
+          min_severity?: number
+          owner_id?: string
+          phone_e164?: string
+          radius_km?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_subscriptions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_usage_daily: {
+        Row: {
+          account_id: string
+          cost_usd: number
+          credits_spent: number
+          day: string
+          id: string
+          messages_delivered: number
+          messages_failed: number
+          messages_sent: number
+          owner_id: string
+          revenue_usd: number
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          cost_usd?: number
+          credits_spent?: number
+          day: string
+          id?: string
+          messages_delivered?: number
+          messages_failed?: number
+          messages_sent?: number
+          owner_id: string
+          revenue_usd?: number
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          cost_usd?: number
+          credits_spent?: number
+          day?: string
+          id?: string
+          messages_delivered?: number
+          messages_failed?: number
+          messages_sent?: number
+          owner_id?: string
+          revenue_usd?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_usage_daily_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_webhook_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          event: string
+          id: string
+          last_error: string | null
+          owner_id: string
+          payload: Json
+          response_status: number | null
+          webhook_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          event: string
+          id?: string
+          last_error?: string | null
+          owner_id: string
+          payload?: Json
+          response_status?: number | null
+          webhook_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          event?: string
+          id?: string
+          last_error?: string | null
+          owner_id?: string
+          payload?: Json
+          response_status?: number | null
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_webhook_deliveries_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "signal_webhooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_webhooks: {
+        Row: {
+          account_id: string
+          created_at: string
+          enabled: boolean
+          events: string[]
+          id: string
+          owner_id: string
+          signing_secret: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          enabled?: boolean
+          events?: string[]
+          id?: string
+          owner_id: string
+          signing_secret: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          enabled?: boolean
+          events?: string[]
+          id?: string
+          owner_id?: string
+          signing_secret?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_webhooks_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_inbox: {
         Row: {
           body: string | null
@@ -2392,6 +2972,17 @@ export type Database = {
           _thumbnail_url?: string
         }
         Returns: string
+      }
+      signal_reserve_credits: {
+        Args: {
+          _account_id: string
+          _credits: number
+          _kind: string
+          _message_id: string
+          _note: string
+          _reference: string
+        }
+        Returns: number
       }
     }
     Enums: {
