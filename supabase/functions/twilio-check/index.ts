@@ -18,6 +18,21 @@ Deno.serve(async () => {
     status = j.status ?? j.message ?? null;
   } catch { /* non-JSON error page */ }
 
+  // Confirm the sending number is owned by this account and can send SMS.
+  const numRes = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(from)}`,
+    { headers: { Authorization: `Basic ${btoa(`${user}:${token}`)}` } },
+  );
+  const numBody = await numRes.text();
+  let number: Record<string, unknown> | null = null;
+  try {
+    const j = JSON.parse(numBody);
+    const n = j.incoming_phone_numbers?.[0];
+    number = n
+      ? { phone: n.phone_number, sms: n.capabilities?.sms, sms_url: n.sms_url }
+      : { found: false, note: numBody.slice(0, 200) };
+  } catch { /* ignore */ }
+
   return new Response(
     JSON.stringify({
       http: res.status,
@@ -26,6 +41,7 @@ Deno.serve(async () => {
       from_shape: /^\+[0-9]{7,15}$/.test(from) ? "e164_ok" : `unexpected(len ${from.length})`,
       account_friendly_name: friendly,
       account_status: status,
+      number,
     }),
     { headers: { "Content-Type": "application/json" } },
   );
