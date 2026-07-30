@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
       return json({
         service: "ATLAS Signal API",
         version: "1.0",
-        docs: "https://infinity-market-hub.lovable.app/developers/docs",
+        docs: (Deno.env.get("SIGNAL_PUBLIC_URL") ?? "https://sos.atlasmapping.org") + "/developers/docs",
       });
     }
 

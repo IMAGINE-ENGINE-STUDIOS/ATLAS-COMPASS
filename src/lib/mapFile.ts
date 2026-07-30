@@ -71,7 +71,7 @@ export interface ExportMapInput {
 /** Serialize a MAP to a UTF-8 JSON Blob ready for download. */
 export function exportMapJson(input: ExportMapInput): Blob {
   const file: MapFile = {
-    kind: "lovable.map",
+    kind: "atlas.map",
     version: MAP_FILE_VERSION,
     sourceLevelId: input.sourceLevelId,
     name: input.name.trim() || "Untitled Map",
@@ -129,7 +129,7 @@ export function coerceMapFile(input: unknown): MapFile {
   if ((obj.kind === "atlas.map" || obj.kind === "lovable.map") && obj.scene && obj.anchor) {
     const anchor = normalizeAnchor(obj.anchor as MapAnchor);
     return {
-      kind: "lovable.map",
+      kind: "atlas.map",
       version: MAP_FILE_VERSION,
       sourceLevelId: obj.sourceLevelId,
       name: typeof obj.name === "string" && obj.name.trim() ? obj.name : "Untitled Map",
@@ -143,7 +143,7 @@ export function coerceMapFile(input: unknown): MapFile {
   // Raw scene? (Level editor "Save scene as JSON" path.)
   if (Array.isArray(obj.objects) && obj.environment) {
     return {
-      kind: "lovable.map",
+      kind: "atlas.map",
       version: MAP_FILE_VERSION,
       name: typeof obj.name === "string" && obj.name.trim() ? obj.name : "Imported Map",
       exportedAt: new Date().toISOString(),
@@ -155,7 +155,7 @@ export function coerceMapFile(input: unknown): MapFile {
   // `{ name?, scene }` wrapper.
   if (obj.scene && typeof obj.scene === "object") {
     return {
-      kind: "lovable.map",
+      kind: "atlas.map",
       version: MAP_FILE_VERSION,
       name: typeof obj.name === "string" && obj.name.trim() ? obj.name : "Imported Map",
       description: typeof obj.description === "string" ? obj.description : undefined,

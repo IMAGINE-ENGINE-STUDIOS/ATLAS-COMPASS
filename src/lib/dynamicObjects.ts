@@ -45,7 +45,20 @@ export interface DynamicObjectEntry {
   payload: DynamicObjectPayload;
 }
 
-const LS_KEY = "lovable.dynamicObjects.v1";
+const LS_KEY = "atlas.dynamicObjects.v1";
+const LS_KEY_LEGACY = "lovable.dynamicObjects.v1";
+
+// One-time migration off the pre-rename storage key so existing browsers
+// keep their locally cached entries.
+try {
+  const legacy = localStorage.getItem(LS_KEY_LEGACY);
+  if (legacy !== null && localStorage.getItem(LS_KEY) === null) {
+    localStorage.setItem(LS_KEY, legacy);
+  }
+  if (legacy !== null) localStorage.removeItem(LS_KEY_LEGACY);
+} catch {
+  /* storage unavailable (SSR / private mode) — ignore */
+}
 
 /* ------------------------------ local store ------------------------------ */
 

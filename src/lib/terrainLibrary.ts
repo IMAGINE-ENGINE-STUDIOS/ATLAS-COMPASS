@@ -18,7 +18,20 @@ export interface TerrainPreset {
   terrain: SceneTerrain;
 }
 
-const LS_KEY = "lovable.terrainLibrary.v1";
+const LS_KEY = "atlas.terrainLibrary.v1";
+const LS_KEY_LEGACY = "lovable.terrainLibrary.v1";
+
+// One-time migration off the pre-rename storage key so existing browsers
+// keep their locally cached entries.
+try {
+  const legacy = localStorage.getItem(LS_KEY_LEGACY);
+  if (legacy !== null && localStorage.getItem(LS_KEY) === null) {
+    localStorage.setItem(LS_KEY, legacy);
+  }
+  if (legacy !== null) localStorage.removeItem(LS_KEY_LEGACY);
+} catch {
+  /* storage unavailable (SSR / private mode) — ignore */
+}
 
 function rgba(r: number, g: number, b: number, a = 1): [number, number, number, number] {
   return [r, g, b, a];
