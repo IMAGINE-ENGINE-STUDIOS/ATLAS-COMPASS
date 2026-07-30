@@ -97,11 +97,22 @@ Deno.serve(async (req) => {
     .eq("phone_e164", from)
     .maybeSingle();
 
-  const { data: keywords } = await admin
-    .from("hazard_keywords")
-    .select("hazard, lang, normalized");
+  // The dictionary is larger than PostgREST's 1000-row page cap, and the cap
+  // cannot be lifted with .range(), so page through it explicitly. Without
+  // this, every language past the first page silently stops matching.
+  const keywords: { hazard: string; lang: string; normalized: string }[] = [];
+  for (let page = 0; page < 40; page++) {
+    const { data } = await admin
+      .from("hazard_keywords")
+      .select("hazard, lang, normalized")
+      .order("id", { ascending: true })
+      .range(page * 1000, page * 1000 + 999);
+    if (!data?.length) break;
+    keywords.push(...data);
+    if (data.length < 1000) break;
+  }
 
-  const match = matchHazards(body, keywords ?? []);
+  const match = matchHazards(body, keywords);
   let lang = match.language ?? existing?.language ?? "en";
   const cmd = firstWord(body);
 

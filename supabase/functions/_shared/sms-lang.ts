@@ -249,6 +249,33 @@ export function haversineKm(aLat: number, aLon: number, bLat: number, bLon: numb
 const translationCache = new Map<string, string>();
 
 /**
+ * Bare ISO codes are ambiguous to the model — "es" has come back as Portuguese.
+ * Always name the language explicitly.
+ */
+const LANG_NAMES: Record<string, string> = {
+  es: "Spanish", pt: "Portuguese", fr: "French", de: "German", it: "Italian",
+  nl: "Dutch", ru: "Russian", uk: "Ukrainian", pl: "Polish", ro: "Romanian",
+  tr: "Turkish", ar: "Arabic", fa: "Persian", he: "Hebrew", ur: "Urdu",
+  hi: "Hindi", bn: "Bengali", ta: "Tamil", te: "Telugu", ml: "Malayalam",
+  gu: "Gujarati", pa: "Punjabi", mr: "Marathi", ne: "Nepali", si: "Sinhala",
+  th: "Thai", vi: "Vietnamese", id: "Indonesian", ms: "Malay", tl: "Filipino",
+  ja: "Japanese", ko: "Korean", zh: "Simplified Chinese", "zh-tw": "Traditional Chinese",
+  el: "Greek", sv: "Swedish", no: "Norwegian", da: "Danish", fi: "Finnish",
+  cs: "Czech", sk: "Slovak", hu: "Hungarian", bg: "Bulgarian", sr: "Serbian",
+  hr: "Croatian", sl: "Slovenian", sq: "Albanian", et: "Estonian", lv: "Latvian",
+  lt: "Lithuanian", ka: "Georgian", hy: "Armenian", az: "Azerbaijani", kk: "Kazakh",
+  uz: "Uzbek", ky: "Kyrgyz", tg: "Tajik", mn: "Mongolian", my: "Burmese",
+  km: "Khmer", lo: "Lao", am: "Amharic", ti: "Tigrinya", so: "Somali",
+  sw: "Swahili", ha: "Hausa", yo: "Yoruba", ig: "Igbo", zu: "Zulu",
+  xh: "Xhosa", af: "Afrikaans", rw: "Kinyarwanda", mg: "Malagasy", ay: "Aymara",
+  qu: "Quechua", gn: "Guarani", ht: "Haitian Creole", bo: "Tibetan", ps: "Pashto",
+  ku: "Kurdish", sd: "Sindhi", or: "Odia", as: "Assamese", is: "Icelandic",
+  ga: "Irish", cy: "Welsh", eu: "Basque", ca: "Catalan", gl: "Galician",
+  mt: "Maltese", mk: "Macedonian", be: "Belarusian", bs: "Bosnian",
+};
+export const languageName = (code: string) => LANG_NAMES[code.toLowerCase()] ?? code;
+
+/**
  * Translate an outbound SMS into the subscriber's language via Lovable AI.
  * Falls back to the original English text on any failure — a warning must
  * never be dropped because translation was unavailable.
@@ -276,7 +303,11 @@ export async function localize(text: string, lang: string): Promise<string> {
               "Keep it under 300 characters, keep URLs, numbers, hashtags and placeholders exactly as-is. " +
               "Use plain, urgent, unambiguous wording a stranger can act on immediately.",
           },
-          { role: "user", content: `Translate to ${lang}:\n\n${text}` },
+          {
+            role: "user",
+            content: `Translate into ${languageName(lang)} (ISO code "${lang}"). ` +
+              `Do not use any other language.\n\n${text}`,
+          },
         ],
       }),
     });
