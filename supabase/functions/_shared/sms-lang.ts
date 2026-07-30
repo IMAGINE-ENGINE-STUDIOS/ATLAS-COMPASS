@@ -149,7 +149,25 @@ export function matchHazards(body: string, rows: KeywordRow[]): MatchResult {
 
   const tagged = tally(extractTags(body));
   if (tagged.hazards.length) return tagged;
-  return tally(extractWords(body));
+  const worded = tally(extractWords(body));
+  if (worded.hazards.length) return worded;
+
+  // Japanese, Chinese and Thai are written without spaces, so "#地震です" never
+  // tokenises into a keyword. Fall back to substring matching for those scripts.
+  if (scriptLang && ["ja", "zh", "th", "bo"].includes(scriptLang)) {
+    const hazards = new Set<string>();
+    const langs = new Map<string, number>();
+    for (const r of rows) {
+      if (r.normalized.length >= 2 && body.includes(r.normalized)) {
+        hazards.add(r.hazard);
+        langs.set(r.lang, (langs.get(r.lang) ?? 0) + 1);
+      }
+    }
+    if (hazards.size) {
+      return { hazards: [...hazards], language: langs.has(scriptLang) ? scriptLang : scriptLang };
+    }
+  }
+  return worded;
 }
 
 export interface GeoPlace {
