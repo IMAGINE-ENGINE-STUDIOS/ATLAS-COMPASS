@@ -42,6 +42,51 @@ The app runs at `http://localhost:8080`.
 bun run build
 ```
 
+## Backend functions
+
+Serverless edge functions live in `supabase/functions/` (shared helpers in `_shared/`):
+
+| Function | Purpose |
+| --- | --- |
+| `earthquake-data` | USGS seismic feed ingestion |
+| `hot-news` | Aggregates USGS, NASA EONET, GDACS, ReliefWeb and NOAA/NWS hazard feeds |
+| `hot-status` | Health and latency status for every hazard source |
+| `lightning-data` | Real-time lightning strike feed |
+| `quake-report-ai` | AI situation reports for seismic events |
+| `emergency-ai-tips` | AI-generated emergency guidance |
+| `population-lookup` | Population exposure lookup for an area |
+| `solar-ephemeris` | Solar-system body positions for the globe |
+| `gis-proxy` | CORS-safe proxy for external GIS/WMS services |
+| `google-3d-tiles` | Photorealistic 3D tiles session broker |
+| `google-search` | Search backend for place and content lookup |
+| `sms-webhook` | Inbound SMS state machine (subscribe, location, STOP/HELP/STATUS) |
+| `sms-broadcast` | Proximity-targeted multilingual SMS warnings |
+| `sms-location` | GPS location capture from the `/loc/:token` link |
+| `seed-hazard-keywords` | Seeds the multilingual hazard keyword dictionary |
+| `send-transactional-email` | Sends alert and transactional emails |
+| `preview-transactional-email` | Renders email templates for preview |
+| `process-email-queue` | Drains the outbound email queue |
+| `handle-email-suppression` | Processes bounces and complaints |
+| `handle-email-unsubscribe` | Handles unsubscribe links |
+| `tile-intel-ask` | Q&A over tile intelligence data |
+| `tile-intel-dispatch` | Dispatches tile intelligence jobs |
+| `tile-intel-ingest` | Ingests tile datasets and indicators |
+| `tile-intel-pipeline` | Tile intelligence processing pipeline |
+| `tile-intel-tick` | Scheduled tile intelligence worker |
+| `aps-convert` | Autodesk APS CAD conversion |
+| `dwg-convert` | DWG conversion pipeline |
+| `usd-convert` | USD/USDZ asset conversion |
+| `dataset-convert` | Subsurface dataset conversion (SEG-Y, NetCDF) |
+| `traffic-cameras` | Traffic camera catalog access |
+| `sync-cameras` | Syncs camera inventories |
+| `proxy-camera-image` | Proxies camera image frames |
+| `lpr-recognize` | License plate recognition requests |
+| `lpr-webhook` | Inbound LPR provider webhook |
+| `lpr-history` | LPR read history queries |
+| `lpr-admin` | LPR administration and tier management |
+| `uber-direct` | Uber Direct delivery quotes and dispatch |
+| `matchmaking-tick` | Realtime matchmaking worker |
+
 ## License
 
 Released under the [MIT License](LICENSE) — Copyright (c) 2026 Imagine Engine Studios Corp.
