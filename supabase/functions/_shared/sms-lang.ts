@@ -163,9 +163,7 @@ export function matchHazards(body: string, rows: KeywordRow[]): MatchResult {
         langs.set(r.lang, (langs.get(r.lang) ?? 0) + 1);
       }
     }
-    if (hazards.size) {
-      return { hazards: [...hazards], language: langs.has(scriptLang) ? scriptLang : scriptLang };
-    }
+    if (hazards.size) return { hazards: [...hazards], language: scriptLang };
   }
   return worded;
 }
