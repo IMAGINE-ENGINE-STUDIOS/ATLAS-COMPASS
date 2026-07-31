@@ -48,6 +48,10 @@ const DevelopersPage = () => {
   const [keyMode, setKeyMode] = useState<"live" | "test">("test");
   const [hookUrl, setHookUrl] = useState("");
   const [tab, setTab] = useState("keys");
+  const [busyPack, setBusyPack] = useState<string | null>(null);
+  const [paygBusy, setPaygBusy] = useState(false);
+  const [monthlyCap, setMonthlyCap] = useState("250");
+  const [perChargeCap, setPerChargeCap] = useState("50");
 
   const refresh = useCallback(async (accountId: string) => {
     const [k, t, m, w] = await Promise.all([
@@ -92,6 +96,103 @@ const DevelopersPage = () => {
     [txs],
   );
   const starterPack = CREDIT_PACKS[0];
+
+  const acc = account as (WaveAccount & Record<string, any>) | null;
+  const paygOn = Boolean(acc?.payg_enabled);
+  const cardLabel = acc?.payg_card_brand && acc?.payg_card_last4
+    ? `${String(acc.payg_card_brand).toUpperCase()} ···· ${acc.payg_card_last4}`
+    : null;
+
+  useEffect(() => {
+    if (!acc) return;
+    if (acc.monthly_spend_cap_usd) setMonthlyCap(String(Number(acc.monthly_spend_cap_usd)));
+    if (acc.per_broadcast_cap_usd) setPerChargeCap(String(Number(acc.per_broadcast_cap_usd)));
+  }, [acc?.id, acc?.monthly_spend_cap_usd, acc?.per_broadcast_cap_usd]);
+
+  const reloadAccount = useCallback(async () => {
+    const fresh = await ensureAccount();
+    setAccount(fresh);
+    if (fresh) await refresh(fresh.id);
+  }, [refresh]);
+
+  const startCheckout = async (body: Record<string, unknown>, done: () => void) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("wave-create-checkout", { body });
+      if (error) throw error;
+      if (!data?.url) throw new Error(data?.error ?? "Checkout unavailable");
+      window.open(data.url as string, "_blank", "noopener");
+      toast.success("Checkout opened in a new tab");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start checkout");
+    } finally {
+      done();
+    }
+  };
+
+  const buyPack = (packId: string) => {
+    setBusyPack(packId);
+    void startCheckout({ mode: "pack", packId }, () => setBusyPack(null));
+  };
+
+  const setupPayg = () => {
+    setPaygBusy(true);
+    void startCheckout(
+      {
+        mode: "payg",
+        monthlySpendCapUsd: Number(monthlyCap) || 250,
+        perChargeCapUsd: Number(perChargeCap) || 50,
+      },
+      () => setPaygBusy(false),
+    );
+  };
+
+  const openPortal = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("wave-customer-portal", { body: {} });
+      if (error) throw error;
+      if (!data?.url) throw new Error(data?.error ?? "Portal unavailable");
+      window.open(data.url as string, "_blank", "noopener");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not open billing portal");
+    }
+  };
+
+  const saveCaps = async () => {
+    if (!account) return;
+    await supabase.from("signal_accounts").update({
+      monthly_spend_cap_usd: Number(monthlyCap) || 250,
+      per_broadcast_cap_usd: Number(perChargeCap) || 50,
+    } as never).eq("id", account.id);
+    await reloadAccount();
+    toast.success("Spend limits saved");
+  };
+
+  /** Confirm the Stripe session after the developer returns from checkout. */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    const flow = params.get("wave_billing");
+    if (!flow) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    if (flow === "cancelled" || !sessionId) {
+      if (flow === "cancelled") toast.info("Checkout cancelled");
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase.functions.invoke("wave-verify-checkout", {
+        body: { sessionId },
+      });
+      if (error || data?.error) {
+        toast.error("Could not confirm the payment yet — refresh in a moment");
+        return;
+      }
+      if (data.status === "paid") toast.success(`${fmtCredits(Number(data.credits ?? 0))} credits added`);
+      else if (data.status === "active") toast.success("Pay-as-you-go activated");
+      else toast.info("Payment is still processing");
+      await reloadAccount();
+      setTab("billing");
+    })();
+  }, [reloadAccount]);
 
   const mintKey = async () => {
     if (!account) return;
@@ -217,8 +318,13 @@ const DevelopersPage = () => {
                   <li>· Larger packages add up to +12% bonus credits</li>
                 </ul>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => setTab("credits")}>
+                  <Button size="sm" disabled={busyPack === starterPack.id}
+                    onClick={() => buyPack(starterPack.id)}>
+                    {busyPack === starterPack.id && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
                     Start with {starterPack.label} · {fmtUsd(starterPack.usd, 0)}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setTab("billing")}>
+                    Or pay as you go
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setTab("credits")}>
                     Compare packages
@@ -240,6 +346,7 @@ const DevelopersPage = () => {
           <TabsList className="flex-wrap">
             <TabsTrigger value="keys">API keys</TabsTrigger>
             <TabsTrigger value="credits">Credits</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -348,8 +455,9 @@ const DevelopersPage = () => {
                   <div className="mt-1 text-xs text-muted-foreground tabular-nums">
                     {fmtCredits(p.credits)} credits{p.bonusPct ? ` · +${p.bonusPct}%` : ""}
                   </div>
-                  <Button className="mt-4 w-full" size="sm"
-                    onClick={() => toast.info("Checkout is being connected — packs go live shortly.")}>
+                  <Button className="mt-4 w-full" size="sm" disabled={busyPack === p.id}
+                    onClick={() => buyPack(p.id)}>
+                    {busyPack === p.id && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
                     Buy credits
                   </Button>
                 </div>
