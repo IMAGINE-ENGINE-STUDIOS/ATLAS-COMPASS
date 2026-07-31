@@ -502,6 +502,76 @@ const DevelopersPage = () => {
           </TabsContent>
 
           {/* ---------------- logs ---------------- */}
+          <TabsContent value="billing" className="mt-6 space-y-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-border/70 bg-card/50 p-5">
+                <div className="text-xs uppercase tracking-widest text-muted-foreground">Membership</div>
+                <h3 className="mt-2 text-lg font-semibold tracking-tight">
+                  {paygOn ? "Pay as you go — active" : "Pay as you go"}
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Connect a card or bank account once. We charge only what you consume — no monthly fee — and stop
+                  automatically at the limits you set below. Credits are topped up on demand when a send needs them.
+                </p>
+                <ul className="mt-3 grid gap-1.5 text-sm text-muted-foreground">
+                  <li>· 1 credit = $0.01, billed per segment and destination country</li>
+                  <li>· Automatic top-up the moment a send exceeds your balance</li>
+                  <li>· Hard monthly and per-charge ceilings you control</li>
+                  <li>· Every charge itemised in the transaction ledger</li>
+                </ul>
+                {cardLabel && (
+                  <div className="mt-4 rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-sm tabular-nums">
+                    Card on file · {cardLabel}
+                  </div>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={setupPayg} disabled={paygBusy}>
+                    {paygBusy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                    {paygOn ? "Replace payment method" : "Connect payment method"}
+                  </Button>
+                  {paygOn && (
+                    <Button size="sm" variant="outline" onClick={openPortal}>
+                      Manage billing
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/70 bg-card/50 p-5">
+                <div className="text-xs uppercase tracking-widest text-muted-foreground">Your spend limits</div>
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <Label htmlFor="monthlycap">Monthly spend cap (USD)</Label>
+                    <Input id="monthlycap" type="number" min={1} step={1} value={monthlyCap}
+                      onChange={(e) => setMonthlyCap(e.target.value)} className="mt-1.5" />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Sends pause once month-to-date charges reach this amount.
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="chargecap">Per-charge cap (USD)</Label>
+                    <Input id="chargecap" type="number" min={1} step={1} value={perChargeCap}
+                      onChange={(e) => setPerChargeCap(e.target.value)} className="mt-1.5" />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      No single automatic top-up will exceed this amount.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-sm tabular-nums text-muted-foreground">
+                    Charged this month: {fmtUsd(Number(acc?.month_spend_usd ?? 0))} of{" "}
+                    {fmtUsd(Number(acc?.monthly_spend_cap_usd ?? monthlyCap))}
+                  </div>
+                  <Button size="sm" variant="outline" onClick={saveCaps}>Save limits</Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/70 bg-card/40 p-5 text-sm text-muted-foreground">
+              Prefer to prepay? Buy a credit package in the{" "}
+              <button className="underline" onClick={() => setTab("credits")}>Credits</button> tab — packages never
+              expire and larger ones include bonus credits.
+            </div>
+          </TabsContent>
+
           <TabsContent value="logs" className="mt-6">
             <div className="overflow-hidden rounded-xl border border-border/70">
               <table className="w-full text-sm">
