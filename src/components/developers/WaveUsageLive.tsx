@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { creditsToUsd, fmtCredits, fmtUsd } from "@/lib/waveApi";
-import { Activity, CreditCard, Gauge, Radio } from "lucide-react";
+
 
 interface OrderRow {
   id: string;
@@ -30,7 +30,7 @@ const startOfMonthIso = () => {
 };
 
 const Meter = ({ pct, warn }: { pct: number; warn: boolean }) => (
-  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+  <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
     <div
       className={`h-full rounded-full transition-all duration-500 ${warn ? "bg-destructive" : "bg-primary"}`}
       style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
@@ -39,18 +39,15 @@ const Meter = ({ pct, warn }: { pct: number; warn: boolean }) => (
 );
 
 const Stat = ({
-  icon, label, value, sub, pct, warn,
+  label, value, sub, pct, warn,
 }: {
-  icon: React.ReactNode; label: string; value: string; sub?: string;
+  label: string; value: string; sub?: string;
   pct?: number; warn?: boolean;
 }) => (
-  <div className="rounded-xl border border-border/70 bg-card/50 p-4">
-    <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
-      {icon}
-      {label}
-    </div>
-    <div className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">{value}</div>
-    {sub && <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">{sub}</div>}
+  <div className="rounded-3xl border border-border/40 bg-card/30 p-6 backdrop-blur-2xl">
+    <div className="text-base font-medium text-muted-foreground">{label}</div>
+    <div className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">{value}</div>
+    {sub && <div className="mt-2 text-base text-muted-foreground tabular-nums">{sub}</div>}
     {typeof pct === "number" && <Meter pct={pct} warn={Boolean(warn)} />}
   </div>
 );
@@ -126,14 +123,13 @@ const WaveUsageLive = ({ accountId }: { accountId: string }) => {
 
   return (
     <section className="space-y-4" aria-label="Live pay-as-you-go usage">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
-        <Radio className={`h-3.5 w-3.5 ${pulse ? "animate-ping text-primary" : "text-primary/70"}`} />
+      <div className="flex items-center gap-3 text-base text-muted-foreground">
+        <span className={`h-2.5 w-2.5 rounded-full bg-primary ${pulse ? "animate-ping" : ""}`} />
         Live usage · updates as charges land
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          icon={<Gauge className="h-3.5 w-3.5" />}
           label="Month to date"
           value={fmtUsd(spent)}
           sub={monthlyCap > 0 ? `of ${fmtUsd(monthlyCap)} cap` : "no monthly cap set"}
@@ -141,56 +137,53 @@ const WaveUsageLive = ({ accountId }: { accountId: string }) => {
           warn={capPct >= 80}
         />
         <Stat
-          icon={<Gauge className="h-3.5 w-3.5" />}
           label="Remaining limit"
           value={monthlyCap > 0 ? fmtUsd(remaining) : "—"}
           sub={monthlyCap > 0 ? `${Math.max(0, 100 - Math.round(capPct))}% of your cap left` : "sends never auto-pause"}
         />
         <Stat
-          icon={<Activity className="h-3.5 w-3.5" />}
           label="Metered this month"
           value={fmtUsd(meteredUsd)}
           sub={`${fmtCredits(monthCredits)} credits consumed`}
         />
         <Stat
-          icon={<CreditCard className="h-3.5 w-3.5" />}
           label="Balance"
           value={fmtCredits(Number(live?.balance_credits ?? 0))}
           sub={`${fmtUsd(balanceUsd)} · per-charge cap ${fmtUsd(Number(live?.per_broadcast_cap_usd ?? 0))}`}
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border/70">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+      <div className="overflow-hidden rounded-3xl border border-border/40 bg-card/30 backdrop-blur-2xl">
+        <table className="w-full text-base">
+          <thead className="border-b border-border/40 text-base text-muted-foreground">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">When</th>
-              <th className="px-4 py-3 text-left font-medium">Charge</th>
-              <th className="px-4 py-3 text-right font-medium">Amount</th>
-              <th className="px-4 py-3 text-right font-medium">Credits</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
+              <th className="px-6 py-4 text-left font-medium">When</th>
+              <th className="px-6 py-4 text-left font-medium">Charge</th>
+              <th className="px-6 py-4 text-right font-medium">Amount</th>
+              <th className="px-6 py-4 text-right font-medium">Credits</th>
+              <th className="px-6 py-4 text-left font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
             {orders.map((o) => (
               <tr key={o.id} className="border-b border-border/50 last:border-0">
-                <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                <td className="px-6 py-4 text-muted-foreground">
                   {new Date(o.created_at).toLocaleString()}
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="px-6 py-4">
                   {o.kind === "pack" ? `Credit package${o.pack_id ? ` · ${o.pack_id}` : ""}` : "Metered top-up"}
-                  {o.note && <span className="ml-2 text-xs text-muted-foreground">{o.note}</span>}
+                  {o.note && <span className="ml-3 text-muted-foreground">{o.note}</span>}
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums">{fmtUsd(Number(o.usd_amount))}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums">{fmtCredits(Number(o.credits))}</td>
-                <td className="px-4 py-2.5">
-                  <span className="rounded bg-muted px-2 py-0.5 text-xs">{o.status}</span>
+                <td className="px-6 py-4 text-right tabular-nums">{fmtUsd(Number(o.usd_amount))}</td>
+                <td className="px-6 py-4 text-right tabular-nums">{fmtCredits(Number(o.credits))}</td>
+                <td className="px-6 py-4">
+                  <span className="rounded-full bg-muted px-3 py-1">{o.status}</span>
                 </td>
               </tr>
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
                   No metered charges yet — they appear here the moment one is billed.
                 </td>
               </tr>

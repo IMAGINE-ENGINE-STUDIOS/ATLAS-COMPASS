@@ -7,11 +7,13 @@ export interface CreditPack {
   credits: number;
   bonusPct: number;
   label: string;
+  /** Metered membership instead of a prepaid pack. */
+  payg?: boolean;
 }
 
 export const CREDIT_PACKS: CreditPack[] = [
   { id: "starter", usd: 25, credits: 2_500, bonusPct: 0, label: "Starter" },
-  { id: "growth", usd: 100, credits: 10_300, bonusPct: 3, label: "Growth" },
+  { id: "growth", usd: 100, credits: 10_300, bonusPct: 3, label: "Growth", payg: true },
   { id: "scale", usd: 500, credits: 53_500, bonusPct: 7, label: "Scale" },
   { id: "enterprise", usd: 2_000, credits: 224_000, bonusPct: 12, label: "Enterprise" },
 ];
