@@ -118,14 +118,20 @@ const DevelopersPage = () => {
 
   const startCheckout = async (body: Record<string, unknown>, done: () => void) => {
     try {
+      // Make sure a billing account exists before Stripe is asked for a session.
+      if (!account) {
+        const fresh = await ensureAccount();
+        if (!fresh) throw new Error("Sign in to purchase credits");
+        setAccount(fresh);
+      }
       const { data, error } = await supabase.functions.invoke("wave-create-checkout", { body });
       if (error) throw error;
       if (!data?.url) throw new Error(data?.error ?? "Checkout unavailable");
-      window.open(data.url as string, "_blank", "noopener");
-      toast.success("Checkout opened in a new tab");
+      // Same-tab redirect: never blocked by popup blockers, and Stripe returns
+      // to /developers?wave_billing=... where the session is confirmed.
+      window.location.assign(data.url as string);
     } catch (e: any) {
       toast.error(e?.message ?? "Could not start checkout");
-    } finally {
       done();
     }
   };
