@@ -15,6 +15,7 @@ import {
   type RateRow,
 } from "../_shared/wave-billing.ts";
 import { sendMessage, twilioConfigured } from "../_shared/twilio.ts";
+import { paygTopUp, type PaygAccount } from "../_shared/wave-payg.ts";
 
 const admin = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -230,7 +231,7 @@ async function sendOne(
   if (insErr || !row) return { error: "internal_error" as ErrorCode };
 
   if (credits > 0) {
-    const { error: resErr } = await admin.rpc("signal_reserve_credits", {
+    let { error: resErr } = await admin.rpc("signal_reserve_credits", {
       _account_id: ctx.accountId,
       _credits: credits,
       _kind: "debit",
@@ -238,6 +239,30 @@ async function sendOne(
       _message_id: row.id,
       _note: `${q.segments} segment(s) to ${q.countryName}`,
     });
+
+    // Pay-as-you-go: charge the card on file for the shortfall, then retry once.
+    if (resErr && ctx.account.payg_enabled) {
+      const shortfallUsd =
+        (credits - Number(ctx.account.balance_credits ?? 0)) * pricing.cfg.credit_usd_value;
+      const top = await paygTopUp(
+        admin as never,
+        ctx.account as PaygAccount,
+        Math.max(shortfallUsd, pricing.cfg.credit_usd_value),
+        pricing.cfg.credit_usd_value,
+        `auto top-up for ${q.segments} segment(s) to ${q.countryName}`,
+      ).catch(() => ({ charged: false }));
+      if (top.charged) {
+        ({ error: resErr } = await admin.rpc("signal_reserve_credits", {
+          _account_id: ctx.accountId,
+          _credits: credits,
+          _kind: "debit",
+          _reference: `msg:${row.id}`,
+          _message_id: row.id,
+          _note: `${q.segments} segment(s) to ${q.countryName}`,
+        }));
+      }
+    }
+
     if (resErr) {
       await admin.from("signal_messages")
         .update({ status: "failed", error_code: "insufficient_credits" })
