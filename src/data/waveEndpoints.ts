@@ -20,7 +20,7 @@ export const WAVE_ENDPOINTS: EndpointSpec[] = [
     request: `{
   "to": "+15551234567",
   "body": "Flash flood warning for your area. Move to higher ground.",
-  "callback_url": "https://yourapp.com/hooks/signal"
+  "callback_url": "https://yourapp.com/hooks/wave"
 }`,
     response: `{
   "id": "9f1c...",

@@ -441,7 +441,7 @@ const DevelopersPage = () => {
               <Label htmlFor="hookurl">Endpoint URL</Label>
               <div className="mt-1.5 flex gap-2">
                 <Input id="hookurl" value={hookUrl} onChange={(e) => setHookUrl(e.target.value)}
-                  placeholder="https://yourapp.com/hooks/signal" />
+                  placeholder="https://yourapp.com/hooks/wave" />
                 <Button onClick={addHook}><Webhook className="mr-2 h-4 w-4" />Add</Button>
               </div>
             </div>
