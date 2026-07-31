@@ -47,6 +47,7 @@ const DevelopersPage = () => {
   const [keyName, setKeyName] = useState("");
   const [keyMode, setKeyMode] = useState<"live" | "test">("test");
   const [hookUrl, setHookUrl] = useState("");
+  const [tab, setTab] = useState("keys");
 
   const refresh = useCallback(async (accountId: string) => {
     const [k, t, m, w] = await Promise.all([
@@ -84,6 +85,13 @@ const DevelopersPage = () => {
     () => msgs.filter((m) => m.status === "delivered" || m.status === "sent").length,
     [msgs],
   );
+
+  /** A developer has "activated" WAVE once any credit purchase / top-up landed. */
+  const hasPurchased = useMemo(
+    () => txs.some((t) => ["purchase", "topup", "top_up", "credit"].includes(t.kind) || Number(t.credits) > 0),
+    [txs],
+  );
+  const starterPack = CREDIT_PACKS[0];
 
   const mintKey = async () => {
     if (!account) return;
@@ -188,13 +196,47 @@ const DevelopersPage = () => {
           ))}
         </section>
 
-        {balance < Number(account?.low_balance_threshold ?? 0) && (
+        {!hasPurchased ? (
+          <section className="mt-4 overflow-hidden rounded-xl border border-primary/40 bg-primary/5 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start gap-4">
+              <img src={waveLogo} alt="" aria-hidden="true" width={36} height={36}
+                className="h-9 w-9 object-contain" loading="lazy" />
+              <div className="min-w-[240px] flex-1">
+                <h2 className="text-lg font-semibold tracking-tight">
+                  Activate WAVE with the {starterPack.label} package
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  Your account is live in test mode: mint test keys and run the full API for free — test sends are
+                  simulated and never charged. To deliver real messages to real phones you need credits. WAVE is
+                  prepaid and pay-as-you-go: no monthly fee, no contract, credits never expire.
+                </p>
+                <ul className="mt-3 grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-2">
+                  <li>· 1 credit = $0.01 — priced per segment and destination country</li>
+                  <li>· {starterPack.label}: {fmtUsd(starterPack.usd, 0)} → {fmtCredits(starterPack.credits)} credits</li>
+                  <li>· Live keys, delivery logs and signed webhooks unlock instantly</li>
+                  <li>· Larger packages add up to +12% bonus credits</li>
+                </ul>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => setTab("credits")}>
+                    Start with {starterPack.label} · {fmtUsd(starterPack.usd, 0)}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setTab("credits")}>
+                    Compare packages
+                  </Button>
+                  <Button asChild size="sm" variant="ghost">
+                    <Link to="/developers/docs">Read the docs first</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : balance < Number(account?.low_balance_threshold ?? 0) && (
           <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
             Your balance is below your low-balance threshold. Live sends will stop at zero credits.
           </div>
         )}
 
-        <Tabs defaultValue="keys" className="mt-8">
+        <Tabs value={tab} onValueChange={setTab} className="mt-8">
           <TabsList className="flex-wrap">
             <TabsTrigger value="keys">API keys</TabsTrigger>
             <TabsTrigger value="credits">Credits</TabsTrigger>
