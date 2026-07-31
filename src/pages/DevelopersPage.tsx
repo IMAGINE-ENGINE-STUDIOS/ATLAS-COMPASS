@@ -62,10 +62,10 @@ const DevelopersPage = () => {
   }, []);
 
   useEffect(() => {
-    document.title = "Developer portal — ATLAS Signal API keys & credits";
+    document.title = "Developer portal — ATLAS WAVE API keys & credits";
     document.querySelector('meta[name="description"]')?.setAttribute(
       "content",
-      "Create ATLAS Signal API keys, buy prepaid credits, inspect message logs and configure signed webhooks.",
+      "Create ATLAS WAVE API keys, buy prepaid credits, inspect message logs and configure signed webhooks.",
     );
     (async () => {
       const acc = await ensureAccount();
