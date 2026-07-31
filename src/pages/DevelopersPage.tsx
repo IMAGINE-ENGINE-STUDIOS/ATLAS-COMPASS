@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CREDIT_PACKS, SIGNAL_BASE_URL, createApiKey, ensureAccount, fmtCredits, fmtUsd,
-  newWebhookSecret, type SignalAccount,
-} from "@/lib/signalApi";
+  CREDIT_PACKS, WAVE_BASE_URL, createApiKey, ensureAccount, fmtCredits, fmtUsd,
+  newWebhookSecret, type WaveAccount,
+} from "@/lib/waveApi";
 import { Copy, KeyRound, Loader2, Trash2, Webhook } from "lucide-react";
 import waveLogo from "@/assets/wave-logo.png";
 
@@ -34,11 +34,11 @@ const copy = (v: string, label: string) => {
   navigator.clipboard.writeText(v).then(() => toast.success(`${label} copied`));
 };
 
-/** ATLAS Signal developer portal — keys, credits, logs and webhooks. */
+/** WAVE developer portal — keys, credits, logs and webhooks. */
 const DevelopersPage = () => {
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
-  const [account, setAccount] = useState<SignalAccount | null>(null);
+  const [account, setAccount] = useState<WaveAccount | null>(null);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [txs, setTxs] = useState<TxRow[]>([]);
   const [msgs, setMsgs] = useState<MsgRow[]>([]);
@@ -134,11 +134,11 @@ const DevelopersPage = () => {
     if (account) await refresh(account.id);
   };
 
-  const saveAccount = async (patch: Partial<SignalAccount>) => {
+  const saveAccount = async (patch: Partial<WaveAccount>) => {
     if (!account) return;
     const { data } = await supabase.from("signal_accounts").update(patch as any)
       .eq("id", account.id).select().single();
-    if (data) setAccount(data as unknown as SignalAccount);
+    if (data) setAccount(data as unknown as WaveAccount);
   };
 
   if (loading) {
@@ -330,8 +330,8 @@ const DevelopersPage = () => {
             <div className="rounded-xl border border-border/70 bg-card/40 p-5">
               <div className="text-sm font-medium">Your base URL</div>
               <div className="mt-2 flex items-center gap-2">
-                <code className="flex-1 break-all text-xs text-muted-foreground">{SIGNAL_BASE_URL}</code>
-                <Button size="icon" variant="ghost" onClick={() => copy(SIGNAL_BASE_URL, "Base URL")}>
+                <code className="flex-1 break-all text-xs text-muted-foreground">{WAVE_BASE_URL}</code>
+                <Button size="icon" variant="ghost" onClick={() => copy(WAVE_BASE_URL, "Base URL")}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>

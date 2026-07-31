@@ -1,4 +1,4 @@
-// Shared billing / pricing primitives for the ATLAS Signal developer API.
+// Shared billing / pricing primitives for the WAVE developer API.
 // Nothing in here may leak the name of the upstream carrier network.
 
 /** Longest-prefix E.164 dialing-code → ISO country map for priced destinations. */

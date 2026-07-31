@@ -1,6 +1,6 @@
-// ATLAS Signal — public developer API.
+// WAVE — public developer API.
 // All routes live under /v1. Responses are our own envelope; upstream network
-// errors are mapped to Signal error codes and never surfaced verbatim.
+// errors are mapped to WAVE error codes and never surfaced verbatim.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import {
@@ -13,7 +13,7 @@ import {
   type ErrorCode,
   type PricingConfig,
   type RateRow,
-} from "../_shared/signal-billing.ts";
+} from "../_shared/wave-billing.ts";
 import { sendMessage, twilioConfigured } from "../_shared/twilio.ts";
 
 const admin = createClient(
@@ -304,16 +304,16 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const path = url.pathname;
-  // Depending on the gateway the path may arrive as /signal-api/v1/... or
-  // /functions/v1/signal-api/v1/... — anchor on the function name.
+  // Depending on the gateway the path may arrive as /wave-api/v1/... or
+  // /functions/v1/wave-api/v1/... — anchor on the function name.
   const all = path.split("/").filter(Boolean);
-  const anchor = all.lastIndexOf("signal-api");
+  const anchor = all.lastIndexOf("wave-api");
   const segs = anchor >= 0 ? all.slice(anchor + 1) : all;
 
   try {
     if (segs[0] !== "v1") {
       return json({
-        service: "ATLAS Signal API",
+        service: "WAVE API",
         version: "1.0",
         docs: (Deno.env.get("SIGNAL_PUBLIC_URL") ?? "https://sos.atlasmapping.org") + "/developers/docs",
       });
@@ -503,7 +503,7 @@ Deno.serve(async (req) => {
 
     return fail("not_found", `No route for ${req.method} ${path}`);
   } catch (e) {
-    console.error("signal-api error", e);
+    console.error("wave-api error", e);
     return fail("internal_error");
   }
 });
