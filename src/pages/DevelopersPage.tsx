@@ -13,6 +13,7 @@ import {
 } from "@/lib/waveApi";
 import { Copy, KeyRound, Loader2, Trash2, Webhook } from "lucide-react";
 import waveLogo from "@/assets/wave-logo.png";
+import WaveUsageLive from "@/components/developers/WaveUsageLive";
 
 interface ApiKeyRow {
   id: string; name: string; mode: string; prefix: string; last_four: string;
@@ -503,6 +504,7 @@ const DevelopersPage = () => {
 
           {/* ---------------- logs ---------------- */}
           <TabsContent value="billing" className="mt-6 space-y-6">
+            {account && <WaveUsageLive accountId={account.id} />}
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-xl border border-border/70 bg-card/50 p-5">
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">Membership</div>
