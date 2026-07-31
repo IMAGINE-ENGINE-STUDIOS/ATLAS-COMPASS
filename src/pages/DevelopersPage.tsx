@@ -118,14 +118,20 @@ const DevelopersPage = () => {
 
   const startCheckout = async (body: Record<string, unknown>, done: () => void) => {
     try {
+      // Make sure a billing account exists before Stripe is asked for a session.
+      if (!account) {
+        const fresh = await ensureAccount();
+        if (!fresh) throw new Error("Sign in to purchase credits");
+        setAccount(fresh);
+      }
       const { data, error } = await supabase.functions.invoke("wave-create-checkout", { body });
       if (error) throw error;
       if (!data?.url) throw new Error(data?.error ?? "Checkout unavailable");
-      window.open(data.url as string, "_blank", "noopener");
-      toast.success("Checkout opened in a new tab");
+      // Same-tab redirect: never blocked by popup blockers, and Stripe returns
+      // to /developers?wave_billing=... where the session is confirmed.
+      window.location.assign(data.url as string);
     } catch (e: any) {
       toast.error(e?.message ?? "Could not start checkout");
-    } finally {
       done();
     }
   };
@@ -180,18 +186,35 @@ const DevelopersPage = () => {
       return;
     }
     (async () => {
-      const { data, error } = await supabase.functions.invoke("wave-verify-checkout", {
-        body: { sessionId },
-      });
-      if (error || data?.error) {
+      const pending = toast.loading("Confirming your payment…");
+      // Stripe can take a moment to settle: poll the verifier a few times.
+      let result: any = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { data, error } = await supabase.functions.invoke("wave-verify-checkout", {
+          body: { sessionId },
+        });
+        if (!error && data && !data.error) {
+          result = data;
+          if (data.status === "paid" || data.status === "active") break;
+        }
+        await new Promise((r) => window.setTimeout(r, 1500));
+      }
+      toast.dismiss(pending);
+      if (!result) {
         toast.error("Could not confirm the payment yet — refresh in a moment");
         return;
       }
-      if (data.status === "paid") toast.success(`${fmtCredits(Number(data.credits ?? 0))} credits added`);
-      else if (data.status === "active") toast.success("Pay-as-you-go activated");
-      else toast.info("Payment is still processing");
+      if (result.status === "paid") {
+        toast.success(`${fmtCredits(Number(result.credits ?? 0))} credits added`);
+        setTab("credits");
+      } else if (result.status === "active") {
+        toast.success("Pay-as-you-go activated");
+        setTab("billing");
+      } else {
+        toast.info("Payment is still processing — your credits will appear shortly");
+        setTab("billing");
+      }
       await reloadAccount();
-      setTab("billing");
     })();
   }, [reloadAccount]);
 
