@@ -154,7 +154,7 @@ const DevelopersPage = () => {
     void startCheckout(
       {
         mode: "payg",
-        monthlySpendCapUsd: capUsd ?? Number(monthlyCap) || 100,
+        monthlySpendCapUsd: capUsd ?? (Number(monthlyCap) || 100),
         perChargeCapUsd: Number(perChargeCap) || 50,
       },
       () => setPaygBusy(false),
