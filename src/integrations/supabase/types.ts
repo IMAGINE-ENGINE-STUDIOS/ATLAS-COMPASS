@@ -1549,10 +1549,20 @@ export type Database = {
           lifetime_purchased_credits: number
           lifetime_spent_credits: number
           low_balance_threshold: number
+          membership_status: string
+          membership_tier: string
+          month_period_start: string
+          month_spend_usd: number
+          monthly_spend_cap_usd: number
           owner_id: string
+          payg_card_brand: string | null
+          payg_card_last4: string | null
+          payg_enabled: boolean
+          per_broadcast_cap_usd: number
           rate_limit_per_day: number
           rate_limit_per_second: number
           status: string
+          stripe_customer_id: string | null
           suspended_reason: string | null
           trial_spend_cap_usd: number
           updated_at: string
@@ -1569,10 +1579,20 @@ export type Database = {
           lifetime_purchased_credits?: number
           lifetime_spent_credits?: number
           low_balance_threshold?: number
+          membership_status?: string
+          membership_tier?: string
+          month_period_start?: string
+          month_spend_usd?: number
+          monthly_spend_cap_usd?: number
           owner_id: string
+          payg_card_brand?: string | null
+          payg_card_last4?: string | null
+          payg_enabled?: boolean
+          per_broadcast_cap_usd?: number
           rate_limit_per_day?: number
           rate_limit_per_second?: number
           status?: string
+          stripe_customer_id?: string | null
           suspended_reason?: string | null
           trial_spend_cap_usd?: number
           updated_at?: string
@@ -1589,10 +1609,20 @@ export type Database = {
           lifetime_purchased_credits?: number
           lifetime_spent_credits?: number
           low_balance_threshold?: number
+          membership_status?: string
+          membership_tier?: string
+          month_period_start?: string
+          month_spend_usd?: number
+          monthly_spend_cap_usd?: number
           owner_id?: string
+          payg_card_brand?: string | null
+          payg_card_last4?: string | null
+          payg_enabled?: boolean
+          per_broadcast_cap_usd?: number
           rate_limit_per_day?: number
           rate_limit_per_second?: number
           status?: string
+          stripe_customer_id?: string | null
           suspended_reason?: string | null
           trial_spend_cap_usd?: number
           updated_at?: string
@@ -2874,6 +2904,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      wave_orders: {
+        Row: {
+          account_id: string
+          created_at: string
+          credits: number
+          id: string
+          kind: string
+          note: string | null
+          owner_id: string
+          pack_id: string | null
+          status: string
+          stripe_invoice_id: string | null
+          stripe_session_id: string | null
+          updated_at: string
+          usd_amount: number
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          credits?: number
+          id?: string
+          kind?: string
+          note?: string | null
+          owner_id: string
+          pack_id?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          usd_amount?: number
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          credits?: number
+          id?: string
+          kind?: string
+          note?: string | null
+          owner_id?: string
+          pack_id?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          usd_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wave_orders_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "signal_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       web_push_subscriptions: {
         Row: {
