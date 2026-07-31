@@ -5,8 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fmtCredits, fmtUsd } from "@/lib/signalApi";
-import { Loader2, Signal, TrendingUp } from "lucide-react";
+import { fmtCredits, fmtUsd } from "@/lib/waveApi";
+import { Loader2, Waves, TrendingUp } from "lucide-react";
 
 interface UsageRow { credits_spent: number; cost_usd: number; revenue_usd: number; day: string; account_id: string }
 interface AccountRow {
@@ -19,7 +19,7 @@ interface RateRow {
 }
 
 /** Admin-only view of the resale business: revenue, cost, margin and rate card. */
-const SignalRevenueSection = () => {
+const WaveRevenueSection = () => {
   const [loading, setLoading] = useState(true);
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
@@ -114,7 +114,7 @@ const SignalRevenueSection = () => {
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-border/70 p-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading Signal revenue…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading WAVE revenue…
       </div>
     );
   }
@@ -124,8 +124,8 @@ const SignalRevenueSection = () => {
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <Signal className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-semibold tracking-tight">Signal revenue</h2>
+        <Waves className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold tracking-tight">WAVE revenue</h2>
         <Button asChild variant="ghost" size="sm" className="ml-auto">
           <Link to="/developers">Open developer portal</Link>
         </Button>
@@ -207,4 +207,4 @@ const SignalRevenueSection = () => {
   );
 };
 
-export default SignalRevenueSection;
+export default WaveRevenueSection;

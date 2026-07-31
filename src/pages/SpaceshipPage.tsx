@@ -6618,8 +6618,8 @@ function SpaceshipPage({
                         className="flex items-center justify-between gap-2 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.18em] text-cyan-100 hover:border-cyan-400/60 hover:bg-cyan-400/15 transition-colors"
                       >
                         <span className="flex items-center gap-1.5">
-                          <GlyphIcon name="signal" alt="Signal Network" className="w-3.5 h-3.5" />
-                          Signal Network
+                          <GlyphIcon name="signal" alt="WAVE Network" className="w-3.5 h-3.5" />
+                          WAVE Network
                         </span>
                         <span className="text-[8px] text-cyan-200/70">sms api · keys</span>
                       </Link>

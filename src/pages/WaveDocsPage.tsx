@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { SIGNAL_ENDPOINTS, SIGNAL_ERROR_CODES } from "@/data/signalEndpoints";
-import { SIGNAL_BASE_URL } from "@/lib/signalApi";
-import { ArrowLeft, Signal } from "lucide-react";
+import { WAVE_ENDPOINTS, WAVE_ERROR_CODES } from "@/data/waveEndpoints";
+import { WAVE_BASE_URL } from "@/lib/waveApi";
+import { ArrowLeft, Waves } from "lucide-react";
 
 const METHOD_TONE: Record<string, string> = {
   GET: "bg-primary/15 text-primary",
@@ -18,14 +18,14 @@ const Code = ({ children }: { children: string }) => (
 );
 
 /** Full public API reference, generated from the shared endpoint spec. */
-const SignalDocsPage = () => {
+const WaveDocsPage = () => {
   useEffect(() => {
-    document.title = "ATLAS Signal API reference — messaging & hazard alerts";
+    document.title = "WAVE API reference — messaging & hazard alerts";
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute(
         "content",
-        "REST reference for the ATLAS Signal API: send messages, register hazard-alert subscribers, broadcast geo-targeted warnings and check credit balance.",
+        "REST reference for the WAVE API: send messages, register hazard-alert subscribers, broadcast geo-targeted warnings and check credit balance.",
       );
   }, []);
 
@@ -36,8 +36,8 @@ const SignalDocsPage = () => {
           <Button asChild variant="ghost" size="icon">
             <Link to="/developers" aria-label="Back to developer portal"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
-          <Signal className="h-5 w-5 text-primary" />
-          <span className="font-semibold tracking-tight">Signal API reference</span>
+          <Waves className="h-5 w-5 text-primary" />
+          <span className="font-semibold tracking-tight">WAVE API reference</span>
           <div className="ml-auto flex gap-2">
             <Button asChild variant="ghost" size="sm"><Link to="/pricing">Pricing</Link></Button>
             <Button asChild size="sm"><Link to="/developers">Dashboard</Link></Button>
@@ -46,7 +46,7 @@ const SignalDocsPage = () => {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-10">
-        <h1 className="text-3xl font-semibold tracking-tight">ATLAS Signal API</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">WAVE API</h1>
         <p className="mt-3 text-muted-foreground">
           One REST API for programmable messaging and geo-targeted hazard alerting.
           Prepaid credits, published per-country pricing, and a full test mode.
@@ -54,26 +54,26 @@ const SignalDocsPage = () => {
 
         <section className="mt-10 space-y-4">
           <h2 className="text-xl font-semibold tracking-tight">Base URL</h2>
-          <Code>{SIGNAL_BASE_URL}</Code>
+          <Code>{WAVE_BASE_URL}</Code>
           <h2 className="pt-4 text-xl font-semibold tracking-tight">Authentication</h2>
           <p className="text-sm text-muted-foreground">
             Send your key as a bearer token. Keys starting with <code>sig_test_</code> run the
             full lifecycle without delivering anything and never consume credits.
           </p>
-          <Code>{`curl ${SIGNAL_BASE_URL}/v1/balance \\
+          <Code>{`curl ${WAVE_BASE_URL}/v1/balance \\
   -H "Authorization: Bearer sig_live_xxx"`}</Code>
 
           <h2 className="pt-4 text-xl font-semibold tracking-tight">Quickstart</h2>
-          <Code>{`curl -X POST ${SIGNAL_BASE_URL}/v1/messages \\
+          <Code>{`curl -X POST ${WAVE_BASE_URL}/v1/messages \\
   -H "Authorization: Bearer sig_live_xxx" \\
   -H "Content-Type: application/json" \\
-  -d '{"to":"+15551234567","body":"Hello from ATLAS Signal"}'`}</Code>
+  -d '{"to":"+15551234567","body":"Hello from WAVE"}'`}</Code>
         </section>
 
         <section className="mt-12">
           <h2 className="text-xl font-semibold tracking-tight">Endpoints</h2>
           <div className="mt-4 space-y-6">
-            {SIGNAL_ENDPOINTS.map((e) => (
+            {WAVE_ENDPOINTS.map((e) => (
               <article key={`${e.method}${e.path}`} className="rounded-xl border border-border/70 bg-card/40 p-5">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className={`rounded px-2 py-0.5 text-xs font-semibold ${METHOD_TONE[e.method] ?? ""}`}>
@@ -125,7 +125,7 @@ const SignalDocsPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {SIGNAL_ERROR_CODES.map(([code, status, meaning]) => (
+                {WAVE_ERROR_CODES.map(([code, status, meaning]) => (
                   <tr key={code} className="border-b border-border/50 last:border-0">
                     <td className="px-4 py-2.5"><code>{code}</code></td>
                     <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{status}</td>
@@ -141,4 +141,4 @@ const SignalDocsPage = () => {
   );
 };
 
-export default SignalDocsPage;
+export default WaveDocsPage;

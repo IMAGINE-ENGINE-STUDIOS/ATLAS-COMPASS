@@ -52,8 +52,8 @@ const HotPortalPage = lazy(() => import("@/pages/HotPortalPage"));
 const ShareLocationPage = lazy(() => import("@/pages/ShareLocationPage"));
 const HazardKeywordsPage = lazy(() => import("@/pages/HazardKeywordsPage"));
 const DevelopersPage = lazy(() => import("@/pages/DevelopersPage"));
-const SignalDocsPage = lazy(() => import("@/pages/SignalDocsPage"));
-const SignalPricingPage = lazy(() => import("@/pages/SignalPricingPage"));
+const WaveDocsPage = lazy(() => import("@/pages/WaveDocsPage"));
+const WavePricingPage = lazy(() => import("@/pages/WavePricingPage"));
 
 const queryClient = new QueryClient();
 
@@ -105,11 +105,11 @@ const App = () => (
           <Route path="/loc/:token" element={<ShareLocationPage />} />
           <Route path="/keywords" element={<HazardKeywordsPage />} />
 
-          {/* ATLAS Signal — developer API */}
+          {/* WAVE — developer API */}
           <Route path="/developers" element={<DevelopersPage />} />
-          <Route path="/developers/docs" element={<SignalDocsPage />} />
-          <Route path="/docs" element={<SignalDocsPage />} />
-          <Route path="/pricing" element={<SignalPricingPage />} />
+          <Route path="/developers/docs" element={<WaveDocsPage />} />
+          <Route path="/docs" element={<WaveDocsPage />} />
+          <Route path="/pricing" element={<WavePricingPage />} />
 
           {/* Admin Dashboard */}
           <Route path="/dashboard" element={<AppLayout />}>

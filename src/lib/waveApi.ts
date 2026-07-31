@@ -26,7 +26,7 @@ export const fmtUsd = (n: number, digits = 2) =>
 export const fmtCredits = (n: number) => n.toLocaleString("en-US");
 
 /** Base URL developers call. */
-export const SIGNAL_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/signal-api`;
+export const WAVE_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wave-api`;
 
 async function sha256Hex(input: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
@@ -39,7 +39,7 @@ function randomToken(bytes = 24): string {
   return [...arr].map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 40);
 }
 
-export interface SignalAccount {
+export interface WaveAccount {
   id: string;
   owner_id: string;
   company_name: string | null;
@@ -57,7 +57,7 @@ export interface SignalAccount {
 }
 
 /** Fetch the signed-in developer's account, creating it on first visit. */
-export async function ensureAccount(): Promise<SignalAccount | null> {
+export async function ensureAccount(): Promise<WaveAccount | null> {
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return null;
@@ -67,14 +67,14 @@ export async function ensureAccount(): Promise<SignalAccount | null> {
     .select("*")
     .eq("owner_id", user.id)
     .maybeSingle();
-  if (existing) return existing as unknown as SignalAccount;
+  if (existing) return existing as unknown as WaveAccount;
 
   const { data: created } = await supabase
     .from("signal_accounts")
     .insert({ owner_id: user.id, contact_email: user.email ?? null })
     .select()
     .single();
-  return (created as unknown as SignalAccount) ?? null;
+  return (created as unknown as WaveAccount) ?? null;
 }
 
 export interface CreatedKey {

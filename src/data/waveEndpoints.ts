@@ -9,7 +9,7 @@ export interface EndpointSpec {
   response: string;
 }
 
-export const SIGNAL_ENDPOINTS: EndpointSpec[] = [
+export const WAVE_ENDPOINTS: EndpointSpec[] = [
   {
     method: "POST",
     path: "/v1/messages",
@@ -20,7 +20,7 @@ export const SIGNAL_ENDPOINTS: EndpointSpec[] = [
     request: `{
   "to": "+15551234567",
   "body": "Flash flood warning for your area. Move to higher ground.",
-  "callback_url": "https://yourapp.com/hooks/signal"
+  "callback_url": "https://yourapp.com/hooks/wave"
 }`,
     response: `{
   "id": "9f1c...",
@@ -153,7 +153,7 @@ export const SIGNAL_ENDPOINTS: EndpointSpec[] = [
   },
 ];
 
-export const SIGNAL_ERROR_CODES: Array<[string, number, string]> = [
+export const WAVE_ERROR_CODES: Array<[string, number, string]> = [
   ["unauthorized", 401, "Missing or invalid API key."],
   ["key_revoked", 401, "The key was revoked in the dashboard."],
   ["key_paused", 403, "The key is temporarily paused."],

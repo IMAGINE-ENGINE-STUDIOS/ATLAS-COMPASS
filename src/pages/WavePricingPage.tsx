@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { CREDIT_PACKS, fmtCredits, fmtUsd } from "@/lib/signalApi";
-import { ArrowLeft, Search, Signal } from "lucide-react";
+import { CREDIT_PACKS, fmtCredits, fmtUsd } from "@/lib/waveApi";
+import { ArrowLeft, Search, Waves } from "lucide-react";
 
 interface RateRow {
   country_iso: string;
@@ -20,18 +20,18 @@ const CHANNEL_LABEL: Record<string, string> = {
   number_rental_monthly: "Dedicated number (per month)",
 };
 
-/** Public rate card for the ATLAS Signal Network. */
-const SignalPricingPage = () => {
+/** Public rate card for the WAVE Network. */
+const WavePricingPage = () => {
   const [rates, setRates] = useState<RateRow[]>([]);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    document.title = "ATLAS Signal pricing — per-country message rates";
+    document.title = "WAVE pricing — per-country message rates";
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute(
         "content",
-        "Transparent prepaid pricing for the ATLAS Signal messaging and hazard-alert API. Published per-country rates, no monthly minimum, no contracts.",
+        "Transparent prepaid pricing for the WAVE messaging and hazard-alert API. Published per-country rates, no monthly minimum, no contracts.",
       );
     supabase
       .from("signal_pricing_rates")
@@ -62,8 +62,8 @@ const SignalPricingPage = () => {
           <Button asChild variant="ghost" size="icon">
             <Link to="/" aria-label="Back to ATLAS"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
-          <Signal className="h-5 w-5 text-primary" />
-          <span className="font-semibold tracking-tight">ATLAS Signal</span>
+          <Waves className="h-5 w-5 text-primary" />
+          <span className="font-semibold tracking-tight">WAVE</span>
           <div className="ml-auto flex gap-2">
             <Button asChild variant="ghost" size="sm"><Link to="/developers/docs">Docs</Link></Button>
             <Button asChild size="sm"><Link to="/developers">Get API keys</Link></Button>
@@ -170,4 +170,4 @@ const SignalPricingPage = () => {
   );
 };
 
-export default SignalPricingPage;
+export default WavePricingPage;
