@@ -3203,6 +3203,10 @@ function SpaceshipPage({
           viewer.terrainProvider = terrain;
           viewer.scene.requestRender();
         }
+      }).catch((err) => {
+        // Ion terrain can be unreachable (token/quota/network). Keep the
+        // ellipsoid globe rather than surfacing an unhandled rejection.
+        console.warn("[Atlas] world terrain unavailable, using ellipsoid", err);
       });
     }
 
