@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CREDIT_PACKS, fmtCredits, fmtUsd } from "@/lib/waveApi";
-import { ArrowLeft, Search, Signal } from "lucide-react";
+import { ArrowLeft, Search, Waves } from "lucide-react";
 
 interface RateRow {
   country_iso: string;
@@ -62,7 +62,7 @@ const WavePricingPage = () => {
           <Button asChild variant="ghost" size="icon">
             <Link to="/" aria-label="Back to ATLAS"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
-          <Signal className="h-5 w-5 text-primary" />
+          <Waves className="h-5 w-5 text-primary" />
           <span className="font-semibold tracking-tight">WAVE</span>
           <div className="ml-auto flex gap-2">
             <Button asChild variant="ghost" size="sm"><Link to="/developers/docs">Docs</Link></Button>

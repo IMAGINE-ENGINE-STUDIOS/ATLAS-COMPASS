@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fmtCredits, fmtUsd } from "@/lib/waveApi";
-import { Loader2, Signal, TrendingUp } from "lucide-react";
+import { Loader2, Waves, TrendingUp } from "lucide-react";
 
 interface UsageRow { credits_spent: number; cost_usd: number; revenue_usd: number; day: string; account_id: string }
 interface AccountRow {
@@ -124,7 +124,7 @@ const WaveRevenueSection = () => {
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <Signal className="h-5 w-5 text-primary" />
+        <Waves className="h-5 w-5 text-primary" />
         <h2 className="text-lg font-semibold tracking-tight">WAVE revenue</h2>
         <Button asChild variant="ghost" size="sm" className="ml-auto">
           <Link to="/developers">Open developer portal</Link>

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { WAVE_ENDPOINTS, WAVE_ERROR_CODES } from "@/data/waveEndpoints";
 import { WAVE_BASE_URL } from "@/lib/waveApi";
-import { ArrowLeft, Signal } from "lucide-react";
+import { ArrowLeft, Waves } from "lucide-react";
 
 const METHOD_TONE: Record<string, string> = {
   GET: "bg-primary/15 text-primary",
@@ -36,7 +36,7 @@ const WaveDocsPage = () => {
           <Button asChild variant="ghost" size="icon">
             <Link to="/developers" aria-label="Back to developer portal"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
-          <Signal className="h-5 w-5 text-primary" />
+          <Waves className="h-5 w-5 text-primary" />
           <span className="font-semibold tracking-tight">WAVE API reference</span>
           <div className="ml-auto flex gap-2">
             <Button asChild variant="ghost" size="sm"><Link to="/pricing">Pricing</Link></Button>
