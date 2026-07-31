@@ -11,7 +11,8 @@ import {
   CREDIT_PACKS, SIGNAL_BASE_URL, createApiKey, ensureAccount, fmtCredits, fmtUsd,
   newWebhookSecret, type SignalAccount,
 } from "@/lib/signalApi";
-import { Copy, KeyRound, Loader2, Signal, Trash2, Webhook } from "lucide-react";
+import { Copy, KeyRound, Loader2, Trash2, Webhook } from "lucide-react";
+import waveLogo from "@/assets/wave-logo.png";
 
 interface ApiKeyRow {
   id: string; name: string; mode: string; prefix: string; last_four: string;
@@ -61,10 +62,10 @@ const DevelopersPage = () => {
   }, []);
 
   useEffect(() => {
-    document.title = "Developer portal — ATLAS Signal API keys & credits";
+    document.title = "Developer portal — ATLAS WAVE API keys & credits";
     document.querySelector('meta[name="description"]')?.setAttribute(
       "content",
-      "Create ATLAS Signal API keys, buy prepaid credits, inspect message logs and configure signed webhooks.",
+      "Create ATLAS WAVE API keys, buy prepaid credits, inspect message logs and configure signed webhooks.",
     );
     (async () => {
       const acc = await ensureAccount();
@@ -143,8 +144,8 @@ const DevelopersPage = () => {
   if (!signedIn) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center">
-        <Signal className="h-8 w-8 text-primary" />
-        <h1 className="text-2xl font-semibold tracking-tight">Sign in to use the Signal API</h1>
+        <img src={waveLogo} alt="WAVE logo" width={32} height={32} className="h-8 w-8 object-contain" />
+        <h1 className="text-2xl font-semibold tracking-tight">Sign in to use the WAVE API</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
           Developer accounts, API keys and credit balances are tied to your ATLAS account.
         </p>
@@ -162,8 +163,8 @@ const DevelopersPage = () => {
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
-          <Signal className="h-5 w-5 text-primary" />
-          <span className="font-semibold tracking-tight">Signal developer portal</span>
+          <img src={waveLogo} alt="WAVE logo" width={24} height={24} className="h-6 w-6 object-contain" loading="lazy" />
+          <span className="font-semibold tracking-tight">WAVE developer portal</span>
           <div className="ml-auto flex gap-2">
             <Button asChild variant="ghost" size="sm"><Link to="/pricing">Pricing</Link></Button>
             <Button asChild variant="ghost" size="sm"><Link to="/developers/docs">Docs</Link></Button>
