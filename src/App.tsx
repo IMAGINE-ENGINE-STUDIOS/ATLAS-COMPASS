@@ -53,6 +53,7 @@ const ShareLocationPage = lazy(() => import("@/pages/ShareLocationPage"));
 const HazardKeywordsPage = lazy(() => import("@/pages/HazardKeywordsPage"));
 const DevelopersPage = lazy(() => import("@/pages/DevelopersPage"));
 const WaveDocsPage = lazy(() => import("@/pages/WaveDocsPage"));
+const WaveCheckoutPage = lazy(() => import("@/pages/WaveCheckoutPage"));
 const WavePricingPage = lazy(() => import("@/pages/WavePricingPage"));
 
 const queryClient = new QueryClient();
@@ -108,6 +109,7 @@ const App = () => (
           {/* WAVE — developer API */}
           <Route path="/developers" element={<DevelopersPage />} />
           <Route path="/developers/docs" element={<WaveDocsPage />} />
+          <Route path="/developers/checkout" element={<WaveCheckoutPage />} />
           <Route path="/docs" element={<WaveDocsPage />} />
           <Route path="/pricing" element={<WavePricingPage />} />
 

@@ -42,7 +42,13 @@ Deno.serve(async (req) => {
     if (!account) return json({ error: "no_account" }, 400);
 
     const stripe = stripeClient();
-    const billingEmail = user.email || account.contact_email || null;
+    const bodyEmail = typeof body?.email === "string" && body.email.includes("@")
+      ? body.email.trim().slice(0, 320)
+      : null;
+    const billingEmail = bodyEmail || user.email || account.contact_email || null;
+    if (bodyEmail && bodyEmail !== account.contact_email) {
+      await admin.from("signal_accounts").update({ contact_email: bodyEmail }).eq("id", account.id);
+    }
     const customerId = await ensureCustomer(stripe, billingEmail, account.stripe_customer_id);
     if (customerId !== account.stripe_customer_id) {
       await admin.from("signal_accounts").update({ stripe_customer_id: customerId }).eq("id", account.id);
