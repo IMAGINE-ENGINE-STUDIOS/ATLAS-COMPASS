@@ -43,6 +43,12 @@ export interface PlanetLayerDef {
   credit: string;
   description: string;
   bbox?: [number, number, number, number];
+  /**
+   * Colour overrides applied when the layer is mounted. Used for seam-fill
+   * base layers that must blend with the greyscale radar mosaic on top of
+   * them rather than show their own colour ramp.
+   */
+  tone?: { brightness?: number; contrast?: number; gamma?: number; saturation?: number };
   defaultVisible?: boolean;
   defaultAlpha?: number;
 }
@@ -102,14 +108,64 @@ const MERCURY_LAYERS: PlanetLayerDef[] = [
 const VENUS_WMS = usgsWmsUrl("venus");
 const VENUS_LAYERS: PlanetLayerDef[] = [
   {
+    // Bottom of the Venus stack: the altimetry product is the only Magellan
+    // raster with true pole-to-pole coverage, so it fills the SAR mosaic's
+    // orbit seams and polar cut-off with real mission data instead of an
+    // artist texture (which was what produced the coloured streaks).
+    id: "magellan_topography_base",
+    title: "Magellan Altimetry (seam base)",
+    category: "elevation",
+    kind: "wms",
+    wmtsLayer: "MAGELLAN_topography",
+    urlTemplate: VENUS_WMS,
+    ext: "png",
+    maximumLevel: 7,
+    credit: "NASA / JPL / USGS Astrogeology · Magellan altimetry",
+    description:
+      "Global Magellan radar-altimeter topography, used as the base fill under the SAR mosaics.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+    // Strip the altimetry colour ramp so the fill reads as grey radar-like
+    // terrain instead of rainbow streaks inside the SAR seams.
+    tone: { saturation: 0.05, brightness: 0.95, contrast: 1.0, gamma: 1 },
+  },
+  {
+    // Mounted first (underneath the left-look mosaic) purely as gap fill:
+    // Magellan's left-look and right-look passes have complementary coverage,
+    // so most of the black orbit-seam streaks in the left-look mosaic are
+    // real surface data in the right-look one.
+    id: "magellan_sar_right",
+    title: "Magellan Right-Look SAR (seam fill)",
+    category: "basemap",
+    kind: "wms",
+    wmtsLayer: "MAGELLAN_RightLook",
+    urlTemplate: VENUS_WMS,
+    ext: "png",
+    maximumLevel: 9,
+    bbox: [-180, -80.01, 180, 84],
+    credit: "NASA / JPL / USGS Astrogeology · Magellan right-look SAR mosaic",
+    description:
+      "Right-look Magellan radar mosaic, used to fill the data gaps in the left-look global mosaic.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+  {
     id: "magellan_sar",
     title: "Magellan Left-Look SAR Mosaic (75 m)",
     category: "basemap",
     kind: "wms",
     wmtsLayer: "MAGELLAN",
     urlTemplate: VENUS_WMS,
-    ext: "jpg",
-    maximumLevel: 12,
+    // PNG + transparency: the MapServer mosaic has real Magellan data gaps
+    // (orbit seams, polar cut-off at -80.01°/+84°). As JPEG those gaps come
+    // back as hard black/white bands; as transparent PNG they drop out and
+    // the global Venus skin underneath shows through instead.
+    ext: "png",
+    // Source is 75 m/px ≈ 7.1e-4°/px on Venus, which is geographic level 9.
+    // Requesting past that only makes MapServer upsample (blurry tiles and
+    // visible resampling seams), so cap it and let Cesium magnify.
+    maximumLevel: 9,
+    bbox: [-180, -80.01, 180, 84],
     credit: "NASA / JPL / USGS Astrogeology · Magellan SAR mosaic",
     description:
       "Global synthetic-aperture radar mosaic of the Venusian surface from the Magellan mission.",
@@ -123,8 +179,8 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     kind: "wms",
     wmtsLayer: "MAGELLAN_color",
     urlTemplate: VENUS_WMS,
-    ext: "jpg",
-    maximumLevel: 10,
+    ext: "png",
+    maximumLevel: 7,
     credit: "NASA / JPL / USGS Astrogeology · Magellan colourised relief",
     description:
       "Colourised Magellan radar relief — highlands in warm tones, lowland plains in cool tones.",
@@ -136,8 +192,8 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     kind: "wms",
     wmtsLayer: "MAGELLAN_topography",
     urlTemplate: VENUS_WMS,
-    ext: "jpg",
-    maximumLevel: 10,
+    ext: "png",
+    maximumLevel: 7,
     credit: "NASA / JPL / USGS Astrogeology · Magellan altimetry",
     description:
       "Magellan radar-altimeter topography of Venus, greyscale elevation across the whole globe.",
@@ -178,6 +234,9 @@ export function createPlanetImageryProvider(
       maximumLevel: def.maximumLevel,
       tileWidth: 512,
       tileHeight: 512,
+      // No GetFeatureInfo round-trips on hover — MapServer answers those with
+      // an error page for these raster layers.
+      enablePickFeatures: false,
       credit: new Credit(def.credit, true),
     };
     if (def.bbox) wmsOpts.rectangle = Rectangle.fromDegrees(...def.bbox);
@@ -236,4 +295,10 @@ export function tunePlanetImageryLayer(
   layer.contrast = 1.06;
   layer.gamma = 0.88;
   layer.saturation = def.category === "composition" ? 1.2 : 1.05;
+  if (def.tone) {
+    if (def.tone.brightness !== undefined) layer.brightness = def.tone.brightness;
+    if (def.tone.contrast !== undefined) layer.contrast = def.tone.contrast;
+    if (def.tone.gamma !== undefined) layer.gamma = def.tone.gamma;
+    if (def.tone.saturation !== undefined) layer.saturation = def.tone.saturation;
+  }
 }
