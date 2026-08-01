@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     const { data: userData } = await admin.auth.getUser(token);
     const user = userData?.user;
-    if (!user?.email) return json({ error: "unauthorized" }, 401);
+    if (!user) return json({ error: "unauthorized" }, 401);
 
     const { sessionId } = await req.json().catch(() => ({ sessionId: "" }));
     if (!sessionId || typeof sessionId !== "string") return json({ error: "invalid_request" }, 400);
