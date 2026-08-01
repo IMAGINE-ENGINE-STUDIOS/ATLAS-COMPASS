@@ -361,8 +361,7 @@ const DevelopersPage = () => {
               <li>Hard monthly and per-charge limits you control</li>
             </ul>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Button size="lg" disabled={paygBusy} onClick={() => setupPayg(paygPack.usd)}>
-                {paygBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button size="lg" onClick={() => navigate("/developers/checkout?mode=payg")}>
                 Start pay as you go · {fmtUsd(paygPack.usd, 0)} / month cap
               </Button>
               <Button size="lg" variant="outline" onClick={() => setTab("credits")}>
