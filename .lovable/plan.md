@@ -1,107 +1,37 @@
-# ATLAS Signal API — Developer Resale Platform
+# Venus surface imagery + true close-approach zoom
 
-Sell the messaging + hazard-alert infrastructure as our own branded API. The upstream carrier provider is never named anywhere: not in docs, dashboards, error messages, API responses, invoices, or code identifiers visible to customers. Publicly it is the **ATLAS Signal Network**.
+## What I verified first (live checks this turn)
 
-## Business model
+- NASA Trek works only for **Moon, Mars, Mercury** — those tiles return 200. Every other catalog in `src/lib/planets/trekCatalogs.ts` is dead: `Venus, Vesta, Io, Europa, Ganymede, Callisto, Titan, Enceladus, Phobos` all return **404**, and `trek.nasa.gov/tiles/<Body>/EQ/1.0.0/WMTSCapabilities.xml` returns 404 for all of them (so there is no corrected layer ID to guess — NASA simply doesn't publish those pyramids).
+- In the browser at `/planet/venus`: one imagery layer mounts, all its tile requests fail (404/504), so the planet renders as flat base colour.
+- Zoom stall reproduced numerically: wheel-zooming 60 notches parks the camera at radius ≈ 6,375 km on a 6,051.8 km body — **~320 km altitude, and it stops moving entirely** — even though `minimumZoomDistance` is 1.5 m. So the block is Cesium's Earth-tuned zoom/picking behaviour on small ellipsoids, not the zoom clamp.
+- Working replacements confirmed: USGS Venus WMS (`planetarymaps.usgs.gov` `venus_simp_cyl.map`) serves `MAGELLAN` (radar SAR), `MAGELLAN_color`, `MAGELLAN_topography` — HTTP 200, JPEG, `access-control-allow-origin: *`. A global Venus albedo JPEG on jsDelivr also returns 200 as a fallback skin.
 
-**Prepaid credits.** Developers buy credit packs, balance drains per message. No invoicing, no bad debt, hard stop at zero.
+## 1. Real Venus surface (USGS Magellan WMS)
 
-- 1 credit = $0.01 USD (clean math for per-country pricing)
-- Packs: $25 / $100 / $500 / $2,000 (with 0% / 3% / 7% / 12% bonus credits — volume discount without publishing a discount table)
-- Every billable action has a published price in a **per-country rate card**, set at 2x our landed cost and rounded up to the nearest tenth of a cent
-- Sub-cost floor: minimum $0.02 per outbound segment even where cost is tiny, so tiny-margin destinations never lose money
-- Non-message billables priced flat: inbound message, hazard-alert broadcast fan-out (per recipient), number rental (monthly), delivery-status webhook (free)
+- Add a WMS-backed layer type to the planet catalog (`kind: "wms" | "wmts" | "texture"`), with a `createPlanetImageryProvider` branch that builds Cesium `WebMapServiceImageryProvider` for WMS entries.
+- Venus layers: **Magellan Left-Look SAR** (default basemap), **Magellan Colour Topography**, **Magellan Topography** — all toggleable in the existing planet layer picker with credits and descriptions.
+- Mount a single-tile Venus albedo texture as the bottom layer so the disc is never blank while WMS tiles stream.
 
-**Rate card mechanics**
-- A `pricing_rates` table holds `country_iso`, `channel`, `cost_per_segment`, `sell_per_segment`, `effective_from`
-- Seeded from a cost table we maintain; `sell = max(round_up(cost * 2, 0.001), floor)`
-- The multiplier lives in one config row so a future change to 1.8x or 2.5x is one update, not a migration
-- Public `/pricing` page renders the rate card from the same table — one source of truth, no drift
+## 2. Stop shipping dead tile sources
 
-## Developer surface
+- Replace the 9 dead Trek catalogs with the single-tile global-mosaic texture path already supported for gas giants (Voyager/Galileo/Cassini-derived global maps), so Io, Europa, Ganymede, Callisto, Titan, Enceladus, Vesta, Ceres and Phobos show a real surface instead of a coloured ball.
+- Add a self-healing guard: subscribe to each imagery provider's `errorEvent`; after 3 consecutive tile failures, remove that layer and fall back to the body's texture skin, logging once. This prevents any future upstream outage from producing a blank planet.
 
-**Full suite, all under `/v1`:**
+## 3. True close approach on every non-Earth body
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /v1/messages` | Send an SMS (to, body, optional callback URL) |
-| `GET /v1/messages/:id` | Delivery status + segments + credits charged |
-| `GET /v1/messages` | Paginated message log |
-| `POST /v1/subscriptions` | Register a phone for hazard alerts (lat/lon or address, radius, hazards, language) |
-| `DELETE /v1/subscriptions/:id` | Unsubscribe |
-| `POST /v1/alerts/broadcast` | Geo-targeted hazard broadcast to the caller's own subscribers |
-| `GET /v1/alerts` | Alerts the caller has sent, with per-alert delivery/credit rollup |
-| `GET /v1/balance` | Credit balance, spend rate, low-balance threshold |
-| `GET /v1/pricing` | Live rate card |
-| Inbound webhooks | Signed POSTs to the developer's URL for inbound messages and delivery receipts, signed with **our** scheme (`X-Atlas-Signature`, HMAC-SHA256 of timestamp + body) |
+- Add `src/lib/planets/planetCameraController.ts`: on non-Earth worlds, disable Cesium's built-in wheel/pinch zoom and drive the camera ourselves — each notch moves a fraction of the *current altitude above the ellipsoid* (geometric zoom), so approach stays smooth from 100,000 km down to metres.
+- Per-body floor: `minAltitude = max(30 m, radius × 2e-6)` — roughly 12 m on Venus, 5 m on Enceladus — and re-set Cesium's picking/collision/trackball thresholds from the body radius instead of Earth's defaults.
+- Keep tilt/rotate/pan on Cesium defaults so orbiting feels identical to Earth; scale rotate/pan inertia with altitude so low passes aren't hypersensitive.
+- Double-click a surface point on any body flies to ~2 km above it; scroll continues from there.
+- `src/pages/PlanetPage.tsx` (the simple sphere viewer for the Sun/gas giants): `minDistance` from `radius × 1.4` → `radius × 1.02`, and stop auto-rotate once the user interacts.
 
-Every response is our own envelope. Upstream errors are mapped to our own error codes (`insufficient_credits`, `invalid_destination`, `destination_blocked`, `rate_limited`) — raw upstream error text is logged internally and never returned.
+## 4. Verification before I hand back
 
-## Developer portal (`/developers`)
-
-- **Overview** — balance, 30-day spend chart, messages sent, delivery rate
-- **API keys** — create/revoke named keys (`sig_live_…` / `sig_test_…`), only the SHA-256 hash stored, plaintext shown once
-- **Credits** — buy packs, auto-topup toggle, low-balance email threshold, transaction ledger
-- **Logs** — message log with status, country, segments, credits
-- **Webhooks** — endpoint URL, signing secret, recent deliveries + retry
-- **Docs** — quickstart, auth, full endpoint reference, error codes, rate card
-
-Test mode: `sig_test_` keys simulate the full lifecycle (queued → sent → delivered) with zero credits charged and no real delivery.
-
-## Data model
-
-- `api_keys` — owner, name, key_hash, prefix, mode (live/test), last_used_at, revoked_at
-- `credit_accounts` — owner, balance_credits, auto_topup config, low_balance_threshold
-- `credit_transactions` — append-only ledger: purchase, debit, refund, bonus, adjustment; running balance
-- `pricing_rates` — per-country/channel cost + sell + effective_from
-- `pricing_config` — single row holding the markup multiplier and the per-segment floor
-- `api_messages` — outbound/inbound records, segments, country, credits_charged, status, provider ref (internal only, never exposed)
-- `api_subscriptions` — developer-owned alert subscribers (separate from our own first-party subscribers)
-- `api_webhooks` + `api_webhook_deliveries` — endpoint, secret, attempt log
-- `api_usage_daily` — rollup for charts and rate limiting
-
-All tables RLS-scoped to the owning account plus admin, with GRANTs; the API itself reads through a service-role edge function, never the browser.
-
-## Charging flow (must be atomic)
-
-1. Authenticate key → resolve account
-2. Estimate segments (GSM-7 vs UCS-2) and destination country → price from rate card
-3. **Reserve** credits in a single transaction (`debit` row + balance check). Insufficient → `402 insufficient_credits`, nothing sent
-4. Dispatch upstream
-5. On delivery-status callback, reconcile actual segments: refund or debit the delta
-6. Upstream hard failure → automatic full refund row
-
-Balance can never go negative; the reservation and the send are never allowed to drift.
-
-## Abuse controls
-
-- Per-key rate limits (default 10 msg/s, 5,000/day) raised on request
-- Country allowlist per account, default set to the account's own country until they ask for more
-- New accounts capped at $50 spend in the first 7 days
-- Duplicate-destination flood detection (same number, >N messages/min) → auto-pause key + email
-- Admin kill switch per key and per account in the existing dashboard
-
-## Admin view
-
-New **Signal Revenue** section inside the existing `/dashboard`: gross revenue, landed cost, realized margin %, credits sold vs consumed (deferred-revenue liability), top accounts, per-country margin outliers, and a rate-card editor that recomputes sell prices from the multiplier.
-
-## Payments
-
-Prepaid credit packs need a checkout. I'll enable Lovable's built-in Stripe payments and set up full compliance handling — Stripe handles tax compliance, disputes, and transaction support for buyers in ~80 countries — then create the four credit-pack products and wire the webhook to write `purchase` rows into `credit_transactions`.
+- Headless browser run per body (Venus, Mercury, Io, Titan, Enceladus): assert zero failing imagery requests and that 80 wheel notches bring camera altitude under 1 km, with screenshots of the surface at high zoom.
 
 ## Technical notes
 
-- New edge function `signal-api` handles all `/v1` routes (single function, internal router) so key auth, rate limiting, and credit reservation live in one place
-- Existing `sms-broadcast` / `sms-webhook` are refactored so the send path is shared with the resale path, but our own first-party alerts stay on a separate non-billed account
-- Naming discipline enforced in code: no upstream provider name in any file under a `public/` or docs path, in any API response field, or in any user-visible string. Internal secrets and `_shared` helpers keep their current names
-- Docs page is generated from a single endpoint spec object so docs cannot drift from the router
-
-## Build order
-
-1. Schema + RLS + rate card seed + pricing config
-2. `signal-api` edge function: auth, balance, pricing, `POST /v1/messages`, status
-3. Credit ledger + Stripe packs + purchase webhook
-4. Developer portal (`/developers`) with keys, credits, logs
-5. Subscriptions, broadcast, and outbound webhooks
-6. Public `/pricing` + docs
-7. Admin Signal Revenue section
+- Files touched: `src/lib/planets/trekCatalogs.ts`, `src/lib/planets/config.ts`, new `src/lib/planets/planetCameraController.ts`, `src/pages/SpaceshipPage.tsx` (generic-planet imagery + camera wiring), `src/pages/PlanetPage.tsx`.
+- No backend or schema changes; all sources are keyless, CORS-enabled, canonical NASA/USGS data (no synthetic imagery).
+- WMS deep zoom on Venus is limited by the source mosaic (Magellan SAR ~75 m/px), so imagery softens below a few hundred metres — that is the real data ceiling, not a bug.
