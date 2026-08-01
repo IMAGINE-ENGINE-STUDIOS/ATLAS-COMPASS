@@ -164,7 +164,25 @@ export function hasPlanetLayerCatalog(worldId: string): boolean {
 
 export function createPlanetImageryProvider(
   def: PlanetLayerDef,
-): WebMapTileServiceImageryProvider {
+): WebMapTileServiceImageryProvider | WebMapServiceImageryProvider {
+  if (def.kind === "wms") {
+    const wmsOpts: any = {
+      url: def.urlTemplate,
+      layers: def.wmtsLayer,
+      parameters: {
+        format: def.ext === "jpg" ? "image/jpeg" : "image/png",
+        transparent: def.ext === "png",
+        styles: "",
+      },
+      tilingScheme: new GeographicTilingScheme(),
+      maximumLevel: def.maximumLevel,
+      tileWidth: 512,
+      tileHeight: 512,
+      credit: new Credit(def.credit, true),
+    };
+    if (def.bbox) wmsOpts.rectangle = Rectangle.fromDegrees(...def.bbox);
+    return new WebMapServiceImageryProvider(wmsOpts);
+  }
   const opts: any = {
     url: def.urlTemplate,
     layer: def.wmtsLayer,
@@ -177,6 +195,35 @@ export function createPlanetImageryProvider(
   };
   if (def.bbox) opts.rectangle = Rectangle.fromDegrees(...def.bbox);
   return new WebMapTileServiceImageryProvider(opts);
+}
+
+/**
+ * Self-healing guard: if an upstream tile service starts failing (404 / 5xx)
+ * we don't want the body to render as a flat coloured ball. After a few
+ * consecutive tile errors we drop the layer and hand control back to the
+ * caller, which re-mounts the body's single global texture skin.
+ */
+export function guardPlanetImageryLayer(
+  provider: any,
+  onDead: () => void,
+  threshold = 3,
+) {
+  let failures = 0;
+  let fired = false;
+  try {
+    provider.errorEvent?.addEventListener?.((err: any) => {
+      failures += 1;
+      if (failures < threshold || fired) return;
+      fired = true;
+      console.warn(
+        "[Atlas planet] imagery source unavailable — falling back to global texture",
+        err?.error ?? err,
+      );
+      try {
+        onDead();
+      } catch {}
+    });
+  } catch {}
 }
 
 /** Cinematic tuning so raw NASA tiles pop in a dark Atlas UI. */
