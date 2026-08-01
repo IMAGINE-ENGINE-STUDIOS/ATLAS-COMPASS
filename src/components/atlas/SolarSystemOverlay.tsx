@@ -28,6 +28,7 @@ import {
   type SolarEphemerisVector,
 } from "@/lib/solarSystem";
 import { findPlanet } from "@/lib/planets/config";
+import { preloadPlanet } from "@/lib/planets/preload";
 
 type CentralBody = "earth" | "moon";
 
@@ -142,10 +143,19 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
   const openBody = (body: SolarBodyDefinition, position: Cartesian3) => {
     const route = routeForBody(body.id);
     setOpen(false);
+    // Warm the destination planet's textures while the camera is in flight so
+    // the viewer paints immediately instead of suspending on arrival.
+    const warm = preloadPlanet(body.id);
     travelToBody(viewer, body, position);
     if (route) {
       const delay = body.id === "moon" ? 3800 : 4800;
-      window.setTimeout(() => navigate(route), delay);
+      const flight = new Promise<void>((r) => window.setTimeout(r, delay));
+      // Navigate when the flight finishes *and* the textures are ready
+      // (capped so a slow CDN can never strand the user mid-flight).
+      Promise.all([
+        flight,
+        Promise.race([warm, new Promise<void>((r) => window.setTimeout(r, 9000))]),
+      ]).then(() => navigate(route));
     }
   };
 
