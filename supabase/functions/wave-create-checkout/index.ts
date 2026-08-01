@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     const { data: userData } = await admin.auth.getUser(token);
     const user = userData?.user;
-    if (!user?.email) return json({ error: "unauthorized" }, 401);
+    if (!user) return json({ error: "unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
     const mode: "pack" | "payg" = body?.mode === "payg" ? "payg" : "pack";
@@ -42,7 +42,8 @@ Deno.serve(async (req) => {
     if (!account) return json({ error: "no_account" }, 400);
 
     const stripe = stripeClient();
-    const customerId = await ensureCustomer(stripe, user.email, account.stripe_customer_id);
+    const billingEmail = user.email || account.contact_email || null;
+    const customerId = await ensureCustomer(stripe, billingEmail, account.stripe_customer_id);
     if (customerId !== account.stripe_customer_id) {
       await admin.from("signal_accounts").update({ stripe_customer_id: customerId }).eq("id", account.id);
     }
