@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ const Stat = ({ label, value, sub }: { label: string; value: string; sub?: strin
 /** WAVE developer portal — keys, credits, logs and webhooks. */
 const DevelopersPage = () => {
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [signedIn, setSignedIn] = useState(false);
   const [account, setAccount] = useState<WaveAccount | null>(null);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
@@ -149,6 +150,7 @@ const DevelopersPage = () => {
     }
   };
 
+  /** Card already on file — go straight to Stripe instead of the review screen. */
   const setupPayg = (capUsd?: number) => {
     setPaygBusy(true);
     void startCheckout(
@@ -164,9 +166,7 @@ const DevelopersPage = () => {
   const buyPack = (packId: string) => {
     const pack = CREDIT_PACKS.find((p) => p.id === packId);
     // The $100 tier is the metered membership: it connects a card instead of prepaying.
-    if (pack?.payg) return setupPayg(pack.usd);
-    setBusyPack(packId);
-    void startCheckout({ mode: "pack", packId }, () => setBusyPack(null));
+    navigate(pack?.payg ? "/developers/checkout?mode=payg" : `/developers/checkout?pack=${packId}`);
   };
 
   const openPortal = async () => {
