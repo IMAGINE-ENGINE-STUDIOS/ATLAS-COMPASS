@@ -186,6 +186,9 @@ export function createPlanetImageryProvider(
       maximumLevel: def.maximumLevel,
       tileWidth: 512,
       tileHeight: 512,
+      // No GetFeatureInfo round-trips on hover — MapServer answers those with
+      // an error page for these raster layers.
+      enablePickFeatures: false,
       credit: new Credit(def.credit, true),
     };
     if (def.bbox) wmsOpts.rectangle = Rectangle.fromDegrees(...def.bbox);
