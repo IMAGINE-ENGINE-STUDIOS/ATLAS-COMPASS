@@ -3121,6 +3121,10 @@ function SpaceshipPage({
           // source: the body is never a flat coloured ball while tiles
           // stream, and it is what we fall back to if a source dies.
           const mountTextureSkin = () => {
+            // When a real radar/photo catalog is draped on top, the skin is
+            // only ever seen through data gaps — so mute it to match the
+            // greyscale mosaic instead of flashing artist-colour streaks.
+            const underRealImagery = hasPlanetLayerCatalog(activeWorldId);
             (SingleTileImageryProvider as any)
               .fromUrl(genericPlanetEntry.textureUrl, {
                 tilingScheme: new GeographicTilingScheme(),
@@ -3130,8 +3134,9 @@ function SpaceshipPage({
                 if (viewer.isDestroyed()) return;
                 if ((viewer as any).__planetTextureSkin) return;
                 const layer = new ImageryLayer(provider, {});
-                layer.brightness = 1.05;
-                layer.saturation = 1.15;
+                layer.brightness = underRealImagery ? 0.85 : 1.05;
+                layer.saturation = underRealImagery ? 0.12 : 1.15;
+                if (underRealImagery) layer.contrast = 0.9;
                 viewer.imageryLayers.add(layer, 0);
                 viewer.imageryLayers.lowerToBottom(layer);
                 (viewer as any).__planetTextureSkin = layer;
