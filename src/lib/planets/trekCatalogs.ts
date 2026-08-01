@@ -102,6 +102,25 @@ const MERCURY_LAYERS: PlanetLayerDef[] = [
 const VENUS_WMS = usgsWmsUrl("venus");
 const VENUS_LAYERS: PlanetLayerDef[] = [
   {
+    // Bottom of the Venus stack: the altimetry product is the only Magellan
+    // raster with true pole-to-pole coverage, so it fills the SAR mosaic's
+    // orbit seams and polar cut-off with real mission data instead of an
+    // artist texture (which was what produced the coloured streaks).
+    id: "magellan_topography_base",
+    title: "Magellan Altimetry (seam base)",
+    category: "elevation",
+    kind: "wms",
+    wmtsLayer: "MAGELLAN_topography",
+    urlTemplate: VENUS_WMS,
+    ext: "png",
+    maximumLevel: 7,
+    credit: "NASA / JPL / USGS Astrogeology · Magellan altimetry",
+    description:
+      "Global Magellan radar-altimeter topography, used as the base fill under the SAR mosaics.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+  {
     // Mounted first (underneath the left-look mosaic) purely as gap fill:
     // Magellan's left-look and right-look passes have complementary coverage,
     // so most of the black orbit-seam streaks in the left-look mosaic are
