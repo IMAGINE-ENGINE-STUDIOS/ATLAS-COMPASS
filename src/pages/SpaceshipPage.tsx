@@ -3797,6 +3797,7 @@ function SpaceshipPage({
       try { removePerfListener?.(); } catch {}
       try { removeWorldCameraSave?.(); } catch {}
       try { removeMoonCameraGuard?.(); } catch {}
+      try { removePlanetCamera?.(); } catch {}
       // Release the module-level Viewer ref held by the shared scheduler
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
