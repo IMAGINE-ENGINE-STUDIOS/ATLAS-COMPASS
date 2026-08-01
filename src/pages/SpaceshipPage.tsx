@@ -54,8 +54,10 @@ import {
   getPlanetLayerCatalog,
   createPlanetImageryProvider,
   tunePlanetImageryLayer,
+  guardPlanetImageryLayer,
 } from "@/lib/planets/trekCatalogs";
 import { MARS_ELLIPSOID, ellipsoidForPlanet } from "@/lib/planets/ellipsoids";
+import { attachPlanetCameraController } from "@/lib/planets/planetCameraController";
 import { findPlanet, type PlanetId } from "@/lib/planets/config";
 import { getDeviceProfile, memoryPressure } from "@/lib/deviceProfile";
 import PlanetSwitcher from "@/components/atlas/PlanetSwitcher";
@@ -2887,6 +2889,7 @@ function SpaceshipPage({
     (ssec0 as any).enableCollisionDetection = true;
     ssec0.minimumZoomDistance = 1.5;
     let removeMoonCameraGuard: (() => void) | null = null;
+    let removePlanetCamera: (() => void) | null = null;
     if (isMoon) {
       // Moon: keep the SAME Cesium-native controls as Earth so the camera
       // never feels "rigid". The previous config disabled tilt, clamped
@@ -3026,6 +3029,15 @@ function SpaceshipPage({
     keepAtlasRenderingDuringBoot(viewer, 15000);
     if (isMoon) {
       removeMoonCameraGuard = installMoonCameraGuard(viewer);
+      // Altitude-proportional zoom for every non-Earth body: Cesium's
+      // Earth-tuned zoom stalls hundreds of km above smaller ellipsoids.
+      try {
+        removePlanetCamera = attachPlanetCameraController(viewer, {
+          ellipsoid: nonEarthEllipsoidRef.current,
+        });
+      } catch (err) {
+        console.warn("[Atlas planet] camera controller failed", err);
+      }
     }
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
@@ -3105,6 +3117,31 @@ function SpaceshipPage({
         // catalog (gas giants, Sun).
         try {
           viewer.imageryLayers.removeAll(true);
+          // Global equirectangular skin mounted underneath every tiled
+          // source: the body is never a flat coloured ball while tiles
+          // stream, and it is what we fall back to if a source dies.
+          const mountTextureSkin = () => {
+            (SingleTileImageryProvider as any)
+              .fromUrl(genericPlanetEntry.textureUrl, {
+                tilingScheme: new GeographicTilingScheme(),
+                rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
+              })
+              .then((provider: any) => {
+                if (viewer.isDestroyed()) return;
+                if ((viewer as any).__planetTextureSkin) return;
+                const layer = new ImageryLayer(provider, {});
+                layer.brightness = 1.05;
+                layer.saturation = 1.15;
+                viewer.imageryLayers.add(layer, 0);
+                viewer.imageryLayers.lowerToBottom(layer);
+                (viewer as any).__planetTextureSkin = layer;
+                viewer.scene.requestRender?.();
+              })
+              .catch((err: any) =>
+                console.warn("[Atlas planet] texture skin failed", err),
+              );
+          };
+          mountTextureSkin();
           const catalog = getPlanetLayerCatalog(activeWorldId);
           if (catalog && catalog.length) {
             const defaults = catalog.filter((l) => l.defaultVisible);
@@ -3117,28 +3154,15 @@ function SpaceshipPage({
               layer.alpha = def.defaultAlpha ?? 1;
               viewer.imageryLayers.add(layer);
               (viewer as any).__planetImagery[def.id] = layer;
-            });
-          } else {
-            // Modern Cesium requires the async `fromUrl` factory — the
-            // legacy `new SingleTileImageryProvider({url})` constructor
-            // silently creates a provider that never loads the image, so
-            // the globe stays as its baseColor. Use the async form.
-            (SingleTileImageryProvider as any)
-              .fromUrl(genericPlanetEntry.textureUrl, {
-                tilingScheme: new GeographicTilingScheme(),
-                rectangle: Rectangle.fromDegrees(-180, -90, 180, 90),
-              })
-              .then((provider: any) => {
+              guardPlanetImageryLayer(provider, () => {
                 if (viewer.isDestroyed()) return;
-                const layer = new ImageryLayer(provider, {});
-                layer.brightness = 1.05;
-                layer.saturation = 1.15;
-                viewer.imageryLayers.add(layer);
-                viewer.scene.requestRender?.();
-              })
-              .catch((err: any) =>
-                console.warn("[Atlas planet] single-tile failed", err),
-              );
+                try {
+                  viewer.imageryLayers.remove(layer, true);
+                  delete (viewer as any).__planetImagery[def.id];
+                } catch {}
+                mountTextureSkin();
+              });
+            });
           }
         } catch (err) {
           console.warn("[Atlas planet] imagery failed", err);
@@ -3773,6 +3797,7 @@ function SpaceshipPage({
       try { removePerfListener?.(); } catch {}
       try { removeWorldCameraSave?.(); } catch {}
       try { removeMoonCameraGuard?.(); } catch {}
+      try { removePlanetCamera?.(); } catch {}
       // Release the module-level Viewer ref held by the shared scheduler
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}
