@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { PLANETS, type PlanetEntry } from "@/lib/planets/config";
+import { preloadPlanet } from "@/lib/planets/preload";
 
 function activeIdFromPath(path: string): string {
   if (path === "/" || path.startsWith("/atlas") || path.startsWith("/explore")) return "earth";
@@ -144,8 +145,15 @@ export default function PlanetSwitcher() {
               key={p.id}
               data-orb
               type="button"
-              onClick={() => navigate(p.route)}
-              onPointerEnter={() => setHoverIdx(i)}
+              onClick={() => {
+                preloadPlanet(p.id);
+                navigate(p.route);
+              }}
+              onPointerEnter={() => {
+                setHoverIdx(i);
+                preloadPlanet(p.id);
+              }}
+              onFocus={() => preloadPlanet(p.id)}
               title={`${p.name} — ${p.blurb}`}
               aria-label={p.name}
               aria-current={isActive ? "true" : undefined}
