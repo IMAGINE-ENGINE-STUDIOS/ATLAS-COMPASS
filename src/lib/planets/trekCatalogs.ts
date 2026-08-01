@@ -125,6 +125,9 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
       "Global Magellan radar-altimeter topography, used as the base fill under the SAR mosaics.",
     defaultVisible: true,
     defaultAlpha: 1,
+    // Strip the altimetry colour ramp so the fill reads as grey radar-like
+    // terrain instead of rainbow streaks inside the SAR seams.
+    tone: { saturation: 0.05, brightness: 0.95, contrast: 1.0, gamma: 1 },
   },
   {
     // Mounted first (underneath the left-look mosaic) purely as gap fill:
