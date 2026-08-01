@@ -20,7 +20,7 @@ export function stripeClient(): Stripe {
 /** Find or create the billing customer for a developer account. */
 export async function ensureCustomer(
   stripe: Stripe,
-  email: string,
+  email: string | null | undefined,
   existingId?: string | null,
 ): Promise<string> {
   if (existingId) {
@@ -29,9 +29,13 @@ export async function ensureCustomer(
       if (c && !(c as { deleted?: boolean }).deleted) return existingId;
     } catch { /* fall through and re-resolve */ }
   }
-  const found = await stripe.customers.list({ email, limit: 1 });
-  if (found.data.length > 0) return found.data[0].id;
-  const created = await stripe.customers.create({ email });
+  if (email) {
+    const found = await stripe.customers.list({ email, limit: 1 });
+    if (found.data.length > 0) return found.data[0].id;
+  }
+  // Anonymous / email-less accounts still get a customer; Stripe Checkout
+  // collects the email during the session.
+  const created = await stripe.customers.create(email ? { email } : {});
   return created.id;
 }
 

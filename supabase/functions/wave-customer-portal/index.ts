@@ -26,16 +26,20 @@ Deno.serve(async (req) => {
     const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     const { data: userData } = await admin.auth.getUser(token);
     const user = userData?.user;
-    if (!user?.email) return json({ error: "unauthorized" }, 401);
+    if (!user) return json({ error: "unauthorized" }, 401);
 
     const { data: account } = await admin
       .from("signal_accounts")
-      .select("id, stripe_customer_id")
+      .select("id, stripe_customer_id, contact_email")
       .eq("owner_id", user.id)
       .maybeSingle();
 
     const stripe = stripeClient();
-    const customerId = await ensureCustomer(stripe, user.email, account?.stripe_customer_id);
+    const customerId = await ensureCustomer(
+      stripe,
+      user.email || account?.contact_email || null,
+      account?.stripe_customer_id,
+    );
     if (account && customerId !== account.stripe_customer_id) {
       await admin.from("signal_accounts").update({ stripe_customer_id: customerId }).eq("id", account.id);
     }
