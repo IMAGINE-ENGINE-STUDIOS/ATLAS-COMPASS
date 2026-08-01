@@ -292,4 +292,10 @@ export function tunePlanetImageryLayer(
   layer.contrast = 1.06;
   layer.gamma = 0.88;
   layer.saturation = def.category === "composition" ? 1.2 : 1.05;
+  if (def.tone) {
+    if (def.tone.brightness !== undefined) layer.brightness = def.tone.brightness;
+    if (def.tone.contrast !== undefined) layer.contrast = def.tone.contrast;
+    if (def.tone.gamma !== undefined) layer.gamma = def.tone.gamma;
+    if (def.tone.saturation !== undefined) layer.saturation = def.tone.saturation;
+  }
 }
