@@ -80,8 +80,9 @@ export default function PlanetPage() {
         </Suspense>
         <OrbitControls
           enablePan={false}
-          minDistance={1.4}
+          minDistance={1.02}
           maxDistance={12}
+          zoomToCursor
           rotateSpeed={0.5}
           zoomSpeed={0.8}
         />
