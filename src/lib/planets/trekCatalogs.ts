@@ -43,6 +43,12 @@ export interface PlanetLayerDef {
   credit: string;
   description: string;
   bbox?: [number, number, number, number];
+  /**
+   * Colour overrides applied when the layer is mounted. Used for seam-fill
+   * base layers that must blend with the greyscale radar mosaic on top of
+   * them rather than show their own colour ramp.
+   */
+  tone?: { brightness?: number; contrast?: number; gamma?: number; saturation?: number };
   defaultVisible?: boolean;
   defaultAlpha?: number;
 }
