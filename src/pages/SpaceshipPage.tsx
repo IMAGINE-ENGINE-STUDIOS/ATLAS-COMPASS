@@ -2889,6 +2889,7 @@ function SpaceshipPage({
     (ssec0 as any).enableCollisionDetection = true;
     ssec0.minimumZoomDistance = 1.5;
     let removeMoonCameraGuard: (() => void) | null = null;
+    let removePlanetCamera: (() => void) | null = null;
     if (isMoon) {
       // Moon: keep the SAME Cesium-native controls as Earth so the camera
       // never feels "rigid". The previous config disabled tilt, clamped
@@ -3028,6 +3029,15 @@ function SpaceshipPage({
     keepAtlasRenderingDuringBoot(viewer, 15000);
     if (isMoon) {
       removeMoonCameraGuard = installMoonCameraGuard(viewer);
+      // Altitude-proportional zoom for every non-Earth body: Cesium's
+      // Earth-tuned zoom stalls hundreds of km above smaller ellipsoids.
+      try {
+        removePlanetCamera = attachPlanetCameraController(viewer, {
+          ellipsoid: nonEarthEllipsoidRef.current,
+        });
+      } catch (err) {
+        console.warn("[Atlas planet] camera controller failed", err);
+      }
     }
     const __onFirstTilesetReady = () => {
       if (viewer.isDestroyed()) return;
