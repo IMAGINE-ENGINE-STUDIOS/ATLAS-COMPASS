@@ -54,6 +54,7 @@ import {
   getPlanetLayerCatalog,
   createPlanetImageryProvider,
   tunePlanetImageryLayer,
+  guardPlanetImageryLayer,
 } from "@/lib/planets/trekCatalogs";
 import { MARS_ELLIPSOID, ellipsoidForPlanet } from "@/lib/planets/ellipsoids";
 import { findPlanet, type PlanetId } from "@/lib/planets/config";
