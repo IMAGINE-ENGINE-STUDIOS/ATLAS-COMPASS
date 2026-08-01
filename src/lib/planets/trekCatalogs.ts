@@ -102,6 +102,26 @@ const MERCURY_LAYERS: PlanetLayerDef[] = [
 const VENUS_WMS = usgsWmsUrl("venus");
 const VENUS_LAYERS: PlanetLayerDef[] = [
   {
+    // Mounted first (underneath the left-look mosaic) purely as gap fill:
+    // Magellan's left-look and right-look passes have complementary coverage,
+    // so most of the black orbit-seam streaks in the left-look mosaic are
+    // real surface data in the right-look one.
+    id: "magellan_sar_right",
+    title: "Magellan Right-Look SAR (seam fill)",
+    category: "basemap",
+    kind: "wms",
+    wmtsLayer: "MAGELLAN_RightLook",
+    urlTemplate: VENUS_WMS,
+    ext: "png",
+    maximumLevel: 9,
+    bbox: [-180, -80.01, 180, 84],
+    credit: "NASA / JPL / USGS Astrogeology · Magellan right-look SAR mosaic",
+    description:
+      "Right-look Magellan radar mosaic, used to fill the data gaps in the left-look global mosaic.",
+    defaultVisible: true,
+    defaultAlpha: 1,
+  },
+  {
     id: "magellan_sar",
     title: "Magellan Left-Look SAR Mosaic (75 m)",
     category: "basemap",
