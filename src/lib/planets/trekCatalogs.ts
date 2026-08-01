@@ -9,6 +9,7 @@
  */
 import {
   WebMapTileServiceImageryProvider,
+  WebMapServiceImageryProvider,
   GeographicTilingScheme,
   Credit,
   ImageryLayer,
@@ -26,6 +27,13 @@ export interface PlanetLayerDef {
   id: string;
   title: string;
   category: PlanetLayerCategory;
+  /**
+   * Source protocol. `wmts` = NASA Trek tile pyramid (Moon / Mars / Mercury
+   * only — NASA publishes no other bodies), `wms` = USGS Astrogeology
+   * MapServer (Venus Magellan), `texture` = single global equirectangular
+   * image draped over the whole ellipsoid.
+   */
+  kind?: "wmts" | "wms" | "texture";
   /** Full URL template with `{TileMatrix}/{TileRow}/{TileCol}` placeholders. */
   urlTemplate: string;
   /** WMTS layer identifier (used as `layer` param). */
@@ -41,6 +49,11 @@ export interface PlanetLayerDef {
 
 function trekUrl(body: string, layer: string, ext: string): string {
   return `https://trek.nasa.gov/tiles/${body}/EQ/${layer}/1.0.0/default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.${ext}`;
+}
+
+/** USGS Astrogeology MapServer endpoint for a body's simple-cylindrical map. */
+function usgsWmsUrl(body: string): string {
+  return `https://planetarymaps.usgs.gov/cgi-bin/mapserv?map=/maps/${body}/${body}_simp_cyl.map`;
 }
 
 // ─── Mercury (NASA / USGS · MESSENGER MDIS) ────────────────────
