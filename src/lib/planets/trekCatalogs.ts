@@ -108,8 +108,16 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     kind: "wms",
     wmtsLayer: "MAGELLAN",
     urlTemplate: VENUS_WMS,
-    ext: "jpg",
-    maximumLevel: 12,
+    // PNG + transparency: the MapServer mosaic has real Magellan data gaps
+    // (orbit seams, polar cut-off at -80.01°/+84°). As JPEG those gaps come
+    // back as hard black/white bands; as transparent PNG they drop out and
+    // the global Venus skin underneath shows through instead.
+    ext: "png",
+    // Source is 75 m/px ≈ 7.1e-4°/px on Venus, which is geographic level 9.
+    // Requesting past that only makes MapServer upsample (blurry tiles and
+    // visible resampling seams), so cap it and let Cesium magnify.
+    maximumLevel: 9,
+    bbox: [-180, -80.01, 180, 84],
     credit: "NASA / JPL / USGS Astrogeology · Magellan SAR mosaic",
     description:
       "Global synthetic-aperture radar mosaic of the Venusian surface from the Magellan mission.",
@@ -123,8 +131,8 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     kind: "wms",
     wmtsLayer: "MAGELLAN_color",
     urlTemplate: VENUS_WMS,
-    ext: "jpg",
-    maximumLevel: 10,
+    ext: "png",
+    maximumLevel: 7,
     credit: "NASA / JPL / USGS Astrogeology · Magellan colourised relief",
     description:
       "Colourised Magellan radar relief — highlands in warm tones, lowland plains in cool tones.",
@@ -136,8 +144,8 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     kind: "wms",
     wmtsLayer: "MAGELLAN_topography",
     urlTemplate: VENUS_WMS,
-    ext: "jpg",
-    maximumLevel: 10,
+    ext: "png",
+    maximumLevel: 7,
     credit: "NASA / JPL / USGS Astrogeology · Magellan altimetry",
     description:
       "Magellan radar-altimeter topography of Venus, greyscale elevation across the whole globe.",
