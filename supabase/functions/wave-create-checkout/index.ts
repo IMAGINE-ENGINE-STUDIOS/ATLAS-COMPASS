@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
       await admin.from("signal_accounts").update({ stripe_customer_id: customerId }).eq("id", account.id);
     }
 
-    const origin = req.headers.get("origin") ?? "";
+    const origin = req.headers.get("origin")
+      || req.headers.get("referer")?.replace(/(https?:\/\/[^/]+).*/, "$1")
+      || "https://infinity-market-hub.lovable.app";
 
     if (mode === "payg") {
       const monthly = Number(body?.monthlySpendCapUsd);
