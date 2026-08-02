@@ -11,7 +11,9 @@ import {
   Credit,
   ImageryLayer,
   Rectangle,
+  Ellipsoid,
 } from "cesium";
+import { MARS_ELLIPSOID } from "@/lib/planets/ellipsoids";
 
 export type MarsLayerCategory = "basemap" | "elevation" | "composition";
 
@@ -138,6 +140,7 @@ const TREK_BASE = "https://trek.nasa.gov/tiles/Mars/EQ";
 
 export function createMarsImageryProvider(
   def: MarsLayerDef,
+  ellipsoid: Ellipsoid = MARS_ELLIPSOID,
 ): WebMapTileServiceImageryProvider {
   const url = `${TREK_BASE}/${def.wmtsLayer}/1.0.0/default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.${def.ext}`;
   const opts: any = {
@@ -147,7 +150,7 @@ export function createMarsImageryProvider(
     format: def.ext === "jpg" ? "image/jpeg" : "image/png",
     tileMatrixSetID: "default028mm",
     maximumLevel: def.maximumLevel,
-    tilingScheme: new GeographicTilingScheme(),
+    tilingScheme: new GeographicTilingScheme({ ellipsoid }),
     credit: new Credit(def.credit, true),
   };
   if (def.bbox) opts.rectangle = Rectangle.fromDegrees(...def.bbox);
