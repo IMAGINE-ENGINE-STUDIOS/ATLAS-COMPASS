@@ -3153,7 +3153,7 @@ function SpaceshipPage({
             const toMount = defaults.length ? defaults : [catalog[0]];
             (viewer as any).__planetImagery = {};
             toMount.forEach((def) => {
-              const provider = createPlanetImageryProvider(def);
+              const provider = createPlanetImageryProvider(def, nonEarthEllipsoidRef.current);
               const layer = new ImageryLayer(provider, {});
               tunePlanetImageryLayer(layer, def);
               layer.alpha = def.defaultAlpha ?? 1;
@@ -3185,7 +3185,7 @@ function SpaceshipPage({
           const defaults = MARS_LAYERS.filter((l) => l.defaultVisible);
           (viewer as any).__marsImagery = (viewer as any).__marsImagery || {};
           defaults.forEach((def) => {
-            const provider = createMarsImageryProvider(def);
+            const provider = createMarsImageryProvider(def, nonEarthEllipsoidRef.current);
             const layer = new ImageryLayer(provider, {});
             tuneMarsImageryLayer(layer, def);
             layer.alpha = def.defaultAlpha ?? 1;
@@ -3196,23 +3196,16 @@ function SpaceshipPage({
           console.warn("[Atlas mars] imagery failed", err);
         }
       } else {
-        // Moon: use the LOLA-hillshade-derived heightmap terrain provider.
-        // NOTE: Cesium ion asset 2684829 is a 3D Tiles asset (not
-        // quantized-mesh terrain), so `CesiumTerrainProvider.fromIonAssetId`
-        // resolves to a provider whose tile requests 404, which prevents
-        // the globe from tessellating any surface geometry — the whole
-        // Moon renders as empty space. Skip ion entirely for terrain.
-        try {
-          viewer.terrainProvider = createLolaMoonTerrainProvider();
-        } catch (err) {
-          console.warn("[Atlas moon] LOLA terrain failed", err);
-        }
+        // Keep the Moon on its exact reference ellipsoid. The old synthetic
+        // hillshade-derived heightmap could rise 1.5 km while custom zoom was
+        // measured from the ellipsoid, letting the camera enter the mesh and
+        // making the body disappear at close range.
         try {
           viewer.imageryLayers.removeAll(true);
           const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
           (viewer as any).__moonImagery = (viewer as any).__moonImagery || {};
           defaults.forEach((def) => {
-            const provider = createMoonImageryProvider(def);
+            const provider = createMoonImageryProvider(def, nonEarthEllipsoidRef.current);
             const layer = new ImageryLayer(provider, {});
             tuneMoonImageryLayer(layer, def);
             layer.alpha = def.defaultAlpha ?? 1;

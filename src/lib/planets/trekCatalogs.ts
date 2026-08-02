@@ -14,6 +14,7 @@ import {
   Credit,
   ImageryLayer,
   Rectangle,
+  Ellipsoid,
 } from "cesium";
 
 export type PlanetLayerCategory =
@@ -220,6 +221,7 @@ export function hasPlanetLayerCatalog(worldId: string): boolean {
 
 export function createPlanetImageryProvider(
   def: PlanetLayerDef,
+  ellipsoid: Ellipsoid,
 ): WebMapTileServiceImageryProvider | WebMapServiceImageryProvider {
   if (def.kind === "wms") {
     const wmsOpts: any = {
@@ -230,7 +232,7 @@ export function createPlanetImageryProvider(
         transparent: def.ext === "png",
         styles: "",
       },
-      tilingScheme: new GeographicTilingScheme(),
+      tilingScheme: new GeographicTilingScheme({ ellipsoid }),
       maximumLevel: def.maximumLevel,
       tileWidth: 512,
       tileHeight: 512,
@@ -249,7 +251,7 @@ export function createPlanetImageryProvider(
     format: def.ext === "jpg" ? "image/jpeg" : "image/png",
     tileMatrixSetID: "default028mm",
     maximumLevel: def.maximumLevel,
-    tilingScheme: new GeographicTilingScheme(),
+    tilingScheme: new GeographicTilingScheme({ ellipsoid }),
     credit: new Credit(def.credit, true),
   };
   if (def.bbox) opts.rectangle = Rectangle.fromDegrees(...def.bbox);
