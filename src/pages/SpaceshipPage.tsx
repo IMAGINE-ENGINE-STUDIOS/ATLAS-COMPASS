@@ -2915,7 +2915,10 @@ function SpaceshipPage({
       // defaults on the Moon and only keep sane min/max zoom distances.
       (ssec0 as any).enableCollisionDetection = true;
       ssec0.minimumZoomDistance = MOON_MIN_SAFE_ALTITUDE_M;
-      ssec0.maximumZoomDistance = MOON_MAX_SAFE_ALTITUDE_M;
+      // Let the camera pull back past Neptune (~1000 AU) so the whole solar
+      // system fits inside the Milky Way skybox instead of hitting a wall at
+      // 2 million km.
+      ssec0.maximumZoomDistance = Math.max(MOON_MAX_SAFE_ALTITUDE_M, 1.5e14);
       ssec0.enableTilt = true;
       // Non-Earth worlds have smaller ellipsoids (Mars 3396 km, Mercury
       // 2439 km, ...). Cesium's default trackball/picking-height thresholds
