@@ -2908,10 +2908,12 @@ function SpaceshipPage({
       // Lower these thresholds so wheel-zoom keeps refining all the way
       // down to the terrain/ellipsoid surface, matching Earth behavior.
       const nonEarthR = nonEarthEllipsoidRef.current.maximumRadius;
-      (ssec0 as any).minimumCollisionTerrainHeight = 0;
-      (ssec0 as any)._minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
-      (ssec0 as any)._minimumPickingTerrainHeight = 0;
-      (ssec0 as any).minimumPickingTerrainHeight = 0;
+      // Set the public properties: Cesium derives its private values from
+      // these on every frame, so writing only `_minimumTrackBallHeight` gets
+      // immediately overwritten by the original body-scale default.
+      (ssec0 as any).minimumCollisionTerrainHeight = Math.max(1, nonEarthR * 0.001);
+      (ssec0 as any).minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
+      (ssec0 as any).minimumPickingTerrainHeight = Math.max(1, nonEarthR * 0.01);
     }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
     ssec0.tiltEventTypes = [
