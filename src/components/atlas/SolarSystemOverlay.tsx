@@ -18,7 +18,7 @@ import {
   Transforms,
   VerticalOrigin,
 } from "cesium";
-import { Loader2, LocateFixed, Rocket, X } from "lucide-react";
+import { Loader2, LocateFixed, Rocket, Sparkles, X } from "lucide-react";
 import {
   fetchSolarEphemeris,
   SOLAR_BODIES,
@@ -29,6 +29,8 @@ import {
 } from "@/lib/solarSystem";
 import { findPlanet } from "@/lib/planets/config";
 import { preloadPlanet } from "@/lib/planets/preload";
+import { useMilkyWaySky } from "@/lib/sky/useMilkyWaySky";
+import { SKY_ATTRIBUTION, SKY_RESOLUTION_LABEL, type SkyResolution } from "@/lib/sky/milkyWaySky";
 
 type CentralBody = "earth" | "moon";
 
@@ -139,6 +141,7 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [vectors, setVectors] = useState<SolarEphemerisVector[]>([]);
   const positionsRef = useRef<Record<string, Cartesian3>>({});
+  const sky = useMilkyWaySky(viewer);
 
   const openBody = (body: SolarBodyDefinition, position: Cartesian3) => {
     const route = routeForBody(body.id);
