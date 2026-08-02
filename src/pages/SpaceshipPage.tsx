@@ -2838,6 +2838,15 @@ function SpaceshipPage({
     Ion.defaultAccessToken = CESIUM_TOKEN;
 
     const isMoon = moonModeRef.current;
+    // Several Cesium helpers fall back to `Ellipsoid.default` rather than
+    // `scene.ellipsoid`, so align the global default with the world we are
+    // about to render (restored to WGS84 in this effect's cleanup).
+    const prevDefaultEllipsoid = (Ellipsoid as any).default;
+    if (isMoon) {
+      try {
+        (Ellipsoid as any).default = nonEarthEllipsoidRef.current;
+      } catch {}
+    }
     const viewer = new Viewer(cesiumContainer.current, {
       animation: false,
       baseLayerPicker: false,
