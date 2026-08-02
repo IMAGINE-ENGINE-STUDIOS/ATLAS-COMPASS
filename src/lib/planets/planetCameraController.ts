@@ -34,9 +34,12 @@ export interface PlanetCameraOptions {
   zoomStep?: number;
 }
 
-/** Closest allowed altitude above the surface, scaled to the body size. */
-export function minAltitudeForRadius(radiusMeters: number): number {
-  return Math.max(30, radiusMeters * 2e-6);
+/**
+ * Closest allowed altitude above the surface. Zero — users can descend all
+ * the way to ground level on any body.
+ */
+export function minAltitudeForRadius(_radiusMeters: number): number {
+  return 0;
 }
 
 /** Farthest allowed altitude — keeps the whole body framable. */
@@ -102,8 +105,12 @@ export function attachPlanetCameraController(
     if (!Number.isFinite(alt)) return;
 
     const factor = Math.pow(1 - zoomStep, notches);
-    // Below ~4x the floor, ease the step down so the last metres are gentle.
     let targetAlt = alt * factor;
+    // Geometric zoom only asymptotes toward the surface — below 40 m switch to
+    // a fixed metric step so the camera can actually reach 0 m ground level.
+    if (alt < 40 && notches > 0) {
+      targetAlt = alt - Math.min(alt, 2 * notches);
+    }
     targetAlt = CesiumMath.clamp(targetAlt, minAlt, maxAlt);
     const delta = alt - targetAlt;
     if (Math.abs(delta) < 1e-3) return;
