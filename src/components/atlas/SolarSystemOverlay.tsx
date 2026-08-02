@@ -18,7 +18,7 @@ import {
   Transforms,
   VerticalOrigin,
 } from "cesium";
-import { Loader2, LocateFixed, Rocket, X } from "lucide-react";
+import { Loader2, LocateFixed, Rocket, Sparkles, X } from "lucide-react";
 import {
   fetchSolarEphemeris,
   SOLAR_BODIES,
@@ -29,6 +29,8 @@ import {
 } from "@/lib/solarSystem";
 import { findPlanet } from "@/lib/planets/config";
 import { preloadPlanet } from "@/lib/planets/preload";
+import { useMilkyWaySky } from "@/lib/sky/useMilkyWaySky";
+import { SKY_ATTRIBUTION, SKY_RESOLUTION_LABEL, type SkyResolution } from "@/lib/sky/milkyWaySky";
 
 type CentralBody = "earth" | "moon";
 
@@ -139,6 +141,7 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [vectors, setVectors] = useState<SolarEphemerisVector[]>([]);
   const positionsRef = useRef<Record<string, Cartesian3>>({});
+  const sky = useMilkyWaySky(viewer);
 
   const openBody = (body: SolarBodyDefinition, position: Cartesian3) => {
     const route = routeForBody(body.id);
@@ -270,6 +273,49 @@ export default function SolarSystemOverlay({ viewer, centralBody }: Props) {
               <div className="text-[10px] text-white/55">NASA/JPL Horizons · exact current vectors</div>
             </div>
             <button onClick={() => setOpen(false)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
+          </div>
+          <div className="px-3 py-2.5 border-b border-white/10 space-y-2">
+            <button
+              onClick={() => sky.setEnabled(!sky.enabled)}
+              className="w-full flex items-center gap-2 text-left"
+            >
+              <Sparkles size={13} className={sky.enabled ? "text-sky-300" : "opacity-50"} />
+              <span className="flex-1 text-[12px] font-medium">Milky Way sky</span>
+              <span
+                className={`h-4 w-8 rounded-full transition-colors ${sky.enabled ? "bg-sky-400/80" : "bg-white/20"} relative`}
+              >
+                <span
+                  className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${sky.enabled ? "left-4" : "left-0.5"}`}
+                />
+              </span>
+            </button>
+            {sky.enabled && (
+              <>
+                <div className="flex gap-1.5">
+                  {(["4k", "8k", "16k"] as SkyResolution[]).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => sky.chooseRes(r)}
+                      title={SKY_RESOLUTION_LABEL[r]}
+                      className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] border transition-colors ${
+                        sky.res === r
+                          ? "border-sky-300/60 bg-sky-400/15 text-sky-100"
+                          : "border-white/10 text-white/60 hover:bg-white/10"
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-white/45 leading-snug">
+                  {sky.error
+                    ? <span className="text-rose-200">{sky.error}</span>
+                    : sky.loading
+                      ? `Projecting ${sky.res.toUpperCase()} all-sky mosaic…`
+                      : `${SKY_ATTRIBUTION} · ${(sky.active ?? sky.res).toUpperCase()} cube map`}
+                </div>
+              </>
+            )}
           </div>
           <div className="max-h-[48vh] overflow-y-auto p-1.5">
             {error && <div className="p-2 text-[11px] text-rose-200">{error}</div>}
