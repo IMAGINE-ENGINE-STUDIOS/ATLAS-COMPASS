@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Layers, X } from "lucide-react";
 import { ImageryLayer } from "cesium";
+import { ellipsoidForWorld } from "@/lib/planets/ellipsoids";
 import {
   getPlanetLayerCatalog,
   createPlanetImageryProvider,
@@ -40,8 +41,9 @@ function catalogFor(worldId: string): AnyLayerDef[] | null {
 }
 
 function createProvider(worldId: string, def: AnyLayerDef) {
-  if (worldId === "mars") return createMarsImageryProvider(def as MarsLayerDef);
-  return createPlanetImageryProvider(def as PlanetLayerDef);
+  const ellipsoid = ellipsoidForWorld(worldId);
+  if (worldId === "mars") return createMarsImageryProvider(def as MarsLayerDef, ellipsoid);
+  return createPlanetImageryProvider(def as PlanetLayerDef, ellipsoid);
 }
 function tuneProvider(worldId: string, layer: ImageryLayer, def: AnyLayerDef) {
   if (worldId === "mars") return tuneMarsImageryLayer(layer, def as MarsLayerDef);

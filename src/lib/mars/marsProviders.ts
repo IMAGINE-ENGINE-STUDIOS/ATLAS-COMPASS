@@ -13,6 +13,7 @@ import {
   Rectangle,
   Ellipsoid,
 } from "cesium";
+import { MARS_ELLIPSOID } from "@/lib/planets/ellipsoids";
 
 export type MarsLayerCategory = "basemap" | "elevation" | "composition";
 
