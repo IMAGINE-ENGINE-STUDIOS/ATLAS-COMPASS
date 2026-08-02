@@ -47,6 +47,7 @@ import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import PlanetLayerPanel from "@/components/atlas/PlanetLayerPanel";
 import { hasPlanetLayerCatalog } from "@/lib/planets/trekCatalogs";
+import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
 import { MARS_LAYERS, createMarsImageryProvider, tuneMarsImageryLayer } from "@/lib/mars/marsProviders";
 import { createMolaMarsTerrainProvider } from "@/lib/mars/MolaTerrainProvider";
 import {
@@ -2908,12 +2909,10 @@ function SpaceshipPage({
       // Lower these thresholds so wheel-zoom keeps refining all the way
       // down to the terrain/ellipsoid surface, matching Earth behavior.
       const nonEarthR = nonEarthEllipsoidRef.current.maximumRadius;
-      // Set the public properties: Cesium derives its private values from
-      // these on every frame, so writing only `_minimumTrackBallHeight` gets
-      // immediately overwritten by the original body-scale default.
-      (ssec0 as any).minimumCollisionTerrainHeight = Math.max(1, nonEarthR * 0.001);
-      (ssec0 as any).minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
-      (ssec0 as any).minimumPickingTerrainHeight = Math.max(1, nonEarthR * 0.01);
+      (ssec0 as any).minimumCollisionTerrainHeight = 0;
+      (ssec0 as any)._minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
+      (ssec0 as any)._minimumPickingTerrainHeight = 0;
+      (ssec0 as any).minimumPickingTerrainHeight = 0;
     }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
     ssec0.tiltEventTypes = [
@@ -3154,7 +3153,7 @@ function SpaceshipPage({
             const toMount = defaults.length ? defaults : [catalog[0]];
             (viewer as any).__planetImagery = {};
             toMount.forEach((def) => {
-              const provider = createPlanetImageryProvider(def, nonEarthEllipsoidRef.current);
+              const provider = createPlanetImageryProvider(def);
               const layer = new ImageryLayer(provider, {});
               tunePlanetImageryLayer(layer, def);
               layer.alpha = def.defaultAlpha ?? 1;
@@ -3186,7 +3185,7 @@ function SpaceshipPage({
           const defaults = MARS_LAYERS.filter((l) => l.defaultVisible);
           (viewer as any).__marsImagery = (viewer as any).__marsImagery || {};
           defaults.forEach((def) => {
-            const provider = createMarsImageryProvider(def, nonEarthEllipsoidRef.current);
+            const provider = createMarsImageryProvider(def);
             const layer = new ImageryLayer(provider, {});
             tuneMarsImageryLayer(layer, def);
             layer.alpha = def.defaultAlpha ?? 1;
@@ -3197,16 +3196,23 @@ function SpaceshipPage({
           console.warn("[Atlas mars] imagery failed", err);
         }
       } else {
-        // Keep the Moon on its exact reference ellipsoid. The old synthetic
-        // hillshade-derived heightmap could rise 1.5 km while custom zoom was
-        // measured from the ellipsoid, letting the camera enter the mesh and
-        // making the body disappear at close range.
+        // Moon: use the LOLA-hillshade-derived heightmap terrain provider.
+        // NOTE: Cesium ion asset 2684829 is a 3D Tiles asset (not
+        // quantized-mesh terrain), so `CesiumTerrainProvider.fromIonAssetId`
+        // resolves to a provider whose tile requests 404, which prevents
+        // the globe from tessellating any surface geometry — the whole
+        // Moon renders as empty space. Skip ion entirely for terrain.
+        try {
+          viewer.terrainProvider = createLolaMoonTerrainProvider();
+        } catch (err) {
+          console.warn("[Atlas moon] LOLA terrain failed", err);
+        }
         try {
           viewer.imageryLayers.removeAll(true);
           const defaults = MOON_LAYERS.filter((l) => l.defaultVisible);
           (viewer as any).__moonImagery = (viewer as any).__moonImagery || {};
           defaults.forEach((def) => {
-            const provider = createMoonImageryProvider(def, nonEarthEllipsoidRef.current);
+            const provider = createMoonImageryProvider(def);
             const layer = new ImageryLayer(provider, {});
             tuneMoonImageryLayer(layer, def);
             layer.alpha = def.defaultAlpha ?? 1;

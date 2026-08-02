@@ -14,7 +14,6 @@ import {
   Credit,
   ImageryLayer,
   Rectangle,
-  Ellipsoid,
 } from "cesium";
 
 export type PlanetLayerCategory =
@@ -124,7 +123,7 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JPL / USGS Astrogeology · Magellan altimetry",
     description:
       "Global Magellan radar-altimeter topography, used as the base fill under the SAR mosaics.",
-    defaultVisible: false,
+    defaultVisible: true,
     defaultAlpha: 1,
     // Strip the altimetry colour ramp so the fill reads as grey radar-like
     // terrain instead of rainbow streaks inside the SAR seams.
@@ -147,7 +146,7 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JPL / USGS Astrogeology · Magellan right-look SAR mosaic",
     description:
       "Right-look Magellan radar mosaic, used to fill the data gaps in the left-look global mosaic.",
-    defaultVisible: false,
+    defaultVisible: true,
     defaultAlpha: 1,
   },
   {
@@ -170,7 +169,7 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JPL / USGS Astrogeology · Magellan SAR mosaic",
     description:
       "Global synthetic-aperture radar mosaic of the Venusian surface from the Magellan mission.",
-    defaultVisible: false,
+    defaultVisible: true,
     defaultAlpha: 1,
   },
   {
@@ -221,7 +220,6 @@ export function hasPlanetLayerCatalog(worldId: string): boolean {
 
 export function createPlanetImageryProvider(
   def: PlanetLayerDef,
-  ellipsoid: Ellipsoid,
 ): WebMapTileServiceImageryProvider | WebMapServiceImageryProvider {
   if (def.kind === "wms") {
     const wmsOpts: any = {
@@ -232,7 +230,7 @@ export function createPlanetImageryProvider(
         transparent: def.ext === "png",
         styles: "",
       },
-      tilingScheme: new GeographicTilingScheme({ ellipsoid }),
+      tilingScheme: new GeographicTilingScheme(),
       maximumLevel: def.maximumLevel,
       tileWidth: 512,
       tileHeight: 512,
@@ -251,7 +249,7 @@ export function createPlanetImageryProvider(
     format: def.ext === "jpg" ? "image/jpeg" : "image/png",
     tileMatrixSetID: "default028mm",
     maximumLevel: def.maximumLevel,
-    tilingScheme: new GeographicTilingScheme({ ellipsoid }),
+    tilingScheme: new GeographicTilingScheme(),
     credit: new Credit(def.credit, true),
   };
   if (def.bbox) opts.rectangle = Rectangle.fromDegrees(...def.bbox);

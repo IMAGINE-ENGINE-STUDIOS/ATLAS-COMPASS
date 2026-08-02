@@ -36,10 +36,7 @@ export interface PlanetCameraOptions {
 
 /** Closest allowed altitude above the surface, scaled to the body size. */
 export function minAltitudeForRadius(radiusMeters: number): number {
-  // Match Earth's close inspection: the camera may approach to human scale.
-  // Collision/terrain sampling, not the body's radius, protects the surface.
-  void radiusMeters;
-  return 1.5;
+  return Math.max(30, radiusMeters * 2e-6);
 }
 
 /** Farthest allowed altitude — keeps the whole body framable. */
@@ -190,16 +187,47 @@ export function attachPlanetCameraController(
     pinchStart = 0;
   };
 
+  // Double-click a surface point → fly in to a low pass over it.
+  const onDblClick = (e: MouseEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    const pos = new Cartesian2(e.clientX - rect.left, e.clientY - rect.top);
+    const picked =
+      scene.pickPosition?.(pos) ??
+      viewer.camera.pickEllipsoid(pos, ellipsoid, scratchTarget);
+    if (!picked) return;
+    try {
+      const carto = Cartographic.fromCartesian(picked, ellipsoid);
+      const alt = altitudeOf(viewer.camera.position, ellipsoid);
+      const target = Math.max(minAlt, Math.min(alt / 6, radius * 3e-4));
+      viewer.camera.flyTo({
+        destination: Cartesian3.fromRadians(
+          carto.longitude,
+          carto.latitude,
+          target,
+          ellipsoid,
+        ),
+        orientation: {
+          heading: viewer.camera.heading,
+          pitch: CesiumMath.toRadians(-60),
+          roll: 0,
+        },
+        duration: 1.6,
+      });
+    } catch {}
+  };
+
   canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("touchstart", onTouchStart, { passive: true });
   canvas.addEventListener("touchmove", onTouchMove, { passive: true });
   canvas.addEventListener("touchend", onTouchEnd, { passive: true });
+  canvas.addEventListener("dblclick", onDblClick);
 
   return () => {
     canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("touchstart", onTouchStart);
     canvas.removeEventListener("touchmove", onTouchMove);
     canvas.removeEventListener("touchend", onTouchEnd);
+    canvas.removeEventListener("dblclick", onDblClick);
     try {
       ssec.zoomEventTypes = prev.zoomEventTypes ?? ([
         CameraEventType.WHEEL,
