@@ -47,7 +47,6 @@ import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import PlanetLayerPanel from "@/components/atlas/PlanetLayerPanel";
 import { hasPlanetLayerCatalog } from "@/lib/planets/trekCatalogs";
-import { createLolaMoonTerrainProvider } from "@/lib/moon/LolaTerrainProvider";
 import { MARS_LAYERS, createMarsImageryProvider, tuneMarsImageryLayer } from "@/lib/mars/marsProviders";
 import { createMolaMarsTerrainProvider } from "@/lib/mars/MolaTerrainProvider";
 import {

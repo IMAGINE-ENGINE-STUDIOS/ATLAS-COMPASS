@@ -80,7 +80,7 @@ const MERCURY_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JHUAPL / CIW · MESSENGER MDIS 166 m/px mosaic",
     description:
       "Global monochrome mosaic of Mercury from the MESSENGER Mercury Dual Imaging System.",
-    defaultVisible: true,
+    defaultVisible: false,
     defaultAlpha: 1,
   },
   {
@@ -124,7 +124,7 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JPL / USGS Astrogeology · Magellan altimetry",
     description:
       "Global Magellan radar-altimeter topography, used as the base fill under the SAR mosaics.",
-    defaultVisible: true,
+    defaultVisible: false,
     defaultAlpha: 1,
     // Strip the altimetry colour ramp so the fill reads as grey radar-like
     // terrain instead of rainbow streaks inside the SAR seams.
