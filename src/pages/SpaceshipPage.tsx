@@ -2857,6 +2857,13 @@ function SpaceshipPage({
         ? {
             // Moon world: Moon-sized ellipsoid + no default Bing imagery.
             globe: new CesiumGlobe(nonEarthEllipsoidRef.current),
+            // CRITICAL: without this the Scene keeps WGS84 as its ellipsoid
+            // while the globe is body-sized, so Cesium's camera controller
+            // measures altitude against a 6378 km sphere. On Venus (6051 km)
+            // every altitude below ~326 km reads as negative and the
+            // collision correction shoves the camera back out — the "bounce"
+            // users hit when zooming under 300 km.
+            ellipsoid: nonEarthEllipsoidRef.current,
             baseLayer: false as unknown as undefined,
           }
         : {}),
