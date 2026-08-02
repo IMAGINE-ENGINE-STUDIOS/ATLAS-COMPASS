@@ -105,8 +105,12 @@ export function attachPlanetCameraController(
     if (!Number.isFinite(alt)) return;
 
     const factor = Math.pow(1 - zoomStep, notches);
-    // Below ~4x the floor, ease the step down so the last metres are gentle.
     let targetAlt = alt * factor;
+    // Geometric zoom only asymptotes toward the surface — below 40 m switch to
+    // a fixed metric step so the camera can actually reach 0 m ground level.
+    if (alt < 40 && notches > 0) {
+      targetAlt = alt - Math.min(alt, 2 * notches);
+    }
     targetAlt = CesiumMath.clamp(targetAlt, minAlt, maxAlt);
     const delta = alt - targetAlt;
     if (Math.abs(delta) < 1e-3) return;
