@@ -80,7 +80,7 @@ const MERCURY_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JHUAPL / CIW · MESSENGER MDIS 166 m/px mosaic",
     description:
       "Global monochrome mosaic of Mercury from the MESSENGER Mercury Dual Imaging System.",
-    defaultVisible: false,
+    defaultVisible: true,
     defaultAlpha: 1,
   },
   {
@@ -147,7 +147,7 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JPL / USGS Astrogeology · Magellan right-look SAR mosaic",
     description:
       "Right-look Magellan radar mosaic, used to fill the data gaps in the left-look global mosaic.",
-    defaultVisible: true,
+    defaultVisible: false,
     defaultAlpha: 1,
   },
   {
@@ -170,7 +170,7 @@ const VENUS_LAYERS: PlanetLayerDef[] = [
     credit: "NASA / JPL / USGS Astrogeology · Magellan SAR mosaic",
     description:
       "Global synthetic-aperture radar mosaic of the Venusian surface from the Magellan mission.",
-    defaultVisible: true,
+    defaultVisible: false,
     defaultAlpha: 1,
   },
   {
