@@ -1,37 +1,27 @@
-# Venus surface imagery + true close-approach zoom
+## Root cause (confirmed)
 
-## What I verified first (live checks this turn)
+The Atlas viewer for non-Earth worlds is created with a Venus/Mercury/Mars-sized **globe** but Cesium's **scene ellipsoid is left at the default WGS84**:
 
-- NASA Trek works only for **Moon, Mars, Mercury** — those tiles return 200. Every other catalog in `src/lib/planets/trekCatalogs.ts` is dead: `Venus, Vesta, Io, Europa, Ganymede, Callisto, Titan, Enceladus, Phobos` all return **404**, and `trek.nasa.gov/tiles/<Body>/EQ/1.0.0/WMTSCapabilities.xml` returns 404 for all of them (so there is no corrected layer ID to guess — NASA simply doesn't publish those pyramids).
-- In the browser at `/planet/venus`: one imagery layer mounts, all its tile requests fail (404/504), so the planet renders as flat base colour.
-- Zoom stall reproduced numerically: wheel-zooming 60 notches parks the camera at radius ≈ 6,375 km on a 6,051.8 km body — **~320 km altitude, and it stops moving entirely** — even though `minimumZoomDistance` is 1.5 m. So the block is Cesium's Earth-tuned zoom/picking behaviour on small ellipsoids, not the zoom clamp.
-- Working replacements confirmed: USGS Venus WMS (`planetarymaps.usgs.gov` `venus_simp_cyl.map`) serves `MAGELLAN` (radar SAR), `MAGELLAN_color`, `MAGELLAN_topography` — HTTP 200, JPEG, `access-control-allow-origin: *`. A global Venus albedo JPEG on jsDelivr also returns 200 as a fallback skin.
+- `src/pages/SpaceshipPage.tsx` (~line 2856) passes only `globe: new CesiumGlobe(nonEarthEllipsoidRef.current)` to the `Viewer`. Cesium's `Viewer`/`Scene` also takes an `ellipsoid` option, which defaults to `Ellipsoid.default` (WGS84) when omitted.
+- In the Cesium 1.120 bundle, `ScreenSpaceCameraController.prototype.update` sets `this._ellipsoid = scene.ellipsoid ?? Ellipsoid.default`, and its collision code does `ellipsoid.cartesianToCartographic(camera.position)`; if that height is under `_minimumCollisionTerrainHeight` it force-sets the camera to `globeHeight + minimumZoomDistance`.
 
-## 1. Real Venus surface (USGS Magellan WMS)
+So on Venus the controller measures altitude against a 6378 km sphere while the real surface is at 6051.8 km. Below a true altitude of **6378.1 − 6051.8 = 326 km** the computed height goes negative, the collision correction fires every frame, and the camera is shoved back out to ~326 km — exactly the "bounces back under ~300 km" symptom. The same offset exists on Mercury, Mars and every other catalog body.
 
-- Add a WMS-backed layer type to the planet catalog (`kind: "wms" | "wmts" | "texture"`), with a `createPlanetImageryProvider` branch that builds Cesium `WebMapServiceImageryProvider` for WMS entries.
-- Venus layers: **Magellan Left-Look SAR** (default basemap), **Magellan Colour Topography**, **Magellan Topography** — all toggleable in the existing planet layer picker with credits and descriptions.
-- Mount a single-tile Venus albedo texture as the bottom layer so the disc is never blank while WMS tiles stream.
+Secondary issue found: the same `update()` recomputes `_minimumCollisionTerrainHeight`, `_minimumPickingTerrainHeight` and `_minimumTrackBallHeight` from the public properties on every frame, so the underscore-prefixed writes in `planetCameraController.ts` and `SpaceshipPage.tsx` are overwritten each frame and do nothing.
 
-## 2. Stop shipping dead tile sources
+## Fix
 
-- Replace the 9 dead Trek catalogs with the single-tile global-mosaic texture path already supported for gas giants (Voyager/Galileo/Cassini-derived global maps), so Io, Europa, Ganymede, Callisto, Titan, Enceladus, Vesta, Ceres and Phobos show a real surface instead of a coloured ball.
-- Add a self-healing guard: subscribe to each imagery provider's `errorEvent`; after 3 consecutive tile failures, remove that layer and fall back to the body's texture skin, logging once. This prevents any future upstream outage from producing a blank planet.
+1. **Pass the world's ellipsoid to the viewer** — in `SpaceshipPage.tsx`, add `ellipsoid: nonEarthEllipsoidRef.current` (alongside the existing `globe:` and `baseLayer: false`) in the non-Earth branch of the `Viewer` options, so `scene.ellipsoid`, the map projection and the camera controller all agree with the rendered body. Earth keeps WGS84 untouched.
+2. **Set `Ellipsoid.default` for the world before viewer creation** (and restore WGS84 on unmount) as a belt-and-braces measure, because several Cesium helpers fall back to `Ellipsoid.default` rather than `scene.ellipsoid`.
+3. **Clean up the threshold writes** — in `planetCameraController.ts` and the non-Earth block of `SpaceshipPage.tsx`, write only the public `minimumCollisionTerrainHeight`, `minimumPickingTerrainHeight`, `minimumTrackBallHeight`, `minimumZoomDistance` (scaled to the body radius) and drop the `_`-prefixed assignments that Cesium recomputes.
+4. **Keep the 0 m floor** already added for planet zoom, and verify the last metres of descent still work now that Cesium is no longer fighting the position writes.
 
-## 3. True close approach on every non-Earth body
+## Verification
 
-- Add `src/lib/planets/planetCameraController.ts`: on non-Earth worlds, disable Cesium's built-in wheel/pinch zoom and drive the camera ourselves — each notch moves a fraction of the *current altitude above the ellipsoid* (geometric zoom), so approach stays smooth from 100,000 km down to metres.
-- Per-body floor: `minAltitude = max(30 m, radius × 2e-6)` — roughly 12 m on Venus, 5 m on Enceladus — and re-set Cesium's picking/collision/trackball thresholds from the body radius instead of Earth's defaults.
-- Keep tilt/rotate/pan on Cesium defaults so orbiting feels identical to Earth; scale rotate/pan inertia with altitude so low passes aren't hypersensitive.
-- Double-click a surface point on any body flies to ~2 km above it; scroll continues from there.
-- `src/pages/PlanetPage.tsx` (the simple sphere viewer for the Sun/gas giants): `minDistance` from `radius × 1.4` → `radius × 1.02`, and stop auto-rotate once the user interacts.
-
-## 4. Verification before I hand back
-
-- Headless browser run per body (Venus, Mercury, Io, Titan, Enceladus): assert zero failing imagery requests and that 80 wheel notches bring camera altitude under 1 km, with screenshots of the surface at high zoom.
+Drive the preview at `/planet/venus` and `/planet/mercury` with Playwright: wheel-zoom continuously and log `Cartographic.fromCartesian(camera.position, bodyEllipsoid).height` after each notch. Pass criteria: altitude decreases monotonically through 300 km, 50 km, 1 km and reaches near 0 m with no frame-to-frame jump back upward. Screenshot a low pass to confirm the surface imagery still resolves.
 
 ## Technical notes
 
-- Files touched: `src/lib/planets/trekCatalogs.ts`, `src/lib/planets/config.ts`, new `src/lib/planets/planetCameraController.ts`, `src/pages/SpaceshipPage.tsx` (generic-planet imagery + camera wiring), `src/pages/PlanetPage.tsx`.
-- No backend or schema changes; all sources are keyless, CORS-enabled, canonical NASA/USGS data (no synthetic imagery).
-- WMS deep zoom on Venus is limited by the source mosaic (Magellan SAR ~75 m/px), so imagery softens below a few hundred metres — that is the real data ceiling, not a bug.
+- Files touched: `src/pages/SpaceshipPage.tsx`, `src/lib/planets/planetCameraController.ts`.
+- Risk: setting the scene ellipsoid changes what `Cartographic.fromCartesian(pos)` returns when called without an explicit ellipsoid. The page already passes `nonEarthEllipsoidRef.current` explicitly on the non-Earth paths, so no behaviour change is expected — but the Moon and Mars routes should be spot-checked after the change, since they share this viewer setup.
+- No backend, schema or dependency changes.

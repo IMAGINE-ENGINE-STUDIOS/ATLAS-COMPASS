@@ -2838,6 +2838,15 @@ function SpaceshipPage({
     Ion.defaultAccessToken = CESIUM_TOKEN;
 
     const isMoon = moonModeRef.current;
+    // Several Cesium helpers fall back to `Ellipsoid.default` rather than
+    // `scene.ellipsoid`, so align the global default with the world we are
+    // about to render (restored to WGS84 in this effect's cleanup).
+    const prevDefaultEllipsoid = (Ellipsoid as any).default;
+    if (isMoon) {
+      try {
+        (Ellipsoid as any).default = nonEarthEllipsoidRef.current;
+      } catch {}
+    }
     const viewer = new Viewer(cesiumContainer.current, {
       animation: false,
       baseLayerPicker: false,
@@ -2857,6 +2866,13 @@ function SpaceshipPage({
         ? {
             // Moon world: Moon-sized ellipsoid + no default Bing imagery.
             globe: new CesiumGlobe(nonEarthEllipsoidRef.current),
+            // CRITICAL: without this the Scene keeps WGS84 as its ellipsoid
+            // while the globe is body-sized, so Cesium's camera controller
+            // measures altitude against a 6378 km sphere. On Venus (6051 km)
+            // every altitude below ~326 km reads as negative and the
+            // collision correction shoves the camera back out — the "bounce"
+            // users hit when zooming under 300 km.
+            ellipsoid: nonEarthEllipsoidRef.current,
             baseLayer: false as unknown as undefined,
           }
         : {}),
@@ -2909,9 +2925,10 @@ function SpaceshipPage({
       // Lower these thresholds so wheel-zoom keeps refining all the way
       // down to the terrain/ellipsoid surface, matching Earth behavior.
       const nonEarthR = nonEarthEllipsoidRef.current.maximumRadius;
+      // Only the PUBLIC properties matter: ScreenSpaceCameraController.update()
+      // recomputes every `_`-prefixed threshold from them on each frame.
       (ssec0 as any).minimumCollisionTerrainHeight = 0;
-      (ssec0 as any)._minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
-      (ssec0 as any)._minimumPickingTerrainHeight = 0;
+      (ssec0 as any).minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
       (ssec0 as any).minimumPickingTerrainHeight = 0;
     }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
@@ -3803,6 +3820,7 @@ function SpaceshipPage({
       try { removeWorldCameraSave?.(); } catch {}
       try { removeMoonCameraGuard?.(); } catch {}
       try { removePlanetCamera?.(); } catch {}
+      try { (Ellipsoid as any).default = prevDefaultEllipsoid; } catch {}
       // Release the module-level Viewer ref held by the shared scheduler
       // so its WebGL resources can be GC'd after navigation / HMR.
       try { atlasWorldScheduler.releaseViewer(viewer); } catch {}

@@ -80,15 +80,14 @@ export function attachPlanetCameraController(
     collision: (ssec as any).enableCollisionDetection,
     minCollisionTerrain: (ssec as any).minimumCollisionTerrainHeight,
     minPickingTerrain: (ssec as any).minimumPickingTerrainHeight,
-    minTrackball: (ssec as any)._minimumTrackBallHeight,
+    minTrackball: (ssec as any).minimumTrackBallHeight,
   };
 
   ssec.minimumZoomDistance = minAlt;
   ssec.maximumZoomDistance = maxAlt;
+  // Public props only — Cesium re-derives the `_`-prefixed copies each frame.
   (ssec as any).minimumCollisionTerrainHeight = 0;
   (ssec as any).minimumPickingTerrainHeight = 0;
-  (ssec as any)._minimumPickingTerrainHeight = 0;
-  (ssec as any)._minimumTrackBallHeight = Math.max(50, radius * 5e-4);
   (ssec as any).minimumTrackBallHeight = Math.max(50, radius * 5e-4);
   // Our own zoom replaces Cesium's — strip WHEEL/PINCH from its zoom inputs
   // but keep PINCH available for tilt (already configured by the caller).
@@ -245,7 +244,7 @@ export function attachPlanetCameraController(
       (ssec as any).enableCollisionDetection = prev.collision;
       (ssec as any).minimumCollisionTerrainHeight = prev.minCollisionTerrain;
       (ssec as any).minimumPickingTerrainHeight = prev.minPickingTerrain;
-      (ssec as any)._minimumTrackBallHeight = prev.minTrackball;
+      (ssec as any).minimumTrackBallHeight = prev.minTrackball;
     } catch {}
   };
 }
