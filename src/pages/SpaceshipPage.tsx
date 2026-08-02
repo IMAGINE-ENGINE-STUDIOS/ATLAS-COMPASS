@@ -2925,9 +2925,10 @@ function SpaceshipPage({
       // Lower these thresholds so wheel-zoom keeps refining all the way
       // down to the terrain/ellipsoid surface, matching Earth behavior.
       const nonEarthR = nonEarthEllipsoidRef.current.maximumRadius;
+      // Only the PUBLIC properties matter: ScreenSpaceCameraController.update()
+      // recomputes every `_`-prefixed threshold from them on each frame.
       (ssec0 as any).minimumCollisionTerrainHeight = 0;
-      (ssec0 as any)._minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
-      (ssec0 as any)._minimumPickingTerrainHeight = 0;
+      (ssec0 as any).minimumTrackBallHeight = Math.max(200, nonEarthR * 0.001);
       (ssec0 as any).minimumPickingTerrainHeight = 0;
     }
     ssec0.rotateEventTypes = [CameraEventType.LEFT_DRAG] as any;
