@@ -34,9 +34,12 @@ export interface PlanetCameraOptions {
   zoomStep?: number;
 }
 
-/** Closest allowed altitude above the surface, scaled to the body size. */
-export function minAltitudeForRadius(radiusMeters: number): number {
-  return Math.max(30, radiusMeters * 2e-6);
+/**
+ * Closest allowed altitude above the surface. Zero — users can descend all
+ * the way to ground level on any body.
+ */
+export function minAltitudeForRadius(_radiusMeters: number): number {
+  return 0;
 }
 
 /** Farthest allowed altitude — keeps the whole body framable. */
