@@ -82,6 +82,24 @@ function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * FDSNWS treats a bare `YYYY-MM-DD` as midnight UTC, so passing today's date
+ * as `endtime` silently drops every event that happened *today* — the exact
+ * reason fresh quakes were missing. Expand the date inputs into explicit UTC
+ * timestamps, and push the end bound slightly into the future when the user
+ * asked for "up to today" so the newest events are always included.
+ */
+function toStartStamp(day: string): string {
+  return /\d{2}:\d{2}/.test(day) ? day : `${day}T00:00:00`;
+}
+function toEndStamp(day: string): string {
+  if (/\d{2}:\d{2}/.test(day)) return day;
+  const endOfDay = new Date(`${day}T23:59:59Z`).getTime();
+  const nowPlus = Date.now() + 3_600_000;
+  const stamp = Math.min(endOfDay, nowPlus) < Date.now() ? endOfDay : nowPlus;
+  return new Date(Math.max(stamp, Math.min(endOfDay, nowPlus))).toISOString().slice(0, 19);
+}
+
 /** Named presets → (start, end, minMag). Historic + live coverage. */
 function applyPreset(p: Preset): { start: string; end: string; min: number; limit: number } | null {
   const end = isoToday();
