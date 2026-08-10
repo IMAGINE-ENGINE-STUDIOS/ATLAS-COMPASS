@@ -82,6 +82,24 @@ function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * FDSNWS treats a bare `YYYY-MM-DD` as midnight UTC, so passing today's date
+ * as `endtime` silently drops every event that happened *today* — the exact
+ * reason fresh quakes were missing. Expand the date inputs into explicit UTC
+ * timestamps, and push the end bound slightly into the future when the user
+ * asked for "up to today" so the newest events are always included.
+ */
+function toStartStamp(day: string): string {
+  return /\d{2}:\d{2}/.test(day) ? day : `${day}T00:00:00`;
+}
+function toEndStamp(day: string): string {
+  if (/\d{2}:\d{2}/.test(day)) return day;
+  const endOfDay = new Date(`${day}T23:59:59Z`).getTime();
+  const nowPlus = Date.now() + 3_600_000;
+  // Past day → its real end; today (or future) → now + 1 h.
+  return new Date(endOfDay > Date.now() ? nowPlus : endOfDay).toISOString().slice(0, 19);
+}
+
 /** Named presets → (start, end, minMag). Historic + live coverage. */
 function applyPreset(p: Preset): { start: string; end: string; min: number; limit: number } | null {
   const end = isoToday();
@@ -145,7 +163,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
   const [minimized, setMinimized] = useState<boolean>(isMobile);
   const [source, setSource] = useState<Source>("usgs");
   const [preset, setPreset] = useState<Preset>("week");
-  const [liveMode, setLiveMode] = useState<boolean>(false);
+  const [liveMode, setLiveMode] = useState<boolean>(true);
   const [startTime, setStartTime] = useState<string>(() => isoDaysAgo(7));
   const [endTime, setEndTime] = useState<string>(() => isoToday());
   const [minMag, setMinMag] = useState<number>(2.5);
@@ -176,8 +194,8 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       const q = new URLSearchParams();
       q.set("mode", "search");
       q.set("source", source);
-      q.set("starttime", startTime);
-      q.set("endtime", endTime);
+      q.set("starttime", toStartStamp(startTime));
+      q.set("endtime", toEndStamp(endTime));
       q.set("minmagnitude", String(minMag));
       if (maxMag < 10) q.set("maxmagnitude", String(maxMag));
       q.set("limit", String(Math.max(1, Math.min(20000, limit | 0))));
@@ -197,6 +215,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
       const r = await fetch(url, {
         headers: { apikey, Authorization: `Bearer ${apikey}` },
+        cache: "no-store",
         signal: ac.signal,
       });
       if (!r.ok) {
@@ -274,7 +293,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
   // Live mode: re-poll every 60 s while enabled.
   useEffect(() => {
     if (!liveMode) return;
-    const id = window.setInterval(() => { void runSearch(); }, 60_000);
+    const id = window.setInterval(() => { void runSearch(); }, 30_000);
     return () => window.clearInterval(id);
   }, [liveMode, runSearch]);
 
