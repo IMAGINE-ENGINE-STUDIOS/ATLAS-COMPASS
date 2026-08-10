@@ -163,7 +163,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
   const [minimized, setMinimized] = useState<boolean>(isMobile);
   const [source, setSource] = useState<Source>("usgs");
   const [preset, setPreset] = useState<Preset>("week");
-  const [liveMode, setLiveMode] = useState<boolean>(false);
+  const [liveMode, setLiveMode] = useState<boolean>(true);
   const [startTime, setStartTime] = useState<string>(() => isoDaysAgo(7));
   const [endTime, setEndTime] = useState<string>(() => isoToday());
   const [minMag, setMinMag] = useState<number>(2.5);
@@ -293,7 +293,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
   // Live mode: re-poll every 60 s while enabled.
   useEffect(() => {
     if (!liveMode) return;
-    const id = window.setInterval(() => { void runSearch(); }, 60_000);
+    const id = window.setInterval(() => { void runSearch(); }, 30_000);
     return () => window.clearInterval(id);
   }, [liveMode, runSearch]);
 
