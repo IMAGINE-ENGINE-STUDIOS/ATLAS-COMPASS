@@ -96,8 +96,8 @@ function toEndStamp(day: string): string {
   if (/\d{2}:\d{2}/.test(day)) return day;
   const endOfDay = new Date(`${day}T23:59:59Z`).getTime();
   const nowPlus = Date.now() + 3_600_000;
-  const stamp = Math.min(endOfDay, nowPlus) < Date.now() ? endOfDay : nowPlus;
-  return new Date(Math.max(stamp, Math.min(endOfDay, nowPlus))).toISOString().slice(0, 19);
+  // Past day → its real end; today (or future) → now + 1 h.
+  return new Date(endOfDay > Date.now() ? nowPlus : endOfDay).toISOString().slice(0, 19);
 }
 
 /** Named presets → (start, end, minMag). Historic + live coverage. */
