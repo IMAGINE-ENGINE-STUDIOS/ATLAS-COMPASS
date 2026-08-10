@@ -194,8 +194,8 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       const q = new URLSearchParams();
       q.set("mode", "search");
       q.set("source", source);
-      q.set("starttime", startTime);
-      q.set("endtime", endTime);
+      q.set("starttime", toStartStamp(startTime));
+      q.set("endtime", toEndStamp(endTime));
       q.set("minmagnitude", String(minMag));
       if (maxMag < 10) q.set("maxmagnitude", String(maxMag));
       q.set("limit", String(Math.max(1, Math.min(20000, limit | 0))));
@@ -215,6 +215,7 @@ export default function USGSEarthquakesPanel({ viewerRef, onClose }: Props) {
       const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
       const r = await fetch(url, {
         headers: { apikey, Authorization: `Bearer ${apikey}` },
+        cache: "no-store",
         signal: ac.signal,
       });
       if (!r.ok) {
