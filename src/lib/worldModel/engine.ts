@@ -73,6 +73,10 @@ export class WorldModelEngine {
   generations = 0;
   bestReward: number | null = null;
   abortFlag = false;
+  skippedFrames = 0;
+  /** held-out reconstruction loss, and open-loop dream error from M. */
+  valLoss: number | null = null;
+  dreamError: number | null = null;
 
   constructor(config: WorldConfig) {
     this.config = config;
@@ -104,12 +108,22 @@ export class WorldModelEngine {
     return this.rollouts.reduce((n, r) => n + r.frames.length, 0);
   }
 
-  pushFrame(rgb: Uint8Array, action: Float32Array) {
+  /**
+   * Store a frame. Near-duplicate frames (agent standing still) are dropped:
+   * they dominate the dataset otherwise and V happily learns a single wall.
+   */
+  pushFrame(rgb: Uint8Array, action: Float32Array): boolean {
     if (!this.current) this.beginRollout();
-    if (this.frameCount >= MAX_FRAMES) return;
+    if (this.frameCount >= MAX_FRAMES) return false;
+    const prev = this.current!.frames[this.current!.frames.length - 1];
+    if (prev && pixelDistance(prev, rgb) < 2.2) {
+      this.skippedFrames++;
+      return false;
+    }
     this.current!.frames.push(rgb);
     this.current!.actions.push(action.slice());
     this.latentCache = null;
+    return true;
   }
 
   /* ---------------- V: the autoencoder ---------------- */
@@ -132,11 +146,17 @@ export class WorldModelEngine {
   }
 
   async trainVae(steps: number, batchSize: number, onProgress?: (p: TrainProgress) => void) {
-    const pool = this.allIndices();
-    if (pool.length < batchSize) throw new Error("Not enough frames — explore the world first.");
+    const all = this.allIndices();
+    if (all.length < batchSize * 2) throw new Error("Not enough frames — explore the world first.");
+    // Deterministic 10% holdout so the reported quality is not the training loss.
+    const holdout = all.filter((_, i) => i % 10 === 7);
+    const pool = all.filter((_, i) => i % 10 !== 7);
     this.abortFlag = false;
+    const warm = Math.max(1, Math.floor(steps * 0.25));
     for (let step = 0; step < steps; step++) {
       if (this.abortFlag) break;
+      // β warm-up: reconstruct first, regularise later.
+      this.vae.beta = Math.min(1, (step + 1) / warm);
       const picks = Array.from({ length: batchSize }, () => pool[(Math.random() * pool.length) | 0]);
       const batch = this.frameBatch(picks);
       const [total, rec, kl] = await this.vae.trainStep(batch);
@@ -150,6 +170,21 @@ export class WorldModelEngine {
       await tf.nextFrame();
     }
     this.vaeTrained = this.vaeSteps > 0;
+    if (holdout.length >= 4) this.valLoss = await this.evalVae(holdout.slice(0, 32));
+  }
+
+  /** Mean per-frame reconstruction error on frames V never trained on. */
+  async evalVae(indices: Array<[number, number]>): Promise<number> {
+    const batch = this.frameBatch(indices);
+    const err = tf.tidy(() => {
+      const z = this.vae.encode(batch);
+      const recon = this.vae.decode(z);
+      return recon.sub(batch).square().mean().mul(this.config.frameSize * this.config.frameSize * 3) as tf.Scalar;
+    });
+    const v = (await err.data())[0];
+    err.dispose();
+    batch.dispose();
+    return v;
   }
 
   /** Encode every captured frame to a latent, cached until new frames arrive. */
@@ -361,6 +396,51 @@ export class WorldModelEngine {
     return reward;
   }
 
+  /**
+   * Open-loop check of M: seed the recurrent state on a real rollout, then let
+   * M predict `horizon` steps on its own and compare with the real latents.
+   * This is the honest "is the dream any good?" number.
+   */
+  async evaluateDream(horizon = 20): Promise<number | null> {
+    if (!this.rnnTrained) return null;
+    const latents = this.encodeAll();
+    const bases: Array<{ base: number; len: number }> = [];
+    let offset = 0;
+    for (const r of this.rollouts) {
+      bases.push({ base: offset, len: r.frames.length });
+      offset += r.frames.length;
+    }
+    const flatActions: Float32Array[] = [];
+    this.rollouts.forEach((r) => r.actions.forEach((a) => flatActions.push(a)));
+    const usable = bases.filter((b) => b.len > horizon + 8);
+    if (!usable.length) return null;
+
+    let total = 0;
+    let count = 0;
+    for (const u of usable.slice(0, 4)) {
+      const start = u.base + 4;
+      let z = latents[start].slice();
+      let state = this.rnn.zeroState(1);
+      for (let t = 0; t < horizon; t++) {
+        const a = flatActions[start + t] ?? new Float32Array(this.config.actionDim);
+        const step = this.dreamStep(z, a, state, 0.35);
+        z = step.z;
+        state = step.state;
+        const truth = latents[start + t + 1];
+        if (!truth) break;
+        let d = 0;
+        for (let k = 0; k < z.length; k++) d += (z[k] - truth[k]) ** 2;
+        total += Math.sqrt(d / z.length);
+        count++;
+        await tf.nextFrame();
+      }
+      state.h.dispose();
+      state.c.dispose();
+    }
+    this.dreamError = count ? total / count : null;
+    return this.dreamError;
+  }
+
   /** Same objective measured against real encoded frames, for comparison. */
   static realNovelty(z: Float32Array, visited: Float32Array[]): number {
     return noveltyReward(z, visited);
@@ -416,6 +496,13 @@ export class WorldModelEngine {
     this.vae.dispose();
     this.rnn.dispose();
   }
+}
+
+function pixelDistance(a: Uint8Array, b: Uint8Array): number {
+  let sum = 0;
+  // sample every 7th channel — plenty to detect a static camera, ~7x cheaper
+  for (let i = 0; i < a.length; i += 7) sum += Math.abs(a[i] - b[i]);
+  return sum / (a.length / 7);
 }
 
 function noveltyReward(z: Float32Array, visited: Float32Array[]): number {
