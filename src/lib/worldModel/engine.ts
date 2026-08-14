@@ -419,7 +419,7 @@ export class WorldModelEngine {
     let count = 0;
     for (const u of usable.slice(0, 4)) {
       const start = u.base + 4;
-      let z: Float32Array<ArrayBuffer> = new Float32Array(latents[start]);
+      let z: Float32Array<ArrayBufferLike> = latents[start].slice();
       let state = this.rnn.zeroState(1);
       for (let t = 0; t < horizon; t++) {
         const a = flatActions[start + t] ?? new Float32Array(this.config.actionDim);
