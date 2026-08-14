@@ -2994,6 +2994,51 @@ export type Database = {
         }
         Relationships: []
       }
+      world_models: {
+        Row: {
+          config: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          metrics: Json
+          name: string
+          owner_id: string
+          source_level_id: string | null
+          thumbnail_url: string | null
+          updated_at: string
+          weights_ref: string | null
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          metrics?: Json
+          name?: string
+          owner_id: string
+          source_level_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          weights_ref?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          metrics?: Json
+          name?: string
+          owner_id?: string
+          source_level_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          weights_ref?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

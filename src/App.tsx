@@ -55,6 +55,8 @@ const DevelopersPage = lazy(() => import("@/pages/DevelopersPage"));
 const WaveDocsPage = lazy(() => import("@/pages/WaveDocsPage"));
 const WaveCheckoutPage = lazy(() => import("@/pages/WaveCheckoutPage"));
 const WavePricingPage = lazy(() => import("@/pages/WavePricingPage"));
+const WorldsListPage = lazy(() => import("@/pages/WorldsListPage"));
+const WorldEnginePage = lazy(() => import("@/pages/WorldEnginePage"));
 
 const queryClient = new QueryClient();
 
@@ -81,6 +83,10 @@ const App = () => (
           <Route path="/levels" element={<LevelsListPage />} />
           <Route path="/level/:id" element={<LevelEditorPage />} />
           <Route path="/locomotion" element={<LevelEditorPage />} />
+
+          {/* World Model Engine — V/M/C learned world simulation */}
+          <Route path="/worlds" element={<WorldsListPage />} />
+          <Route path="/world/:id" element={<WorldEnginePage />} />
 
           {/* Files — sharing, friends, matchmaking */}
           <Route path="/files" element={<FilesPage />} />
