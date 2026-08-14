@@ -20,7 +20,9 @@ export default function TouchControls({
   const hold = (index: number, value: number) => ({
     onPointerDown: (e: React.PointerEvent) => {
       e.preventDefault();
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      try {
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      } catch { /* synthetic pointer */ }
       actionRef.current[index] = value;
     },
     onPointerUp: () => {
