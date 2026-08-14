@@ -24,33 +24,54 @@ interface AgentRigProps {
   poseRef: MutableRefObject<Pose>;
   bounds: number;
   colliders: Array<{ x: number; z: number; rx: number; rz: number }>;
+  spawn: [number, number];
+  terrain?: ArenaSpec["seedTerrain"];
 }
 
-function AgentRig({ actionRef, poseRef, bounds, colliders }: AgentRigProps) {
+function AgentRig({ actionRef, poseRef, bounds, colliders, spawn, terrain }: AgentRigProps) {
   const { camera } = useThree();
   const yaw = useRef(0);
   const pitch = useRef(0);
   const bob = useRef(0);
 
-  // Spawn on open ground: the scenario may have dropped a tower on the origin.
+  const groundHeight = (x: number, z: number) => {
+    if (!terrain) return 0;
+    const u = THREE.MathUtils.clamp(x / terrain.width + 0.5, 0, 1) * (terrain.columns - 1);
+    const v = THREE.MathUtils.clamp(z / terrain.depth + 0.5, 0, 1) * (terrain.rows - 1);
+    const x0 = Math.floor(u);
+    const z0 = Math.floor(v);
+    const x1 = Math.min(terrain.columns - 1, x0 + 1);
+    const z1 = Math.min(terrain.rows - 1, z0 + 1);
+    const tx = u - x0;
+    const tz = v - z0;
+    const at = (ix: number, iz: number) => terrain.heights[iz * terrain.columns + ix] ?? 0;
+    return THREE.MathUtils.lerp(THREE.MathUtils.lerp(at(x0, z0), at(x1, z0), tx), THREE.MathUtils.lerp(at(x0, z1), at(x1, z1), tx), tz);
+  };
+
+  // Every scenario supplies a known-safe spawn. Fall back to the candidate with
+  // the greatest collider clearance instead of leaving the camera trapped.
   useEffect(() => {
     const free = (x: number, z: number) =>
       !colliders.some((c) => Math.abs(x - c.x) < c.rx + 1.2 && Math.abs(z - c.z) < c.rz + 1.2);
-    if (free(camera.position.x, camera.position.z)) return;
-    for (let r = 2; r < bounds; r += 2) {
-      for (let a = 0; a < 16; a++) {
+    let target = spawn;
+    if (!free(target[0], target[1])) {
+      let best: [number, number] = [0, 0];
+      let bestClearance = -Infinity;
+      for (let r = 0; r < bounds; r += 2) for (let a = 0; a < 24; a++) {
         const ang = (a / 16) * Math.PI * 2;
         const x = Math.cos(ang) * r;
         const z = Math.sin(ang) * r;
-        if (free(x, z)) {
-          camera.position.set(x, 1.7, z);
-          yaw.current = Math.atan2(-x, -z);
-          return;
-        }
+        const clearance = colliders.reduce((d, c) => Math.min(d, Math.max(Math.abs(x - c.x) - c.rx, Math.abs(z - c.z) - c.rz)), bounds);
+        if (clearance > bestClearance) { bestClearance = clearance; best = [x, z]; }
       }
+      target = best;
     }
+    camera.position.set(target[0], groundHeight(target[0], target[1]) + 1.7, target[1]);
+    yaw.current = 0;
+    pitch.current = 0;
+    poseRef.current = { x: target[0], z: target[1], yaw: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colliders, bounds]);
+  }, [colliders, bounds, spawn, terrain]);
 
   useFrame((_, dt) => {
     const a = actionRef.current;
@@ -61,21 +82,26 @@ function AgentRig({ actionRef, poseRef, bounds, colliders }: AgentRigProps) {
     const fwd = new THREE.Vector3(Math.sin(yaw.current), 0, Math.cos(yaw.current));
     const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
 
-    const nx = camera.position.x - fwd.x * a[0] * speed * step + right.x * a[1] * speed * step;
-    const nz = camera.position.z - fwd.z * a[0] * speed * step + right.z * a[1] * speed * step;
+    const dx = -fwd.x * a[0] * speed * step + right.x * a[1] * speed * step;
+    const dz = -fwd.z * a[0] * speed * step + right.z * a[1] * speed * step;
 
     // Cheap AABB rejection so the agent walks around buildings instead of
     // through them — collisions are part of the dynamics M has to learn.
     const blocked = (x: number, z: number) =>
-      colliders.some((c) => Math.abs(x - c.x) < c.rx + 0.45 && Math.abs(z - c.z) < c.rz + 0.45);
+      colliders.some((c) => Math.abs(x - c.x) < c.rx + 0.3 && Math.abs(z - c.z) < c.rz + 0.3);
 
-    if (!blocked(nx, camera.position.z)) camera.position.x = nx;
-    if (!blocked(camera.position.x, nz)) camera.position.z = nz;
+    const segments = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.25));
+    for (let i = 0; i < segments; i++) {
+      const sx = camera.position.x + dx / segments;
+      const sz = camera.position.z + dz / segments;
+      if (!blocked(sx, camera.position.z)) camera.position.x = sx;
+      if (!blocked(camera.position.x, sz)) camera.position.z = sz;
+    }
     camera.position.x = THREE.MathUtils.clamp(camera.position.x, -bounds, bounds);
     camera.position.z = THREE.MathUtils.clamp(camera.position.z, -bounds, bounds);
 
     bob.current += Math.abs(a[0]) * step * 9;
-    camera.position.y = 1.7 + Math.sin(bob.current) * 0.045;
+    camera.position.y = groundHeight(camera.position.x, camera.position.z) + 1.7 + Math.sin(bob.current) * 0.045;
     camera.rotation.set(pitch.current, yaw.current, 0, "YXZ");
     poseRef.current = { x: camera.position.x, z: camera.position.z, yaw: yaw.current };
   });
@@ -221,17 +247,26 @@ function Beacon({ p, c }: { p: [number, number, number]; c: string }) {
 }
 
 /** The seed picture draped on the ground so the agent can navigate by it. */
-function SeedGround({ url, size }: { url: string; size: number }) {
+function SeedGround({ url, terrain }: { url: string; terrain: NonNullable<ArenaSpec["seedTerrain"]> }) {
   const texture = useMemo(() => {
     const t = new THREE.TextureLoader().load(url);
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }, [url]);
   useEffect(() => () => texture.dispose(), [texture]);
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(terrain.width, terrain.depth, terrain.columns - 1, terrain.rows - 1);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setZ(i, terrain.heights[i] ?? 0);
+    p.needsUpdate = true;
+    g.computeVertexNormals();
+    return g;
+  }, [terrain]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-      <planeGeometry args={[size, size]} />
-      <meshBasicMaterial map={texture} toneMapped={false} />
+      <primitive object={geometry} attach="geometry" />
+      <meshStandardMaterial map={texture} roughness={0.88} metalness={0} />
     </mesh>
   );
 }
@@ -299,6 +334,7 @@ export default function WorldArena({
   className,
 }: WorldArenaProps) {
   const bounds = arena.bounds ?? 44;
+  const spawn = arena.spawn ?? [0, 10];
   const colliders = useMemo(
     () => arena.blocks.map((b) => ({ x: b.p[0], z: b.p[2], rx: b.s[0] / 2, rz: b.s[2] / 2 })),
     [arena],
@@ -322,8 +358,8 @@ export default function WorldArena({
         <planeGeometry args={[300, 300]} />
         <meshStandardMaterial color={arena.groundColor} roughness={0.95} />
       </mesh>
-      {arena.seedImage ? (
-        <SeedGround url={arena.seedImage} size={100} />
+      {arena.seedImage && arena.seedTerrain ? (
+        <SeedGround url={arena.seedImage} terrain={arena.seedTerrain} />
       ) : (
         <gridHelper args={[240, 120, 0x2d4a7a, 0x18243c]} position={[0, 0.02, 0]} />
       )}
@@ -337,7 +373,7 @@ export default function WorldArena({
       {(arena.beacons ?? []).map((b, i) => (
         <Beacon key={i} p={b.p} c={b.c} />
       ))}
-      <AgentRig actionRef={actionRef} poseRef={poseRef} bounds={bounds} colliders={colliders} />
+      <AgentRig actionRef={actionRef} poseRef={poseRef} bounds={bounds} colliders={colliders} spawn={spawn} terrain={arena.seedTerrain} />
       <Capture frameSize={frameSize} everyNth={captureEveryNth} onFrame={onFrame} active={capturing} />
     </Canvas>
   );
