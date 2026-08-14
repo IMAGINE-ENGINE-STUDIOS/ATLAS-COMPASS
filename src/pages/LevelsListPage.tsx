@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil, Footprints, Sparkles } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Layers, Globe2, Lock, Pencil, Footprints, Sparkles, Brain } from "lucide-react";
 import { Files as FilesIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureLevelSession, withTimeout } from "@/lib/levelSession";
@@ -137,6 +137,9 @@ export default function LevelsListPage() {
             <div className="flex items-center gap-2">
               <Button asChild size="sm" variant="outline">
                 <Link to="/files"><FilesIcon className="w-4 h-4 mr-1" /> Files</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="border-sky-400/40">
+                <Link to="/worlds"><Brain className="w-4 h-4 mr-1 text-sky-300" /> World Models</Link>
               </Button>
               <Button onClick={() => setWizardOpen(true)} size="sm" variant="outline" className="border-primary/40">
                 <Sparkles className="w-4 h-4 mr-1 text-primary" /> Imagine Wizard
