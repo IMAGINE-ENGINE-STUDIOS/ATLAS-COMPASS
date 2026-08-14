@@ -45,7 +45,7 @@ export class MdnRnn {
     this.mixtures = o.mixtures;
     this.opt = tf.train.adam(o.learningRate ?? 1e-3);
 
-    this.cell = tf.layers.lstmCell({ units: o.rnnSize }) as unknown as tf.layers.Layer;
+    this.cell = tf.layers.lstmCell({ units: o.rnnSize, recurrentInitializer: "glorotUniform" }) as unknown as tf.layers.Layer;
     this.rnn = tf.layers.rnn({ cell: this.cell as never, returnSequences: true });
     this.head = tf.layers.dense({ units: 3 * o.mixtures * o.latentDim });
 
