@@ -120,33 +120,23 @@ export default function WorldArena({
     <Canvas
       className={className}
       camera={{ position: [0, 1.7, 12], fov: 70, near: 0.05, far: 400 }}
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" }}
+      dpr={1}
+      shadows={false}
+      gl={{ antialias: false, preserveDrawingBuffer: true, powerPreference: "high-performance" }}
       onCreated={({ scene }) => {
         scene.background = new THREE.Color(arena.skyColor);
         scene.fog = new THREE.Fog(arena.fogColor, 18, 120);
       }}
     >
       <hemisphereLight args={[0x9fc4ff, 0x0b1024, 0.9]} />
-      <directionalLight position={[24, 34, 12]} intensity={1.4} castShadow />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+      <directionalLight position={[24, 34, 12]} intensity={1.4} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
         <planeGeometry args={[200, 200]} />
         <meshStandardMaterial color={arena.groundColor} roughness={0.95} />
       </mesh>
-      <Grid
-        args={[200, 200]}
-        cellSize={2}
-        cellThickness={0.5}
-        sectionSize={10}
-        sectionThickness={1}
-        cellColor="#1b2a4a"
-        sectionColor="#2d4a7a"
-        fadeDistance={110}
-        infiniteGrid
-        position={[0, 0.01, 0]}
-      />
+      <gridHelper args={[200, 100, 0x2d4a7a, 0x1b2a4a]} position={[0, 0.02, 0]} />
       {arena.blocks.map((b, i) => (
-        <mesh key={i} position={b.p} castShadow receiveShadow>
+        <mesh key={i} position={b.p}>
           <boxGeometry args={b.s} />
           <meshStandardMaterial color={b.c} roughness={0.4} metalness={0.15} />
         </mesh>
