@@ -540,6 +540,14 @@ export default function WorldEnginePage() {
             <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] backdrop-blur">
               {mode === "dream" ? "renderer off · dreamed by M" : "real renderer · frames → V"}
             </div>
+            <TouchControls actionRef={actionRef} enabled={(mode === "explore" && !agentDriving) || mode === "dream"} />
+            {!engineReady && (
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+                <span className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1.5 text-[11px] text-white/80 backdrop-blur">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> allocating V · M · C
+                </span>
+              </div>
+            )}
             {capturing && mode !== "dream" && (
               <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-rose-500/20 px-2.5 py-1 text-[10px] text-rose-200">
                 <CircleDot className="h-3 w-3 animate-pulse" /> recording
