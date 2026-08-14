@@ -70,7 +70,8 @@ function AgentRig({ actionRef, poseRef, bounds, colliders, spawn, terrain }: Age
     }
     camera.position.set(target[0], groundHeight(target[0], target[1]) + 1.7, target[1]);
     yaw.current = 0;
-    pitch.current = 0;
+    pitch.current = terrain ? 0.28 : 0;
+    camera.rotation.set(pitch.current, yaw.current, 0, "YXZ");
     poseRef.current = { x: target[0], z: target[1], yaw: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colliders, bounds, spawn, terrain]);
@@ -338,7 +339,12 @@ export default function WorldArena({
   const bounds = arena.bounds ?? 44;
   const spawn = arena.spawn ?? DEFAULT_SPAWN;
   const colliders = useMemo(
-    () => arena.blocks.map((b) => ({ x: b.p[0], z: b.p[2], rx: b.s[0] / 2, rz: b.s[2] / 2 })),
+    () => [
+      ...arena.blocks.map((b) => ({ x: b.p[0], z: b.p[2], rx: b.s[0] / 2, rz: b.s[2] / 2 })),
+      ...(arena.props ?? [])
+        .filter((p) => p.k === "box" || p.k === "cyl" || p.k === "cone")
+        .map((p) => ({ x: p.p[0], z: p.p[2], rx: Math.max(0.35, p.s[0]), rz: Math.max(0.35, p.s[1]) })),
+    ],
     [arena],
   );
 
