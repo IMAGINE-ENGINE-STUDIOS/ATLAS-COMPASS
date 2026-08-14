@@ -142,7 +142,11 @@ export interface PipelineHooks {
 }
 
 export async function runPipeline(engine: WorldModelEngine, opts: PipelineOptions, hooks: PipelineHooks) {
-  const stage = (id: StageId, patch: Partial<StageStatus>) => hooks.onStage(id, patch);
+  let currentStage: StageId = "collect";
+  const stage = (id: StageId, patch: Partial<StageStatus>) => {
+    currentStage = id;
+    hooks.onStage(id, patch);
+  };
 
   try {
     /* 1 — experience */
@@ -199,10 +203,7 @@ export async function runPipeline(engine: WorldModelEngine, opts: PipelineOption
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Pipeline failed";
-    const current = (["collect", "vision", "dynamics", "agent", "evaluate"] as StageId[]).find(
-      (id) => id,
-    )!;
-    stage(current, { status: "error", detail: msg });
+    hooks.onStage(currentStage, { status: "error", detail: msg });
     throw e;
   }
 }
