@@ -4,6 +4,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ArenaSpec, SceneAgent, SceneProp } from "@/lib/worldModel/types";
 
+const DEFAULT_SPAWN: [number, number] = [0, 10];
+
 /**
  * The real, rendered world the agent observes: streets, towers, props, moving
  * NPCs and beacons. The camera is driven entirely by an action vector, so the
@@ -58,7 +60,7 @@ function AgentRig({ actionRef, poseRef, bounds, colliders, spawn, terrain }: Age
       let best: [number, number] = [0, 0];
       let bestClearance = -Infinity;
       for (let r = 0; r < bounds; r += 2) for (let a = 0; a < 24; a++) {
-        const ang = (a / 16) * Math.PI * 2;
+        const ang = (a / 24) * Math.PI * 2;
         const x = Math.cos(ang) * r;
         const z = Math.sin(ang) * r;
         const clearance = colliders.reduce((d, c) => Math.min(d, Math.max(Math.abs(x - c.x) - c.rx, Math.abs(z - c.z) - c.rz)), bounds);
@@ -334,7 +336,7 @@ export default function WorldArena({
   className,
 }: WorldArenaProps) {
   const bounds = arena.bounds ?? 44;
-  const spawn = arena.spawn ?? [0, 10];
+  const spawn = arena.spawn ?? DEFAULT_SPAWN;
   const colliders = useMemo(
     () => arena.blocks.map((b) => ({ x: b.p[0], z: b.p[2], rx: b.s[0] / 2, rz: b.s[2] / 2 })),
     [arena],
