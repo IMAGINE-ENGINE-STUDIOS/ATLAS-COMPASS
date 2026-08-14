@@ -32,6 +32,26 @@ function AgentRig({ actionRef, poseRef, bounds, colliders }: AgentRigProps) {
   const pitch = useRef(0);
   const bob = useRef(0);
 
+  // Spawn on open ground: the scenario may have dropped a tower on the origin.
+  useEffect(() => {
+    const free = (x: number, z: number) =>
+      !colliders.some((c) => Math.abs(x - c.x) < c.rx + 1.2 && Math.abs(z - c.z) < c.rz + 1.2);
+    if (free(camera.position.x, camera.position.z)) return;
+    for (let r = 2; r < bounds; r += 2) {
+      for (let a = 0; a < 16; a++) {
+        const ang = (a / 16) * Math.PI * 2;
+        const x = Math.cos(ang) * r;
+        const z = Math.sin(ang) * r;
+        if (free(x, z)) {
+          camera.position.set(x, 1.7, z);
+          yaw.current = Math.atan2(-x, -z);
+          return;
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colliders, bounds]);
+
   useFrame((_, dt) => {
     const a = actionRef.current;
     const step = Math.min(dt, 0.05);
