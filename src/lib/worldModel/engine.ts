@@ -139,7 +139,7 @@ export class WorldModelEngine {
       if (this.abortFlag) break;
       const picks = Array.from({ length: batchSize }, () => pool[(Math.random() * pool.length) | 0]);
       const batch = this.frameBatch(picks);
-      const [total, rec, kl] = this.vae.trainStep(batch);
+      const [total, rec, kl] = await this.vae.trainStep(batch);
       batch.dispose();
       this.vaeSteps++;
       this.lastVaeLoss = total;
@@ -255,7 +255,7 @@ export class WorldModelEngine {
       }
       const x = tf.tensor3d(xs, [batchSize, seqLen, L + A]);
       const y = tf.tensor3d(ys, [batchSize, seqLen, L]);
-      const loss = this.rnn.trainStep(x, y);
+      const loss = await this.rnn.trainStep(x, y);
       x.dispose();
       y.dispose();
       this.rnnSteps++;

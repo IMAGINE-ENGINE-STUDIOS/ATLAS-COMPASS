@@ -64,12 +64,16 @@ export class Vae {
     return this.encoder.countParams() + this.decoder.countParams();
   }
 
-  /** One optimizer step on a batch of frames. Returns [total, recon, kl]. */
-  trainStep(batch: tf.Tensor4D): [number, number, number] {
-    let rec = 0;
-    let kl = 0;
-    const total = tf.tidy(() => {
-      const loss = this.opt.minimize(() => {
+  /**
+   * One optimizer step on a batch of frames. Returns [total, recon, kl].
+   * Readback is asynchronous — a synchronous `dataSync` here stalls the GPU
+   * pipeline and freezes the whole tab for the duration of training.
+   */
+  async trainStep(batch: tf.Tensor4D): Promise<[number, number, number]> {
+    let recT: tf.Scalar | null = null;
+    let klT: tf.Scalar | null = null;
+    const loss = tf.tidy(() => {
+      const l = this.opt.minimize(() => {
         const [mu, logvar] = this.encoder.apply(batch) as tf.Tensor[];
         const eps = tf.randomNormal(mu.shape as number[]);
         const z = mu.add(eps.mul(logvar.mul(0.5).exp()));
@@ -79,14 +83,20 @@ export class Vae {
         const klLoss = tf
           .mean(tf.sum(logvar.exp().add(mu.square()).sub(1).sub(logvar), -1))
           .mul(0.5) as tf.Scalar;
-        rec = reconLoss.dataSync()[0];
-        kl = klLoss.dataSync()[0];
+        recT = tf.keep(reconLoss.clone());
+        klT = tf.keep(klLoss.clone());
         return reconLoss.add(klLoss.mul(this.beta)) as tf.Scalar;
       }, true);
-      const v = loss ? loss.dataSync()[0] : NaN;
-      loss?.dispose();
-      return v;
+      return l ? (tf.keep(l.clone()) as tf.Scalar) : null;
     });
+    const [total, rec, kl] = await Promise.all([
+      loss ? loss.data().then((d) => d[0]) : Promise.resolve(NaN),
+      recT ? (recT as tf.Scalar).data().then((d) => d[0]) : Promise.resolve(NaN),
+      klT ? (klT as tf.Scalar).data().then((d) => d[0]) : Promise.resolve(NaN),
+    ]);
+    loss?.dispose();
+    (recT as tf.Scalar | null)?.dispose();
+    (klT as tf.Scalar | null)?.dispose();
     return [total, rec, kl];
   }
 

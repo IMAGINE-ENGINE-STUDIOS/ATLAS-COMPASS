@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import WorldArena, { useKeyboardAction } from "@/components/world/WorldArena";
+import TouchControls from "@/components/world/TouchControls";
 import { HiddenHeatmap, LatentBars, LossChart, MixtureBars, Panel, Stat } from "@/components/world/WorldPanels";
 import { WorldModelEngine } from "@/lib/worldModel/engine";
 import { defaultWorldConfig, type WorldConfig } from "@/lib/worldModel/types";
@@ -58,6 +59,7 @@ export default function WorldEnginePage() {
   const [agentDriving, setAgentDriving] = useState(false);
   const [dreaming, setDreaming] = useState(false);
   const [backend, setBackend] = useState<string>("");
+  const [engineReady, setEngineReady] = useState(false);
   const [realReward, setRealReward] = useState(0);
 
   const engineRef = useRef<WorldModelEngine | null>(null);
@@ -108,15 +110,33 @@ export default function WorldEnginePage() {
   /* -------- build the engine once we know the config -------- */
   useEffect(() => {
     if (!config) return;
-    const engine = new WorldModelEngine(config);
-    engineRef.current = engine;
+    let cancelled = false;
+    let engine: WorldModelEngine | null = null;
     document.title = `${name} — World Model Engine`;
-    engine.loadWeights(id).then((ok) => {
-      if (ok) toast.success("Loaded saved weights from this device");
-    });
+    setEngineReady(false);
+    // Build V/M/C off the mount path: allocating the nets is heavy enough to
+    // stall the first paint, which made the page look frozen.
+    (async () => {
+      await tf.ready();
+      if (cancelled) return;
+      setBackend(tf.getBackend());
+      await new Promise((r) => setTimeout(r, 0));
+      if (cancelled) return;
+      engine = new WorldModelEngine(config);
+      if (cancelled) {
+        engine.dispose();
+        return;
+      }
+      engineRef.current = engine;
+      setEngineReady(true);
+      const ok = await engine.loadWeights(id);
+      if (!cancelled && ok) toast.success("Loaded saved weights from this device");
+    })();
     return () => {
-      engine.dispose();
+      cancelled = true;
+      engine?.dispose();
       engineRef.current = null;
+      setEngineReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
@@ -520,6 +540,14 @@ export default function WorldEnginePage() {
             <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] backdrop-blur">
               {mode === "dream" ? "renderer off · dreamed by M" : "real renderer · frames → V"}
             </div>
+            <TouchControls actionRef={actionRef} enabled={(mode === "explore" && !agentDriving) || mode === "dream"} />
+            {!engineReady && (
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+                <span className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1.5 text-[11px] text-white/80 backdrop-blur">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> allocating V · M · C
+                </span>
+              </div>
+            )}
             {capturing && mode !== "dream" && (
               <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-rose-500/20 px-2.5 py-1 text-[10px] text-rose-200">
                 <CircleDot className="h-3 w-3 animate-pulse" /> recording
