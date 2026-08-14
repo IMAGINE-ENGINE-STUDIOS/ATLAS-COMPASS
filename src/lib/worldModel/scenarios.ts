@@ -10,7 +10,16 @@
  * sampled into a colour + luminance heightfield and extruded into real
  * geometry, so the agent literally explores the picture.
  */
-import { mulberry32, type ArenaSpec, type ArenaBlock } from "./types";
+import {
+  mulberry32,
+  type ArenaSpec,
+  type ArenaBlock,
+  type SceneProp,
+  type SceneAgent,
+  type SceneBeacon,
+} from "./types";
+
+export type { SceneProp, SceneAgent, SceneBeacon };
 
 export type ScenarioId = "neon-city" | "seed-image" | "arcade-arena" | "voxel-canyon";
 
@@ -235,30 +244,6 @@ function voxelCanyon(seed: number): ArenaSpec {
 }
 
 /* ------------------------------------------------------------------ */
-
-export interface SceneProp {
-  k: "box" | "cyl" | "cone" | "sphere" | "torus";
-  p: [number, number, number];
-  s: [number, number, number];
-  c: string;
-  /** emissive intensity */
-  e?: number;
-  rot?: number;
-}
-
-export interface SceneAgent {
-  /** closed patrol path in world XZ */
-  path: Array<[number, number]>;
-  speed: number;
-  c: string;
-  h: number;
-  size: number;
-}
-
-export interface SceneBeacon {
-  p: [number, number, number];
-  c: string;
-}
 
 export function generateScenario(id: ScenarioId, seed: number): ArenaSpec {
   switch (id) {
