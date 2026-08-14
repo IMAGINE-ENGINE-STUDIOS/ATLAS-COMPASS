@@ -50,11 +50,21 @@ export interface ArenaSpec {
   preset?: string;
   /** half-extent the agent is confined to */
   bounds?: number;
+  /** known-safe initial XZ position */
+  spawn?: [number, number];
   props?: SceneProp[];
   agents?: SceneAgent[];
   beacons?: SceneBeacon[];
   /** data URL of the seed picture, when the world was grown from an image */
   seedImage?: string | null;
+  /** sampled image terrain, stored row-major */
+  seedTerrain?: {
+    columns: number;
+    rows: number;
+    width: number;
+    depth: number;
+    heights: number[];
+  };
 }
 
 export interface WorldConfig {
@@ -119,6 +129,7 @@ export function generateArena(seed: number, count = 26): ArenaSpec {
     seed,
     preset: "legacy",
     bounds: 44,
+    spawn: [0, 10],
     props: [],
     agents: [],
     beacons: [],

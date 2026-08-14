@@ -136,6 +136,7 @@ function neonCity(seed: number): ArenaSpec {
     skyColor: "#04060f",
     fogColor: "#070c1c",
     bounds: 56,
+    spawn: [0, 12],
     blocks,
     props,
     agents,
@@ -165,8 +166,14 @@ function arcadeArena(seed: number): ArenaSpec {
   // ramps + cover
   for (let i = 0; i < 18; i++) {
     const w = 2 + rnd() * 6;
+    let x = (rnd() - 0.5) * R * 1.7;
+    let z = (rnd() - 0.5) * R * 1.7;
+    if (Math.hypot(x, z) < 10) {
+      x += x < 0 ? -12 : 12;
+      z += z < 0 ? -12 : 12;
+    }
     blocks.push({
-      p: [(rnd() - 0.5) * R * 1.7, 0.9 + rnd() * 2, (rnd() - 0.5) * R * 1.7],
+      p: [x, 0.9 + rnd() * 2, z],
       s: [w, 1.8 + rnd() * 3.5, 2 + rnd() * 6],
       c: rnd() > 0.5 ? "#243357" : pick(rnd, NEON),
     });
@@ -193,6 +200,7 @@ function arcadeArena(seed: number): ArenaSpec {
     skyColor: "#060a18",
     fogColor: "#0a1226",
     bounds: R - 3,
+    spawn: [0, 0],
     blocks,
     props,
     agents,
@@ -214,7 +222,7 @@ function voxelCanyon(seed: number): ArenaSpec {
       const z = (j - N / 2) * cell;
       const ridge = Math.sin(x * 0.07) * Math.cos(z * 0.05) + Math.sin((x + z) * 0.11) * 0.5;
       const corridor = Math.abs(ridge) < 0.28;
-      if (corridor) continue;
+      if (corridor || Math.hypot(x, z) < 9) continue;
       const h = 2 + Math.abs(ridge) * 16 + rnd() * 2;
       const shade = Math.min(1, 0.35 + Math.abs(ridge) * 0.5);
       blocks.push({
@@ -235,6 +243,7 @@ function voxelCanyon(seed: number): ArenaSpec {
     skyColor: "#1b1408",
     fogColor: "#2a2013",
     bounds: 54,
+    spawn: [0, 0],
     blocks,
     props,
     agents: [],
@@ -264,7 +273,7 @@ export function generateScenario(id: ScenarioId, seed: number): ArenaSpec {
  * cell becomes a coloured column whose height follows perceptual luminance, and
  * the full image is also draped on the ground so the agent can orient itself.
  */
-export async function arenaFromImage(dataUrl: string, grid = 34, relief = 26): Promise<ArenaSpec> {
+export async function arenaFromImage(dataUrl: string, grid = 72, relief = 14): Promise<ArenaSpec> {
   const img = new Image();
   img.crossOrigin = "anonymous";
   await new Promise<void>((resolve, reject) => {
@@ -273,33 +282,35 @@ export async function arenaFromImage(dataUrl: string, grid = 34, relief = 26): P
     img.src = dataUrl;
   });
   const c = document.createElement("canvas");
-  c.width = grid;
-  c.height = grid;
+  const aspect = Math.max(0.4, Math.min(2.5, img.width / Math.max(1, img.height)));
+  const columns = aspect >= 1 ? grid : Math.max(32, Math.round(grid * aspect));
+  const rows = aspect >= 1 ? Math.max(32, Math.round(grid / aspect)) : grid;
+  c.width = columns;
+  c.height = rows;
   const ctx = c.getContext("2d");
   if (!ctx) throw new Error("Canvas unavailable");
-  ctx.drawImage(img, 0, 0, grid, grid);
-  const px = ctx.getImageData(0, 0, grid, grid).data;
+  ctx.drawImage(img, 0, 0, columns, rows);
+  const px = ctx.getImageData(0, 0, columns, rows).data;
 
-  const cell = 100 / grid;
-  const blocks: ArenaBlock[] = [];
+  const width = aspect >= 1 ? 220 : 220 * aspect;
+  const depth = aspect >= 1 ? 220 / aspect : 220;
+  const heights: number[] = [];
   const beacons: SceneBeacon[] = [];
   let brightest = { l: -1, x: 0, z: 0, c: "#ffffff" };
 
-  for (let j = 0; j < grid; j++) {
-    for (let i = 0; i < grid; i++) {
-      const o = (j * grid + i) * 4;
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < columns; i++) {
+      const o = (j * columns + i) * 4;
       const r = px[o];
       const g = px[o + 1];
       const b = px[o + 2];
       const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-      const x = (i - grid / 2) * cell + cell / 2;
-      const z = (j - grid / 2) * cell + cell / 2;
-      const h = 0.4 + Math.pow(lum, 1.4) * relief;
+      const x = (i / Math.max(1, columns - 1) - 0.5) * width;
+      const z = (j / Math.max(1, rows - 1) - 0.5) * depth;
+      const h = Math.pow(lum, 1.35) * relief;
       const col = `rgb(${r},${g},${b})`;
       if (lum > brightest.l) brightest = { l: lum, x, z, c: col };
-      // skip near-flat cells so dark regions become walkable plazas
-      if (h < 1.1) continue;
-      blocks.push({ p: [x, h / 2, z], s: [cell * 0.94, h, cell * 0.94], c: col });
+      heights.push(h);
     }
   }
   beacons.push({ p: [brightest.x, 1.4, brightest.z], c: brightest.c });
@@ -310,11 +321,13 @@ export async function arenaFromImage(dataUrl: string, grid = 34, relief = 26): P
     groundColor: "#0a0f1e",
     skyColor: "#05070f",
     fogColor: "#080d1a",
-    bounds: 52,
-    blocks,
+    bounds: Math.min(width, depth) / 2 - 3,
+    spawn: [0, 0],
+    blocks: [],
     props: [],
     agents: [],
     beacons,
     seedImage: dataUrl,
+    seedTerrain: { columns, rows, width, depth, heights },
   };
 }
