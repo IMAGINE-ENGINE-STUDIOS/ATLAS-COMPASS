@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { MutableRefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Grid } from "@react-three/drei";
 import * as THREE from "three";
 import type { ArenaSpec } from "@/lib/worldModel/types";
 
