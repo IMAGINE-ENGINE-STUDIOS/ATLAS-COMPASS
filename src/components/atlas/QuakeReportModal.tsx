@@ -157,12 +157,8 @@ export default function QuakeReportModal({ quake, source, onClose, onTuneSource 
     const run = async () => {
       setAfterLoading(true);
       try {
-        // Full UTC timestamps — a bare date as `endtime` means midnight and
-        // would drop same-day aftershocks.
-        const start = new Date(quake.time - 24 * 3600 * 1000).toISOString().slice(0, 19);
-        const end = new Date(
-          Math.min(Date.now() + 3_600_000, quake.time + 30 * 86_400_000),
-        ).toISOString().slice(0, 19);
+        const start = new Date(quake.time - 24 * 3600 * 1000).toISOString().slice(0, 10);
+        const end = new Date(Math.min(Date.now(), quake.time + 30 * 86_400_000)).toISOString().slice(0, 10);
         const base = import.meta.env.VITE_SUPABASE_URL as string;
         const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
         const q = new URLSearchParams({
