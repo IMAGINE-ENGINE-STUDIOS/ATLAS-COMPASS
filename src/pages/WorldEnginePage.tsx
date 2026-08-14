@@ -4,15 +4,18 @@ import * as tf from "@tensorflow/tfjs";
 import {
   ArrowLeft,
   Brain,
+  Check,
+  ChevronDown,
   CircleDot,
-  Cpu,
-  Eye,
   Gamepad2,
+  Image as ImageIcon,
   Loader2,
   Moon,
+  Play,
   Save,
   Sparkles,
   Square,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,21 +23,25 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
-import WorldArena, { useKeyboardAction } from "@/components/world/WorldArena";
+import WorldArena, { useKeyboardAction, type Pose } from "@/components/world/WorldArena";
 import TouchControls from "@/components/world/TouchControls";
 import { HiddenHeatmap, LatentBars, LossChart, MixtureBars, Panel, Stat } from "@/components/world/WorldPanels";
 import { WorldModelEngine } from "@/lib/worldModel/engine";
 import { defaultWorldConfig, type WorldConfig } from "@/lib/worldModel/types";
 import { getLocalWorld, isLocalWorldId, updateLocalWorld } from "@/lib/worldModel/localWorlds";
+import { SCENARIOS, arenaFromImage, generateScenario, type ScenarioId } from "@/lib/worldModel/scenarios";
+import {
+  ExplorerPolicy,
+  IDLE_PIPELINE,
+  PRESETS,
+  runPipeline,
+  STAGES,
+  type PipelineState,
+  type StageId,
+} from "@/lib/worldModel/pipeline";
 
-type Mode = "explore" | "train" | "dream" | "agent";
-
-const MODES: Array<{ id: Mode; label: string; icon: typeof Eye; blurb: string }> = [
-  { id: "explore", label: "Explore", icon: Eye, blurb: "Drive the real world. Every frame + action is recorded." },
-  { id: "train", label: "Train", icon: Cpu, blurb: "Fit V on pixels, then M on latent dynamics." },
-  { id: "dream", label: "Dream", icon: Moon, blurb: "Renderer off. M hallucinates the world forward." },
-  { id: "agent", label: "Agent", icon: Gamepad2, blurb: "Evolve C inside the dream, then transfer it." },
-];
+type View = "live" | "dream";
+type PresetKey = keyof typeof PRESETS;
 
 const num = "font-mono tabular-nums";
 
@@ -43,33 +50,38 @@ export default function WorldEnginePage() {
   const isMobile = useIsMobile();
   const [name, setName] = useState("World Model");
   const [config, setConfig] = useState<WorldConfig | null>(null);
-  const [mode, setMode] = useState<Mode>("explore");
-  const [capturing, setCapturing] = useState(false);
+  const [view, setView] = useState<View>("live");
+  const [preset, setPreset] = useState<PresetKey>("standard");
+  const [pipeline, setPipeline] = useState<PipelineState>(IDLE_PIPELINE);
+  const [running, setRunning] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [advanced, setAdvanced] = useState(false);
+
   const [frames, setFrames] = useState(0);
   const [rollouts, setRollouts] = useState(0);
+  const [capturing, setCapturing] = useState(false);
   const [temperature, setTemperature] = useState(1);
   const [latent, setLatent] = useState<Float32Array | null>(null);
   const [hidden, setHidden] = useState<Float32Array | null>(null);
   const [mixtures, setMixtures] = useState<Float32Array | null>(null);
   const [vaeHistory, setVaeHistory] = useState<number[]>([]);
   const [rnnHistory, setRnnHistory] = useState<number[]>([]);
-  const [progress, setProgress] = useState<{ step: number; total: number } | null>(null);
-  const [gen, setGen] = useState<{ generation: number; best: number; mean: number; sigma: number } | null>(null);
+  const [metricsTick, setMetricsTick] = useState(0);
   const [agentDriving, setAgentDriving] = useState(false);
   const [dreaming, setDreaming] = useState(false);
   const [backend, setBackend] = useState<string>("");
   const [engineReady, setEngineReady] = useState(false);
-  const [realReward, setRealReward] = useState(0);
+  const [explorerOn, setExplorerOn] = useState(false);
 
   const engineRef = useRef<WorldModelEngine | null>(null);
   const actionRef = useRef<Float32Array>(new Float32Array(4));
-  const poseRef = useRef({ x: 0, z: 0, yaw: 0 });
+  const poseRef = useRef<Pose>({ x: 0, z: 0, yaw: 0 });
   const lastFrameRef = useRef<Uint8Array | null>(null);
   const sourceCanvas = useRef<HTMLCanvasElement>(null);
   const reconCanvas = useRef<HTMLCanvasElement>(null);
   const dreamCanvas = useRef<HTMLCanvasElement>(null);
   const frameTick = useRef(0);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   /* -------- load the record -------- */
   useEffect(() => {
@@ -79,27 +91,23 @@ export default function WorldEnginePage() {
       if (alive) setBackend(tf.getBackend());
       if (isLocalWorldId(id)) {
         const row = getLocalWorld(id);
-        if (row) {
+        if (row && alive) {
           setName(row.name);
-          setConfig(row.config);
+          setConfig(hydrate(row.config));
           setTemperature(row.config.temperature ?? 1);
           return;
         }
       }
-      const { data } = await supabase
-        .from("world_models")
-        .select("id,name,config")
-        .eq("id", id)
-        .maybeSingle();
+      const { data } = await supabase.from("world_models").select("id,name,config").eq("id", id).maybeSingle();
       if (!alive) return;
       if (data) {
         setName(data.name);
         const cfg = (data.config ?? {}) as Partial<WorldConfig>;
-        const merged = cfg.arena ? (cfg as WorldConfig) : defaultWorldConfig();
+        const merged = cfg.arena ? hydrate(cfg as WorldConfig) : freshConfig("neon-city");
         setConfig(merged);
         setTemperature(merged.temperature ?? 1);
       } else {
-        setConfig(defaultWorldConfig());
+        setConfig(freshConfig("neon-city"));
       }
     })();
     return () => {
@@ -114,8 +122,6 @@ export default function WorldEnginePage() {
     let engine: WorldModelEngine | null = null;
     document.title = `${name} — World Model Engine`;
     setEngineReady(false);
-    // Build V/M/C off the mount path: allocating the nets is heavy enough to
-    // stall the first paint, which made the page look frozen.
     (async () => {
       await tf.ready();
       if (cancelled) return;
@@ -130,7 +136,10 @@ export default function WorldEnginePage() {
       engineRef.current = engine;
       setEngineReady(true);
       const ok = await engine.loadWeights(id);
-      if (!cancelled && ok) toast.success("Loaded saved weights from this device");
+      if (!cancelled && ok) {
+        setMetricsTick((t) => t + 1);
+        toast.success("Loaded saved weights from this device");
+      }
     })();
     return () => {
       cancelled = true;
@@ -145,14 +154,14 @@ export default function WorldEnginePage() {
     if (engineRef.current) engineRef.current.config.temperature = temperature;
   }, [temperature]);
 
-  useKeyboardAction(actionRef, (mode === "explore" && !agentDriving) || mode === "dream");
+  const manualControl = (view === "live" && !agentDriving && !explorerOn) || (view === "dream" && dreaming);
+  useKeyboardAction(actionRef, manualControl);
 
-  /* -------- explore: record frames, show live latent -------- */
+  /* -------- frame intake -------- */
   const drawSource = useCallback((rgb: Uint8Array, size: number) => {
     const canvas = sourceCanvas.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
     const img = ctx.createImageData(size, size);
     for (let i = 0; i < size * size; i++) {
       img.data[i * 4] = rgb[i * 3];
@@ -175,7 +184,7 @@ export default function WorldEnginePage() {
       lastFrameRef.current = rgb;
       engine.pushFrame(rgb, actionRef.current);
       frameTick.current++;
-      if (frameTick.current % 4 === 0) {
+      if (frameTick.current % 5 === 0) {
         setFrames(engine.frameCount);
         setRollouts(engine.rollouts.length);
         drawSource(rgb, engine.config.frameSize);
@@ -189,74 +198,123 @@ export default function WorldEnginePage() {
     [drawSource],
   );
 
-  const toggleCapture = () => {
+  /* -------- autonomous explorer (drives collection) -------- */
+  useEffect(() => {
+    if (!explorerOn) return;
+    const policy = new ExplorerPolicy(config?.arena.bounds ?? 44);
+    let last = performance.now();
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      actionRef.current = policy.step(dt, poseRef.current);
+    }, 60);
+    return () => {
+      window.clearInterval(timer);
+      actionRef.current = new Float32Array(4);
+    };
+  }, [explorerOn, config]);
+
+  /* -------- the one-button pipeline -------- */
+  const collect = useCallback(
+    (target: number, onProgress: (frames: number) => void) =>
+      new Promise<void>((resolve) => {
+        const engine = engineRef.current;
+        if (!engine) return resolve();
+        const startFrames = engine.frameCount;
+        engine.beginRollout();
+        setCapturing(true);
+        setExplorerOn(true);
+        setView("live");
+        let rolloutFrames = 0;
+        const timer = window.setInterval(() => {
+          const gathered = engine.frameCount - startFrames;
+          onProgress(engine.frameCount);
+          rolloutFrames++;
+          // split experience into episodes so M never learns across a jump cut
+          if (rolloutFrames % 40 === 0) {
+            engine.endRollout();
+            engine.beginRollout();
+          }
+          if (gathered >= target || engine.abortFlag || engine.frameCount >= 3000) {
+            window.clearInterval(timer);
+            engine.endRollout();
+            setCapturing(false);
+            setExplorerOn(false);
+            setFrames(engine.frameCount);
+            setRollouts(engine.rollouts.length);
+            resolve();
+          }
+        }, 250);
+      }),
+    [],
+  );
+
+  const startPipeline = async () => {
     const engine = engineRef.current;
     if (!engine) return;
-    if (capturing) {
-      engine.endRollout();
+    engine.abortFlag = false;
+    setPipeline(IDLE_PIPELINE);
+    setRunning(true);
+    try {
+      await runPipeline(engine, PRESETS[preset].opts, {
+        collect,
+        onStage: (stageId: StageId, patch) =>
+          setPipeline((prev) => ({ ...prev, [stageId]: { ...prev[stageId], ...patch } })),
+        onMetrics: () => {
+          setVaeHistory([...engine.vaeLossHistory]);
+          setRnnHistory([...engine.rnnLossHistory]);
+          setMetricsTick((t) => t + 1);
+          if (lastFrameRef.current && engine.vaeTrained) {
+            const z = engine.encodeFrame(lastFrameRef.current);
+            setLatent(z);
+            if (reconCanvas.current) engine.decodeToCanvas(z, reconCanvas.current);
+          }
+        },
+      });
+      if (!engine.abortFlag) toast.success("World learned — open the Dream view to walk inside it");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Pipeline failed");
+    } finally {
+      setRunning(false);
       setCapturing(false);
-      setRollouts(engine.rollouts.length);
-    } else {
-      engine.beginRollout();
-      setCapturing(true);
-    }
-  };
-
-  /* -------- training -------- */
-  const trainVae = async () => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    setBusy("Training V (autoencoder)");
-    try {
-      await engine.trainVae(240, 16, (p) => {
-        setProgress({ step: p.step, total: p.total });
-        if (p.step % 4 === 0) setVaeHistory([...engine.vaeLossHistory]);
-      });
-      setVaeHistory([...engine.vaeLossHistory]);
-      if (lastFrameRef.current) {
-        const z = engine.encodeFrame(lastFrameRef.current);
-        setLatent(z);
-        if (reconCanvas.current) engine.decodeToCanvas(z, reconCanvas.current);
-      }
-      toast.success(`V trained — ${engine.vaeSteps} steps, loss ${engine.lastVaeLoss?.toFixed(2)}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Training failed");
-    } finally {
-      setBusy(null);
-      setProgress(null);
-    }
-  };
-
-  const trainRnn = async () => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    setBusy("Training M (MDN-RNN)");
-    try {
-      await engine.trainRnn(150, 8, 24, (p) => {
-        setProgress({ step: p.step, total: p.total });
-        if (p.step % 4 === 0) setRnnHistory([...engine.rnnLossHistory]);
-      });
-      setRnnHistory([...engine.rnnLossHistory]);
-      toast.success(`M trained — ${engine.rnnSteps} steps, NLL ${engine.lastRnnLoss?.toFixed(3)}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Training failed");
-    } finally {
-      setBusy(null);
-      setProgress(null);
+      setExplorerOn(false);
     }
   };
 
   const stopWork = () => {
     if (engineRef.current) engineRef.current.abortFlag = true;
+    setRunning(false);
+    setExplorerOn(false);
+    setCapturing(false);
+  };
+
+  /* -------- manual stages (advanced) -------- */
+  const runStage = async (label: string, fn: () => Promise<unknown>) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.abortFlag = false;
+    setBusy(label);
+    try {
+      await fn();
+      setVaeHistory([...engine.vaeLossHistory]);
+      setRnnHistory([...engine.rnnLossHistory]);
+      setMetricsTick((t) => t + 1);
+      toast.success(`${label} done`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `${label} failed`);
+    } finally {
+      setBusy(null);
+    }
   };
 
   /* -------- dream loop -------- */
   useEffect(() => {
-    if (mode !== "dream" || !dreaming) return;
+    if (view !== "dream" || !dreaming) return;
     const engine = engineRef.current;
     if (!engine) return;
     if (!engine.rnnTrained) {
-      toast.error("Train the dynamics model first — the dream is produced by M.");
+      toast.error("Learn the world first — the dream is produced by M.");
       setDreaming(false);
       return;
     }
@@ -285,29 +343,14 @@ export default function WorldEnginePage() {
       state.h.dispose();
       state.c.dispose();
     };
-  }, [mode, dreaming, temperature]);
+  }, [view, dreaming, temperature]);
 
-  /* -------- agent -------- */
-  const evolve = async () => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    setBusy("Evolving C in the dream");
-    try {
-      await engine.evolveInDream(12, 60, (g) => setGen(g));
-      toast.success(`C evolved — ${engine.generations} generations, best ${engine.bestReward?.toFixed(2)}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Evolution failed");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  /* Controller drives the real scene: z from the live frame, h from M. */
+  /* -------- controller plays the real world -------- */
   useEffect(() => {
     if (!agentDriving) return;
     const engine = engineRef.current;
     if (!engine || !engine.vaeTrained) {
-      toast.error("The controller reads z — train V first.");
+      toast.error("The controller reads z — learn the world first.");
       setAgentDriving(false);
       return;
     }
@@ -315,8 +358,6 @@ export default function WorldEnginePage() {
     let state = engine.rnn.zeroState(1);
     let hiddenVec: Float32Array = new Float32Array(engine.config.rnnSize);
     const visited: Float32Array[] = [];
-    let reward = 0;
-    const tickMs = 120;
     const timer = window.setInterval(() => {
       if (stop || !lastFrameRef.current) return;
       const z = engine.encodeFrame(lastFrameRef.current);
@@ -331,12 +372,9 @@ export default function WorldEnginePage() {
         hiddenVec = step.hidden;
         setHidden(step.hidden);
       }
-      reward += WorldModelEngine.realNovelty(z, visited);
       visited.push(z);
       setLatent(z);
-      setGen((g) => (g ? { ...g, best: g.best } : g));
-      setRealReward(reward);
-    }, tickMs);
+    }, 120);
     return () => {
       stop = true;
       window.clearInterval(timer);
@@ -345,6 +383,37 @@ export default function WorldEnginePage() {
       actionRef.current = new Float32Array(engine.config.actionDim);
     };
   }, [agentDriving, temperature]);
+
+  /* -------- world building -------- */
+  const applyScenario = (scenario: ScenarioId) => {
+    if (scenario === "seed-image") {
+      fileInput.current?.click();
+      return;
+    }
+    setConfig((prev) => ({
+      ...(prev ?? defaultWorldConfig()),
+      arena: generateScenario(scenario, Math.floor(Math.random() * 1e9)),
+    }));
+    setPipeline(IDLE_PIPELINE);
+    toast.success("New world built — models reset for it");
+  };
+
+  const onSeedImage = async (file: File) => {
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("Could not read the file"));
+        fr.readAsDataURL(file);
+      });
+      const arena = await arenaFromImage(dataUrl);
+      setConfig((prev) => ({ ...(prev ?? defaultWorldConfig()), arena }));
+      setPipeline(IDLE_PIPELINE);
+      toast.success(`Seed world built from ${file.name} — ${arena.blocks.length} columns`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not use that image");
+    }
+  };
 
   /* -------- save -------- */
   const save = async () => {
@@ -381,7 +450,7 @@ export default function WorldEnginePage() {
           })
           .eq("id", id);
       }
-      toast.success("World model saved — weights live in this browser");
+      toast.success("Saved — weights live in this browser");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -389,32 +458,36 @@ export default function WorldEnginePage() {
     }
   };
 
-  const params = engineRef.current?.paramSummary ?? { vae: 0, rnn: 0, controller: 0 };
-  const activeMode = MODES.find((m) => m.id === mode)!;
+  const engine = engineRef.current;
+  const params = engine?.paramSummary ?? { vae: 0, rnn: 0, controller: 0 };
+  const scenarioId = (config?.arena.preset ?? "neon-city") as ScenarioId;
+  const scenarioMeta = SCENARIOS.find((s) => s.id === scenarioId);
+  const learned = !!engine?.rnnTrained;
+  const overall = useMemo(() => {
+    const vals = STAGES.map((s) => pipeline[s.id].progress);
+    return vals.reduce((a, b) => a + b, 0) / STAGES.length;
+  }, [pipeline]);
 
-  const console_ = (
+  const inspector = (
     <div className="space-y-3">
-      <Panel
-        title="Latent z"
-        right={<span className={`text-[10px] text-muted-foreground ${num}`}>{config?.latentDim ?? 0}-D</span>}
-      >
-        <LatentBars z={latent} />
-      </Panel>
-
       <Panel title="Vision · V" right={<span className="text-[10px] text-muted-foreground">frame → z → frame</span>}>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <canvas ref={sourceCanvas} width={128} height={128} className="w-full rounded-lg bg-black/40" />
-            <p className="mt-1 text-[10px] text-muted-foreground">Observed 64×64</p>
+            <p className="mt-1 text-[10px] text-muted-foreground">What it sees</p>
           </div>
           <div>
             <canvas ref={reconCanvas} width={128} height={128} className="w-full rounded-lg bg-black/40" />
-            <p className="mt-1 text-[10px] text-muted-foreground">Reconstruction</p>
+            <p className="mt-1 text-[10px] text-muted-foreground">What it remembers</p>
           </div>
         </div>
         <div className="mt-3">
           <LossChart history={vaeHistory} label="V" />
         </div>
+      </Panel>
+
+      <Panel title="Latent z" right={<span className={`text-[10px] text-muted-foreground ${num}`}>{config?.latentDim ?? 0}-D</span>}>
+        <LatentBars z={latent} />
       </Panel>
 
       <Panel title="Memory · M" right={<span className={`text-[10px] text-muted-foreground ${num}`}>{config?.rnnSize ?? 0} units</span>}>
@@ -427,36 +500,48 @@ export default function WorldEnginePage() {
         </div>
       </Panel>
 
+      <Panel title="Quality" key={metricsTick}>
+        <div className="grid grid-cols-2 gap-2">
+          <Stat label="Recon (held out)" value={engine?.valLoss != null ? engine.valLoss.toFixed(1) : "—"} hint="lower is sharper" />
+          <Stat label="Dream error" value={engine?.dreamError != null ? engine.dreamError.toFixed(3) : "—"} hint="open-loop, 24 steps" />
+          <Stat label="Frames kept" value={frames.toLocaleString()} hint={`${engine?.skippedFrames ?? 0} duplicates dropped`} />
+          <Stat label="Episodes" value={String(rollouts)} />
+        </div>
+      </Panel>
+
       <Panel title="Temperature τ" right={<span className={`text-[10px] ${num}`}>{temperature.toFixed(2)}</span>}>
-        <Slider
-          value={[temperature]}
-          min={0.1}
-          max={2}
-          step={0.05}
-          onValueChange={(v) => setTemperature(v[0])}
-        />
+        <Slider value={[temperature]} min={0.1} max={2} step={0.05} onValueChange={(v) => setTemperature(v[0])} />
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Uncertainty of the dream. Low τ collapses onto the most likely future; high τ makes the world
-          model hallucinate freely, which stops the controller exploiting its flaws.
+          How uncertain the dream is. Low τ gives the single most likely future; high τ makes the world model
+          hallucinate freely.
         </p>
       </Panel>
 
       <Panel title="Model card">
         <div className="grid grid-cols-2 gap-2">
-          <Stat label="Frames" value={frames.toLocaleString()} hint={`${rollouts} rollouts`} />
-          <Stat label="V params" value={params.vae.toLocaleString()} hint={`${engineRef.current?.vaeSteps ?? 0} steps`} />
-          <Stat label="M params" value={params.rnn.toLocaleString()} hint={`${engineRef.current?.rnnSteps ?? 0} steps`} />
-          <Stat label="C params" value={params.controller.toLocaleString()} hint={`${gen?.generation ?? 0} generations`} />
+          <Stat label="V params" value={params.vae.toLocaleString()} hint={`${engine?.vaeSteps ?? 0} steps`} />
+          <Stat label="M params" value={params.rnn.toLocaleString()} hint={`${engine?.rnnSteps ?? 0} steps`} />
+          <Stat label="C params" value={params.controller.toLocaleString()} hint={`${engine?.generations ?? 0} generations`} />
+          <Stat label="Backend" value={backend || "…"} />
         </div>
-        <p className={`mt-2 text-[10px] text-muted-foreground ${num}`}>
-          tfjs backend: {backend || "…"}
-        </p>
       </Panel>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-[#05070f] text-foreground">
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onSeedImage(f);
+          e.target.value = "";
+        }}
+      />
+
       <header className="sticky top-0 z-20 border-b border-white/10 bg-[#05070f]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3">
           <Link to="/worlds" className="text-muted-foreground hover:text-foreground">
@@ -464,69 +549,61 @@ export default function WorldEnginePage() {
           </Link>
           <Brain className="h-5 w-5 text-sky-300" />
           <h1 className="truncate text-base font-semibold">{name}</h1>
-          <span className="hidden rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:inline">
-            V · M · C
-          </span>
           <div className="ml-auto flex items-center gap-2">
-            {busy ? (
+            <div className="hidden rounded-full border border-white/10 p-0.5 sm:flex">
+              {(["live", "dream"] as View[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => {
+                    setView(v);
+                    if (v !== "dream") setDreaming(false);
+                    if (v !== "live") setAgentDriving(false);
+                  }}
+                  className={`rounded-full px-3 py-1 text-xs capitalize transition-colors ${
+                    view === v ? "bg-sky-400/20 text-sky-100" : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  {v === "live" ? "Live world" : "Dream"}
+                </button>
+              ))}
+            </div>
+            {running || busy ? (
               <Button size="sm" variant="outline" onClick={stopWork}>
                 <Square className="mr-1 h-3.5 w-3.5" /> Stop
               </Button>
             ) : null}
-            <Button size="sm" variant="outline" onClick={save} disabled={!!busy}>
+            <Button size="sm" variant="outline" onClick={save} disabled={!!busy || running}>
               <Save className="mr-1 h-4 w-4" /> Save
             </Button>
             {isMobile && (
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button size="sm">Console</Button>
+                  <Button size="sm">Inspect</Button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="h-[80vh] overflow-y-auto border-white/10 bg-[#05070f]">
-                  {console_}
+                  {inspector}
                 </SheetContent>
               </Sheet>
             )}
           </div>
-        </div>
-        <div className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-4 pb-2">
-          {MODES.map((m) => {
-            const Icon = m.icon;
-            return (
-              <button
-                key={m.id}
-                onClick={() => {
-                  setMode(m.id);
-                  if (m.id !== "dream") setDreaming(false);
-                  if (m.id !== "agent") setAgentDriving(false);
-                }}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                  mode === m.id
-                    ? "border-sky-300/50 bg-sky-400/15 text-sky-100"
-                    : "border-white/10 text-white/60 hover:bg-white/5"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" /> {m.label}
-              </button>
-            );
-          })}
         </div>
       </header>
 
       <main className="mx-auto grid max-w-[1600px] gap-4 px-4 py-4 lg:grid-cols-[1fr_380px]">
         <div className="space-y-3">
           <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black">
-            {config && (mode === "explore" || mode === "agent" || mode === "train") && (
+            {config && view === "live" && (
               <WorldArena
                 arena={config.arena}
                 actionRef={actionRef}
                 poseRef={poseRef}
                 frameSize={config.frameSize}
-                capturing={capturing || mode === "agent"}
+                capturing={capturing || agentDriving}
                 onFrame={onFrame}
                 className="h-full w-full"
               />
             )}
-            {mode === "dream" && (
+            {view === "dream" && (
               <div className="flex h-full w-full items-center justify-center bg-black">
                 <canvas
                   ref={dreamCanvas}
@@ -537,10 +614,15 @@ export default function WorldEnginePage() {
                 />
               </div>
             )}
-            <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] backdrop-blur">
-              {mode === "dream" ? "renderer off · dreamed by M" : "real renderer · frames → V"}
+            <div className="pointer-events-none absolute left-3 top-3 flex gap-2">
+              <span className="rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] backdrop-blur">
+                {view === "dream" ? "renderer off · dreamed by M" : scenarioMeta?.label ?? "live world"}
+              </span>
+              {explorerOn && (
+                <span className="rounded-full bg-sky-500/20 px-2.5 py-1 text-[10px] text-sky-100">explorer driving</span>
+              )}
             </div>
-            <TouchControls actionRef={actionRef} enabled={(mode === "explore" && !agentDriving) || mode === "dream"} />
+            <TouchControls actionRef={actionRef} enabled={manualControl} />
             {!engineReady && (
               <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
                 <span className="flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1.5 text-[11px] text-white/80 backdrop-blur">
@@ -548,100 +630,224 @@ export default function WorldEnginePage() {
                 </span>
               </div>
             )}
-            {capturing && mode !== "dream" && (
+            {capturing && view === "live" && (
               <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-rose-500/20 px-2.5 py-1 text-[10px] text-rose-200">
-                <CircleDot className="h-3 w-3 animate-pulse" /> recording
+                <CircleDot className="h-3 w-3 animate-pulse" /> recording · {frames.toLocaleString()}
               </div>
             )}
           </div>
 
+          {/* ---- the single control surface ---- */}
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-auto text-sm text-muted-foreground">{activeMode.blurb}</p>
-              {mode === "explore" && (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="mr-auto">
+                <h2 className="text-sm font-semibold">Teach this world</h2>
+                <p className="text-[11px] text-muted-foreground">
+                  One run: explore → see → predict → act. You can walk around while it learns.
+                </p>
+              </div>
+              <div className="flex rounded-full border border-white/10 p-0.5">
+                {(Object.keys(PRESETS) as PresetKey[]).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setPreset(k)}
+                    title={PRESETS[k].blurb}
+                    className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                      preset === k ? "bg-white/15 text-white" : "text-white/55 hover:text-white"
+                    }`}
+                  >
+                    {PRESETS[k].label}
+                  </button>
+                ))}
+              </div>
+              <Button size="sm" onClick={startPipeline} disabled={running || !engineReady || !!busy}>
+                {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1 h-4 w-4" />}
+                {running ? `Learning · ${(overall * 100).toFixed(0)}%` : "Start learning"}
+              </Button>
+            </div>
+
+            <ol className="mt-4 space-y-2">
+              {STAGES.map((s, i) => {
+                const st = pipeline[s.id];
+                return (
+                  <li key={s.id} className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${
+                        st.status === "done"
+                          ? "border-emerald-400/50 bg-emerald-400/20 text-emerald-200"
+                          : st.status === "running"
+                            ? "border-sky-400/60 bg-sky-400/20 text-sky-100"
+                            : st.status === "error"
+                              ? "border-rose-400/60 bg-rose-400/20 text-rose-200"
+                              : "border-white/15 text-white/50"
+                      }`}
+                    >
+                      {st.status === "done" ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-medium">{s.label}</span>
+                        <span className={`truncate text-[10px] text-muted-foreground ${num}`}>{st.detail}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{s.blurb}</p>
+                      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className={`h-full rounded-full transition-[width] duration-200 ${
+                            st.status === "error" ? "bg-rose-400" : "bg-sky-400"
+                          }`}
+                          style={{ width: `${st.progress * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+              {view === "live" ? (
                 <>
-                  <Button size="sm" variant={capturing ? "destructive" : "default"} onClick={toggleCapture}>
-                    {capturing ? "End rollout" : "Start rollout"}
-                  </Button>
-                  <span className={`text-xs text-muted-foreground ${num}`}>
-                    {frames.toLocaleString()} frames · {rollouts} rollouts
-                  </span>
-                </>
-              )}
-              {mode === "train" && (
-                <>
-                  <Button size="sm" onClick={trainVae} disabled={!!busy}>
-                    {busy?.includes("V") ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Cpu className="mr-1 h-4 w-4" />}
-                    Train V · 240 steps
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={trainRnn} disabled={!!busy}>
-                    {busy?.includes("M") ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-                    Train M · 150 steps
-                  </Button>
-                </>
-              )}
-              {mode === "dream" && (
-                <Button size="sm" variant={dreaming ? "destructive" : "default"} onClick={() => setDreaming(!dreaming)}>
-                  {dreaming ? "Stop dream" : "Start dream"}
-                </Button>
-              )}
-              {mode === "agent" && (
-                <>
-                  <Button size="sm" onClick={evolve} disabled={!!busy}>
-                    {busy?.includes("C") ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Gamepad2 className="mr-1 h-4 w-4" />}
-                    Evolve C · 12 generations
-                  </Button>
                   <Button
                     size="sm"
                     variant={agentDriving ? "destructive" : "outline"}
                     onClick={() => setAgentDriving(!agentDriving)}
+                    disabled={running || !learned}
                   >
-                    {agentDriving ? "Stop transfer" : "Play in real world"}
+                    <Gamepad2 className="mr-1 h-4 w-4" /> {agentDriving ? "Take back control" : "Let the agent play"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const e = engineRef.current;
+                      if (!e) return;
+                      if (capturing) {
+                        e.endRollout();
+                        setCapturing(false);
+                      } else {
+                        e.beginRollout();
+                        setCapturing(true);
+                      }
+                    }}
+                    disabled={running}
+                  >
+                    <CircleDot className="mr-1 h-4 w-4" /> {capturing ? "Stop recording" : "Record my own run"}
                   </Button>
                 </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant={dreaming ? "destructive" : "default"}
+                  onClick={() => setDreaming(!dreaming)}
+                  disabled={!learned}
+                >
+                  {dreaming ? <Square className="mr-1 h-4 w-4" /> : <Play className="mr-1 h-4 w-4" />}
+                  {dreaming ? "Stop dream" : "Walk inside the dream"}
+                </Button>
+              )}
+              <span className="text-[11px] text-muted-foreground">
+                {view === "dream"
+                  ? "No renderer — every pixel is predicted by M and painted by V."
+                  : "W A S D move · Q E turn · R F look"}
+              </span>
+            </div>
+          </div>
+
+          {/* ---- world builder ---- */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-sky-300" />
+              <h2 className="text-sm font-semibold">World</h2>
+              <span className="ml-auto text-[11px] text-muted-foreground">
+                {config?.arena.blocks.length ?? 0} structures · {(config?.arena.agents ?? []).length} moving ·{" "}
+                {(config?.arena.beacons ?? []).length} beacons
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {SCENARIOS.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => applyScenario(s.id)}
+                  disabled={running}
+                  className={`rounded-xl border p-3 text-left transition-colors disabled:opacity-40 ${
+                    scenarioId === s.id
+                      ? "border-sky-400/50 bg-sky-400/10"
+                      : "border-white/10 hover:border-white/25 hover:bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-medium">
+                    {s.needsImage && <ImageIcon className="h-3.5 w-3.5" />} {s.label}
+                  </div>
+                  <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{s.blurb}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setAdvanced(!advanced)}
+            className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-xs text-white/70 hover:bg-white/5"
+          >
+            Advanced · run stages by hand
+            <ChevronDown className={`h-4 w-4 transition-transform ${advanced ? "rotate-180" : ""}`} />
+          </button>
+          {advanced && (
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!busy || running}
+                onClick={() => runStage("Train V", () => engineRef.current!.trainVae(300, 24))}
+              >
+                Train V · 300
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!busy || running}
+                onClick={() => runStage("Train M", () => engineRef.current!.trainRnn(300, 12, 24))}
+              >
+                Train M · 300
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!busy || running}
+                onClick={() => runStage("Evolve C", () => engineRef.current!.evolveInDream(12, 60))}
+              >
+                Evolve C · 12 gens
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!busy || running}
+                onClick={() => runStage("Score dream", () => engineRef.current!.evaluateDream(24))}
+              >
+                Score dream
+              </Button>
+              {busy && (
+                <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> {busy}
+                </span>
               )}
             </div>
-
-            {progress && (
-              <div className="mt-3">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-sky-400 transition-[width] duration-150"
-                    style={{ width: `${(progress.step / progress.total) * 100}%` }}
-                  />
-                </div>
-                <p className={`mt-1 text-[11px] text-muted-foreground ${num}`}>
-                  {busy} · step {progress.step}/{progress.total}
-                </p>
-              </div>
-            )}
-
-            {mode === "agent" && (
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Stat label="Generation" value={String(gen?.generation ?? 0)} />
-                <Stat label="Best (dream)" value={(gen?.best ?? 0).toFixed(2)} />
-                <Stat label="Mean (dream)" value={(gen?.mean ?? 0).toFixed(2)} />
-                <Stat label="Real transfer" value={realReward.toFixed(2)} hint="same novelty objective" />
-              </div>
-            )}
-
-            {mode !== "dream" && mode !== "agent" && (
-              <p className="mt-3 text-[11px] text-muted-foreground">
-                Controls · <span className={num}>W A S D</span> move ·{" "}
-                <span className={num}>Q E</span> or arrows turn · <span className={num}>R F</span> look
-              </p>
-            )}
-            {mode === "dream" && (
-              <p className="mt-3 text-[11px] text-muted-foreground">
-                You are steering a hallucination — the same keys feed actions straight into M, no renderer
-                involved.
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
-        {!isMobile && <aside className="max-h-[calc(100vh-140px)] overflow-y-auto pr-1">{console_}</aside>}
+        {!isMobile && <aside className="max-h-[calc(100vh-140px)] overflow-y-auto pr-1">{inspector}</aside>}
       </main>
     </div>
   );
+}
+
+/* -------- config helpers -------- */
+
+function freshConfig(scenario: ScenarioId): WorldConfig {
+  return { ...defaultWorldConfig(), arena: generateScenario(scenario, Math.floor(Math.random() * 1e9)) };
+}
+
+/** Older records only stored blocks — give them the new scene fields. */
+function hydrate(config: WorldConfig): WorldConfig {
+  if (config.arena?.preset) return config;
+  return { ...config, arena: generateScenario("neon-city", config.arena?.seed ?? 1) };
 }

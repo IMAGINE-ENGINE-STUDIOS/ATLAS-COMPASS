@@ -22,7 +22,10 @@ export class Vae {
   private opt: tf.Optimizer;
   readonly latentDim: number;
   readonly frameSize: number;
-  readonly beta: number;
+  /** KL weight — annealed by the trainer (β-VAE warm-up). */
+  beta: number;
+  /** free-bits floor: KL below this per-dim is not penalised. */
+  freeBits = 0.5;
 
   constructor(opts: VaeOptions) {
     this.frameSize = opts.frameSize;
@@ -80,9 +83,11 @@ export class Vae {
         const recon = this.decoder.apply(z) as tf.Tensor;
         const pixels = this.frameSize * this.frameSize * 3;
         const reconLoss = tf.losses.meanSquaredError(batch, recon).mul(pixels) as tf.Scalar;
-        const klLoss = tf
-          .mean(tf.sum(logvar.exp().add(mu.square()).sub(1).sub(logvar), -1))
-          .mul(0.5) as tf.Scalar;
+        // Per-dimension KL with a free-bits floor: without it the posterior
+        // collapses and every frame encodes to the same z, which makes M
+        // untrainable.
+        const klDim = logvar.exp().add(mu.square()).sub(1).sub(logvar).mul(0.5).mean(0);
+        const klLoss = tf.sum(tf.maximum(klDim, tf.scalar(this.freeBits))) as tf.Scalar;
         recT = tf.keep(reconLoss.clone());
         klT = tf.keep(klLoss.clone());
         return reconLoss.add(klLoss.mul(this.beta)) as tf.Scalar;

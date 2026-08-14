@@ -15,6 +15,30 @@ export interface ArenaBlock {
   c: string;
 }
 
+export interface SceneProp {
+  k: "box" | "cyl" | "cone" | "sphere" | "torus";
+  p: [number, number, number];
+  s: [number, number, number];
+  c: string;
+  /** emissive intensity */
+  e?: number;
+  rot?: number;
+}
+
+export interface SceneAgent {
+  /** patrol path in world XZ, traversed as a loop */
+  path: Array<[number, number]>;
+  speed: number;
+  c: string;
+  h: number;
+  size: number;
+}
+
+export interface SceneBeacon {
+  p: [number, number, number];
+  c: string;
+}
+
 /** Deterministic description of the observable 3D world. */
 export interface ArenaSpec {
   seed: number;
@@ -22,6 +46,15 @@ export interface ArenaSpec {
   skyColor: string;
   fogColor: string;
   blocks: ArenaBlock[];
+  /** scenario preset that produced this world */
+  preset?: string;
+  /** half-extent the agent is confined to */
+  bounds?: number;
+  props?: SceneProp[];
+  agents?: SceneAgent[];
+  beacons?: SceneBeacon[];
+  /** data URL of the seed picture, when the world was grown from an image */
+  seedImage?: string | null;
 }
 
 export interface WorldConfig {
@@ -84,6 +117,12 @@ export function generateArena(seed: number, count = 26): ArenaSpec {
   }
   return {
     seed,
+    preset: "legacy",
+    bounds: 44,
+    props: [],
+    agents: [],
+    beacons: [],
+    seedImage: null,
     groundColor: "#0e1428",
     skyColor: "#050813",
     fogColor: "#0a1024",
