@@ -82,16 +82,18 @@ export class MdnRnn {
    * One optimizer step. `x` is [B, T, L+A] and `y` is [B, T, L] (the latents
    * shifted one step into the future).
    */
-  trainStep(x: tf.Tensor3D, y: tf.Tensor3D): number {
-    return tf.tidy(() => {
-      const loss = this.opt.minimize(() => {
+  async trainStep(x: tf.Tensor3D, y: tf.Tensor3D): Promise<number> {
+    const loss = tf.tidy(() => {
+      const l = this.opt.minimize(() => {
         const raw = this.model.apply(x) as tf.Tensor;
         return this.nll(raw, y);
       }, true);
-      const v = loss ? loss.dataSync()[0] : NaN;
-      loss?.dispose();
-      return v;
+      return l ? (tf.keep(l.clone()) as tf.Scalar) : null;
     });
+    if (!loss) return NaN;
+    const v = (await loss.data())[0];
+    loss.dispose();
+    return v;
   }
 
   zeroState(batch = 1): RnnState {
