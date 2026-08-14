@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import WorldArena, { useKeyboardAction } from "@/components/world/WorldArena";
+import TouchControls from "@/components/world/TouchControls";
 import { HiddenHeatmap, LatentBars, LossChart, MixtureBars, Panel, Stat } from "@/components/world/WorldPanels";
 import { WorldModelEngine } from "@/lib/worldModel/engine";
 import { defaultWorldConfig, type WorldConfig } from "@/lib/worldModel/types";
@@ -58,6 +59,7 @@ export default function WorldEnginePage() {
   const [agentDriving, setAgentDriving] = useState(false);
   const [dreaming, setDreaming] = useState(false);
   const [backend, setBackend] = useState<string>("");
+  const [engineReady, setEngineReady] = useState(false);
   const [realReward, setRealReward] = useState(0);
 
   const engineRef = useRef<WorldModelEngine | null>(null);
@@ -108,15 +110,33 @@ export default function WorldEnginePage() {
   /* -------- build the engine once we know the config -------- */
   useEffect(() => {
     if (!config) return;
-    const engine = new WorldModelEngine(config);
-    engineRef.current = engine;
+    let cancelled = false;
+    let engine: WorldModelEngine | null = null;
     document.title = `${name} — World Model Engine`;
-    engine.loadWeights(id).then((ok) => {
-      if (ok) toast.success("Loaded saved weights from this device");
-    });
+    setEngineReady(false);
+    // Build V/M/C off the mount path: allocating the nets is heavy enough to
+    // stall the first paint, which made the page look frozen.
+    (async () => {
+      await tf.ready();
+      if (cancelled) return;
+      setBackend(tf.getBackend());
+      await new Promise((r) => setTimeout(r, 0));
+      if (cancelled) return;
+      engine = new WorldModelEngine(config);
+      if (cancelled) {
+        engine.dispose();
+        return;
+      }
+      engineRef.current = engine;
+      setEngineReady(true);
+      const ok = await engine.loadWeights(id);
+      if (!cancelled && ok) toast.success("Loaded saved weights from this device");
+    })();
     return () => {
-      engine.dispose();
+      cancelled = true;
+      engine?.dispose();
       engineRef.current = null;
+      setEngineReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
