@@ -14,6 +14,7 @@ import {
 import { Activity } from "lucide-react";
 import { Layers } from "lucide-react";
 import { ScanLine } from "lucide-react";
+import { Telescope } from "lucide-react";
 import {
   ACCEPT_STRING, convertToGltfBlob, getFormatCategory, getFormatLabel
 } from "@/lib/model-converter";
@@ -119,6 +120,7 @@ import { useAtlasLevelLayer, type LevelPlacement } from "@/lib/useAtlasLevelLaye
 import AtlasLevelsR3FOverlay from "@/components/atlas/AtlasLevelsR3FOverlay";
 import AtlasSplatOverlay from "@/components/atlas/AtlasSplatOverlay";
 import SolarSystemOverlay from "@/components/atlas/SolarSystemOverlay";
+import StarGazerPanel from "@/components/atlas/StarGazerPanel";
 import AtlasBuildingsOverlay from "@/components/atlas/AtlasBuildingsOverlay";
 import OverpassBuildingsOverlay from "@/components/atlas/OverpassBuildingsOverlay";
 import AtlasSplatUploader from "@/components/atlas/AtlasSplatUploader";
@@ -1664,6 +1666,7 @@ function SpaceshipPage({
   const [intelBoundsVersion, setIntelBoundsVersion] = useState(0);
   const [recordingsOpen, setRecordingsOpen] = useState<boolean>(savedUI.recordingsOpen ?? false);
   const [consoleOpen, setConsoleOpen] = useState<boolean>(false);
+  const [starGazerOpen, setStarGazerOpen] = useState<boolean>(false);
   const [activeCamera, setActiveCamera] = useState<TrafficCamera | null>(null);
   const [deliveryPickupPrefill, setDeliveryPickupPrefill] = useState<{ address: string; lat?: number; lng?: number } | undefined>(undefined);
 
@@ -6665,6 +6668,20 @@ function SpaceshipPage({
                     <Brain className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">TI</span>
                   </button>
+                  {/* Star Gazer — all-sky telescope surveys and celestial pointing */}
+                  <button
+                    onClick={() => setStarGazerOpen((v) => !v)}
+                    aria-pressed={starGazerOpen}
+                    title="Star Gazer — point at the sky, telescope surveys, radiation datasets"
+                    className={`shrink-0 h-7 px-2 rounded-md flex items-center gap-1 border font-bold text-[10px] tracking-widest uppercase transition-all ${
+                      starGazerOpen
+                        ? "bg-indigo-500/25 border-indigo-300 text-indigo-100 shadow-[0_0_14px_rgba(129,140,248,0.55)]"
+                        : "bg-white/[0.04] border-white/20 text-white/80 hover:text-white hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <Telescope className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Sky</span>
+                  </button>
                       </div>
                       <div className="h-px bg-white/10 my-2" />
                       <Link
@@ -6687,6 +6704,10 @@ function SpaceshipPage({
 
           {isEarthWorld && earthIntelOpen && (
             <EarthIntelligenceBar viewerRef={viewerRef} onClose={() => setEarthIntelOpen(false)} />
+          )}
+
+          {starGazerOpen && viewerRef.current && (
+            <StarGazerPanel viewer={viewerRef.current} onClose={() => setStarGazerOpen(false)} />
           )}
 
           {isEarthWorld && quakesOpen && (
