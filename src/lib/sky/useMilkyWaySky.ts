@@ -5,8 +5,9 @@
  * Star Gazer) can drive the same skybox without fighting over `scene.skyBox`:
  * exactly one mounted hook instance claims ownership and performs the install.
  *
- * Tycho starts at 4K so the galaxy paints almost immediately, then silently
- * upgrades to 8K. 16K is opt-in from the UI because the mosaic is ~68 MB.
+ * The skybox is OFF by default: the mosaics are 4–68 MB and the cube-map
+ * re-projection costs GPU time, so nothing downloads until the user turns it
+ * on. Once enabled it starts at 4K; 8K and 16K are explicit picks.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyMilkyWaySkyBox, type SkyResolution } from "./milkyWaySky";
@@ -26,13 +27,13 @@ function readStored(): SkyState {
     if (raw) {
       const p = JSON.parse(raw) as Partial<SkyState>;
       return {
-        enabled: p.enabled !== false,
+        enabled: p.enabled === true,
         res: p.res === "8k" || p.res === "16k" ? p.res : "4k",
         survey: isSkySurveyId(p.survey) ? p.survey : "tycho",
       };
     }
   } catch {}
-  return { enabled: true, res: "4k", survey: "tycho" };
+  return { enabled: false, res: "4k", survey: "tycho" };
 }
 
 let state: SkyState = readStored();
@@ -100,23 +101,11 @@ export function useMilkyWaySky(viewer: any) {
     };
   }, [isOwner, viewer, enabled, res, survey]);
 
-  // One free quality bump for the NASA panorama: 4K lands fast, 8K follows.
-  useEffect(() => {
-    if (!enabled || survey !== "tycho" || autoUpgraded.current || active !== "4k" || res !== "4k") return;
-    const t = window.setTimeout(() => {
-      autoUpgraded.current = true;
-      update({ res: "8k" });
-    }, 2500);
-    return () => window.clearTimeout(t);
-  }, [enabled, active, res, survey]);
-
   const chooseRes = useCallback((next: SkyResolution) => {
-    autoUpgraded.current = true; // an explicit pick wins over the auto bump
     update({ res: next });
   }, []);
 
   const chooseSurvey = useCallback((next: SkySurveyId) => {
-    autoUpgraded.current = true;
     update({ survey: next, res: next === "tycho" ? state.res : "4k" });
   }, []);
 
