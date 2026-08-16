@@ -55,7 +55,6 @@ export function useMilkyWaySky(viewer: any) {
   const [active, setActive] = useState<SkyResolution | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const token = useRef({});
-  const autoUpgraded = useRef(false);
 
   useEffect(() => {
     const listener = () => setSnapshot(state);
