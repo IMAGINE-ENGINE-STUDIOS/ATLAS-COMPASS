@@ -100,10 +100,17 @@ export default {
             height: "0",
           },
         },
+        "orb-bounce-in": {
+          "0%": { transform: "scale(0.2) translateY(10px)", opacity: "0" },
+          "60%": { transform: "scale(1.14) translateY(-3px)", opacity: "1" },
+          "80%": { transform: "scale(0.95) translateY(0)", opacity: "1" },
+          "100%": { transform: "scale(1) translateY(0)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "orb-bounce-in": "orb-bounce-in 0.42s cubic-bezier(0.34,1.56,0.64,1) both",
       },
     },
   },
