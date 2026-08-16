@@ -1,16 +1,19 @@
 /**
- * sky-imagery — CORS-enabled passthrough for NASA all-sky survey mosaics.
+ * sky-imagery — CORS-enabled source of all-sky survey panoramas.
  *
- * The browser needs the raw pixels of the NASA/SVS Tycho Skymap II panorama to
- * convert the equirectangular mosaic into the six cube-map faces of the Milky
- * Way skybox. svs.gsfc.nasa.gov does not send a wildcard
- * `Access-Control-Allow-Origin`, so a canvas read of the decoded image would
- * taint and fail. Proxying here guarantees CORS plus a long edge cache for the
- * large (4–70 MB) mosaics.
+ * The browser needs raw pixels to re-project an equirectangular all-sky image
+ * into the six cube-map faces of the Atlas skybox, and neither NASA/SVS nor CDS
+ * sends a wildcard `Access-Control-Allow-Origin` (a canvas read would taint).
+ *
+ * Two families are served:
+ *  - `survey=tycho` → NASA/SVS Tycho Skymap II JPEG panorama (4K/8K/16K).
+ *  - every other id → a real telescope survey published as a HiPS at CDS,
+ *    rendered on demand by `hips2fits` in equirectangular (CAR) projection so
+ *    the client projection maths stays identical.
  */
 import { corsHeaders } from "../_shared/cors.ts";
 
-const BASE = "https://svs.gsfc.nasa.gov/vis/a000000/a003500/a003572/";
+const SVS_BASE = "https://svs.gsfc.nasa.gov/vis/a000000/a003500/a003572/";
 
 /** NASA SVS #3572 — Tycho Skymap II (Brightness/colour "t5" variant). */
 const MOSAICS: Record<string, string> = {
@@ -19,27 +22,83 @@ const MOSAICS: Record<string, string> = {
   "16k": "TychoSkymapII.t5_16384x08192.jpg",
 };
 
+/** Whitelisted HiPS surveys — keeps this from being an open image proxy. */
+const HIPS: Record<string, string> = {
+  dss2: "CDS/P/DSS2/color",
+  twomass: "CDS/P/2MASS/color",
+  wise: "CDS/P/allWISE/color",
+  iris: "CDS/P/IRIS/color",
+  rass: "CDS/P/RASS",
+  fermi: "CDS/P/Fermi/color",
+  hgps: "CDS/P/HGPS",
+  haslam: "CDS/P/Haslam",
+  "planck-hfi": "CDS/P/PLANCK/R2/HFI/color",
+  "planck-cmb": "CDS/P/PLANCK/R2/CMB",
+  wmap: "CDS/P/WMAP/W",
+};
+
+const HIPS_WIDTH: Record<string, number> = { "4k": 2048, "8k": 4096, "16k": 4096 };
+
+const CACHE = "public, max-age=31536000, immutable";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const res = new URL(req.url).searchParams.get("res") ?? "4k";
-    const file = MOSAICS[res];
-    if (!file) {
-      return new Response(JSON.stringify({ error: "unknown res", allowed: Object.keys(MOSAICS) }), {
-        status: 400,
-        headers: { ...corsHeaders, "content-type": "application/json" },
+    const params = new URL(req.url).searchParams;
+    const res = params.get("res") ?? "4k";
+    const survey = params.get("survey") ?? "tycho";
+
+    if (survey === "tycho") {
+      const file = MOSAICS[res];
+      if (!file) {
+        return new Response(JSON.stringify({ error: "unknown res", allowed: Object.keys(MOSAICS) }), {
+          status: 400,
+          headers: { ...corsHeaders, "content-type": "application/json" },
+        });
+      }
+      const upstream = await fetch(SVS_BASE + file, {
+        headers: { Accept: "image/jpeg,image/*", "User-Agent": "Atlas-SkyBox/1.0 (+https://www.imagineengine.space)" },
+      });
+      if (!upstream.ok || !upstream.body) {
+        return new Response(JSON.stringify({ error: "upstream failed", status: upstream.status }), {
+          status: 502, headers: { ...corsHeaders, "content-type": "application/json" },
+        });
+      }
+      return new Response(upstream.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "content-type": upstream.headers.get("content-type") ?? "image/jpeg",
+          "cache-control": CACHE,
+          "x-sky-source": "NASA/SVS Tycho Skymap II",
+        },
       });
     }
-    const upstream = await fetch(BASE + file, {
-      headers: {
-        Accept: "image/jpeg,image/*",
-        "User-Agent": "Atlas-SkyBox/1.0 (+https://www.imagineengine.space)",
-      },
+
+    const hips = HIPS[survey];
+    if (!hips) {
+      return new Response(JSON.stringify({ error: "unknown survey", allowed: ["tycho", ...Object.keys(HIPS)] }), {
+        status: 400, headers: { ...corsHeaders, "content-type": "application/json" },
+      });
+    }
+    const width = HIPS_WIDTH[res] ?? 2048;
+    const url = new URL("https://alasky.cds.unistra.fr/hips-image-services/hips2fits");
+    url.searchParams.set("hips", hips);
+    url.searchParams.set("width", String(width));
+    url.searchParams.set("height", String(width / 2));
+    url.searchParams.set("projection", "CAR");
+    url.searchParams.set("coordsys", "icrs");
+    url.searchParams.set("ra", "0");
+    url.searchParams.set("dec", "0");
+    url.searchParams.set("fov", "360");
+    url.searchParams.set("format", "jpg");
+
+    const upstream = await fetch(url.toString(), {
+      headers: { Accept: "image/jpeg,image/*", "User-Agent": "Atlas-SkyBox/1.0 (+https://www.imagineengine.space)" },
     });
     if (!upstream.ok || !upstream.body) {
-      return new Response(JSON.stringify({ error: "upstream failed", status: upstream.status }), {
-        status: 502,
-        headers: { ...corsHeaders, "content-type": "application/json" },
+      return new Response(JSON.stringify({ error: "hips2fits failed", status: upstream.status }), {
+        status: 502, headers: { ...corsHeaders, "content-type": "application/json" },
       });
     }
     return new Response(upstream.body, {
@@ -47,15 +106,13 @@ Deno.serve(async (req) => {
       headers: {
         ...corsHeaders,
         "content-type": upstream.headers.get("content-type") ?? "image/jpeg",
-        // Immutable mission archive — cache hard.
-        "cache-control": "public, max-age=31536000, immutable",
-        "x-sky-source": "NASA/SVS Tycho Skymap II",
+        "cache-control": CACHE,
+        "x-sky-source": hips,
       },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error).message ?? e) }), {
-      status: 502,
-      headers: { ...corsHeaders, "content-type": "application/json" },
+      status: 502, headers: { ...corsHeaders, "content-type": "application/json" },
     });
   }
 });

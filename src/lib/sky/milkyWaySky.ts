@@ -11,6 +11,8 @@
  * field of view keeps resolving finer NASA pixels the further you zoom.
  */
 import { SkyBox } from "cesium";
+import type { SkySurveyId } from "./skySurveys";
+import { SKY_SURVEY_BY_ID } from "./skySurveys";
 
 export type SkyResolution = "4k" | "8k" | "16k";
 
@@ -32,8 +34,17 @@ export const SKY_ATTRIBUTION = "NASA/SVS · Tycho Skymap II (ESA Hipparcos/Tycho
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
-export function skyMosaicUrl(res: SkyResolution): string {
-  return `${SUPABASE_URL}/functions/v1/sky-imagery?res=${res}&apikey=${ANON}`;
+export function skyMosaicUrl(res: SkyResolution, survey: SkySurveyId = "tycho"): string {
+  return `${SUPABASE_URL}/functions/v1/sky-imagery?res=${res}&survey=${survey}&apikey=${ANON}`;
+}
+
+/**
+ * HiPS-rendered surveys top out at a 4096×2048 all-sky render (hips2fits gets
+ * slow beyond that), so their cube faces cap at 1024 px.
+ */
+function faceSize(res: SkyResolution, survey: SkySurveyId): number {
+  if (SKY_SURVEY_BY_ID[survey]?.hips) return res === "4k" ? 512 : 1024;
+  return FACE_SIZE[res];
 }
 
 /* ────────────────────────── equirect → cube map ────────────────────────── */
@@ -113,15 +124,16 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-const faceCache = new Map<SkyResolution, Promise<CubeSources>>();
+const faceCache = new Map<string, Promise<CubeSources>>();
 
-/** Re-project the NASA panorama into six cube-face canvases (GPU, cached). */
-export function buildMilkyWayFaces(res: SkyResolution): Promise<CubeSources> {
-  const cached = faceCache.get(res);
+/** Re-project an all-sky panorama into six cube-face canvases (GPU, cached). */
+export function buildMilkyWayFaces(res: SkyResolution, survey: SkySurveyId = "tycho"): Promise<CubeSources> {
+  const key = `${survey}:${res}`;
+  const cached = faceCache.get(key);
   if (cached) return cached;
 
   const job = (async () => {
-    const img = await loadImage(skyMosaicUrl(res));
+    const img = await loadImage(skyMosaicUrl(res, survey));
 
     const work = document.createElement("canvas");
     const gl = (work.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: true }) ||
@@ -129,7 +141,7 @@ export function buildMilkyWayFaces(res: SkyResolution): Promise<CubeSources> {
     if (!gl) throw new Error("WebGL unavailable for sky projection");
 
     const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
-    const size = Math.min(FACE_SIZE[res], Math.floor(maxTex / 2));
+    const size = Math.min(faceSize(res, survey), Math.floor(maxTex / 2));
     work.width = size;
     work.height = size;
 
@@ -185,11 +197,11 @@ export function buildMilkyWayFaces(res: SkyResolution): Promise<CubeSources> {
     gl.deleteProgram(prog);
     return out;
   })().catch((err) => {
-    faceCache.delete(res);
+    faceCache.delete(key);
     throw err;
   });
 
-  faceCache.set(res, job);
+  faceCache.set(key, job);
   return job;
 }
 
@@ -197,8 +209,12 @@ export function buildMilkyWayFaces(res: SkyResolution): Promise<CubeSources> {
  * Install the Milky Way skybox on a Cesium viewer.
  * Returns a restore function that puts the previous skybox back.
  */
-export async function applyMilkyWaySkyBox(viewer: any, res: SkyResolution): Promise<() => void> {
-  const sources = await buildMilkyWayFaces(res);
+export async function applyMilkyWaySkyBox(
+  viewer: any,
+  res: SkyResolution,
+  survey: SkySurveyId = "tycho",
+): Promise<() => void> {
+  const sources = await buildMilkyWayFaces(res, survey);
   if (!viewer || viewer.isDestroyed?.()) return () => {};
 
   const previous = viewer.scene.skyBox;
