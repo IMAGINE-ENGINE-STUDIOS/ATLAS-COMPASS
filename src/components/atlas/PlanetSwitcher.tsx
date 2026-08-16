@@ -1,8 +1,9 @@
 /**
- * Top-center cosmic body switcher — Apple-dock style.  All planets sit
- * in a single glass bar; the pointer's proximity magnifies neighbours
- * (like the macOS Dock), and the active planet is always slightly
- * larger with a label chip above it.  Click any orb to jump to its
+ * Top-center cosmic body switcher — Apple-dock style, but quiet by
+ * default: only the world you are currently in is visible.  Hovering the
+ * pill (or tapping it on touch) bounces the rest of the solar system in
+ * with a staggered spring; the pointer's proximity then magnifies
+ * neighbours like the macOS Dock.  Click any orb to jump to its
  * full-Atlas experience.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -69,6 +70,8 @@ export default function PlanetSwitcher() {
   const [orbCenters, setOrbCenters] = useState<number[]>([]);
   const [pointerX, setPointerX] = useState<number | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  // Collapsed = single active orb. Expands on hover / tap.
+  const [expanded, setExpanded] = useState(false);
 
   // Recompute orb centres whenever the layout changes (resize / count).
   useEffect(() => {
@@ -85,9 +88,13 @@ export default function PlanetSwitcher() {
       setOrbCenters(centers);
     };
     recompute();
+    const raf = requestAnimationFrame(recompute);
     window.addEventListener("resize", recompute);
-    return () => window.removeEventListener("resize", recompute);
-  }, [activeIndex]);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", recompute);
+    };
+  }, [activeIndex, expanded]);
 
   const isMobile =
     typeof window !== "undefined" &&
@@ -97,7 +104,7 @@ export default function PlanetSwitcher() {
   const INFLUENCE = isMobile ? 60 : 110;
 
   const scaleFor = (i: number) => {
-    if (pointerX == null || orbCenters.length !== PLANETS.length) {
+    if (!expanded || pointerX == null || orbCenters.length !== PLANETS.length) {
       return i === activeIndex ? 1.25 : 1;
     }
     const dx = Math.abs(orbCenters[i] - pointerX);
@@ -126,12 +133,17 @@ export default function PlanetSwitcher() {
         ref={dockRef}
         onPointerMove={(e) => {
           if (e.pointerType === "touch") return;
+          setExpanded(true);
           const rect = e.currentTarget.getBoundingClientRect();
           setPointerX(e.clientX - rect.left);
+        }}
+        onPointerEnter={(e) => {
+          if (e.pointerType !== "touch") setExpanded(true);
         }}
         onPointerLeave={() => {
           setPointerX(null);
           setHoverIdx(null);
+          setExpanded(false);
         }}
         className="flex items-end justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-full border border-white/10 bg-black/55 backdrop-blur-xl shadow-2xl"
         style={{ minHeight: PEAK + 12 }}
@@ -140,12 +152,18 @@ export default function PlanetSwitcher() {
           const s = scaleFor(i);
           const size = BASE * s;
           const isActive = i === activeIndex;
+          if (!expanded && !isActive) return null;
           return (
             <button
               key={p.id}
               data-orb
               type="button"
               onClick={() => {
+                if (!expanded) {
+                  // Touch / keyboard: first tap reveals the solar system.
+                  setExpanded(true);
+                  return;
+                }
                 preloadPlanet(p.id);
                 navigate(p.route);
               }}
@@ -153,14 +171,26 @@ export default function PlanetSwitcher() {
                 setHoverIdx(i);
                 preloadPlanet(p.id);
               }}
-              onFocus={() => preloadPlanet(p.id)}
+              onFocus={() => {
+                setExpanded(true);
+                preloadPlanet(p.id);
+              }}
               title={`${p.name} — ${p.blurb}`}
               aria-label={p.name}
               aria-current={isActive ? "true" : undefined}
               className="relative flex items-end justify-center transition-[width,height] duration-150 ease-out"
               style={{ width: size, height: size }}
             >
-              <PlanetOrb p={p} size={size} />
+              <div
+                className={isActive ? "" : "animate-orb-bounce-in"}
+                style={
+                  isActive
+                    ? undefined
+                    : { animationDelay: `${Math.abs(i - activeIndex) * 45}ms` }
+                }
+              >
+                <PlanetOrb p={p} size={size} />
+              </div>
               {isActive && (
                 <span
                   className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]"
