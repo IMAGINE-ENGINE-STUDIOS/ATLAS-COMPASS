@@ -10,6 +10,9 @@ import {
   MAX_FOV_DEG, MIN_FOV_DEG, STAR_TARGETS,
   cameraSkyCoords, currentFovDeg, pointCameraAtSky, setSkyFov, type StarTarget,
 } from "@/lib/sky/starTargets";
+import { useDeepField } from "@/lib/sky/useDeepField";
+import { DEEP_FIELD_MAX_FOV } from "@/lib/sky/deepField";
+import DeepFieldOverlay from "./DeepFieldOverlay";
 
 interface Props {
   viewer: any;
@@ -41,7 +44,10 @@ export default function StarGazerPanel({ viewer, onClose }: Props) {
   const [target, setTarget] = useState<StarTarget | null>(null);
   const [coords, setCoords] = useState<{ ra: number; dec: number } | null>(null);
   const [query, setQuery] = useState("");
+  const [deep, setDeep] = useState(true);
   const restoreFov = useRef(currentFovDeg(viewer));
+
+  const deepField = useDeepField(viewer, sky.survey, deep);
 
   // Restore the normal wide field when the tool closes.
   useEffect(() => {
@@ -81,6 +87,8 @@ export default function StarGazerPanel({ viewer, onClose }: Props) {
   };
 
   return (
+    <>
+    {deep && <DeepFieldOverlay frame={deepField.frame} />}
     <div className="fixed top-16 right-3 z-[74] w-[344px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-white/15 bg-black/85 backdrop-blur-2xl text-white shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10">
         <div className="flex items-center gap-2">
@@ -198,6 +206,37 @@ export default function StarGazerPanel({ viewer, onClose }: Props) {
           )}
         </div>
 
+        {/* Deep field streaming */}
+        <div className="px-3.5 py-3 border-b border-white/10 space-y-2">
+          <button onClick={() => setDeep(!deep)} className="w-full flex items-center gap-2 text-left">
+            <span className="flex-1 text-[12px] font-medium">Deep field trekking</span>
+            <span className={`h-4 w-8 rounded-full relative transition-colors ${deep ? "bg-sky-400/80" : "bg-white/20"}`}>
+              <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${deep ? "left-4" : "left-0.5"}`} />
+            </span>
+          </button>
+          <div className="text-[10px] text-white/45 leading-snug">
+            Below {DEEP_FIELD_MAX_FOV}° the panel stops using the all-sky mosaic and streams live archive
+            cutouts of the exact patch you're aimed at — the same way a telescope archive serves pixels,
+            refining every time you pan or zoom.
+          </div>
+          {deep && (
+            <div className="text-[10px] tabular-nums">
+              {deepField.error ? (
+                <span className="text-rose-200">{deepField.error}</span>
+              ) : !deepField.live ? (
+                <span className="text-white/45">Standby — zoom past {DEEP_FIELD_MAX_FOV}° to start streaming</span>
+              ) : deepField.loading ? (
+                <span className="text-sky-200">Resolving archive pixels…</span>
+              ) : deepField.frame ? (
+                <span className="text-sky-200">
+                  Streaming {deepField.frame.fov < 1 ? `${(deepField.frame.fov * 60).toFixed(1)}′` : `${deepField.frame.fov.toFixed(2)}°`} field
+                  {sky.survey === "tycho" ? " · DSS2 deep plates" : ` · ${active.label}`}
+                </span>
+              ) : null}
+            </div>
+          )}
+        </div>
+
         {/* Targets */}
         <div className="px-3.5 py-3 space-y-2">
           <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">Point at</div>
@@ -235,5 +274,6 @@ export default function StarGazerPanel({ viewer, onClose }: Props) {
         </div>
       )}
     </div>
+    </>
   );
 }
