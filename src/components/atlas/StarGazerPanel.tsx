@@ -13,6 +13,7 @@ import {
 import { useDeepField } from "@/lib/sky/useDeepField";
 import { DEEP_FIELD_MAX_FOV } from "@/lib/sky/deepField";
 import DeepFieldOverlay from "./DeepFieldOverlay";
+import SkyTrekView from "./SkyTrekView";
 
 interface Props {
   viewer: any;
@@ -45,6 +46,7 @@ export default function StarGazerPanel({ viewer, onClose }: Props) {
   const [coords, setCoords] = useState<{ ra: number; dec: number } | null>(null);
   const [query, setQuery] = useState("");
   const [deep, setDeep] = useState(true);
+  const [trek, setTrek] = useState(false);
   const restoreFov = useRef(currentFovDeg(viewer));
 
   const deepField = useDeepField(viewer, sky.survey, deep);
@@ -88,6 +90,13 @@ export default function StarGazerPanel({ viewer, onClose }: Props) {
 
   return (
     <>
+    {trek && (
+      <SkyTrekView
+        survey={sky.survey}
+        initial={{ ra: target?.ra ?? coords?.ra ?? 0, dec: target?.dec ?? coords?.dec ?? 0, fov: Math.min(60, fov) }}
+        onClose={() => setTrek(false)}
+      />
+    )}
     {deep && <DeepFieldOverlay frame={deepField.frame} />}
     <div className="fixed top-16 right-3 z-[74] w-[344px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-white/15 bg-black/85 backdrop-blur-2xl text-white shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10">
@@ -102,6 +111,20 @@ export default function StarGazerPanel({ viewer, onClose }: Props) {
       </div>
 
       <div className="max-h-[72vh] overflow-y-auto">
+        {/* True tiled dome */}
+        <div className="px-3.5 py-3 border-b border-white/10 space-y-1.5">
+          <button
+            onClick={() => setTrek(true)}
+            className="w-full rounded-xl border border-sky-300/50 bg-sky-400/15 px-3 py-2.5 text-[12px] font-semibold text-sky-100 hover:bg-sky-400/25 transition-colors"
+          >
+            Open tiled sky dome
+          </button>
+          <div className="text-[10px] text-white/45 leading-snug">
+            Streams the survey's real HiPS tile pyramid on the inside of the celestial sphere —
+            zoom keeps loading deeper archive tiles down to native telescope pixels, no mosaic ceiling.
+          </div>
+        </div>
+
         {/* Sky imagery on/off */}
         <div className="px-3.5 py-2.5 border-b border-white/10">
           <button onClick={() => sky.setEnabled(!sky.enabled)} className="w-full flex items-center gap-2 text-left">

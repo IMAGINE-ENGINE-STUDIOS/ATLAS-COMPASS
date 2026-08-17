@@ -184,3 +184,12 @@ export const SKY_SURVEY_BY_ID: Record<SkySurveyId, SkySurvey> = SKY_SURVEYS.redu
 export function isSkySurveyId(v: unknown): v is SkySurveyId {
   return typeof v === "string" && v in SKY_SURVEY_BY_ID;
 }
+
+/**
+ * HiPS pyramid used for tiled deep-zoom trekking. Every survey but the NASA
+ * Tycho panorama already ships a HiPS; Tycho is a flat mosaic, so trekking it
+ * falls back to the deep optical DSS2 plates that cover the same band.
+ */
+export function trekHips(id: SkySurveyId): string {
+  return SKY_SURVEY_BY_ID[id]?.hips ?? "CDS/P/DSS2/color";
+}
