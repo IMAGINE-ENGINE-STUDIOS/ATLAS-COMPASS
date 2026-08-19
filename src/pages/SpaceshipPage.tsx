@@ -44,7 +44,7 @@ import ModeCarousel from "@/components/atlas/ModeCarousel";
 import AtlasCommunityLayersPill from "@/components/atlas/AtlasCommunityLayersPill";
 import AtlasGeoRealmPill from "@/components/atlas/AtlasGeoRealmPill";
 import AtlasTectonicPlatesPill from "@/components/atlas/AtlasTectonicPlatesPill";
-import { MoonPill, EarthPill } from "@/components/atlas/MoonPill";
+
 import MoonPanels from "@/components/atlas/moon/MoonPanels";
 import PlanetLayerPanel from "@/components/atlas/PlanetLayerPanel";
 import { hasPlanetLayerCatalog } from "@/lib/planets/trekCatalogs";
@@ -6248,8 +6248,6 @@ function SpaceshipPage({
         <SolarSystemOverlay viewer={viewerRef.current} centralBody={moonMode ? "moon" : "earth"} />
       )}
 
-      {/* Circular cropout — top-center jump button. Moon on Earth, Earth on Moon. */}
-      {isLoaded && !marsMode && (moonMode ? <EarthPill /> : <MoonPill />)}
 
       {/* Moon-only HUD: NASA layers + missions catalog. */}
       {isLoaded && activeWorldId === "moon" && viewerRef.current && (
