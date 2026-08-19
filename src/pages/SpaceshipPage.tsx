@@ -6248,8 +6248,6 @@ function SpaceshipPage({
         <SolarSystemOverlay viewer={viewerRef.current} centralBody={moonMode ? "moon" : "earth"} />
       )}
 
-      {/* Circular cropout — top-center jump button. Moon on Earth, Earth on Moon. */}
-      {isLoaded && !marsMode && (moonMode ? <EarthPill /> : <MoonPill />)}
 
       {/* Moon-only HUD: NASA layers + missions catalog. */}
       {isLoaded && activeWorldId === "moon" && viewerRef.current && (
