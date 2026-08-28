@@ -21,7 +21,12 @@ const ALLOW = [
   "services.marinetraffic.com",
   "raw.githubusercontent.com",
   "davidmegginson.github.io",
+  // NASA Earth Observatory image records — Blue Marble Next Generation
+  // basemaps for the Geo Realm globe. These serve no CORS header of their
+  // own, so WebGL texture loads must come through here.
+  "eoimages.gsfc.nasa.gov",
 ];
+
 
 function isAllowed(host: string): boolean {
   return ALLOW.some((h) => host === h || host.endsWith("." + h));
