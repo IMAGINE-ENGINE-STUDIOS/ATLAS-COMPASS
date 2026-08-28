@@ -55,7 +55,11 @@ Deno.serve(async (req) => {
       headers: {
         ...corsHeaders,
         "content-type": upstream.headers.get("content-type") ?? "application/octet-stream",
-        "cache-control": "public, max-age=60",
+        // Imagery (basemaps) is immutable; JSON feeds stay short-lived.
+        "cache-control": (upstream.headers.get("content-type") ?? "").startsWith("image/")
+          ? "public, max-age=604800, immutable"
+          : "public, max-age=60",
+
       },
     });
   } catch (e) {
