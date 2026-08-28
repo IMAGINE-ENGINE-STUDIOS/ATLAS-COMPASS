@@ -298,21 +298,29 @@ export default function GeoRealmScene({
   const active = CANONICAL_DATASETS.filter((d) => activeCanonical.includes(d.id));
   return (
     <Canvas
-      camera={{ position: [0, 0.4, 2.6], fov: 42, near: 0.001, far: 100 }}
-      gl={{ antialias: true, alpha: false }}
+      camera={{ position: [0, 0.9, 3.4], fov: 40, near: 0.001, far: 100 }}
+      gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+      dpr={[1, 1.75]}
       style={{ background: "#04070f" }}
     >
       <color attach="background" args={["#04070f"]} />
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[3, 4, 2]} intensity={1.1} color="#ffffff" />
-      <directionalLight position={[-3, -2, -3]} intensity={0.3} color="#4a90ff" />
-      <Stars radius={40} depth={20} count={2000} factor={2} fade speed={0.4} />
+      {/* Blue Marble is unlit (meshBasicMaterial) so it reads at full
+          brightness; the lights below shape the extruded plate shells,
+          crust shells and motion arrows only. */}
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[3, 4, 2]} intensity={1.2} color="#ffffff" />
+      <directionalLight position={[-3, -2, -3]} intensity={0.4} color="#4a90ff" />
+      <Stars radius={40} depth={20} count={900} factor={2} fade speed={0.3} />
 
-      {realistic ? (
-        <RealisticEarth opacity={showSurface ? 1 : 0.25} />
-      ) : (
-        <EarthShell opacity={showSurface ? 0.6 : 0.05} />
-      )}
+      <Suspense fallback={<EarthShell opacity={0.6} />}>
+        {realistic ? (
+          <RealisticEarth opacity={showSurface ? 1 : 0.25} />
+        ) : (
+          <EarthShell opacity={showSurface ? 0.6 : 0.05} />
+        )}
+      </Suspense>
+      <Atmosphere />
+
       <CrustShells visible={showCrust} />
 
       {active.map((d) => (
