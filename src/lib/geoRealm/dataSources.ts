@@ -110,15 +110,29 @@ export function lonLatDepthToUnit(
 }
 
 /**
- * Convert geographic (lon, lat) in degrees to a unit-sphere point.
- * Z is up, matches R3F right-handed frame.
+ * Convert geographic (lon, lat) in degrees to a point on the sphere.
+ *
+ * This matches THREE.SphereGeometry's own UV convention, so an
+ * equirectangular map (u=0 at lon −180°) drapes onto the same sphere with
+ * zero mirroring or rotation:
+ *
+ *   x =  R·cos(lat)·cos(lon)
+ *   y =  R·sin(lat)
+ *   z = −R·cos(lat)·sin(lon)
+ *
+ * The previous version used `+sin(lon)` for z, which is the mirror image of
+ * this frame. The scene compensated by flipping the Blue Marble texture
+ * horizontally, which rendered every continent as its own mirror image —
+ * the "Earth is backwards" bug. Fixing the sign here fixes plates,
+ * boundaries, hypocenters, motion arrows and imagery together.
  */
 export function lonLatToUnit(lon: number, lat: number, radius = 1): [number, number, number] {
   const λ = (lon * Math.PI) / 180;
   const φ = (lat * Math.PI) / 180;
   const c = Math.cos(φ);
-  return [radius * c * Math.cos(λ), radius * Math.sin(φ), radius * c * Math.sin(λ)];
+  return [radius * c * Math.cos(λ), radius * Math.sin(φ), -radius * c * Math.sin(λ)];
 }
+
 
 /**
  * Detect a file's Geo Realm kind from its filename/mime — best-effort,

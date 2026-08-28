@@ -1,5 +1,19 @@
-import { useEffect, useState } from "react";
+/**
+ * Geo Realm — subsurface + tectonics workbench.
+ *
+ * Layout rebuild: the globe is the interface. Controls live in one collapsible
+ * left rail with a single open section at a time, the compiler is an on-demand
+ * slide-over (drag-and-drop works anywhere on the globe), the selected-plate
+ * inspector only exists while something is selected, and a single readout bar
+ * carries coordinates + feed status. On mobile the rail and compiler become
+ * bottom sheets. Animation is CSS only.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  ArrowLeft, ChevronDown, Layers as LayersIcon, Mountain, Activity,
+  Boxes, UploadCloud, PanelLeftClose, PanelLeftOpen, X, Globe2,
+} from "lucide-react";
 import GeoRealmScene from "@/components/geo-realm/GeoRealmScene";
 import GeoRealmCompiler from "@/components/geo-realm/GeoRealmCompiler";
 import SelectedPlatePanel from "@/components/geo-realm/SelectedPlatePanel";
@@ -7,6 +21,15 @@ import type { SelectedPlate } from "@/components/geo-realm/VolumetricPlates";
 import { CANONICAL_DATASETS, CRUST1_LAYERS, HYPOCENTER_FEEDS } from "@/lib/geoRealm/dataSources";
 import { supabase } from "@/integrations/supabase/client";
 import type { GeoRealmBundle } from "@/lib/geoRealm/types";
+
+type SectionId = "layers" | "structure" | "plates" | "seismicity";
+
+const SECTIONS: { id: SectionId; label: string; icon: typeof LayersIcon }[] = [
+  { id: "layers", label: "Layers", icon: LayersIcon },
+  { id: "structure", label: "Structure", icon: Mountain },
+  { id: "plates", label: "Plates", icon: Boxes },
+  { id: "seismicity", label: "Seismicity", icon: Activity },
+];
 
 export default function GeoRealmPage() {
   const [active, setActive] = useState<string[]>(["pb2002_plates", "pb2002_boundaries"]);
@@ -22,7 +45,12 @@ export default function GeoRealmPage() {
   const [cam, setCam] = useState<{ alt: number; lat: number; lon: number }>({ alt: 1.6, lat: 0, lon: 0 });
   const [bundles, setBundles] = useState<GeoRealmBundle[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [mobileSheet, setMobileSheet] = useState<null | "layers" | "compiler">(null);
+
+  // UI shell state
+  const [railOpen, setRailOpen] = useState(true);
+  const [section, setSection] = useState<SectionId>("layers");
+  const [compilerOpen, setCompilerOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<null | "controls" | "compiler">(null);
 
   useEffect(() => {
     let cancel = false;
@@ -35,17 +63,28 @@ export default function GeoRealmPage() {
         if (cancel || error) return;
         setBundles((data ?? []) as unknown as GeoRealmBundle[]);
       });
-    return () => {
-      cancel = true;
-    };
+    return () => { cancel = true; };
   }, [refreshTick]);
 
-  function toggle(id: string) {
+  const toggle = useCallback((id: string) => {
     setActive((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
-  }
+  }, []);
+
+  const onBundleAdded = useCallback(() => setRefreshTick((t) => t + 1), []);
+
+  const controls = useMemo(
+    () => ({
+      active, toggle, showCrust, setShowCrust, showSurface, setShowSurface,
+      realistic, setRealistic, hypo, setHypo, showVolumetric, setShowVolumetric,
+      showMotion, setShowMotion, thicknessKm, setThicknessKm,
+      plateColorMode, setPlateColorMode, bundles,
+    }),
+    [active, toggle, showCrust, showSurface, realistic, hypo, showVolumetric,
+     showMotion, thicknessKm, plateColorMode, bundles],
+  );
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-[#04070f] text-white font-mono">
+    <div className="relative h-[100dvh] w-screen overflow-hidden bg-[#04070f] text-white">
       <GeoRealmScene
         activeCanonical={active}
         showCrust={showCrust}
@@ -61,379 +100,445 @@ export default function GeoRealmPage() {
         onCamera={setCam}
       />
 
-      {/* Top rail */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3 sm:p-4">
-        <div className="pointer-events-auto rounded-2xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-xl sm:px-4 sm:py-2.5">
-          <div className="flex items-center gap-3">
-            <span className="h-2 w-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(255,140,66,0.8)]" />
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.28em] text-white/45 sm:text-[10px] sm:tracking-[0.32em]">Geo Realm</div>
-              <div className="text-xs font-semibold tracking-wide sm:text-sm">Subsurface Compiler · M1</div>
+      {/* ── Top bar ── */}
+      <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-2 p-3 sm:p-4">
+        <div className="pointer-events-auto flex items-center gap-2">
+          <Link
+            to="/atlas"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-black/50 text-white/70 backdrop-blur-xl transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Return to Atlas"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-black/50 px-3 py-1.5 backdrop-blur-xl">
+            <Globe2 className="h-4 w-4 text-orange-300" />
+            <div className="leading-tight">
+              <div className="text-sm font-semibold tracking-tight">Geo Realm</div>
+              <div className="text-[10px] text-white/45">Tectonics &amp; subsurface</div>
             </div>
           </div>
         </div>
-        <Link
-          to="/atlas"
-          className="pointer-events-auto rounded-full border border-white/10 bg-black/40 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/80 backdrop-blur-xl hover:bg-white/10 sm:px-4 sm:text-[11px] sm:tracking-[0.28em]"
-        >
-          <span className="sm:hidden">← Atlas</span>
-          <span className="hidden sm:inline">← Return to Atlas</span>
-        </Link>
+
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCompilerOpen((v) => !v)}
+            className={`hidden items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium backdrop-blur-xl transition-colors lg:flex ${
+              compilerOpen
+                ? "border-orange-400/40 bg-orange-400/15 text-orange-100"
+                : "border-white/10 bg-black/50 text-white/80 hover:bg-white/10"
+            }`}
+          >
+            <UploadCloud className="h-4 w-4" />
+            Compiler
+          </button>
+        </div>
+      </header>
+
+      {/* ── Left rail (desktop) ── */}
+      <div className="pointer-events-none absolute left-3 top-[4.75rem] z-30 hidden lg:block">
+        {railOpen ? (
+          <div className="pointer-events-auto flex max-h-[calc(100dvh-9.5rem)] w-[19rem] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/55 backdrop-blur-2xl animate-in fade-in slide-in-from-left-2 duration-200">
+            <div className="flex items-center gap-1 border-b border-white/10 p-1.5">
+              {SECTIONS.map((s) => {
+                const Icon = s.icon;
+                const on = section === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSection(s.id)}
+                    className={`flex flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] font-medium transition-colors ${
+                      on ? "bg-orange-400/15 text-orange-100" : "text-white/55 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {s.label}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setRailOpen(false)}
+                className="ml-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/45 hover:bg-white/5 hover:text-white"
+                aria-label="Collapse panel"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <SectionBody id={section} {...controls} />
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setRailOpen(true)}
+            className="pointer-events-auto grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/55 text-white/70 backdrop-blur-xl hover:bg-white/10 hover:text-white"
+            aria-label="Open panel"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      {/* Left rail — layers + library (desktop) */}
-      <div className="pointer-events-auto absolute left-4 top-24 bottom-16 hidden w-72 overflow-y-auto rounded-2xl border border-white/10 bg-black/45 p-4 backdrop-blur-2xl lg:block">
-        <LayersPanel
-          active={active}
-          toggle={toggle}
-          showCrust={showCrust}
-          setShowCrust={setShowCrust}
-          showSurface={showSurface}
-          setShowSurface={setShowSurface}
-          realistic={realistic}
-          setRealistic={setRealistic}
-          hypo={hypo}
-          setHypo={setHypo}
-          bundles={bundles}
-          showVolumetric={showVolumetric}
-          setShowVolumetric={setShowVolumetric}
-          showMotion={showMotion}
-          setShowMotion={setShowMotion}
-          thicknessKm={thicknessKm}
-          setThicknessKm={setThicknessKm}
-          plateColorMode={plateColorMode}
-          setPlateColorMode={setPlateColorMode}
-        />
-      </div>
+      {/* ── Compiler slide-over (desktop) ── */}
+      {compilerOpen && (
+        <div className="pointer-events-auto absolute right-3 top-[4.75rem] z-30 hidden max-h-[calc(100dvh-9.5rem)] w-[21rem] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur-2xl animate-in fade-in slide-in-from-right-2 duration-200 lg:flex">
+          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+            <span className="text-xs font-semibold tracking-tight">Data compiler</span>
+            <button
+              type="button"
+              onClick={() => setCompilerOpen(false)}
+              className="grid h-7 w-7 place-items-center rounded-md text-white/50 hover:bg-white/10 hover:text-white"
+              aria-label="Close compiler"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <GeoRealmCompiler onBundleAdded={onBundleAdded} />
+          </div>
+        </div>
+      )}
 
-      {/* Right rail — compiler (desktop) */}
-      <div className="pointer-events-auto absolute right-4 top-24 bottom-16 hidden w-80 overflow-y-auto rounded-2xl border border-white/10 bg-black/45 p-4 backdrop-blur-2xl lg:block">
-        <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
-      </div>
-
-      {/* Selected plate panel — floats above bottom HUD, both desktop + mobile */}
+      {/* ── Plate inspector ── */}
       {selectedPlate && (
-        <div className="pointer-events-none absolute left-1/2 top-24 z-30 -translate-x-1/2 lg:left-auto lg:right-[22rem] lg:top-24 lg:translate-x-0">
+        <div
+          className={`pointer-events-none absolute left-1/2 top-[4.75rem] z-30 -translate-x-1/2 animate-in fade-in slide-in-from-top-2 duration-200 lg:left-auto lg:translate-x-0 ${
+            compilerOpen ? "lg:right-[22.5rem]" : "lg:right-3"
+          }`}
+        >
           <SelectedPlatePanel plate={selectedPlate} onClose={() => setSelectedPlate(null)} />
         </div>
       )}
 
-      {/* Mobile bottom sheet */}
-      {mobileSheet && (
+      {/* ── Mobile sheets ── */}
+      {mobilePanel && (
         <div
-          className="absolute inset-0 z-40 flex items-end bg-black/40 backdrop-blur-sm lg:hidden"
-          onClick={() => setMobileSheet(null)}
+          className="absolute inset-0 z-40 flex items-end bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobilePanel(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="pointer-events-auto max-h-[78vh] w-full overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#04070f]/95 p-4 backdrop-blur-2xl"
+            className="w-full rounded-t-3xl border-t border-white/10 bg-[#080c16]/95 backdrop-blur-2xl animate-in slide-in-from-bottom duration-200"
           >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" />
-            {mobileSheet === "layers" ? (
-              <LayersPanel
-                active={active}
-                toggle={toggle}
-                showCrust={showCrust}
-                setShowCrust={setShowCrust}
-                showSurface={showSurface}
-                setShowSurface={setShowSurface}
-                realistic={realistic}
-                setRealistic={setRealistic}
-                hypo={hypo}
-                setHypo={setHypo}
-                bundles={bundles}
-                showVolumetric={showVolumetric}
-                setShowVolumetric={setShowVolumetric}
-                showMotion={showMotion}
-                setShowMotion={setShowMotion}
-                thicknessKm={thicknessKm}
-                setThicknessKm={setThicknessKm}
-                plateColorMode={plateColorMode}
-                setPlateColorMode={setPlateColorMode}
-              />
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/20" />
+            {mobilePanel === "controls" ? (
+              <>
+                <div className="flex items-center gap-1 border-b border-white/10 p-1.5">
+                  {SECTIONS.map((s) => {
+                    const Icon = s.icon;
+                    const on = section === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSection(s.id)}
+                        className={`flex flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] font-medium transition-colors ${
+                          on ? "bg-orange-400/15 text-orange-100" : "text-white/55"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="max-h-[64dvh] overflow-y-auto p-3">
+                  <SectionBody id={section} {...controls} />
+                </div>
+              </>
             ) : (
-              <GeoRealmCompiler onBundleAdded={() => setRefreshTick((t) => t + 1)} />
+              <div className="max-h-[70dvh] overflow-y-auto p-3">
+                <GeoRealmCompiler onBundleAdded={onBundleAdded} />
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Mobile action bar */}
-      <div className="pointer-events-auto absolute inset-x-0 bottom-16 z-30 flex items-center justify-center gap-2 px-3 lg:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileSheet("layers")}
-          className="flex-1 rounded-full border border-white/10 bg-black/60 px-4 py-2.5 text-[11px] uppercase tracking-[0.22em] text-white/85 backdrop-blur-xl active:bg-white/10"
-        >
-          Layers
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileSheet("compiler")}
-          className="flex-1 rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2.5 text-[11px] uppercase tracking-[0.22em] text-orange-100 backdrop-blur-xl active:bg-orange-400/20"
-        >
-          Compiler
-        </button>
-      </div>
-
-      {/* Bottom HUD */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center p-2 sm:p-4">
-        <div className="pointer-events-auto flex max-w-full items-center gap-3 overflow-x-auto rounded-full border border-white/10 bg-black/50 px-4 py-1.5 text-[10px] tabular-nums text-white/75 backdrop-blur-xl sm:gap-6 sm:px-5 sm:py-2 sm:text-[11px]">
-          <span className="whitespace-nowrap">
-            <span className="text-white/40">LAT</span> {cam.lat.toFixed(2)}°
-          </span>
-          <span className="whitespace-nowrap">
-            <span className="text-white/40">LON</span> {cam.lon.toFixed(2)}°
-          </span>
-          <span className="whitespace-nowrap">
-            <span className="text-white/40">ALT</span> {(cam.alt * 6371).toFixed(0)} km
-          </span>
-          <span className="hidden text-white/40 sm:inline">·</span>
-          <span className="hidden whitespace-nowrap sm:inline">{active.length} layers active</span>
-          {hypo ? <><span className="hidden text-white/40 sm:inline">·</span><span className="hidden whitespace-nowrap sm:inline">hypocenter feed on</span></> : null}
+      {/* ── Readout bar ── */}
+      <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col items-center gap-2 p-3 sm:p-4">
+        <div className="pointer-events-auto flex w-full items-center gap-2 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMobilePanel("controls")}
+            className="flex-1 rounded-xl border border-white/10 bg-black/60 px-4 py-2.5 text-xs font-medium text-white/85 backdrop-blur-xl active:bg-white/10"
+          >
+            Controls
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobilePanel("compiler")}
+            className="flex-1 rounded-xl border border-orange-400/30 bg-orange-400/10 px-4 py-2.5 text-xs font-medium text-orange-100 backdrop-blur-xl active:bg-orange-400/20"
+          >
+            Compiler
+          </button>
         </div>
+        <div className="pointer-events-auto flex max-w-full items-center gap-4 overflow-x-auto rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] tabular-nums text-white/75 backdrop-blur-xl">
+          <span className="whitespace-nowrap"><span className="text-white/40">LAT</span> {cam.lat.toFixed(2)}°</span>
+          <span className="whitespace-nowrap"><span className="text-white/40">LON</span> {cam.lon.toFixed(2)}°</span>
+          <span className="whitespace-nowrap"><span className="text-white/40">ALT</span> {(cam.alt * 6371).toFixed(0)} km</span>
+          <span className="hidden whitespace-nowrap sm:inline">
+            <span className="text-white/40">LAYERS</span> {active.length}
+          </span>
+          <span className="hidden items-center gap-1.5 whitespace-nowrap sm:inline-flex">
+            <span className={`h-1.5 w-1.5 rounded-full ${hypo ? "bg-emerald-400" : "bg-white/25"}`} />
+            {hypo ? "live seismicity" : "seismicity off"}
+          </span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+/* ─────────────────────────── Rail sections ─────────────────────────── */
+
+interface ControlProps {
+  active: string[];
+  toggle: (id: string) => void;
+  showCrust: boolean; setShowCrust: (v: boolean) => void;
+  showSurface: boolean; setShowSurface: (v: boolean) => void;
+  realistic: boolean; setRealistic: (v: boolean) => void;
+  hypo: string | null; setHypo: (v: string | null) => void;
+  showVolumetric: boolean; setShowVolumetric: (v: boolean) => void;
+  showMotion: boolean; setShowMotion: (v: boolean) => void;
+  thicknessKm: number; setThicknessKm: (v: number) => void;
+  plateColorMode: "plate" | "activity"; setPlateColorMode: (v: "plate" | "activity") => void;
+  bundles: GeoRealmBundle[];
+}
+
+function SectionBody({ id, ...p }: ControlProps & { id: SectionId }) {
+  if (id === "layers") return <LayersSection {...p} />;
+  if (id === "structure") return <StructureSection {...p} />;
+  if (id === "plates") return <PlatesSection {...p} />;
+  return <SeismicitySection {...p} />;
+}
+
+function LayersSection({ active, toggle, bundles }: ControlProps) {
+  const [showCitations, setShowCitations] = useState(false);
+  return (
+    <div className="space-y-3">
+      <SectionTitle>Canonical datasets</SectionTitle>
+      <div className="space-y-1.5">
+        {CANONICAL_DATASETS.map((d) => {
+          const on = active.includes(d.id);
+          return (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => toggle(d.id)}
+              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                on ? "border-orange-400/40 bg-orange-400/10" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]"
+              }`}
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: d.color, boxShadow: on ? `0 0 10px ${d.color}` : "none" }}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-white/90">{d.label}</span>
+                {showCitations && (
+                  <span className="mt-0.5 block text-[10px] leading-snug text-white/45">{d.citation}</span>
+                )}
+              </span>
+              <Switch on={on} />
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowCitations((v) => !v)}
+        className="flex items-center gap-1 text-[11px] text-white/45 hover:text-white/80"
+      >
+        <ChevronDown className={`h-3 w-3 transition-transform ${showCitations ? "rotate-180" : ""}`} />
+        {showCitations ? "Hide sources" : "Show sources"}
+      </button>
+
+      <SectionTitle>Saved bundles · {bundles.length}</SectionTitle>
+      {bundles.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-3 text-[11px] leading-relaxed text-white/45">
+          Drop a SEG-Y, NetCDF, GeoTIFF or GeoJSON file into the compiler to build your first bundle.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {bundles.map((b) => (
+            <div key={b.id} className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm text-white/90">{b.name}</span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wider text-white/35">{b.kind}</span>
+              </div>
+              <div className="text-[11px] text-white/45">
+                {b.layers.length} layer{b.layers.length === 1 ? "" : "s"}{b.is_public ? " · public" : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StructureSection({
+  showCrust, setShowCrust, showSurface, setShowSurface, realistic, setRealistic,
+}: ControlProps) {
+  return (
+    <div className="space-y-3">
+      <SectionTitle>Globe surface</SectionTitle>
+      <Row label="Blue Marble imagery" hint="NASA topo + bathymetry" on={realistic} onChange={setRealistic} />
+      <Row label="Opaque surface" hint="Off reveals the X-ray interior" on={showSurface} onChange={setShowSurface} />
+
+      <SectionTitle>Interior shells</SectionTitle>
+      <Row label="Crust · mantle · core" hint="CRUST1.0 + PREM radii" on={showCrust} onChange={setShowCrust} />
+
+      <SectionTitle>CRUST1.0 thicknesses</SectionTitle>
+      <div className="space-y-1 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        {CRUST1_LAYERS.map((l) => (
+          <div key={l.id} className="flex items-center gap-2.5 text-[11px]">
+            <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: l.color }} />
+            <span className="flex-1 truncate text-white/75">{l.label}</span>
+            <span className="tabular-nums text-white/45">
+              {l.thickness_km > 0 ? `${l.thickness_km.toFixed(1)} km` : "—"}
+            </span>
+          </div>
+        ))}
+        <p className="pt-1 text-[10px] text-white/35">Laske, Masters, Ma &amp; Pasyanos (2013) global means.</p>
       </div>
     </div>
   );
 }
 
-function LayersPanel(props: {
-  active: string[];
-  toggle: (id: string) => void;
-  showCrust: boolean;
-  setShowCrust: (v: boolean) => void;
-  showSurface: boolean;
-  setShowSurface: (v: boolean) => void;
-  realistic: boolean;
-  setRealistic: (v: boolean) => void;
-  hypo: string | null;
-  setHypo: (v: string | null) => void;
-  bundles: GeoRealmBundle[];
-  showVolumetric: boolean;
-  setShowVolumetric: (v: boolean) => void;
-  showMotion: boolean;
-  setShowMotion: (v: boolean) => void;
-  thicknessKm: number;
-  setThicknessKm: (v: number) => void;
-  plateColorMode: "plate" | "activity";
-  setPlateColorMode: (v: "plate" | "activity") => void;
-}) {
-  const {
-    active, toggle, showCrust, setShowCrust, showSurface, setShowSurface,
-    realistic, setRealistic,
-    hypo, setHypo, bundles,
-    showVolumetric, setShowVolumetric, showMotion, setShowMotion,
-    thicknessKm, setThicknessKm,
-    plateColorMode, setPlateColorMode,
-  } = props;
+function PlatesSection({
+  showVolumetric, setShowVolumetric, showMotion, setShowMotion,
+  thicknessKm, setThicknessKm, plateColorMode, setPlateColorMode,
+}: ControlProps) {
   return (
-    <>
-        <div className="mb-3 text-[10px] uppercase tracking-[0.28em] text-white/45">Canonical layers</div>
-        <div className="flex flex-col gap-1.5">
-          {CANONICAL_DATASETS.map((d) => {
-            const on = active.includes(d.id);
-            return (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => toggle(d.id)}
-                className={`group flex items-start gap-2.5 rounded-lg border px-2.5 py-2 text-left text-[11px] transition ${
-                  on
-                    ? "border-orange-400/40 bg-orange-400/10"
-                    : "border-white/5 bg-white/[0.02] hover:border-white/15"
-                }`}
-              >
-                <span
-                  className="mt-1 h-2 w-2 flex-shrink-0 rounded-full"
-                  style={{ background: d.color, boxShadow: on ? `0 0 8px ${d.color}` : "none" }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[11px] font-semibold text-white/90">{d.label}</div>
-                  <div className="text-[10px] leading-snug text-white/40">{d.description}</div>
-                  <div className="mt-0.5 text-[9px] uppercase tracking-wider text-white/25">
-                    {d.citation}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+    <div className="space-y-3">
+      <SectionTitle>Volumetric plates</SectionTitle>
+      <Row label="Extruded lithosphere" hint="Click a plate to inspect it" on={showVolumetric} onChange={setShowVolumetric} />
+      <Row label="Motion vectors" hint="NNR-MORVEL 2010 Euler poles" on={showMotion} onChange={setShowMotion} />
 
-        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">Structural shells</div>
-        <label className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
-          <input
-            type="checkbox"
-            checked={showCrust}
-            onChange={(e) => setShowCrust(e.target.checked)}
-            className="accent-orange-400"
+      <SectionTitle>Colour by</SectionTitle>
+      <div className="flex gap-1.5">
+        {(["plate", "activity"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setPlateColorMode(m)}
+            className={`flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+              plateColorMode === m
+                ? "border-orange-400/40 bg-orange-400/15 text-white"
+                : "border-white/10 bg-white/[0.02] text-white/60 hover:bg-white/[0.06]"
+            }`}
+          >
+            {m === "plate" ? "Identity" : "Velocity"}
+          </button>
+        ))}
+      </div>
+      {plateColorMode === "activity" && (
+        <div>
+          <div
+            className="h-2 w-full rounded-full"
+            style={{
+              background:
+                "linear-gradient(to right,rgb(27,60,122),rgb(42,143,216),rgb(61,214,154),rgb(255,208,58),rgb(255,122,31),rgb(255,45,45))",
+            }}
           />
-          Concentric crust · mantle · core
-        </label>
-        <label className="mt-1 flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
-          <input
-            type="checkbox"
-            checked={showSurface}
-            onChange={(e) => setShowSurface(e.target.checked)}
-            className="accent-orange-400"
-          />
-          Opaque surface (off = X-ray)
-        </label>
-        <label className="mt-1 flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
-          <input
-            type="checkbox"
-            checked={realistic}
-            onChange={(e) => setRealistic(e.target.checked)}
-            className="accent-orange-400"
-          />
-          Realistic Earth (NASA Blue Marble)
-        </label>
+          <div className="mt-1 flex justify-between text-[10px] tabular-nums text-white/45">
+            <span>0</span><span>30</span><span>60</span><span>90</span><span>130+ mm/yr</span>
+          </div>
+        </div>
+      )}
 
-        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
-          Volumetric plate system
+      <SectionTitle>Lithosphere thickness</SectionTitle>
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="mb-2 flex items-center justify-between text-xs">
+          <span className="text-white/70">Extrusion depth</span>
+          <span className="tabular-nums text-white/95">{thicknessKm} km</span>
         </div>
-        <label className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
-          <input
-            type="checkbox"
-            checked={showVolumetric}
-            onChange={(e) => setShowVolumetric(e.target.checked)}
-            className="accent-orange-400"
-          />
-          Extruded lithospheric shells
-        </label>
-        <label className="mt-1 flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
-          <input
-            type="checkbox"
-            checked={showMotion}
-            onChange={(e) => setShowMotion(e.target.checked)}
-            className="accent-orange-400"
-          />
-          Plate motion vectors (NNR-MORVEL 2010)
-        </label>
-        <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
-          <div className="mb-1.5 text-white/70">Color plates by</div>
-          <div className="flex gap-1">
-            {(["plate", "activity"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setPlateColorMode(m)}
-                className={`flex-1 rounded-md border px-2 py-1 text-[10px] uppercase tracking-widest transition ${
-                  plateColorMode === m
-                    ? "border-orange-400/40 bg-orange-400/15 text-white"
-                    : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-                }`}
-              >
-                {m === "plate" ? "Identity" : "Activity"}
-              </button>
-            ))}
-          </div>
-          {plateColorMode === "activity" && (
-            <>
-              <div
-                className="mt-2 h-2 w-full rounded-full"
-                style={{
-                  background:
-                    "linear-gradient(to right,rgb(27,60,122),rgb(42,143,216),rgb(61,214,154),rgb(255,208,58),rgb(255,122,31),rgb(255,45,45))",
-                }}
-              />
-              <div className="mt-1 flex justify-between text-[9px] text-white/45 tabular-nums">
-                <span>0</span><span>30</span><span>60</span><span>90</span><span>130+ mm/yr</span>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="mt-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]">
-          <div className="mb-1.5 flex items-center justify-between text-white/70">
-            <span>Lithosphere thickness</span>
-            <span className="tabular-nums text-white/90">{thicknessKm} km</span>
-          </div>
-          <input
-            type="range"
-            min={20}
-            max={250}
-            step={5}
-            value={thicknessKm}
-            onChange={(e) => setThicknessKm(Number(e.target.value))}
-            className="w-full accent-orange-400"
-          />
-          <div className="mt-1 text-[9px] leading-snug text-white/35">
-            Conrad & Lithgow-Bertelloni (2006) global means: ~100 km oceanic, ~200 km continental.
-          </div>
-        </div>
+        <input
+          type="range"
+          min={20}
+          max={250}
+          step={5}
+          value={thicknessKm}
+          onChange={(e) => setThicknessKm(Number(e.target.value))}
+          className="w-full accent-orange-400"
+        />
+        <p className="mt-1.5 text-[10px] leading-snug text-white/35">
+          Conrad &amp; Lithgow-Bertelloni (2006): ~100 km oceanic, ~200 km continental.
+        </p>
+      </div>
+    </div>
+  );
+}
 
-        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
-          Hypocenter cloud
-        </div>
-        <div className="flex flex-col gap-1">
-          {[{ id: null as string | null, label: "Off" }, ...HYPOCENTER_FEEDS.map((f) => ({ id: f.id, label: f.label }))].map((opt) => {
-            const on = hypo === opt.id;
-            return (
-              <button
-                key={opt.id ?? "off"}
-                type="button"
-                onClick={() => setHypo(opt.id)}
-                className={`rounded-lg border px-2.5 py-1.5 text-left text-[11px] transition ${
-                  on
-                    ? "border-orange-400/40 bg-orange-400/10 text-white"
-                    : "border-white/5 bg-white/[0.02] text-white/70 hover:border-white/15"
-                }`}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-          <div className="mt-1 text-[9px] leading-snug text-white/35">
-            Points plotted at real hypocenter depth reveal Wadati-Benioff subduction slabs.
-          </div>
-        </div>
+function SeismicitySection({ hypo, setHypo }: ControlProps) {
+  const options = [{ id: null as string | null, label: "Off" }, ...HYPOCENTER_FEEDS.map((f) => ({ id: f.id, label: f.label }))];
+  return (
+    <div className="space-y-3">
+      <SectionTitle>Hypocenter cloud</SectionTitle>
+      <div className="space-y-1.5">
+        {options.map((opt) => {
+          const on = hypo === opt.id;
+          return (
+            <button
+              key={opt.id ?? "off"}
+              type="button"
+              onClick={() => setHypo(opt.id)}
+              className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                on ? "border-orange-400/40 bg-orange-400/10 text-white" : "border-white/10 bg-white/[0.02] text-white/70 hover:bg-white/[0.06]"
+              }`}
+            >
+              {opt.label}
+              <Switch on={on} />
+            </button>
+          );
+        })}
+      </div>
+      <p className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[11px] leading-relaxed text-white/45">
+        Events plot at their real hypocenter depth, so dipping clusters trace
+        Wadati-Benioff subduction slabs. Colour ramps shallow (orange) to
+        700 km deep (violet). Live from USGS.
+      </p>
+    </div>
+  );
+}
 
-        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
-          CRUST1.0 legend
-        </div>
-        <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
-          {CRUST1_LAYERS.map((l) => (
-            <div key={l.id} className="flex items-center gap-2 py-0.5 text-[10px]">
-              <span
-                className="h-2 w-2 rounded-sm flex-shrink-0"
-                style={{ background: l.color }}
-              />
-              <span className="flex-1 truncate text-white/75">{l.label}</span>
-              <span className="tabular-nums text-white/45">
-                {l.thickness_km > 0 ? `${l.thickness_km.toFixed(1)} km` : "—"}
-              </span>
-            </div>
-          ))}
-          <div className="mt-1.5 text-[9px] text-white/35">
-            Laske, Masters, Ma, Pasyanos (2013) — global mean thicknesses.
-          </div>
-        </div>
+/* ─────────────────────────── Primitives ─────────────────────────── */
 
-        <div className="mt-5 mb-2 text-[10px] uppercase tracking-[0.28em] text-white/45">
-          Your bundles · {bundles.length}
-        </div>
-        {bundles.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.02] p-3 text-[10px] text-white/40">
-            Compile a bundle to save subsurface data here.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {bundles.map((b) => (
-              <div
-                key={b.id}
-                className="rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-2 text-[11px]"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="truncate font-semibold text-white/90">{b.name}</span>
-                  <span className="text-[9px] uppercase tracking-widest text-white/30">{b.kind}</span>
-                </div>
-                <div className="text-[10px] text-white/40">
-                  {b.layers.length} layer{b.layers.length === 1 ? "" : "s"}
-                  {b.is_public ? " · public" : ""}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-    </>
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <div className="pt-1 text-[10px] font-medium uppercase tracking-[0.2em] text-white/40">{children}</div>;
+}
+
+function Switch({ on }: { on: boolean }) {
+  return (
+    <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${on ? "bg-orange-400" : "bg-white/15"}`}>
+      <span
+        className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${on ? "translate-x-3.5" : "translate-x-0.5"}`}
+      />
+    </span>
+  );
+}
+
+function Row({
+  label, hint, on, onChange,
+}: { label: string; hint?: string; on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!on)}
+      className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+        on ? "border-orange-400/30 bg-orange-400/[0.08]" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]"
+      }`}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm text-white/90">{label}</span>
+        {hint && <span className="block text-[10px] text-white/45">{hint}</span>}
+      </span>
+      <Switch on={on} />
+    </button>
   );
 }

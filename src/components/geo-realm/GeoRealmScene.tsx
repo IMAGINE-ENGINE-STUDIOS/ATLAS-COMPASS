@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
@@ -213,34 +213,87 @@ function EarthShell({ opacity }: { opacity: number }) {
 }
 
 /**
- * Photoreal Earth — NASA Blue Marble day map draped on the shell so users
- * can see continents/oceans as reference while inspecting plates.
+ * Rim atmosphere — an additive backside shell whose alpha rises toward the
+ * silhouette. Gives the globe a visible limb against the near-black
+ * background instead of the flat cut-out edge it had before.
  */
-function RealisticEarth({ opacity }: { opacity: number }) {
-  const tex = useLoader(
-    THREE.TextureLoader,
-    "https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg",
+function Atmosphere() {
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        transparent: true,
+        side: THREE.BackSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uColor: { value: new THREE.Color("#4aa3ff") } },
+        vertexShader: `
+          varying vec3 vNormal;
+          varying vec3 vView;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vView = normalize(-mv.xyz);
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          varying vec3 vNormal;
+          varying vec3 vView;
+          void main() {
+            float rim = pow(1.0 - abs(dot(vNormal, vView)), 2.2);
+            gl_FragColor = vec4(uColor, rim * 0.55);
+          }
+        `,
+      }),
+    [],
   );
-  // Three.js SphereGeometry maps texture u=0 to −X (longitude −180°) and
-  // u=0.25 to +Z (longitude −90°). Our `lonLatToUnit` places longitude 0°
-  // at +X and longitude +90° at +Z — i.e. the two conventions are
-  // east/west mirrored (opposite chirality). Every geo layer in this
-  // scene (plates, hypocenters, arrows) uses `lonLatToUnit`, so we align
-  // the reference texture to them by mirroring it horizontally instead
-  // of rotating the sphere (a rotation can't fix a chirality flip).
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.repeat.x = -1;
-  tex.offset.x = 1;
-  tex.needsUpdate = true;
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh material={material}>
+      <sphereGeometry args={[R * 1.035, 64, 48]} />
+    </mesh>
+  );
+}
+
+
+/**
+ * Photoreal Earth — NASA Blue Marble Next Generation (8192×4096) draped on
+ * the shell so continents/oceans read as reference while inspecting plates.
+ *
+ * The map is applied with no mirroring or rotation: `lonLatToUnit` now shares
+ * THREE.SphereGeometry's UV frame, so geography and geo layers line up by
+ * construction. `SRGBColorSpace` is essential — without it the map renders
+ * roughly gamma-squared, which is why the globe used to look almost black.
+ */
+/**
+ * NASA Blue Marble Next Generation topo+bathy (5400×2700), routed through the
+ * project's GIS proxy: eoimages sends no CORS header, so a direct WebGL
+ * texture load is rejected by the browser.
+ */
+const BLUE_MARBLE_SRC =
+  "https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg";
+const BLUE_MARBLE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gis-proxy?url=${encodeURIComponent(BLUE_MARBLE_SRC)}`;
+
+
+function RealisticEarth({ opacity }: { opacity: number }) {
+  const tex = useLoader(THREE.TextureLoader, BLUE_MARBLE_URL);
+  useEffect(() => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.repeat.set(1, 1);
+    tex.offset.set(0, 0);
+    tex.needsUpdate = true;
+  }, [tex]);
   return (
     <mesh>
       <sphereGeometry args={[R * 0.999, 128, 96]} />
-      <meshStandardMaterial
+      <meshBasicMaterial
         map={tex}
-        roughness={0.95}
-        metalness={0}
         transparent={opacity < 1}
         opacity={opacity}
+        toneMapped={false}
       />
     </mesh>
   );
@@ -253,7 +306,9 @@ function CameraHud({ onChange }: { onChange: (info: { alt: number; lat: number; 
     const dist = p.length();
     const alt = dist - R;
     const lat = Math.asin(p.y / dist) * (180 / Math.PI);
-    const lon = Math.atan2(p.z, p.x) * (180 / Math.PI);
+    // Inverse of lonLatToUnit: z = −cos(lat)·sin(lon), x = cos(lat)·cos(lon).
+    const lon = Math.atan2(-p.z, p.x) * (180 / Math.PI);
+
     const last = lastRef.current;
     if (Math.abs(alt - last.alt) > 0.005 || Math.abs(lat - last.lat) > 0.2 || Math.abs(lon - last.lon) > 0.2) {
       lastRef.current = { alt, lat, lon };
@@ -295,21 +350,29 @@ export default function GeoRealmScene({
   const active = CANONICAL_DATASETS.filter((d) => activeCanonical.includes(d.id));
   return (
     <Canvas
-      camera={{ position: [0, 0.4, 2.6], fov: 42, near: 0.001, far: 100 }}
-      gl={{ antialias: true, alpha: false }}
+      camera={{ position: [0, 0.9, 3.4], fov: 40, near: 0.001, far: 100 }}
+      gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+      dpr={[1, 1.75]}
       style={{ background: "#04070f" }}
     >
       <color attach="background" args={["#04070f"]} />
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[3, 4, 2]} intensity={1.1} color="#ffffff" />
-      <directionalLight position={[-3, -2, -3]} intensity={0.3} color="#4a90ff" />
-      <Stars radius={40} depth={20} count={2000} factor={2} fade speed={0.4} />
+      {/* Blue Marble is unlit (meshBasicMaterial) so it reads at full
+          brightness; the lights below shape the extruded plate shells,
+          crust shells and motion arrows only. */}
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[3, 4, 2]} intensity={1.2} color="#ffffff" />
+      <directionalLight position={[-3, -2, -3]} intensity={0.4} color="#4a90ff" />
+      <Stars radius={40} depth={20} count={900} factor={2} fade speed={0.3} />
 
-      {realistic ? (
-        <RealisticEarth opacity={showSurface ? 1 : 0.25} />
-      ) : (
-        <EarthShell opacity={showSurface ? 0.6 : 0.05} />
-      )}
+      <Suspense fallback={<EarthShell opacity={0.6} />}>
+        {realistic ? (
+          <RealisticEarth opacity={showSurface ? 1 : 0.25} />
+        ) : (
+          <EarthShell opacity={showSurface ? 0.6 : 0.05} />
+        )}
+      </Suspense>
+      <Atmosphere />
+
       <CrustShells visible={showCrust} />
 
       {active.map((d) => (
