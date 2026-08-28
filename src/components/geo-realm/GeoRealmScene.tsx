@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
@@ -211,6 +211,51 @@ function EarthShell({ opacity }: { opacity: number }) {
     </group>
   );
 }
+
+/**
+ * Rim atmosphere — an additive backside shell whose alpha rises toward the
+ * silhouette. Gives the globe a visible limb against the near-black
+ * background instead of the flat cut-out edge it had before.
+ */
+function Atmosphere() {
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        transparent: true,
+        side: THREE.BackSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uColor: { value: new THREE.Color("#4aa3ff") } },
+        vertexShader: `
+          varying vec3 vNormal;
+          varying vec3 vView;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vView = normalize(-mv.xyz);
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          varying vec3 vNormal;
+          varying vec3 vView;
+          void main() {
+            float rim = pow(1.0 - abs(dot(vNormal, vView)), 2.2);
+            gl_FragColor = vec4(uColor, rim * 0.55);
+          }
+        `,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh material={material}>
+      <sphereGeometry args={[R * 1.035, 64, 48]} />
+    </mesh>
+  );
+}
+
 
 /**
  * Photoreal Earth — NASA Blue Marble Next Generation (8192×4096) draped on
