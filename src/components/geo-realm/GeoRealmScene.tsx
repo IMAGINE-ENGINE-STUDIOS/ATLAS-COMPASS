@@ -266,8 +266,15 @@ function Atmosphere() {
  * construction. `SRGBColorSpace` is essential — without it the map renders
  * roughly gamma-squared, which is why the globe used to look almost black.
  */
-const BLUE_MARBLE_URL =
+/**
+ * NASA Blue Marble Next Generation topo+bathy (5400×2700), routed through the
+ * project's GIS proxy: eoimages sends no CORS header, so a direct WebGL
+ * texture load is rejected by the browser.
+ */
+const BLUE_MARBLE_SRC =
   "https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg";
+const BLUE_MARBLE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gis-proxy?url=${encodeURIComponent(BLUE_MARBLE_SRC)}`;
+
 
 function RealisticEarth({ opacity }: { opacity: number }) {
   const tex = useLoader(THREE.TextureLoader, BLUE_MARBLE_URL);
