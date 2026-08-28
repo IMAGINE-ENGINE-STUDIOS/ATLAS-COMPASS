@@ -213,34 +213,35 @@ function EarthShell({ opacity }: { opacity: number }) {
 }
 
 /**
- * Photoreal Earth — NASA Blue Marble day map draped on the shell so users
- * can see continents/oceans as reference while inspecting plates.
+ * Photoreal Earth — NASA Blue Marble Next Generation (8192×4096) draped on
+ * the shell so continents/oceans read as reference while inspecting plates.
+ *
+ * The map is applied with no mirroring or rotation: `lonLatToUnit` now shares
+ * THREE.SphereGeometry's UV frame, so geography and geo layers line up by
+ * construction. `SRGBColorSpace` is essential — without it the map renders
+ * roughly gamma-squared, which is why the globe used to look almost black.
  */
+const BLUE_MARBLE_URL =
+  "https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg";
+
 function RealisticEarth({ opacity }: { opacity: number }) {
-  const tex = useLoader(
-    THREE.TextureLoader,
-    "https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg",
-  );
-  // Three.js SphereGeometry maps texture u=0 to −X (longitude −180°) and
-  // u=0.25 to +Z (longitude −90°). Our `lonLatToUnit` places longitude 0°
-  // at +X and longitude +90° at +Z — i.e. the two conventions are
-  // east/west mirrored (opposite chirality). Every geo layer in this
-  // scene (plates, hypocenters, arrows) uses `lonLatToUnit`, so we align
-  // the reference texture to them by mirroring it horizontally instead
-  // of rotating the sphere (a rotation can't fix a chirality flip).
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.repeat.x = -1;
-  tex.offset.x = 1;
-  tex.needsUpdate = true;
+  const tex = useLoader(THREE.TextureLoader, BLUE_MARBLE_URL);
+  useEffect(() => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.repeat.set(1, 1);
+    tex.offset.set(0, 0);
+    tex.needsUpdate = true;
+  }, [tex]);
   return (
     <mesh>
       <sphereGeometry args={[R * 0.999, 128, 96]} />
-      <meshStandardMaterial
+      <meshBasicMaterial
         map={tex}
-        roughness={0.95}
-        metalness={0}
         transparent={opacity < 1}
         opacity={opacity}
+        toneMapped={false}
       />
     </mesh>
   );
@@ -253,7 +254,9 @@ function CameraHud({ onChange }: { onChange: (info: { alt: number; lat: number; 
     const dist = p.length();
     const alt = dist - R;
     const lat = Math.asin(p.y / dist) * (180 / Math.PI);
-    const lon = Math.atan2(p.z, p.x) * (180 / Math.PI);
+    // Inverse of lonLatToUnit: z = −cos(lat)·sin(lon), x = cos(lat)·cos(lon).
+    const lon = Math.atan2(-p.z, p.x) * (180 / Math.PI);
+
     const last = lastRef.current;
     if (Math.abs(alt - last.alt) > 0.005 || Math.abs(lat - last.lat) > 0.2 || Math.abs(lon - last.lon) > 0.2) {
       lastRef.current = { alt, lat, lon };
