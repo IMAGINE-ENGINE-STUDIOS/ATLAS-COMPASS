@@ -194,7 +194,7 @@ export function VolumetricPlates({
 
   return (
     <group>
-      {plates.map((p) => {
+      {plates.map((p, pi) => {
         const isSelected = selectedCode === p.code;
         const isHover = hoverCode === p.code;
         // Cap fill uses a stable opacity so overlapping meshes can't
@@ -227,7 +227,7 @@ export function VolumetricPlates({
           },
         };
         return (
-          <group key={p.code}>
+          <group key={`${p.code}-${pi}`}>
             {p.capFill && (
               <mesh geometry={p.capFill} {...handlers}>
                 <meshBasicMaterial
@@ -265,10 +265,10 @@ export function VolumetricPlates({
         );
       })}
 
-      {showMotion && plates.map((p) => (
+      {showMotion && plates.map((p, pi) => (
         p.velocity && p.pole ? (
           <PlateMotionArrow
-            key={p.code}
+            key={`${p.code}-${pi}`}
             spec={{
               lon: p.centroid.lon,
               lat: p.centroid.lat,
