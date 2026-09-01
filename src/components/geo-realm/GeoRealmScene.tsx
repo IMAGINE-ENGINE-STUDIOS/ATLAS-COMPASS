@@ -348,9 +348,13 @@ export default function GeoRealmScene({
   onCamera,
 }: GeoRealmSceneProps) {
   const active = CANONICAL_DATASETS.filter((d) => activeCanonical.includes(d.id));
+  // Narrow viewports need the camera pulled back so the whole globe fits the
+  // frame instead of being cropped by the portrait aspect ratio.
+  const narrow = typeof window !== "undefined" && window.innerWidth < 640;
   return (
     <Canvas
-      camera={{ position: [0, 0.9, 3.4], fov: 40, near: 0.001, far: 100 }}
+      camera={{ position: narrow ? [0, 0.9, 5.2] : [0, 0.9, 3.4], fov: 40, near: 0.001, far: 100 }}
+
       gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
       dpr={[1, 1.75]}
       style={{ background: "#04070f" }}
