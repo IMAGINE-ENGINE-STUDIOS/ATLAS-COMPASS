@@ -40,6 +40,7 @@ const PlanetAtlasPage = lazy(() => import("@/pages/PlanetAtlasPage"));
 import IconsPage from "@/pages/IconsPage";
 import LevelsListPage from "@/pages/LevelsListPage";
 import LevelEditorPage from "@/pages/LevelEditorPage";
+import ImagineEngineStudioPage from "@/pages/ImagineEngineStudioPage";
 import FilesPage from "@/pages/FilesPage";
 import ImagineDesignLabPage from "@/pages/ImagineDesignLabPage";
 import NotFound from "./pages/NotFound.tsx";
@@ -83,6 +84,8 @@ const App = () => (
           <Route path="/levels" element={<LevelsListPage />} />
           <Route path="/level/:id" element={<LevelEditorPage />} />
           <Route path="/locomotion" element={<LevelEditorPage />} />
+          <Route path="/imagine-studio" element={<ImagineEngineStudioPage />} />
+          <Route path="/imagine-studio/:id" element={<ImagineEngineStudioPage />} />
 
           {/* World Model Engine — V/M/C learned world simulation */}
           <Route path="/worlds" element={<WorldsListPage />} />
