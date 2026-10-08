@@ -85,6 +85,7 @@ const App = () => (
           <Route path="/level/:id" element={<LevelEditorPage />} />
           <Route path="/locomotion" element={<LevelEditorPage />} />
           <Route path="/imagine-studio" element={<ImagineEngineStudioPage />} />
+          <Route path="/imagine-studio/rig-room" element={<ImagineEngineStudioPage />} />
           <Route path="/imagine-studio/:id" element={<ImagineEngineStudioPage />} />
 
           {/* World Model Engine — V/M/C learned world simulation */}
