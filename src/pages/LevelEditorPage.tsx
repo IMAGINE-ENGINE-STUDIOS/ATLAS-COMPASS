@@ -507,7 +507,9 @@ export default function LevelEditorPage() {
    * terrain, inspector, animations) so users can sculpt rigs surrounded by
    * the full scene-creation toolset.
    */
-  const rigRoomMode = location.pathname === "/locomotion";
+  const rigRoomMode =
+    location.pathname === "/locomotion" || location.pathname === "/imagine-studio/rig-room";
+  const inStudio = location.pathname.startsWith("/imagine-studio");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1960,6 +1962,18 @@ export default function LevelEditorPage() {
           )}
           <Button size="sm" variant="ghost" onClick={() => setShowGrid((v) => !v)} title="Toggle grid" className={isMobile ? "h-7 w-7 px-0" : ""}>
             {showGrid ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          </Button>
+          <Button
+            size="sm"
+            variant={rigRoomMode ? "secondary" : "outline"}
+            onClick={() => {
+              if (rigRoomMode) navigate(inStudio ? "/imagine-studio" : "/levels");
+              else navigate(inStudio ? "/imagine-studio/rig-room" : "/locomotion");
+            }}
+            title={rigRoomMode ? "Back to Scene Studio" : "Open Rig Controller Room"}
+            className={isMobile ? "h-7 px-2 text-[11px]" : ""}
+          >
+            {rigRoomMode ? "Scene Studio" : "Rig Room"}
           </Button>
           {!isMobile && (
             <Button size="sm" variant="ghost" onClick={() => setPlaying((p) => !p)} title="Play / Pause">
